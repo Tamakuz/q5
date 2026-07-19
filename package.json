@@ -2,6 +2,7 @@
   "name": "content-auto",
   "version": "0.1.0",
   "private": true,
+  "workspaces": ["dashboard"],
   "description": "Remotion-based automated content rendering engine for YouTube",
   "scripts": {
     "build": "tsc --noEmit",
