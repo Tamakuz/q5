@@ -1,0 +1,27 @@
+{
+  "name": "content-auto",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Remotion-based automated content rendering engine for YouTube",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "render": "npx tsx cli.ts render",
+    "validate": "npx tsx cli.ts validate"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.0",
+    "@remotion/renderer": "^4.0.0",
+    "commander": "^12.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "remotion": "^4.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@remotion/cli": "^4.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}
