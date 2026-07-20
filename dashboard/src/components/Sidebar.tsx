@@ -1,7 +1,7 @@
 // dashboard/src/components/Sidebar.tsx
 import React from 'react';
 
-export type StepId = 'source' | 'analyze' | 'preview' | 'render' | 'export';
+export type StepId = 'source' | 'analyze' | 'preview' | 'transcript' | 'render' | 'export';
 
 interface Step {
   id: StepId;
@@ -13,6 +13,7 @@ const STEPS: Step[] = [
   { id: 'source', icon: '🎬', label: 'Source' },
   { id: 'analyze', icon: '🔍', label: 'Analyze' },
   { id: 'preview', icon: '👁', label: 'Preview' },
+  { id: 'transcript', icon: '📜', label: 'Transcript' },
   { id: 'render', icon: '🎬', label: 'Render' },
   { id: 'export', icon: '📦', label: 'Export' },
 ];

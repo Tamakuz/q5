@@ -27,7 +27,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
 
   // Render video via Remotion
-  renderVideo: () => ipcRenderer.invoke('render-video'),
+  renderVideo: (mapping, videoPath, audioPath) => ipcRenderer.invoke('render-video', mapping, videoPath, audioPath),
   onRenderProgress: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('render-progress', handler);

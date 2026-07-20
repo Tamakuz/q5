@@ -20,6 +20,7 @@ export interface SourceInfo {
   size: number;
   url: string;
   createdAt?: string;
+  filePath?: string;
 }
 
 export interface AudioInfo {
@@ -27,6 +28,7 @@ export interface AudioInfo {
   size: number;
   url: string;
   createdAt?: string;
+  filePath?: string;
 }
 
 export interface RenderProgress {
@@ -52,7 +54,7 @@ export interface ElectronAPI {
   copyToClipboard: (text: string) => Promise<boolean>;
   saveToProject: (subPath: string, data: string) => Promise<boolean>;
   readFromProject: (subPath: string) => Promise<string | null>;
-  renderVideo: () => Promise<RenderResult | { error: string }>;
+  renderVideo: (mapping: object, videoPath: string, audioPath?: string) => Promise<RenderResult | { error: string }>;
   onRenderProgress: (callback: (data: RenderProgress) => void) => () => void;
 }
 

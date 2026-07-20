@@ -59,6 +59,7 @@ export const VideoClipScene: React.FC<VideoClipSceneProps> = ({ data, durationIn
         src={data.src}
         startFrom={startFrame}
         endAt={endFrame}
+        muted
         style={{
           width: '100%',
           height: '100%',

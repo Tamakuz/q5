@@ -279,6 +279,7 @@ ipcMain.handle('upload-source', async (_event, { filePath, start, end }) => {
       name: baseName,
       size: stat.size,
       url: mediaUrl(destPath),
+      filePath: destPath,
     };
   }
 
@@ -308,6 +309,7 @@ ipcMain.handle('upload-source', async (_event, { filePath, start, end }) => {
         name: outputName,
         size: stat.size,
         url: mediaUrl(outputPath),
+        filePath: outputPath,
       });
     });
 
@@ -350,6 +352,7 @@ ipcMain.handle('upload-audio', async (_event, { filePath }) => {
     name: baseName,
     size: stat.size,
     url: mediaUrl(destPath),
+    filePath: destPath,
   };
 });
 
@@ -367,6 +370,7 @@ ipcMain.handle('list-audio', async () => {
           size: stat.size,
           createdAt: stat.birthtime.toISOString(),
           url: mediaUrl(fp),
+          filePath: fp,
         };
       })
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -391,6 +395,7 @@ ipcMain.handle('list-sources', async () => {
           size: stat.size,
           createdAt: stat.birthtime.toISOString(),
           url: mediaUrl(fp),
+          filePath: fp,
         };
       })
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -437,70 +442,117 @@ ipcMain.handle('read-from-project', async (_event, subPath) => {
   return fs.readFileSync(fp, 'utf-8');
 });
 
-// ─── Render video via Remotion ────────────────────────
+// ─── Render video via FFmpeg CLI ──────────────────────
 
-ipcMain.handle('render-video', async () => {
-  const bundle = require('@remotion/bundler');
-  const renderer = require('@remotion/renderer');
-
-  const configPath = path.join(PROJECT_ROOT, 'input', 'render-config.json');
-  if (!fs.existsSync(configPath)) {
-    return { error: 'No render config found. Generate it in the Render step first.' };
+ipcMain.handle('render-video', async (_event, mapping, videoPath, audioPath) => {
+  if (!mapping || !videoPath) {
+    return { error: 'Missing mapping or video path.' };
   }
 
-  let config;
-  try {
-    config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-  } catch (err) {
-    return { error: `Failed to parse render-config.json: ${err.message}` };
+  // Resolve paths
+  const resolvedVideo = path.resolve(videoPath);
+  if (!fs.existsSync(resolvedVideo)) {
+    return { error: `Video not found: ${resolvedVideo}` };
   }
 
-  const entryPoint = path.join(PROJECT_ROOT, 'src', 'index.ts');
+  let resolvedAudio = null;
+  if (audioPath) {
+    resolvedAudio = path.resolve(audioPath);
+    if (!fs.existsSync(resolvedAudio)) {
+      console.warn(`⚠️  Audio not found: ${resolvedAudio}, rendering without`);
+      resolvedAudio = null;
+    }
+  }
+
+  // Fallback: auto-detect audio from assets
+  if (!resolvedAudio) {
+    try {
+      const audioFiles = fs.readdirSync(INPUT_ASSETS).filter((f) =>
+        /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(f)
+      );
+      if (audioFiles.length > 0) {
+        resolvedAudio = path.join(INPUT_ASSETS, audioFiles[0]);
+      }
+    } catch {}
+  }
+
+  // Write mapping to temp file for CLI
+  const mappingFile = path.join(TMP_DIR, `mapping_${Date.now()}.json`);
+  fs.writeFileSync(mappingFile, JSON.stringify(mapping, null, 2), 'utf-8');
+
   const outputDir = path.join(PROJECT_ROOT, 'output');
   if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-
   const outputFileName = `render_${Date.now()}.mp4`;
   const outputPath = path.join(outputDir, outputFileName);
 
-  try {
-    // 1. Bundle
-    mainWindow.webContents.send('render-progress', { stage: 'bundle', progress: 0, message: 'Bundling Remotion project...' });
-    const bundleLocation = await bundle.bundle({ entryPoint });
-
-    // 2. Select composition
-    mainWindow.webContents.send('render-progress', { stage: 'compose', progress: 0.1, message: 'Selecting composition...' });
-    const composition = await renderer.selectComposition({
-      serveUrl: bundleLocation,
-      id: 'content-auto-video',
-      inputProps: config,
-    });
-
-    // 3. Render with progress
+  return new Promise((resolve) => {
     const startTime = Date.now();
-    await renderer.renderMedia({
-      composition,
-      serveUrl: bundleLocation,
-      codec: 'h264',
-      outputLocation: outputPath,
-      inputProps: config,
-      onProgress: ({ progress }) => {
+
+    const cliPath = path.join(PROJECT_ROOT, 'cli.ts');
+    let cmd = `npx tsx "${cliPath}" render "${mappingFile}" --video "${resolvedVideo}"`;
+    if (resolvedAudio) cmd += ` --audio "${resolvedAudio}"`;
+    cmd += ` -o "${outputPath}"`;
+
+    const child = spawn('bash', ['-c', cmd], {
+      cwd: PROJECT_ROOT,
+      env: { ...process.env },
+    });
+
+    let fullStdout = '';
+    let fullStderr = '';
+
+    child.stdout.on('data', (d) => {
+      fullStdout += d.toString();
+      const lines = d.toString().trim().split('\n').filter(Boolean);
+      for (const line of lines) {
+        // CLI outputs progress with %: "   ✂️  Extracting: 5/20 clips (25%)   " or "   🎥 75% (12.3s / 45.0s)"
+        const pctMatch = line.match(/(\d+)%/);
+        if (pctMatch) {
+          const pct = parseInt(pctMatch[1], 10) / 100;
+          mainWindow.webContents.send('render-progress', {
+            stage: 'render',
+            progress: Math.min(0.99, pct),
+            message: line.trim(),
+          });
+        } else {
+          // Info/log line
+          const trimmed = line.trim();
+          if (trimmed) {
+            mainWindow.webContents.send('render-progress', {
+              stage: 'render',
+              progress: 0.05,
+              message: trimmed,
+            });
+          }
+        }
+      }
+    });
+
+    child.stderr.on('data', (d) => {
+      fullStderr += d.toString();
+    });
+
+    child.on('close', (code) => {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      // Cleanup mapping temp file
+      try { fs.unlinkSync(mappingFile); } catch {}
+      if (code === 0) {
         mainWindow.webContents.send('render-progress', {
-          stage: 'render',
-          progress: 0.1 + progress * 0.9,
-          message: `Rendering: ${Math.round(progress * 100)}%`,
+          stage: 'done',
+          progress: 1,
+          message: `Done in ${elapsed}s`,
         });
-      },
+        resolve({ outputPath, elapsed });
+      } else {
+        const errLines = fullStderr.split('\n').filter(Boolean).slice(-15).join('\n');
+        const outLines = fullStdout.split('\n').filter(Boolean).slice(-10).join('\n');
+        resolve({ error: `CLI exit code ${code}\n\nSTDERR:\n${errLines}\n\nSTDOUT:\n${outLines}` });
+      }
     });
 
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    mainWindow.webContents.send('render-progress', {
-      stage: 'done',
-      progress: 1,
-      message: `Done in ${elapsed}s`,
+    child.on('error', (err) => {
+      try { fs.unlinkSync(mappingFile); } catch {}
+      resolve({ error: `Failed to launch render CLI: ${err.message}` });
     });
-
-    return { outputPath, elapsed };
-  } catch (err) {
-    return { error: `Render failed: ${err.message}` };
-  }
+  });
 });

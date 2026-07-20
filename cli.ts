@@ -1,163 +1,221 @@
 // cli.ts
 import { Command } from 'commander';
-import { VideoConfigSchema } from './src/types/schema';
-import { bundle } from '@remotion/bundler';
-import { renderMedia, selectComposition } from '@remotion/renderer';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
+import { spawn } from 'child_process';
+import { createRequire } from 'module';
+import { z } from 'zod';
+const require = createRequire(import.meta.url);
+const ffmpegBin: string = require('@ffmpeg-installer/ffmpeg').path;
 
 const program = new Command();
 
 program
   .name('content-auto')
-  .description('Render videos from scene-based JSON using Remotion engine')
+  .description('Render vertical videos from AI mapping JSON using FFmpeg')
   .version('0.1.0');
 
-// ─── Validate command ────────────────────────────────
+// ─── Zod Schemas ─────────────────────────────────────
 
-program
-  .command('validate')
-  .description('Validate a scene JSON file without rendering')
-  .argument('<input>', 'Path to scene JSON file')
-  .action(async (inputPath: string) => {
-    const resolvedPath = path.resolve(inputPath);
+const ClipSchema = z.object({
+  id: z.number().int().positive(),
+  text: z.string().optional(),
+  ss: z.number().min(0),
+  t: z.number().positive(),
+});
 
-    if (!fs.existsSync(resolvedPath)) {
-      console.error(`❌ File not found: ${resolvedPath}`);
-      process.exit(1);
-    }
+const MappingSchema = z.object({
+  settings: z.object({
+    fps: z.number().int().positive(),
+    format: z.enum(["9:16", "16:9"]),
+  }),
+  timeline: z.array(ClipSchema).min(1),
+});
 
-    try {
-      const raw = JSON.parse(fs.readFileSync(resolvedPath, 'utf-8'));
-      const parsed = VideoConfigSchema.parse(raw);
+type Clip = z.infer<typeof ClipSchema>;
+type Mapping = z.infer<typeof MappingSchema>;
 
-      console.log(`✅ JSON is valid.`);
-      console.log(`   Title: ${parsed.metadata.title}`);
-      console.log(
-        `   Resolution: ${parsed.metadata.resolution.width}x${parsed.metadata.resolution.height}`,
-      );
-      console.log(`   FPS: ${parsed.metadata.fps}`);
-      console.log(`   Scenes: ${parsed.scenes.length}`);
-      console.log(`   Total duration: ${parsed.metadata.duration}s`);
-      console.log(`   Audio: ${parsed.audio ? `BGM ${parsed.audio.bgm}` : 'none'}`);
+// ─── Helpers ──────────────────────────────────────────
 
-      // Check scene assets exist
-      for (const scene of parsed.scenes) {
-        if (scene.type === 'image') {
-          const assetPath = path.resolve(path.dirname(resolvedPath), scene.data.src);
-          if (!fs.existsSync(assetPath)) {
-            console.warn(`⚠️  Asset not found: ${scene.data.src} (relative to JSON file)`);
-          }
-        }
-        if (scene.type === 'video_clip') {
-          const assetPath = path.resolve(path.dirname(resolvedPath), scene.data.src);
-          if (!fs.existsSync(assetPath)) {
-            console.warn(`⚠️  Video clip source not found: ${scene.data.src} (relative to JSON file)`);
-          }
-        }
-      }
-
-      if (parsed.audio?.bgm) {
-        const bgmPath = path.resolve(path.dirname(resolvedPath), parsed.audio.bgm);
-        if (!fs.existsSync(bgmPath)) {
-          console.warn(`⚠️  BGM file not found: ${parsed.audio.bgm} (relative to JSON file)`);
-        }
-      }
-    } catch (err: any) {
-      if (err.issues) {
-        // Zod validation error
-        console.error('❌ JSON validation failed:');
-        for (const issue of err.issues) {
-          console.error(`   - ${issue.path.join('.')}: ${issue.message}`);
-        }
-      } else {
-        console.error(`❌ Invalid JSON: ${err.message}`);
-      }
-      process.exit(1);
-    }
+function runFFmpeg(args: string[], cwd: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(ffmpegBin, args, { cwd });
+    let err = '';
+    child.stderr.on('data', (d: Buffer) => { err += d.toString(); });
+    child.on('close', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`FFmpeg exit ${code}: ${err.slice(-300)}`));
+    });
+    child.on('error', reject);
   });
+}
+
+/**
+ * Run FFmpeg with -progress pipe:1 for structured progress.
+ * Parses `out_time_us` from stdout and calls cb(pct, msg).
+ */
+function runFFmpegProgress(
+  args: string[],
+  cwd: string,
+  totalDurSec: number,
+  cb: (pct: number, msg: string) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(ffmpegBin, args, { cwd });
+    let stderr = '';
+
+    child.stdout.on('data', (d: Buffer) => {
+      const text = d.toString();
+      const match = text.match(/^out_time_us=(\d+)$/m);
+      if (match) {
+        const us = parseInt(match[1], 10);
+        const sec = us / 1_000_000;
+        const pct = Math.min(99, Math.round((sec / totalDurSec) * 100));
+        cb(pct, `${sec.toFixed(1)}s / ${totalDurSec.toFixed(1)}s`);
+      }
+    });
+
+    child.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
+
+    child.on('close', (code) => {
+      if (code === 0) { cb(100, 'Done'); resolve(); }
+      else reject(new Error(`FFmpeg exit ${code}: ${stderr.slice(-500)}`));
+    });
+
+    child.on('error', reject);
+  });
+}
 
 // ─── Render command ──────────────────────────────────
 
 program
   .command('render')
-  .description('Render a video from scene JSON')
-  .argument('<input>', 'Path to scene JSON file')
+  .description('Render a video from AI mapping JSON')
+  .argument('<mapping>', 'Path to AI mapping JSON file')
+  .requiredOption('--video <path>', 'Path to source video file')
+  .option('-a, --audio <path>', 'Path to voice-over audio file')
   .option('-o, --output <path>', 'Output MP4 file path', 'output/video.mp4')
-  .option('--codec <codec>', 'Video codec', 'h264')
-  .action(async (inputPath: string, options: { output: string; codec: string }) => {
-    const resolvedInput = path.resolve(inputPath);
-    const resolvedOutput = path.resolve(options.output);
+  .action(async (mappingPath: string, opts: { video: string; audio?: string; output: string }) => {
+    const resolvedMap = path.resolve(mappingPath);
+    const resolvedVideo = path.resolve(opts.video);
+    const resolvedAudio = opts.audio ? path.resolve(opts.audio) : null;
+    const resolvedOutput = path.resolve(opts.output);
 
-    // Ensure output directory exists
-    const outputDir = path.dirname(resolvedOutput);
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
+    // Validate input existence
+    if (!fs.existsSync(resolvedMap)) { console.error(`❌ Mapping not found: ${resolvedMap}`); process.exit(1); }
+    if (!fs.existsSync(resolvedVideo)) { console.error(`❌ Video not found: ${resolvedVideo}`); process.exit(1); }
+    let resolvedAudioFinal = resolvedAudio;
+    if (resolvedAudio && !fs.existsSync(resolvedAudio)) {
+      console.warn(`⚠️  Audio not found — rendering without`);
+      resolvedAudioFinal = null;
     }
 
-    // 1. Load and validate JSON
-    console.log('📄 Loading scene JSON...');
-    let config;
+    const outDir = path.dirname(resolvedOutput);
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+
+    // 1. Load & validate mapping
+    console.log('📄 Loading mapping JSON...');
+    let mapping: Mapping;
     try {
-      const raw = JSON.parse(fs.readFileSync(resolvedInput, 'utf-8'));
-      config = VideoConfigSchema.parse(raw);
+      const raw = JSON.parse(fs.readFileSync(resolvedMap, 'utf-8'));
+      mapping = MappingSchema.parse(raw);
     } catch (err: any) {
-      if (err.issues) {
-        console.error('❌ JSON validation failed:');
+      if (err instanceof z.ZodError) {
+        console.error('❌ Schema validation failed:');
         for (const issue of err.issues) {
           console.error(`   - ${issue.path.join('.')}: ${issue.message}`);
         }
-      } else {
-        console.error(`❌ Error: ${err.message}`);
+        process.exit(1);
       }
+      console.error(`❌ ${err.message}`);
       process.exit(1);
     }
 
-    console.log(`✅ Valid JSON: "${config.metadata.title}"`);
-    console.log(
-      `   ${config.metadata.resolution.width}x${config.metadata.resolution.height} @ ${config.metadata.fps}fps`,
-    );
-    console.log(`   ${config.scenes.length} scenes, ${config.metadata.duration}s total`);
+    const clips = mapping.timeline;
+    const totalDur = clips.reduce((s: number, c: Clip) => s + c.t, 0);
+    const { width, height } = mapping.settings.format === '16:9'
+      ? { width: 1920, height: 1080 }
+      : { width: 1080, height: 1920 };
 
-    // 2. Bundle
-    console.log('📦 Bundling Remotion project...');
-    // When run via tsx, __dirname is not available in ESM. Use import.meta.url
-    const entryPoint = path.resolve(
-      typeof __dirname !== 'undefined' ? __dirname : path.dirname(new URL(import.meta.url).pathname),
-      'src',
-      'index.ts',
-    );
-    const bundleLocation = await bundle({
-      entryPoint,
-    });
-    console.log(`✅ Bundle ready: ${bundleLocation}`);
+    console.log(`✅ ${clips.length} clips, ${totalDur.toFixed(1)}s total, ${width}x${height}`);
 
-    // 3. Select composition
-    console.log('🎬 Selecting composition...');
-    const composition = await selectComposition({
-      serveUrl: bundleLocation,
-      id: 'content-auto-video',
-      inputProps: config,
-    });
-    console.log(
-      `✅ Composition: ${composition.id} (${composition.durationInFrames} frames)`,
-    );
+    // 2. Parallel extraction
+    const tmpDir = path.join(os.tmpdir(), `ca-${Date.now()}`);
+    fs.mkdirSync(tmpDir, { recursive: true });
 
-    // 4. Render
-    console.log('🎥 Rendering video...');
-    const startTime = Date.now();
+    try {
+      const CONCURRENCY = Math.min(os.cpus().length - 1, 6); // max 6 parallel ffmpeg
+      const clipFiles: string[] = new Array(clips.length);
 
-    await renderMedia({
-      composition,
-      serveUrl: bundleLocation,
-      codec: options.codec as 'h264',
-      outputLocation: resolvedOutput,
-      inputProps: config,
-    });
+      for (let batch = 0; batch < clips.length; batch += CONCURRENCY) {
+        const batchEnd = Math.min(batch + CONCURRENCY, clips.length);
+        const batchClips = clips.slice(batch, batchEnd);
 
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`✅ Render complete: ${resolvedOutput}`);
-    console.log(`⏱️  Rendered in ${elapsed}s`);
+        const tasks = batchClips.map((clip, bi) => {
+          const i = batch + bi;
+          const outFile = path.join(tmpDir, `c${String(i).padStart(4, '0')}.ts`);
+          clipFiles[i] = outFile;
+
+          const task = runFFmpeg([
+            '-y',
+            '-ss', String(clip.ss),
+            '-i', resolvedVideo,
+            '-t', String(clip.t),
+            '-vf', `scale=w=${width}:h=${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`,
+            '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18',
+            '-an', '-pix_fmt', 'yuv420p',
+            outFile,
+          ], process.cwd());
+          return task;
+        });
+
+        // Wait for batch, report progress
+        await Promise.all(tasks);
+        const done = batch + batchClips.length;
+        const extractPct = Math.round((done / clips.length) * 60);
+        process.stdout.write(`\r   ✂️  Extracting: ${done}/${clips.length} clips (${extractPct}%)   `);
+      }
+      console.log('');
+
+      // 3. Concat + mux audio (single ffmpeg invocation)
+      console.log('🔗 Concatenating + muxing audio...');
+      const listFile = path.join(tmpDir, 'list.txt');
+      fs.writeFileSync(listFile, clipFiles.map((f) => `file '${f}'`).join('\n'), 'utf-8');
+
+      const fargs: string[] = [
+        '-y',
+        '-f', 'concat', '-safe', '0', '-i', listFile,
+      ];
+      if (resolvedAudioFinal) {
+        fargs.push('-i', resolvedAudioFinal);
+        fargs.push('-map', '0:v:0', '-map', '1:a:0', '-shortest');
+      } else {
+        fargs.push('-map', '0:v:0');
+      }
+      fargs.push(
+        '-c:v', 'copy',                    // no re-encode — clips already H.264
+        '-c:a', 'aac', '-b:a', '128k',
+        '-movflags', '+faststart',
+        '-progress', 'pipe:1', '-nostats',
+        resolvedOutput,
+      );
+
+      const t0 = Date.now();
+      await runFFmpegProgress(fargs, process.cwd(), totalDur, (pct, msg) => {
+        const displayPct = 60 + Math.round(pct * 0.4); // concat is 60%–100% of overall
+        process.stdout.write(`\r   🎥 ${displayPct}% (${msg})   `);
+      });
+      console.log('');
+
+      const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+      console.log(`✅ Done: ${resolvedOutput} (${elapsed}s)`);
+    } catch (err: any) {
+      console.error(`❌ ${err.message}`);
+      process.exit(1);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
 program.parse();

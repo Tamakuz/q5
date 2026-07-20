@@ -7,6 +7,7 @@ import StatusBar from './components/StatusBar';
 import BuildPlaceholder from './components/placeholders/BuildPlaceholder';
 import AnalyzePlaceholder from './components/placeholders/AnalyzePlaceholder';
 import PreviewPlaceholder from './components/placeholders/PreviewPlaceholder';
+import TranscriptPlaceholder from './components/placeholders/TranscriptPlaceholder';
 import RenderPlaceholder from './components/placeholders/RenderPlaceholder';
 import ExportPlaceholder from './components/placeholders/ExportPlaceholder';
 
@@ -16,6 +17,7 @@ const PLACEHOLDERS: Record<StepId, React.FC> = {
   source: BuildPlaceholder,
   analyze: AnalyzePlaceholder,
   preview: PreviewPlaceholder,
+  transcript: TranscriptPlaceholder,
   render: RenderPlaceholder,
   export: ExportPlaceholder,
 };

@@ -17,13 +17,23 @@ interface AnalysisResult {
   script_blocks: ScriptBlock[];
 }
 
+interface TranscriptEntry {
+  start: number;
+  end: number;
+  visual: string;
+  shot: string;
+  characters: string[];
+  action: string;
+  emotion: string;
+}
+
 const AnalyzePlaceholder: React.FC = () => {
   const [prompt, setPrompt] = useState('');
   const [jsonRaw, setJsonRaw] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [collapsed, setCollapsed] = useState({ prompt: false, scene: false, context: false, json: false, voiceOver: false });
+  const [collapsed, setCollapsed] = useState({ prompt: false, scene: false, context: false, json: false, voiceOver: false, transcript: false });
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [copiedScene, setCopiedScene] = useState(false);
   const [copiedContext, setCopiedContext] = useState(false);
@@ -34,6 +44,13 @@ const AnalyzePlaceholder: React.FC = () => {
   const [audioList, setAudioList] = useState<AudioInfo[]>([]);
   const [voiceOverUploading, setVoiceOverUploading] = useState(false);
   const [showAudioList, setShowAudioList] = useState(false);
+
+  const [transcriptPrompt, setTranscriptPrompt] = useState('');
+  const [transcriptJson, setTranscriptJson] = useState('');
+  const [transcript, setTranscript] = useState<TranscriptEntry[] | null>(null);
+  const [transcriptError, setTranscriptError] = useState<string | null>(null);
+  const [transcriptSaved, setTranscriptSaved] = useState(false);
+  const [copiedTranscriptPrompt, setCopiedTranscriptPrompt] = useState(false);
 
   const SCENE = "A Gen-Z TikToker gossiping and recapping a funny cartoon episode very passionately in a casual studio.";
   const SAMPLE_CONTEXT = "Speaking very fast, using informal Indonesian slang. Laughing at their own jokes, sounding sarcastic, deadpan, and highly expressive.";
@@ -53,6 +70,9 @@ const AnalyzePlaceholder: React.FC = () => {
       const savedPrompt = await api.readFromProject('dashboard/prompts/analysis-prompt.md');
       if (savedPrompt) setPrompt(savedPrompt);
 
+      const tp = await api.readFromProject('dashboard/prompts/transcript-prompt.md');
+      if (tp) setTranscriptPrompt(tp);
+
       const savedAnalysis = await api.readFromProject('input/analysis.json');
       if (savedAnalysis) {
         try {
@@ -66,6 +86,13 @@ const AnalyzePlaceholder: React.FC = () => {
       const savedVO = await api.readFromProject('input/voiceover.json');
       if (savedVO) {
         try { setVoiceOver(JSON.parse(savedVO)); } catch {}
+      }
+
+      const savedTranscript = await api.readFromProject('input/transcript.json');
+      if (savedTranscript) {
+        setTranscriptJson(savedTranscript);
+        setTranscriptSaved(true);
+        try { setTranscript(JSON.parse(savedTranscript)); } catch {}
       }
     })();
     loadAudioList();
@@ -182,6 +209,37 @@ const AnalyzePlaceholder: React.FC = () => {
     if (vo) {
       await api.saveToProject('input/voiceover.json', JSON.stringify(vo, null, 2));
     }
+  };
+
+  // ─── Transcript handlers ──────────────────────────────
+
+  const handleCopyTranscriptPrompt = async () => {
+    await api.copyToClipboard(transcriptPrompt);
+    setCopiedTranscriptPrompt(true);
+    setTimeout(() => setCopiedTranscriptPrompt(false), 2000);
+  };
+
+  const handleParseTranscript = () => {
+    setTranscriptError(null);
+    try {
+      let raw = transcriptJson.trim();
+      if (raw.startsWith('```')) raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed) || parsed.length === 0) { setTranscriptError('Must be a non-empty array'); return; }
+      for (let i = 0; i < parsed.length; i++) {
+        const e = parsed[i];
+        if (typeof e.start !== 'number' || typeof e.end !== 'number') { setTranscriptError(`Entry #${i}: missing start/end`); return; }
+        if (!e.visual) { setTranscriptError(`Entry #${i}: missing visual`); return; }
+      }
+      setTranscript(parsed);
+    } catch (e: any) { setTranscriptError(`Invalid JSON: ${e.message}`); }
+  };
+
+  const handleSaveTranscript = async () => {
+    if (!transcript) return;
+    const json = JSON.stringify(transcript, null, 2);
+    await api.saveToProject('input/transcript.json', json);
+    setTranscriptSaved(true);
   };
 
   // ════════════════════════════════════════════════════
@@ -369,6 +427,94 @@ const AnalyzePlaceholder: React.FC = () => {
               <p className="text-xs text-gray-500 mt-1.5">
                 Supports raw JSON or markdown-wrapped JSON. Auto-stripped on validate.
               </p>
+            </div>
+          )}
+        </div>
+
+        {/* Transcript Prompt */}
+        <div className="border border-gray-700 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setCollapsed((c) => ({ ...c, transcript: !c.transcript }))}
+            className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-800 hover:bg-gray-800/70 transition-colors"
+          >
+            <span className="text-sm font-medium text-cyan-300">🎞️ Video Transcript</span>
+            <div className="flex items-center gap-2">
+              {transcript && <span className="text-xs text-green-400">✓ {transcript.length} entries</span>}
+              {transcriptSaved && <span className="text-xs text-green-400">💾</span>}
+              <span className="text-xs text-gray-500">{collapsed.transcript ? '▶ Expand' : '▼ Collapse'}</span>
+            </div>
+          </button>
+          {!collapsed.transcript && (
+            <div className="p-3 space-y-3">
+              {/* Prompt */}
+              <div>
+                <div className="relative">
+                  <pre className="w-full max-h-40 overflow-y-auto bg-gray-900 text-gray-300 text-xs font-mono rounded-lg p-3 border border-gray-700 whitespace-pre-wrap">
+                    {transcriptPrompt || 'Loading...'}
+                  </pre>
+                  <button
+                    onClick={handleCopyTranscriptPrompt}
+                    className="absolute top-2 right-2 px-3 py-1 rounded text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+                  >
+                    {copiedTranscriptPrompt ? '✓ Copied!' : '📋 Copy'}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Copy prompt + source video → paste ke AI multimodal untuk transcript detail.
+                </p>
+              </div>
+
+              {/* JSON Input */}
+              <textarea
+                value={transcriptJson}
+                onChange={(e) => setTranscriptJson(e.target.value)}
+                placeholder={`Paste transcript JSON from AI...\n\n[\n  { "start": 0.0, "end": 3.5, "visual": "...", ... }\n]`}
+                className="w-full h-36 bg-gray-900 text-gray-300 text-xs font-mono rounded-lg p-3 border border-gray-700 focus:border-cyan-500 focus:outline-none resize-none"
+                spellCheck={false}
+              />
+
+              {transcriptError && (
+                <div className="p-2 rounded bg-red-900/30 border border-red-700/50">
+                  <p className="text-xs text-red-400">{transcriptError}</p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex justify-center gap-2 flex-wrap">
+                {!transcript ? (
+                  <button onClick={handleParseTranscript} disabled={!transcriptJson.trim()}
+                    className={`px-6 py-2 rounded-lg text-sm font-medium ${!transcriptJson.trim() ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}>
+                    Validate
+                  </button>
+                ) : (
+                  <>
+                    <button onClick={() => { setTranscript(null); setTranscriptJson(''); setTranscriptError(null); setTranscriptSaved(false); }}
+                      className="px-3 py-1.5 rounded text-xs text-gray-400 hover:text-gray-200 transition-colors">
+                      Clear
+                    </button>
+                    <button onClick={handleSaveTranscript}
+                      className={`px-4 py-1.5 rounded text-xs font-medium ${transcriptSaved ? 'bg-cyan-800 text-cyan-300' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}>
+                      {transcriptSaved ? '✓ Saved' : '💾 Save'}
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Preview */}
+              {transcript && (
+                <div className="max-h-48 overflow-y-auto space-y-1 rounded-lg border border-gray-800 p-2">
+                  {transcript.slice(0, 20).map((e, i) => (
+                    <div key={i} className="flex gap-2 text-xs p-1.5 rounded hover:bg-gray-800/50">
+                      <span className="text-cyan-400 font-mono shrink-0 w-16">{e.start.toFixed(1)}s</span>
+                      <span className="text-gray-300">{e.visual}</span>
+                      <span className="text-gray-500 shrink-0">{e.shot}</span>
+                    </div>
+                  ))}
+                  {transcript.length > 20 && (
+                    <p className="text-xs text-gray-500 text-center py-1">...and {transcript.length - 20} more entries</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
