@@ -5,6 +5,7 @@ import Sidebar from './components/Sidebar';
 import type { StepId } from './components/Sidebar';
 import StatusBar from './components/StatusBar';
 import BuildPlaceholder from './components/placeholders/BuildPlaceholder';
+import AnalyzePlaceholder from './components/placeholders/AnalyzePlaceholder';
 import PreviewPlaceholder from './components/placeholders/PreviewPlaceholder';
 import RenderPlaceholder from './components/placeholders/RenderPlaceholder';
 import ExportPlaceholder from './components/placeholders/ExportPlaceholder';
@@ -12,14 +13,15 @@ import ExportPlaceholder from './components/placeholders/ExportPlaceholder';
 type Status = 'ready' | 'rendering' | 'error';
 
 const PLACEHOLDERS: Record<StepId, React.FC> = {
-  build: BuildPlaceholder,
+  source: BuildPlaceholder,
+  analyze: AnalyzePlaceholder,
   preview: PreviewPlaceholder,
   render: RenderPlaceholder,
   export: ExportPlaceholder,
 };
 
 const App: React.FC = () => {
-  const [activeStep, setActiveStep] = useState<StepId>('build');
+  const [activeStep, setActiveStep] = useState<StepId>('source');
   const [status] = useState<Status>('ready');
 
   const ActivePlaceholder = PLACEHOLDERS[activeStep];
