@@ -18,6 +18,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Delete an uploaded source
   deleteSource: (fileName) => ipcRenderer.invoke('delete-source', fileName),
 
+  // Audio file selection & upload
+  selectAudio: () => ipcRenderer.invoke('select-audio'),
+  uploadAudio: (filePath) => ipcRenderer.invoke('upload-audio', { filePath }),
+  listAudio: () => ipcRenderer.invoke('list-audio'),
+
   // Clipboard
   copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
 

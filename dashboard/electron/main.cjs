@@ -90,14 +90,14 @@ app.whenReady().then(() => {
       return new Response(body, {
         status: 200,
         headers: {
-          'Content-Type': 'video/mp4',
+          'Content-Type': mimeType(filePath),
           'Content-Length': String(fileSize),
           'Accept-Ranges': 'bytes',
         },
       });
     }
 
-    // Handle range request (required for <video> seeking/playback)
+    // Handle range request (required for <video>/<audio> seeking/playback)
     const matches = rangeHeader.match(/bytes=(\d+)-(\d*)/);
     if (!matches) {
       return new Response('Invalid range', { status: 416 });
@@ -119,7 +119,7 @@ app.whenReady().then(() => {
     return new Response(body, {
       status: 206,
       headers: {
-        'Content-Type': 'video/mp4',
+        'Content-Type': mimeType(filePath),
         'Content-Range': `bytes ${start}-${end}/${fileSize}`,
         'Content-Length': String(chunkSize),
         'Accept-Ranges': 'bytes',
@@ -141,6 +141,19 @@ app.on('activate', () => {
 // ══════════════════════════════════════════════════════
 // IPC Handlers
 // ══════════════════════════════════════════════════════
+
+// ─── MIME helper ──────────────────────────────────────
+
+function mimeType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const map = {
+    '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm',
+    '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo',
+    '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
+    '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.flac': 'audio/flac',
+  };
+  return map[ext] || 'application/octet-stream';
+}
 
 // ─── Select file ──────────────────────────────────────
 
@@ -302,6 +315,68 @@ ipcMain.handle('upload-source', async (_event, { filePath, start, end }) => {
   });
 });
 
+// ─── Select audio file ────────────────────────────────
+
+ipcMain.handle('select-audio', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Select Voice Over Audio',
+    filters: [
+      { name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+    properties: ['openFile'],
+  });
+
+  if (result.canceled || result.filePaths.length === 0) return null;
+
+  const filePath = result.filePaths[0];
+  const stat = fs.statSync(filePath);
+
+  return {
+    name: path.basename(filePath),
+    size: stat.size,
+    path: filePath,
+  };
+});
+
+// ─── Upload audio ─────────────────────────────────────
+
+ipcMain.handle('upload-audio', async (_event, { filePath }) => {
+  const baseName = path.basename(filePath);
+  const destPath = path.join(INPUT_ASSETS, baseName);
+  fs.copyFileSync(filePath, destPath);
+  const stat = fs.statSync(destPath);
+  return {
+    name: baseName,
+    size: stat.size,
+    url: mediaUrl(destPath),
+  };
+});
+
+// ─── List audio files ─────────────────────────────────
+
+ipcMain.handle('list-audio', async () => {
+  try {
+    const files = fs.readdirSync(INPUT_ASSETS)
+      .filter((f) => /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(f))
+      .map((f) => {
+        const fp = path.join(INPUT_ASSETS, f);
+        const stat = fs.statSync(fp);
+        return {
+          name: f,
+          size: stat.size,
+          createdAt: stat.birthtime.toISOString(),
+          url: mediaUrl(fp),
+        };
+      })
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    return files;
+  } catch {
+    return [];
+  }
+});
+
 // ─── List uploaded files ──────────────────────────────
 
 ipcMain.handle('list-sources', async () => {
@@ -341,4 +416,23 @@ ipcMain.handle('copy-to-clipboard', async (_event, text) => {
   const { clipboard } = require('electron');
   clipboard.writeText(text);
   return true;
+});
+
+// ─── Save file to project ─────────────────────────────
+
+ipcMain.handle('save-to-project', async (_event, { subPath, data }) => {
+  const dest = path.join(PROJECT_ROOT, subPath);
+  const dir = path.dirname(dest);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(dest, data, 'utf-8');
+  return true;
+});
+
+// ─── Read file from project ───────────────────────────
+
+ipcMain.handle('read-from-project', async (_event, subPath) => {
+  const fp = path.join(PROJECT_ROOT, subPath);
+  if (!fp.startsWith(PROJECT_ROOT)) throw new Error('Forbidden');
+  if (!fs.existsSync(fp)) return null;
+  return fs.readFileSync(fp, 'utf-8');
 });

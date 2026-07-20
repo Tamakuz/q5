@@ -1,0 +1,36 @@
+{
+  "episode_summary": "Suneo sok-sokan mau magang di butik elit, eh karena kesandung malah nyasar jadi kuli di warung emak Giant.",
+  "total_estimated_words": 218,
+  "script_blocks": [
+    {
+      "id": 1,
+      "estimated_timestamp": "00:31",
+      "visual_context": "Suneo memohon pada asisten desainer di butik elit, lalu diusir dengan wajah sombong.",
+      "narration": "[casual] lu pernah ga sih ngebayangin Suneo yang gayanya selangit... tiba-tiba pengen kerja keras? Huft... jadi ceritanya nih, eee... dia sok-sokan mau magang di butik desainer elit coy. Tapi ya lu tau lah, langsung diusir mentah-mentah dong sama asistennya!"
+    },
+    {
+      "id": 2,
+      "estimated_timestamp": "01:19",
+      "visual_context": "Suneo menancapkan pin di peta, Nobita menepuknya, Suneo kesandung dan pin jatuh di tempat lain.",
+      "narration": "[speaking fast] Karena gengsi, akhirnya dia minjem Peta Pencari Kerja punya Doraemon. Eh, pas mau nancep pin di map... dia malah kesandung Nobita cuy! haha, dan tebak pinnya nyasar ke mana? ke toko kelontongnya emak Giant dong! Asli, apes banget komuknya."
+    },
+    {
+      "id": 3,
+      "estimated_timestamp": "02:04",
+      "visual_context": "Suneo dipasangkan bando, lalu bando itu menyetrum kepalanya dengan kilat kuning.",
+      "narration": "[deadpan] dan lu liat penderitaannya nih. Baru juga nyampe, udah langsung dipakein bando penahan kabur sama emaknya Giant. Kalo males dikit, b-buset... langsung kesetrum kuning gitu njir! Otomatis dia disuruh jadi kuli angkat kardus."
+    },
+    {
+      "id": 4,
+      "estimated_timestamp": "05:14",
+      "visual_context": "Toko berubah jadi butik 3D yang elit. Ibu-ibu elit masuk dan Suneo menawarkan panci.",
+      "narration": "[speaking fast] Nah biar cepet dapet cap lulus, dia ngide ngerombak tuh warung jadi butik elit pake proyektor 3D. Visualnya sih emang estetik parah ya... tapi pas ibu-ibu elit nanya jaket branded, eee... Suneo malah nawarin panci sama deterjen! heh... ya auto diamuk massa lah."
+    },
+    {
+      "id": 5,
+      "estimated_timestamp": "10:29",
+      "visual_context": "Seorang nenek tersenyum pada Suneo. Suneo mendapat stempel lulus. Lalu Suneo tiba-tiba bersujud di lantai.",
+      "narration": "[casual] Tapi plot twist-nya coy, ternyata ada satu nenek elit yang suka banget sama pelayanan dia, dan dia berhasil lulus! Eh tapi bukannya pulang, l-lu liat deh kelakuannya... dia malah sujud njir, minta lanjut jadi kuli di situ! Agak laen emang nih bocah."
+    }
+  ]
+}

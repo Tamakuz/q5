@@ -1,5 +1,6 @@
 // dashboard/src/components/placeholders/AnalyzePlaceholder.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import type { AudioInfo } from '../../electron-api';
 
 const api = window.electronAPI;
 
@@ -22,9 +23,29 @@ const AnalyzePlaceholder: React.FC = () => {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [collapsed, setCollapsed] = useState({ prompt: false, json: false });
+  const [collapsed, setCollapsed] = useState({ prompt: false, scene: false, context: false, json: false, voiceOver: false });
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [copiedScene, setCopiedScene] = useState(false);
+  const [copiedContext, setCopiedContext] = useState(false);
   const [copiedJson, setCopiedJson] = useState(false);
+  const [copiedNarration, setCopiedNarration] = useState(false);
+
+  const [voiceOver, setVoiceOver] = useState<AudioInfo | null>(null);
+  const [audioList, setAudioList] = useState<AudioInfo[]>([]);
+  const [voiceOverUploading, setVoiceOverUploading] = useState(false);
+  const [showAudioList, setShowAudioList] = useState(false);
+
+  const SCENE = "A Gen-Z TikToker gossiping and recapping a funny cartoon episode very passionately in a casual studio.";
+  const SAMPLE_CONTEXT = "Speaking very fast, using informal Indonesian slang. Laughing at their own jokes, sounding sarcastic, deadpan, and highly expressive.";
+
+  // ─── Voice Over Audio handlers ───────────────────────
+
+  const loadAudioList = useCallback(async () => {
+    try {
+      const files = await api.listAudio();
+      setAudioList(files);
+    } catch {}
+  }, []);
 
   // Load saved state on mount
   useEffect(() => {
@@ -41,8 +62,14 @@ const AnalyzePlaceholder: React.FC = () => {
           setSaved(true);
         } catch {}
       }
+
+      const savedVO = await api.readFromProject('input/voiceover.json');
+      if (savedVO) {
+        try { setVoiceOver(JSON.parse(savedVO)); } catch {}
+      }
     })();
-  }, []);
+    loadAudioList();
+  }, [loadAudioList]);
 
   const handleCopyPrompt = async () => {
     await api.copyToClipboard(prompt);
@@ -95,6 +122,7 @@ const AnalyzePlaceholder: React.FC = () => {
     try {
       const jsonString = JSON.stringify(result, null, 2);
       await api.saveToProject('input/analysis.json', jsonString);
+      await saveVoiceOver(voiceOver);
       setSaved(true);
     } catch (e: any) {
       setError(e.message);
@@ -106,6 +134,54 @@ const AnalyzePlaceholder: React.FC = () => {
     setSaved(false);
     setJsonRaw('');
     setError(null);
+    setVoiceOver(null);
+  };
+
+  // ─── Flatten narration ke plain text paragraph ─────
+
+  const buildNarrationParagraph = (): string => {
+    if (!result) return '';
+    return result.script_blocks
+      .map((block) => block.narration.trim())
+      .join(' ');
+  };
+
+  const handleCopyNarration = async () => {
+    const text = buildNarrationParagraph();
+    await api.copyToClipboard(text);
+    setCopiedNarration(true);
+    setTimeout(() => setCopiedNarration(false), 2000);
+  };
+
+  // ─── Voice Over Audio ────────────────────────────────
+
+  const handleBrowseAudio = async () => {
+    setVoiceOverUploading(true);
+    try {
+      const file = await api.selectAudio();
+      if (!file) { setVoiceOverUploading(false); return; }
+      const result = await api.uploadAudio(file.path);
+      setVoiceOver(result);
+      loadAudioList();
+    } catch {}
+    setVoiceOverUploading(false);
+  };
+
+  const handleSelectAudio = (info: AudioInfo) => {
+    setVoiceOver(info);
+    setShowAudioList(false);
+  };
+
+  const handleRemoveAudio = () => {
+    setVoiceOver(null);
+  };
+
+  // ─── Save voice-over reference ───────────────────────
+
+  const saveVoiceOver = async (vo: AudioInfo | null) => {
+    if (vo) {
+      await api.saveToProject('input/voiceover.json', JSON.stringify(vo, null, 2));
+    }
   };
 
   // ════════════════════════════════════════════════════
@@ -144,13 +220,32 @@ const AnalyzePlaceholder: React.FC = () => {
             ))}
           </div>
 
+          {/* Voice Over Audio */}
+          {voiceOver && (
+            <div className="p-4 rounded-xl bg-gray-800/50 border border-purple-700/50">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-medium text-purple-400">🎙️ Voice Over Audio</span>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-300 font-mono truncate">{voiceOver.name}</p>
+                  <p className="text-xs text-gray-500">{voiceOver.size ? `${(voiceOver.size / 1024).toFixed(0)}KB` : ''}</p>
+                </div>
+                <audio src={voiceOver.url} controls className="h-8" />
+              </div>
+            </div>
+          )}
+
           {/* Actions */}
-          <div className="flex justify-center gap-3">
-            <button onClick={handleClear} className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors">
-              New analysis
+          <div className="flex justify-center gap-3 flex-wrap">
+            <button onClick={handleCopyNarration} className="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
+              {copiedNarration ? '✓ Copied!' : '📝 Copy Narration'}
             </button>
             <button onClick={handleCopyJson} className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-700 hover:bg-gray-600 text-white transition-colors">
               {copiedJson ? 'Copied!' : 'Copy JSON'}
+            </button>
+            <button onClick={handleClear} className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors">
+              New analysis
             </button>
           </div>
         </div>
@@ -191,8 +286,63 @@ const AnalyzePlaceholder: React.FC = () => {
                   {copiedPrompt ? '✓ Copied!' : '📋 Copy'}
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* Scene — collapsible */}
+        <div className="border border-gray-700 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setCollapsed((c) => ({ ...c, scene: !c.scene }))}
+            className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-800 hover:bg-gray-800/70 transition-colors"
+          >
+            <span className="text-sm font-medium text-yellow-300">🎬 Scene (Wajib Diisi)</span>
+            <span className="text-xs text-gray-500">{collapsed.scene ? '▶ Expand' : '▼ Collapse'}</span>
+          </button>
+          {!collapsed.scene && (
+            <div className="p-3">
+              <div className="relative">
+                <pre className="w-full bg-gray-900 text-gray-300 text-xs font-mono rounded-lg p-3 border border-gray-700 whitespace-pre-wrap">
+                  {SCENE}
+                </pre>
+                <button
+                  onClick={async () => { await api.copyToClipboard(SCENE); setCopiedScene(true); setTimeout(() => setCopiedScene(false), 2000); }}
+                  className="absolute top-2 right-2 px-3 py-1 rounded text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+                >
+                  {copiedScene ? '✓ Copied!' : '📋 Copy'}
+                </button>
+              </div>
               <p className="text-xs text-gray-500 mt-1.5">
-                Prompt tersimpan di <code className="text-indigo-400">input/prompt.md</code>. Copy + paste ke AI (ChatGPT/Claude) bareng video-nya.
+                Copy-paste teks ini ke kolom <strong>Scene</strong> di AI (ChatGPT/Claude). Ini "nyawa" agar AI tahu dia lagi ada di situasi apa.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Sample Context — collapsible */}
+        <div className="border border-gray-700 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setCollapsed((c) => ({ ...c, context: !c.context }))}
+            className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-800 hover:bg-gray-800/70 transition-colors"
+          >
+            <span className="text-sm font-medium text-emerald-300">🎙️ Sample Context (Wajib Diisi)</span>
+            <span className="text-xs text-gray-500">{collapsed.context ? '▶ Expand' : '▼ Collapse'}</span>
+          </button>
+          {!collapsed.context && (
+            <div className="p-3">
+              <div className="relative">
+                <pre className="w-full bg-gray-900 text-gray-300 text-xs font-mono rounded-lg p-3 border border-gray-700 whitespace-pre-wrap">
+                  {SAMPLE_CONTEXT}
+                </pre>
+                <button
+                  onClick={async () => { await api.copyToClipboard(SAMPLE_CONTEXT); setCopiedContext(true); setTimeout(() => setCopiedContext(false), 2000); }}
+                  className="absolute top-2 right-2 px-3 py-1 rounded text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+                >
+                  {copiedContext ? '✓ Copied!' : '📋 Copy'}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1.5">
+                Copy-paste teks ini ke kolom <strong>Sample Context</strong> di AI. Ini yang bikin tag pacing dan ekspresi bekerja maksimal.
               </p>
             </div>
           )}
@@ -223,6 +373,117 @@ const AnalyzePlaceholder: React.FC = () => {
           )}
         </div>
 
+        {/* Voice Over Audio */}
+        <div className="border border-gray-700 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setCollapsed((c) => ({ ...c, voiceOver: !c.voiceOver }))}
+            className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-800 hover:bg-gray-800/70 transition-colors"
+          >
+            <span className="text-sm font-medium text-purple-300">🎙️ Voice Over Audio</span>
+            <div className="flex items-center gap-2">
+              {voiceOver && <span className="text-xs text-green-400">✓ Uploaded</span>}
+              <span className="text-xs text-gray-500">{collapsed.voiceOver ? '▶ Expand' : '▼ Collapse'}</span>
+            </div>
+          </button>
+          {!collapsed.voiceOver && (
+            <div className="p-3 space-y-3">
+              {/* No voice-over selected */}
+              {!voiceOver && (
+                <div className="flex flex-col items-center gap-3 py-3">
+                  <p className="text-xs text-gray-500 text-center">
+                    Upload your recorded voice-over narration (MP3, WAV). This audio will be synced with scenes in the Render step.
+                  </p>
+                  <div className="flex gap-2 flex-wrap justify-center">
+                    <button
+                      onClick={handleBrowseAudio}
+                      disabled={voiceOverUploading}
+                      className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
+                        voiceOverUploading
+                          ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                          : 'bg-purple-600 hover:bg-purple-500 text-white'
+                      }`}
+                    >
+                      {voiceOverUploading ? 'Uploading...' : '🎵 Browse Audio'}
+                    </button>
+                    {audioList.length > 0 && !showAudioList && (
+                      <button
+                        onClick={() => setShowAudioList(true)}
+                        className="px-4 py-2 rounded-lg text-xs text-gray-400 hover:text-purple-400 hover:bg-gray-800 transition-colors"
+                      >
+                        Or choose uploaded ({audioList.length})
+                      </button>
+                    )}
+                  </div>
+
+                  {audioList.length > 0 && showAudioList && (
+                    <div className="w-full text-left space-y-1">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-medium text-gray-300">Uploaded Audio Files</h4>
+                        <button onClick={() => setShowAudioList(false)} className="text-xs text-gray-500 hover:text-gray-300">hide</button>
+                      </div>
+                      <div className="max-h-32 overflow-y-auto space-y-0.5 rounded-lg border border-gray-800">
+                        {audioList.map((f) => (
+                          <div key={f.name} className="flex items-center justify-between px-3 py-1.5 hover:bg-gray-800/50 rounded transition-colors">
+                            <button
+                              onClick={() => handleSelectAudio(f)}
+                              className="flex items-center gap-2 text-left flex-1 min-w-0"
+                            >
+                              <span className="text-xs">🎵</span>
+                              <span className="text-xs text-gray-300 truncate">{f.name}</span>
+                              <span className="text-xs text-gray-500 shrink-0">{f.size ? `${(f.size / 1024).toFixed(0)}KB` : ''}</span>
+                            </button>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                await api.deleteSource(f.name);
+                                loadAudioList();
+                              }}
+                              className="text-xs text-gray-600 hover:text-red-400 px-1 transition-colors" title="Delete"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Voice-over selected */}
+              {voiceOver && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-900/60 border border-gray-700/50">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-300 font-mono truncate">{voiceOver.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {voiceOver.size ? `${(voiceOver.size / 1024).toFixed(0)}KB` : ''}
+                        {voiceOver.createdAt ? ` · ${new Date(voiceOver.createdAt).toLocaleDateString()}` : ''}
+                      </p>
+                    </div>
+                    <audio src={voiceOver.url} controls className="h-8" />
+                  </div>
+                  <div className="flex justify-center gap-2">
+                    <button
+                      onClick={handleRemoveAudio}
+                      className="px-4 py-1.5 rounded-lg text-xs text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors"
+                    >
+                      Remove
+                    </button>
+                    <button
+                      onClick={handleBrowseAudio}
+                      disabled={voiceOverUploading}
+                      className="px-4 py-1.5 rounded-lg text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+                    >
+                      {voiceOverUploading ? 'Uploading...' : 'Change'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Error */}
         {error && (
           <div className="p-3 rounded-lg bg-red-900/30 border border-red-700/50">
@@ -232,15 +493,24 @@ const AnalyzePlaceholder: React.FC = () => {
 
         {/* Result preview (before save) */}
         {result && !saved && (
-          <div className="p-4 rounded-xl bg-gray-800/50 border border-indigo-700/50">
-            <div className="flex items-center gap-2 mb-2">
+          <div className="p-4 rounded-xl bg-gray-800/50 border border-indigo-700/50 space-y-3">
+            <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-indigo-400">✅ Valid JSON</span>
               <span className="text-xs text-gray-500">
                 {result.script_blocks.length} blocks · ~{result.total_estimated_words} words
               </span>
             </div>
-            <p className="text-sm text-gray-300 mb-3">{result.episode_summary}</p>
+            <p className="text-sm text-gray-300">{result.episode_summary}</p>
+
+            {/* Narration paragraph preview */}
+            <div className="p-3 rounded-lg bg-gray-900/60 border border-gray-700/50 max-h-32 overflow-y-auto">
+              <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{buildNarrationParagraph()}</p>
+            </div>
+
             <div className="flex justify-end gap-2">
+              <button onClick={handleCopyNarration} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white transition-colors">
+                {copiedNarration ? '✓ Copied!' : '📝 Copy Narration'}
+              </button>
               <button onClick={handleClear} className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-gray-200 transition-colors">
                 Clear
               </button>
