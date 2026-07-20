@@ -29,6 +29,17 @@ export interface AudioInfo {
   createdAt?: string;
 }
 
+export interface RenderProgress {
+  stage: string;
+  progress: number;
+  message: string;
+}
+
+export interface RenderResult {
+  outputPath: string;
+  elapsed?: string;
+}
+
 export interface ElectronAPI {
   selectFile: () => Promise<SelectedFile | null>;
   getVideoMeta: (filePath: string) => Promise<VideoMeta | null>;
@@ -41,6 +52,8 @@ export interface ElectronAPI {
   copyToClipboard: (text: string) => Promise<boolean>;
   saveToProject: (subPath: string, data: string) => Promise<boolean>;
   readFromProject: (subPath: string) => Promise<string | null>;
+  renderVideo: () => Promise<RenderResult | { error: string }>;
+  onRenderProgress: (callback: (data: RenderProgress) => void) => () => void;
 }
 
 declare global {

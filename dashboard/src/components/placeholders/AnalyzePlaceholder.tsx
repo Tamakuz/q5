@@ -50,7 +50,7 @@ const AnalyzePlaceholder: React.FC = () => {
   // Load saved state on mount
   useEffect(() => {
     (async () => {
-      const savedPrompt = await api.readFromProject('input/prompt.md');
+      const savedPrompt = await api.readFromProject('dashboard/prompts/analysis-prompt.md');
       if (savedPrompt) setPrompt(savedPrompt);
 
       const savedAnalysis = await api.readFromProject('input/analysis.json');
@@ -277,7 +277,7 @@ const AnalyzePlaceholder: React.FC = () => {
             <div className="p-3">
               <div className="relative">
                 <pre className="w-full max-h-64 overflow-y-auto bg-gray-900 text-gray-300 text-xs font-mono rounded-lg p-3 border border-gray-700 whitespace-pre-wrap">
-                  {prompt || 'Loading prompt from input/prompt.md...'}
+                  {prompt || 'Loading prompt from dashboard/prompts/analysis-prompt.md...'}
                 </pre>
                 <button
                   onClick={handleCopyPrompt}

@@ -9,36 +9,35 @@ function useImageTransform(animation: ImageAnimation, durationInFrames: number) 
   const frame = useCurrentFrame();
 
   return useMemo((): React.CSSProperties => {
-    const progress = frame / durationInFrames; // 0 to 1 over scene
+    const p = frame / durationInFrames; // 0 to 1 over scene
 
     switch (animation) {
       case 'ken-burns': {
-        // Subtle continuous zoom + slight pan
-        const scale = interpolate(progress, [0, 1], [1, 1.1]);
-        const translateX = interpolate(progress, [0, 1], [0, -20]);
-        const translateY = interpolate(progress, [0, 1], [0, -10]);
+        const scale = interpolate(p, [0, 1], [1, 1.1]);
+        const translateX = interpolate(p, [0, 1], [0, -20]);
+        const translateY = interpolate(p, [0, 1], [0, -10]);
         return {
           transform: `scale(${scale}) translateX(${translateX}px) translateY(${translateY}px)`,
         };
       }
 
       case 'zoom-in': {
-        const scale = interpolate(progress, [0, 1], [1, 1.15]);
+        const scale = interpolate(p, [0, 1], [1, 1.15]);
         return { transform: `scale(${scale})` };
       }
 
       case 'zoom-out': {
-        const scale = interpolate(progress, [0, 1], [1.15, 1]);
+        const scale = interpolate(p, [0, 1], [1.15, 1]);
         return { transform: `scale(${scale})` };
       }
 
       case 'pan-left': {
-        const translateX = interpolate(progress, [0, 1], [0, -40]);
+        const translateX = interpolate(p, [0, 1], [0, -40]);
         return { transform: `translateX(${translateX}px)` };
       }
 
       case 'pan-right': {
-        const translateX = interpolate(progress, [0, 1], [0, 40]);
+        const translateX = interpolate(p, [0, 1], [0, 40]);
         return { transform: `translateX(${translateX}px)` };
       }
 
@@ -46,7 +45,7 @@ function useImageTransform(animation: ImageAnimation, durationInFrames: number) 
       default:
         return {};
     }
-  }, [animation, progress]);
+  }, [animation, frame, durationInFrames]);
 }
 
 // ─── Overlay Caption ─────────────────────────────────

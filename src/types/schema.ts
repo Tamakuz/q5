@@ -78,9 +78,26 @@ export const ImageSceneSchema = z.object({
 });
 export type ImageScene = z.infer<typeof ImageSceneSchema>;
 
+// ─── Video Clip Scene Schemas ─────────────────────────
+
+export const VideoClipSceneDataSchema = z.object({
+  src: z.string(),
+  startFrom: z.number().min(0),
+  caption: z.string().optional(),
+});
+export type VideoClipSceneData = z.infer<typeof VideoClipSceneDataSchema>;
+
+export const VideoClipSceneSchema = z.object({
+  type: z.literal('video_clip'),
+  duration: z.number().positive(),
+  transition: TransitionEnum.default('fade'),
+  data: VideoClipSceneDataSchema,
+});
+export type VideoClipScene = z.infer<typeof VideoClipSceneSchema>;
+
 // ─── Video Config (top-level) ────────────────────────
 
-export const SceneSchema = z.discriminatedUnion('type', [TextSceneSchema, ImageSceneSchema]);
+export const SceneSchema = z.discriminatedUnion('type', [TextSceneSchema, ImageSceneSchema, VideoClipSceneSchema]);
 export type Scene = z.infer<typeof SceneSchema>;
 
 export const VideoConfigSchema = z.object({
@@ -104,10 +121,10 @@ export type VideoConfig = z.infer<typeof VideoConfigSchema>;
 
 // ─── Resolved scene (post-engine processing) ─────────
 
-export interface ResolvedScene extends Scene {
+export type ResolvedScene = Scene & {
   startFrame: number;
   durationInFrames: number;
-}
+};
 
 // ─── Constants ───────────────────────────────────────
 

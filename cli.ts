@@ -49,6 +49,12 @@ program
             console.warn(`⚠️  Asset not found: ${scene.data.src} (relative to JSON file)`);
           }
         }
+        if (scene.type === 'video_clip') {
+          const assetPath = path.resolve(path.dirname(resolvedPath), scene.data.src);
+          if (!fs.existsSync(assetPath)) {
+            console.warn(`⚠️  Video clip source not found: ${scene.data.src} (relative to JSON file)`);
+          }
+        }
       }
 
       if (parsed.audio?.bgm) {

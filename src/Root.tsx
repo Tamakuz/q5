@@ -5,6 +5,7 @@ import type { VideoConfig, ResolvedScene } from './types/schema';
 import { TransitionWrapper } from './engine/transitions';
 import { TextScene } from './scenes/TextScene';
 import { ImageScene } from './scenes/ImageScene';
+import { VideoClipScene } from './scenes/VideoClipScene';
 
 // ─── Resolver Logic ──────────────────────────────────
 
@@ -39,6 +40,8 @@ const SceneRenderer: React.FC<{ scene: ResolvedScene }> = ({ scene }) => {
       return <TextScene data={scene.data} />;
     case 'image':
       return <ImageScene data={scene.data} durationInFrames={scene.durationInFrames} />;
+    case 'video_clip':
+      return <VideoClipScene data={scene.data} durationInFrames={scene.durationInFrames} />;
     default:
       return null;
   }
@@ -82,6 +85,16 @@ export const RemotionRoot: React.FC = () => {
         fps={30}
         width={1080}
         height={1920}
+        defaultProps={{
+          version: '1' as const,
+          metadata: {
+            title: '',
+            duration: 1,
+            resolution: { width: 1080, height: 1920 },
+            fps: 30,
+          },
+          scenes: [{ type: 'text' as const, duration: 1, transition: 'fade' as const, data: { layers: [{ text: '', style: 'body' as const, animation: 'fade-in' as const, position: 'center' as const, color: '#FFFFFF' }], background: { type: 'color' as const, value: '#1A1A2E' } } }],
+        }}
         calculateMetadata={({ props }) => {
           const config = props as VideoConfig;
           return {

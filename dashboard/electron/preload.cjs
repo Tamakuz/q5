@@ -26,6 +26,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Clipboard
   copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
 
+  // Render video via Remotion
+  renderVideo: () => ipcRenderer.invoke('render-video'),
+  onRenderProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('render-progress', handler);
+    // Return cleanup function
+    return () => ipcRenderer.removeListener('render-progress', handler);
+  },
+
   // Generic project file helpers
   saveToProject: (subPath, data) => ipcRenderer.invoke('save-to-project', { subPath, data }),
   readFromProject: (subPath) => ipcRenderer.invoke('read-from-project', subPath),

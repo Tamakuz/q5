@@ -436,3 +436,71 @@ ipcMain.handle('read-from-project', async (_event, subPath) => {
   if (!fs.existsSync(fp)) return null;
   return fs.readFileSync(fp, 'utf-8');
 });
+
+// ─── Render video via Remotion ────────────────────────
+
+ipcMain.handle('render-video', async () => {
+  const bundle = require('@remotion/bundler');
+  const renderer = require('@remotion/renderer');
+
+  const configPath = path.join(PROJECT_ROOT, 'input', 'render-config.json');
+  if (!fs.existsSync(configPath)) {
+    return { error: 'No render config found. Generate it in the Render step first.' };
+  }
+
+  let config;
+  try {
+    config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  } catch (err) {
+    return { error: `Failed to parse render-config.json: ${err.message}` };
+  }
+
+  const entryPoint = path.join(PROJECT_ROOT, 'src', 'index.ts');
+  const outputDir = path.join(PROJECT_ROOT, 'output');
+  if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+  const outputFileName = `render_${Date.now()}.mp4`;
+  const outputPath = path.join(outputDir, outputFileName);
+
+  try {
+    // 1. Bundle
+    mainWindow.webContents.send('render-progress', { stage: 'bundle', progress: 0, message: 'Bundling Remotion project...' });
+    const bundleLocation = await bundle.bundle({ entryPoint });
+
+    // 2. Select composition
+    mainWindow.webContents.send('render-progress', { stage: 'compose', progress: 0.1, message: 'Selecting composition...' });
+    const composition = await renderer.selectComposition({
+      serveUrl: bundleLocation,
+      id: 'content-auto-video',
+      inputProps: config,
+    });
+
+    // 3. Render with progress
+    const startTime = Date.now();
+    await renderer.renderMedia({
+      composition,
+      serveUrl: bundleLocation,
+      codec: 'h264',
+      outputLocation: outputPath,
+      inputProps: config,
+      onProgress: ({ progress }) => {
+        mainWindow.webContents.send('render-progress', {
+          stage: 'render',
+          progress: 0.1 + progress * 0.9,
+          message: `Rendering: ${Math.round(progress * 100)}%`,
+        });
+      },
+    });
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    mainWindow.webContents.send('render-progress', {
+      stage: 'done',
+      progress: 1,
+      message: `Done in ${elapsed}s`,
+    });
+
+    return { outputPath, elapsed };
+  } catch (err) {
+    return { error: `Render failed: ${err.message}` };
+  }
+});
