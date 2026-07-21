@@ -450,14 +450,20 @@ ipcMain.handle('render-video', async (_event, mapping, videoPath, audioPath) => 
   }
 
   // Resolve paths
-  const resolvedVideo = path.resolve(videoPath);
+  let resolvedVideo = path.isAbsolute(videoPath) ? videoPath : path.join(INPUT_ASSETS, videoPath);
+  if (!fs.existsSync(resolvedVideo)) {
+    resolvedVideo = path.resolve(videoPath);
+  }
   if (!fs.existsSync(resolvedVideo)) {
     return { error: `Video not found: ${resolvedVideo}` };
   }
 
   let resolvedAudio = null;
   if (audioPath) {
-    resolvedAudio = path.resolve(audioPath);
+    resolvedAudio = path.isAbsolute(audioPath) ? audioPath : path.join(INPUT_ASSETS, audioPath);
+    if (!fs.existsSync(resolvedAudio)) {
+      resolvedAudio = path.resolve(audioPath);
+    }
     if (!fs.existsSync(resolvedAudio)) {
       console.warn(`⚠️  Audio not found: ${resolvedAudio}, rendering without`);
       resolvedAudio = null;

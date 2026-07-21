@@ -25,46 +25,58 @@ interface TranscriptEntry {
   characters: string[];
   action: string;
   emotion: string;
+  text?: string;
+  speaker?: string;
 }
 
+const SCENE = "A Gen-Z TikToker gossiping and recapping a funny cartoon episode very passionately in a casual studio.";
+const SAMPLE_CONTEXT = "Speaking very fast, using informal Indonesian slang. Laughing at their own jokes, sounding sarcastic, deadpan, and highly expressive.";
+
 const AnalyzePlaceholder: React.FC = () => {
+  // Prompts & Context
   const [prompt, setPrompt] = useState('');
+  const [transcriptPrompt, setTranscriptPrompt] = useState('');
+  const [activePromptTab, setActivePromptTab] = useState<'analysis' | 'transcript' | 'context'>('analysis');
+
+  // Input Data States
   const [jsonRaw, setJsonRaw] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [collapsed, setCollapsed] = useState({ prompt: false, scene: false, context: false, json: false, voiceOver: false, transcript: false });
-  const [copiedPrompt, setCopiedPrompt] = useState(false);
-  const [copiedScene, setCopiedScene] = useState(false);
-  const [copiedContext, setCopiedContext] = useState(false);
-  const [copiedJson, setCopiedJson] = useState(false);
-  const [copiedNarration, setCopiedNarration] = useState(false);
 
+  // Voice Over
   const [voiceOver, setVoiceOver] = useState<AudioInfo | null>(null);
   const [audioList, setAudioList] = useState<AudioInfo[]>([]);
   const [voiceOverUploading, setVoiceOverUploading] = useState(false);
   const [showAudioList, setShowAudioList] = useState(false);
 
-  const [transcriptPrompt, setTranscriptPrompt] = useState('');
+  // Transcript Data
   const [transcriptJson, setTranscriptJson] = useState('');
   const [transcript, setTranscript] = useState<TranscriptEntry[] | null>(null);
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
   const [transcriptSaved, setTranscriptSaved] = useState(false);
-  const [copiedTranscriptPrompt, setCopiedTranscriptPrompt] = useState(false);
 
-  const SCENE = "A Gen-Z TikToker gossiping and recapping a funny cartoon episode very passionately in a casual studio.";
-  const SAMPLE_CONTEXT = "Speaking very fast, using informal Indonesian slang. Laughing at their own jokes, sounding sarcastic, deadpan, and highly expressive.";
+  // Copy Feedback
+  const [copyToast, setCopyToast] = useState<string | null>(null);
 
-  // ─── Voice Over Audio handlers ───────────────────────
+  // Right Panel Input Tabs
+  const [activeInputTab, setActiveInputTab] = useState<'analysis' | 'voiceover' | 'transcript'>('analysis');
 
-  const loadAudioList = useCallback(async () => {
+  const showToast = (msg: string) => {
+    setCopyToast(msg);
+    setTimeout(() => setCopyToast(null), 2000);
+  };
+
+  const loadAudioList = useCallback(async (): Promise<AudioInfo[]> => {
     try {
       const files = await api.listAudio();
       setAudioList(files);
-    } catch {}
+      return files;
+    } catch {
+      return [];
+    }
   }, []);
 
-  // Load saved state on mount
   useEffect(() => {
     (async () => {
       const savedPrompt = await api.readFromProject('dashboard/prompts/analysis-prompt.md');
@@ -83,9 +95,21 @@ const AnalyzePlaceholder: React.FC = () => {
         } catch {}
       }
 
+      let currentVO: AudioInfo | null = null;
       const savedVO = await api.readFromProject('input/voiceover.json');
-      if (savedVO) {
-        try { setVoiceOver(JSON.parse(savedVO)); } catch {}
+      if (savedVO && savedVO.trim()) {
+        try {
+          currentVO = JSON.parse(savedVO);
+          setVoiceOver(currentVO);
+        } catch {}
+      }
+
+      const files = await loadAudioList();
+      // Auto-select latest audio file if voiceover is not explicitly set yet
+      if (!currentVO && files && files.length > 0) {
+        const autoVO = files[0];
+        setVoiceOver(autoVO);
+        await api.saveToProject('input/voiceover.json', JSON.stringify(autoVO, null, 2));
       }
 
       const savedTranscript = await api.readFromProject('input/transcript.json');
@@ -95,25 +119,16 @@ const AnalyzePlaceholder: React.FC = () => {
         try { setTranscript(JSON.parse(savedTranscript)); } catch {}
       }
     })();
-    loadAudioList();
   }, [loadAudioList]);
 
-  const handleCopyPrompt = async () => {
-    await api.copyToClipboard(prompt);
-    setCopiedPrompt(true);
-    setTimeout(() => setCopiedPrompt(false), 2000);
-  };
-
-  const handleCopyJson = async () => {
-    const text = result ? JSON.stringify(result, null, 2) : jsonRaw;
+  // Copy Handlers
+  const copyText = async (text: string, label: string) => {
     await api.copyToClipboard(text);
-    setCopiedJson(true);
-    setTimeout(() => setCopiedJson(false), 2000);
+    showToast(`Copied ${label}!`);
   };
 
-  // ─── Parse & validate ──────────────────────────────
-
-  const handleParse = () => {
+  // Parse Analysis
+  const handleParseAnalysis = () => {
     setError(null);
     try {
       let raw = jsonRaw.trim();
@@ -137,552 +152,483 @@ const AnalyzePlaceholder: React.FC = () => {
       }
 
       setResult(parsed);
+      handleSaveAnalysis(parsed);
     } catch (e: any) {
       setError(`Invalid JSON: ${e.message}`);
     }
   };
 
-  // ─── Save to project ───────────────────────────────
-
-  const handleSave = async () => {
-    if (!result) return;
+  const handleSaveAnalysis = async (dataToSave = result) => {
+    if (!dataToSave) return;
     try {
-      const jsonString = JSON.stringify(result, null, 2);
+      const jsonString = JSON.stringify(dataToSave, null, 2);
       await api.saveToProject('input/analysis.json', jsonString);
-      await saveVoiceOver(voiceOver);
       setSaved(true);
+      showToast('Saved Analysis!');
     } catch (e: any) {
       setError(e.message);
     }
   };
 
-  const handleClear = () => {
+  const handleClearAnalysis = () => {
     setResult(null);
     setSaved(false);
     setJsonRaw('');
     setError(null);
-    setVoiceOver(null);
   };
 
-  // ─── Flatten narration ke plain text paragraph ─────
-
-  const buildNarrationParagraph = (): string => {
-    if (!result) return '';
-    return result.script_blocks
-      .map((block) => block.narration.trim())
-      .join(' ');
-  };
-
-  const handleCopyNarration = async () => {
-    const text = buildNarrationParagraph();
-    await api.copyToClipboard(text);
-    setCopiedNarration(true);
-    setTimeout(() => setCopiedNarration(false), 2000);
-  };
-
-  // ─── Voice Over Audio ────────────────────────────────
-
+  // Voiceover handlers
   const handleBrowseAudio = async () => {
     setVoiceOverUploading(true);
     try {
       const file = await api.selectAudio();
       if (!file) { setVoiceOverUploading(false); return; }
-      const result = await api.uploadAudio(file.path);
-      setVoiceOver(result);
+      const res = await api.uploadAudio(file.path);
+      setVoiceOver(res);
+      await api.saveToProject('input/voiceover.json', JSON.stringify(res, null, 2));
       loadAudioList();
+      showToast('Voiceover Saved!');
     } catch {}
     setVoiceOverUploading(false);
   };
 
-  const handleSelectAudio = (info: AudioInfo) => {
+  const handleSelectAudio = async (info: AudioInfo) => {
     setVoiceOver(info);
+    await api.saveToProject('input/voiceover.json', JSON.stringify(info, null, 2));
     setShowAudioList(false);
+    showToast('Voiceover Selected!');
   };
 
-  const handleRemoveAudio = () => {
+  const handleRemoveAudio = async () => {
     setVoiceOver(null);
+    await api.saveToProject('input/voiceover.json', '');
   };
 
-  // ─── Save voice-over reference ───────────────────────
-
-  const saveVoiceOver = async (vo: AudioInfo | null) => {
-    if (vo) {
-      await api.saveToProject('input/voiceover.json', JSON.stringify(vo, null, 2));
-    }
-  };
-
-  // ─── Transcript handlers ──────────────────────────────
-
-  const handleCopyTranscriptPrompt = async () => {
-    await api.copyToClipboard(transcriptPrompt);
-    setCopiedTranscriptPrompt(true);
-    setTimeout(() => setCopiedTranscriptPrompt(false), 2000);
-  };
-
-  const handleParseTranscript = () => {
+  // Transcript handlers
+  const handleParseTranscript = async () => {
     setTranscriptError(null);
     try {
       let raw = transcriptJson.trim();
       if (raw.startsWith('```')) raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed) || parsed.length === 0) { setTranscriptError('Must be a non-empty array'); return; }
-      for (let i = 0; i < parsed.length; i++) {
-        const e = parsed[i];
-        if (typeof e.start !== 'number' || typeof e.end !== 'number') { setTranscriptError(`Entry #${i}: missing start/end`); return; }
-        if (!e.visual) { setTranscriptError(`Entry #${i}: missing visual`); return; }
-      }
       setTranscript(parsed);
+      await api.saveToProject('input/transcript.json', JSON.stringify(parsed, null, 2));
+      setTranscriptSaved(true);
+      showToast('Saved Transcript!');
     } catch (e: any) { setTranscriptError(`Invalid JSON: ${e.message}`); }
   };
 
-  const handleSaveTranscript = async () => {
-    if (!transcript) return;
-    const json = JSON.stringify(transcript, null, 2);
-    await api.saveToProject('input/transcript.json', json);
-    setTranscriptSaved(true);
-  };
+  return (
+    <div className="flex flex-col h-full bg-gray-950 text-gray-100 p-6 overflow-hidden">
+      {/* Toast Notification */}
+      {copyToast && (
+        <div className="fixed top-5 right-5 z-50 bg-indigo-600 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-lg border border-indigo-400 animate-bounce">
+          {copyToast}
+        </div>
+      )}
 
-  // ════════════════════════════════════════════════════
-  // ANALYSIS SAVED — show script blocks
-  // ════════════════════════════════════════════════════
+      {/* Top Header & Overview Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-gray-800 shrink-0">
+        <div>
+          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+            <span className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg text-lg">⚡</span>
+            AI Script & Audio Analysis
+          </h1>
+          <p className="text-xs text-gray-400 mt-1">
+            Generate AI scene recaps, paste structured analysis JSON, sync voiceovers, and manage audio transcriptions.
+          </p>
+        </div>
 
-  if (result && saved) {
-    return (
-      <div className="flex flex-col items-center h-full overflow-auto py-4 px-4">
-        <h2 className="text-lg font-semibold text-white mb-4">Analysis Complete</h2>
-
-        <div className="w-full max-w-2xl space-y-4">
-          {/* Summary */}
-          <div className="p-4 rounded-xl bg-gray-800/50 border border-green-700/50">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm font-medium text-green-400">📋 Episode Summary</span>
-              <span className="text-xs text-gray-500">
-                {result.script_blocks.length} blocks · ~{result.total_estimated_words} words
-              </span>
-            </div>
-            <p className="text-sm text-gray-300">{result.episode_summary}</p>
+        {/* Readiness Badges */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 ${
+            saved ? 'bg-emerald-950/60 border-emerald-700/50 text-emerald-300' : 'bg-gray-900 border-gray-800 text-gray-500'
+          }`}>
+            <span>{saved ? '✓' : '○'}</span>
+            <span>Script Analysis</span>
           </div>
-
-          {/* Script blocks */}
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {result.script_blocks.map((block) => (
-              <div key={block.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-700/50 text-left">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs text-indigo-400 font-mono font-bold">
-                    #{block.id} · {block.estimated_timestamp}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 mb-1 italic">{block.visual_context}</p>
-                <p className="text-xs text-gray-300 leading-relaxed">{block.narration}</p>
-              </div>
-            ))}
+          <div className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 ${
+            voiceOver ? 'bg-purple-950/60 border-purple-700/50 text-purple-300' : 'bg-gray-900 border-gray-800 text-gray-500'
+          }`}>
+            <span>{voiceOver ? '✓' : '○'}</span>
+            <span>Voiceover</span>
           </div>
-
-          {/* Voice Over Audio */}
-          {voiceOver && (
-            <div className="p-4 rounded-xl bg-gray-800/50 border border-purple-700/50">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm font-medium text-purple-400">🎙️ Voice Over Audio</span>
-              </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-300 font-mono truncate">{voiceOver.name}</p>
-                  <p className="text-xs text-gray-500">{voiceOver.size ? `${(voiceOver.size / 1024).toFixed(0)}KB` : ''}</p>
-                </div>
-                <audio src={voiceOver.url} controls className="h-8" />
-              </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex justify-center gap-3 flex-wrap">
-            <button onClick={handleCopyNarration} className="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
-              {copiedNarration ? '✓ Copied!' : '📝 Copy Narration'}
-            </button>
-            <button onClick={handleCopyJson} className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-700 hover:bg-gray-600 text-white transition-colors">
-              {copiedJson ? 'Copied!' : 'Copy JSON'}
-            </button>
-            <button onClick={handleClear} className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors">
-              New analysis
-            </button>
+          <div className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 ${
+            transcriptSaved ? 'bg-cyan-950/60 border-cyan-700/50 text-cyan-300' : 'bg-gray-900 border-gray-800 text-gray-500'
+          }`}>
+            <span>{transcriptSaved ? '✓' : '○'}</span>
+            <span>Transcript</span>
           </div>
         </div>
       </div>
-    );
-  }
 
-  // ════════════════════════════════════════════════════
-  // EDIT / INPUT MODE
-  // ════════════════════════════════════════════════════
+      {/* Main 2-Column Grid Workspace */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-5 flex-1 min-h-0 overflow-hidden">
 
-  return (
-    <div className="flex flex-col h-full overflow-auto py-4 px-4">
-      <h2 className="text-lg font-semibold text-white mb-4 text-center shrink-0">Analyze Video</h2>
-
-      <div className="w-full max-w-3xl mx-auto space-y-4 flex-1">
-        {/* Prompt section — read-only */}
-        <div className="border border-gray-700 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setCollapsed((c) => ({ ...c, prompt: !c.prompt }))}
-            className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-800 hover:bg-gray-800/70 transition-colors"
-          >
-            <span className="text-sm font-medium text-gray-300">📋 Prompt AI</span>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">{collapsed.prompt ? '▶ Expand' : '▼ Collapse'}</span>
+        {/* LEFT PANEL: AI Prompt Generator Toolkit (Col 5) */}
+        <div className="lg:col-span-5 flex flex-col bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
+          {/* Panel Header / Tabs */}
+          <div className="flex items-center justify-between bg-gray-900 px-4 py-3 border-b border-gray-800 shrink-0">
+            <span className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+              <span>🤖</span> AI Prompt Generator
+            </span>
+            <div className="flex bg-gray-950 p-1 rounded-lg border border-gray-800">
+              <button
+                onClick={() => setActivePromptTab('analysis')}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                  activePromptTab === 'analysis' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                Analysis
+              </button>
+              <button
+                onClick={() => setActivePromptTab('transcript')}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                  activePromptTab === 'transcript' ? 'bg-cyan-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                Transcript
+              </button>
+              <button
+                onClick={() => setActivePromptTab('context')}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                  activePromptTab === 'context' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                Context
+              </button>
             </div>
-          </button>
-          {!collapsed.prompt && (
-            <div className="p-3">
-              <div className="relative">
-                <pre className="w-full max-h-64 overflow-y-auto bg-gray-900 text-gray-300 text-xs font-mono rounded-lg p-3 border border-gray-700 whitespace-pre-wrap">
-                  {prompt || 'Loading prompt from dashboard/prompts/analysis-prompt.md...'}
-                </pre>
-                <button
-                  onClick={handleCopyPrompt}
-                  className="absolute top-2 right-2 px-3 py-1 rounded text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white transition-colors"
-                >
-                  {copiedPrompt ? '✓ Copied!' : '📋 Copy'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
 
-        {/* Scene — collapsible */}
-        <div className="border border-gray-700 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setCollapsed((c) => ({ ...c, scene: !c.scene }))}
-            className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-800 hover:bg-gray-800/70 transition-colors"
-          >
-            <span className="text-sm font-medium text-yellow-300">🎬 Scene (Wajib Diisi)</span>
-            <span className="text-xs text-gray-500">{collapsed.scene ? '▶ Expand' : '▼ Collapse'}</span>
-          </button>
-          {!collapsed.scene && (
-            <div className="p-3">
-              <div className="relative">
-                <pre className="w-full bg-gray-900 text-gray-300 text-xs font-mono rounded-lg p-3 border border-gray-700 whitespace-pre-wrap">
-                  {SCENE}
-                </pre>
-                <button
-                  onClick={async () => { await api.copyToClipboard(SCENE); setCopiedScene(true); setTimeout(() => setCopiedScene(false), 2000); }}
-                  className="absolute top-2 right-2 px-3 py-1 rounded text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white transition-colors"
-                >
-                  {copiedScene ? '✓ Copied!' : '📋 Copy'}
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mt-1.5">
-                Copy-paste teks ini ke kolom <strong>Scene</strong> di AI (ChatGPT/Claude). Ini "nyawa" agar AI tahu dia lagi ada di situasi apa.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Sample Context — collapsible */}
-        <div className="border border-gray-700 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setCollapsed((c) => ({ ...c, context: !c.context }))}
-            className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-800 hover:bg-gray-800/70 transition-colors"
-          >
-            <span className="text-sm font-medium text-emerald-300">🎙️ Sample Context (Wajib Diisi)</span>
-            <span className="text-xs text-gray-500">{collapsed.context ? '▶ Expand' : '▼ Collapse'}</span>
-          </button>
-          {!collapsed.context && (
-            <div className="p-3">
-              <div className="relative">
-                <pre className="w-full bg-gray-900 text-gray-300 text-xs font-mono rounded-lg p-3 border border-gray-700 whitespace-pre-wrap">
-                  {SAMPLE_CONTEXT}
-                </pre>
-                <button
-                  onClick={async () => { await api.copyToClipboard(SAMPLE_CONTEXT); setCopiedContext(true); setTimeout(() => setCopiedContext(false), 2000); }}
-                  className="absolute top-2 right-2 px-3 py-1 rounded text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white transition-colors"
-                >
-                  {copiedContext ? '✓ Copied!' : '📋 Copy'}
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mt-1.5">
-                Copy-paste teks ini ke kolom <strong>Sample Context</strong> di AI. Ini yang bikin tag pacing dan ekspresi bekerja maksimal.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* JSON Input */}
-        <div className="border border-gray-700 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setCollapsed((c) => ({ ...c, json: !c.json }))}
-            className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-800 hover:bg-gray-800/70 transition-colors"
-          >
-            <span className="text-sm font-medium text-gray-300">📨 Hasil Analisa AI (JSON)</span>
-            <span className="text-xs text-gray-500">{collapsed.json ? '▶ Expand' : '▼ Collapse'}</span>
-          </button>
-          {!collapsed.json && (
-            <div className="p-3">
-              <textarea
-                value={jsonRaw}
-                onChange={(e) => setJsonRaw(e.target.value)}
-                placeholder={`Paste the JSON output from AI here...\n\n{\n  "episode_summary": "...",\n  "script_blocks": [...]\n}`}
-                className="w-full h-64 bg-gray-900 text-gray-300 text-xs font-mono rounded-lg p-3 border border-gray-700 focus:border-indigo-500 focus:outline-none resize-none"
-                spellCheck={false}
-              />
-              <p className="text-xs text-gray-500 mt-1.5">
-                Supports raw JSON or markdown-wrapped JSON. Auto-stripped on validate.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Transcript Prompt */}
-        <div className="border border-gray-700 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setCollapsed((c) => ({ ...c, transcript: !c.transcript }))}
-            className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-800 hover:bg-gray-800/70 transition-colors"
-          >
-            <span className="text-sm font-medium text-cyan-300">🎞️ Video Transcript</span>
-            <div className="flex items-center gap-2">
-              {transcript && <span className="text-xs text-green-400">✓ {transcript.length} entries</span>}
-              {transcriptSaved && <span className="text-xs text-green-400">💾</span>}
-              <span className="text-xs text-gray-500">{collapsed.transcript ? '▶ Expand' : '▼ Collapse'}</span>
-            </div>
-          </button>
-          {!collapsed.transcript && (
-            <div className="p-3 space-y-3">
-              {/* Prompt */}
-              <div>
-                <div className="relative">
-                  <pre className="w-full max-h-40 overflow-y-auto bg-gray-900 text-gray-300 text-xs font-mono rounded-lg p-3 border border-gray-700 whitespace-pre-wrap">
-                    {transcriptPrompt || 'Loading...'}
-                  </pre>
+          {/* Panel Body */}
+          <div className="p-4 flex-1 flex flex-col min-h-0 overflow-auto space-y-4">
+            {activePromptTab === 'analysis' && (
+              <div className="flex flex-col h-full space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-400">Master system prompt for ChatGPT / Claude analysis:</p>
                   <button
-                    onClick={handleCopyTranscriptPrompt}
-                    className="absolute top-2 right-2 px-3 py-1 rounded text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+                    onClick={() => copyText(prompt, 'Analysis Prompt')}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow transition-all flex items-center gap-1"
                   >
-                    {copiedTranscriptPrompt ? '✓ Copied!' : '📋 Copy'}
+                    <span>📋</span> Copy Analysis Prompt
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Copy prompt + source video → paste ke AI multimodal untuk transcript detail.
-                </p>
+                <div className="relative flex-1 min-h-[220px]">
+                  <pre className="absolute inset-0 bg-gray-950 text-gray-300 text-xs font-mono p-3 rounded-xl border border-gray-800 overflow-y-auto whitespace-pre-wrap leading-relaxed select-all">
+                    {prompt || 'Loading prompt...'}
+                  </pre>
+                </div>
               </div>
+            )}
 
-              {/* JSON Input */}
-              <textarea
-                value={transcriptJson}
-                onChange={(e) => setTranscriptJson(e.target.value)}
-                placeholder={`Paste transcript JSON from AI...\n\n[\n  { "start": 0.0, "end": 3.5, "visual": "...", ... }\n]`}
-                className="w-full h-36 bg-gray-900 text-gray-300 text-xs font-mono rounded-lg p-3 border border-gray-700 focus:border-cyan-500 focus:outline-none resize-none"
-                spellCheck={false}
-              />
-
-              {transcriptError && (
-                <div className="p-2 rounded bg-red-900/30 border border-red-700/50">
-                  <p className="text-xs text-red-400">{transcriptError}</p>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex justify-center gap-2 flex-wrap">
-                {!transcript ? (
-                  <button onClick={handleParseTranscript} disabled={!transcriptJson.trim()}
-                    className={`px-6 py-2 rounded-lg text-sm font-medium ${!transcriptJson.trim() ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}>
-                    Validate
+            {activePromptTab === 'transcript' && (
+              <div className="flex flex-col h-full space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-400">Prompt for multimodal audio-to-text transcript:</p>
+                  <button
+                    onClick={() => copyText(transcriptPrompt, 'Transcript Prompt')}
+                    className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold shadow transition-all flex items-center gap-1"
+                  >
+                    <span>📋</span> Copy Transcript Prompt
                   </button>
+                </div>
+                <div className="relative flex-1 min-h-[220px]">
+                  <pre className="absolute inset-0 bg-gray-950 text-gray-300 text-xs font-mono p-3 rounded-xl border border-gray-800 overflow-y-auto whitespace-pre-wrap leading-relaxed select-all">
+                    {transcriptPrompt || 'Loading transcript prompt...'}
+                  </pre>
+                </div>
+              </div>
+            )}
+
+            {activePromptTab === 'context' && (
+              <div className="space-y-4 overflow-y-auto">
+                <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-amber-400">🎬 Scene Context (Wajib)</span>
+                    <button
+                      onClick={() => copyText(SCENE, 'Scene Context')}
+                      className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-white text-xs rounded font-medium transition-all"
+                    >
+                      Copy Scene
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-300 font-mono leading-relaxed bg-gray-900 p-2.5 rounded-lg border border-gray-800">
+                    {SCENE}
+                  </p>
+                </div>
+
+                <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-emerald-400">🎙️ Sample Tone Context</span>
+                    <button
+                      onClick={() => copyText(SAMPLE_CONTEXT, 'Sample Context')}
+                      className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-white text-xs rounded font-medium transition-all"
+                    >
+                      Copy Context
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-300 font-mono leading-relaxed bg-gray-900 p-2.5 rounded-lg border border-gray-800">
+                    {SAMPLE_CONTEXT}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT PANEL: Data Ingestion & Media Hub (Col 7) */}
+        <div className="lg:col-span-7 flex flex-col bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
+          {/* Input Header Tabs */}
+          <div className="flex items-center justify-between bg-gray-900 px-4 py-3 border-b border-gray-800 shrink-0">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setActiveInputTab('analysis')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  activeInputTab === 'analysis'
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                    : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                }`}
+              >
+                <span>📄</span> Analysis JSON
+                {saved && <span className="w-2 h-2 rounded-full bg-emerald-400"></span>}
+              </button>
+
+              <button
+                onClick={() => setActiveInputTab('voiceover')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  activeInputTab === 'voiceover'
+                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                    : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                }`}
+              >
+                <span>🎙️</span> Voiceover
+                {voiceOver && <span className="w-2 h-2 rounded-full bg-purple-400"></span>}
+              </button>
+
+              <button
+                onClick={() => setActiveInputTab('transcript')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  activeInputTab === 'transcript'
+                    ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
+                    : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                }`}
+              >
+                <span>📜</span> Transcript
+                {transcriptSaved && <span className="w-2 h-2 rounded-full bg-cyan-400"></span>}
+              </button>
+            </div>
+          </div>
+
+          {/* Input Tab Content */}
+          <div className="p-5 flex-1 flex flex-col min-h-0 overflow-auto">
+            {/* 1. ANALYSIS JSON TAB */}
+            {activeInputTab === 'analysis' && (
+              <div className="flex flex-col h-full space-y-4">
+                {result ? (
+                  /* Formatted Result View */
+                  <div className="flex flex-col h-full space-y-3">
+                    <div className="flex items-center justify-between bg-emerald-950/40 p-3 rounded-xl border border-emerald-800/50">
+                      <div>
+                        <h3 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                          <span>✓</span> Valid Script Analysis
+                        </h3>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {result.script_blocks.length} Scene Blocks · ~{result.total_estimated_words} Words
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleClearAnalysis}
+                        className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-medium transition-all"
+                      >
+                        Edit / Replace
+                      </button>
+                    </div>
+
+                    <div className="bg-gray-950 p-3.5 rounded-xl border border-gray-800">
+                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1">Episode Summary</span>
+                      <p className="text-xs text-gray-300 leading-relaxed">{result.episode_summary}</p>
+                    </div>
+
+                    <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+                      {result.script_blocks.map((b) => (
+                        <div key={b.id} className="p-3 bg-gray-950 rounded-xl border border-gray-800 hover:border-gray-700 transition-all">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold text-indigo-400 font-mono">Block #{b.id}</span>
+                            <span className="text-xs text-gray-500 font-mono">{b.estimated_timestamp}</span>
+                          </div>
+                          <p className="text-xs text-gray-400 italic mb-1.5">{b.visual_context}</p>
+                          <p className="text-xs text-gray-200 leading-relaxed">{b.narration}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ) : (
-                  <>
-                    <button onClick={() => { setTranscript(null); setTranscriptJson(''); setTranscriptError(null); setTranscriptSaved(false); }}
-                      className="px-3 py-1.5 rounded text-xs text-gray-400 hover:text-gray-200 transition-colors">
-                      Clear
-                    </button>
-                    <button onClick={handleSaveTranscript}
-                      className={`px-4 py-1.5 rounded text-xs font-medium ${transcriptSaved ? 'bg-cyan-800 text-cyan-300' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}>
-                      {transcriptSaved ? '✓ Saved' : '💾 Save'}
-                    </button>
-                  </>
+                  /* Raw Input View */
+                  <div className="flex flex-col h-full space-y-3">
+                    <p className="text-xs text-gray-400">Paste the JSON response generated by AI analysis:</p>
+                    <textarea
+                      value={jsonRaw}
+                      onChange={(e) => setJsonRaw(e.target.value)}
+                      placeholder={`{\n  "episode_summary": "...",\n  "total_estimated_words": 150,\n  "script_blocks": [\n    {\n      "id": 1,\n      "estimated_timestamp": "0:00 - 0:05",\n      "visual_context": "...",\n      "narration": "..."\n    }\n  ]\n}`}
+                      className="flex-1 w-full bg-gray-950 text-gray-200 text-xs font-mono p-4 rounded-xl border border-gray-800 focus:border-indigo-500 focus:outline-none resize-none leading-relaxed"
+                      spellCheck={false}
+                    />
+
+                    {error && (
+                      <div className="p-3 bg-red-950/40 border border-red-800/50 rounded-xl text-xs text-red-400">
+                        {error}
+                      </div>
+                    )}
+
+                    <div className="flex justify-end gap-2 pt-2">
+                      <button
+                        onClick={handleParseAnalysis}
+                        disabled={!jsonRaw.trim()}
+                        className={`px-5 py-2 rounded-xl text-xs font-semibold shadow-lg transition-all ${
+                          !jsonRaw.trim()
+                            ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                            : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'
+                        }`}
+                      >
+                        Validate & Save Analysis
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
+            )}
 
-              {/* Preview */}
-              {transcript && (
-                <div className="max-h-48 overflow-y-auto space-y-1 rounded-lg border border-gray-800 p-2">
-                  {transcript.slice(0, 20).map((e, i) => (
-                    <div key={i} className="flex gap-2 text-xs p-1.5 rounded hover:bg-gray-800/50">
-                      <span className="text-cyan-400 font-mono shrink-0 w-16">{e.start.toFixed(1)}s</span>
-                      <span className="text-gray-300">{e.visual}</span>
-                      <span className="text-gray-500 shrink-0">{e.shot}</span>
-                    </div>
-                  ))}
-                  {transcript.length > 20 && (
-                    <p className="text-xs text-gray-500 text-center py-1">...and {transcript.length - 20} more entries</p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Voice Over Audio */}
-        <div className="border border-gray-700 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setCollapsed((c) => ({ ...c, voiceOver: !c.voiceOver }))}
-            className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-800 hover:bg-gray-800/70 transition-colors"
-          >
-            <span className="text-sm font-medium text-purple-300">🎙️ Voice Over Audio</span>
-            <div className="flex items-center gap-2">
-              {voiceOver && <span className="text-xs text-green-400">✓ Uploaded</span>}
-              <span className="text-xs text-gray-500">{collapsed.voiceOver ? '▶ Expand' : '▼ Collapse'}</span>
-            </div>
-          </button>
-          {!collapsed.voiceOver && (
-            <div className="p-3 space-y-3">
-              {/* No voice-over selected */}
-              {!voiceOver && (
-                <div className="flex flex-col items-center gap-3 py-3">
-                  <p className="text-xs text-gray-500 text-center">
-                    Upload your recorded voice-over narration (MP3, WAV). This audio will be synced with scenes in the Render step.
-                  </p>
-                  <div className="flex gap-2 flex-wrap justify-center">
-                    <button
-                      onClick={handleBrowseAudio}
-                      disabled={voiceOverUploading}
-                      className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
-                        voiceOverUploading
-                          ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                          : 'bg-purple-600 hover:bg-purple-500 text-white'
-                      }`}
-                    >
-                      {voiceOverUploading ? 'Uploading...' : '🎵 Browse Audio'}
-                    </button>
-                    {audioList.length > 0 && !showAudioList && (
-                      <button
-                        onClick={() => setShowAudioList(true)}
-                        className="px-4 py-2 rounded-lg text-xs text-gray-400 hover:text-purple-400 hover:bg-gray-800 transition-colors"
-                      >
-                        Or choose uploaded ({audioList.length})
-                      </button>
-                    )}
-                  </div>
-
-                  {audioList.length > 0 && showAudioList && (
-                    <div className="w-full text-left space-y-1">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-medium text-gray-300">Uploaded Audio Files</h4>
-                        <button onClick={() => setShowAudioList(false)} className="text-xs text-gray-500 hover:text-gray-300">hide</button>
+            {/* 2. VOICEOVER TAB */}
+            {activeInputTab === 'voiceover' && (
+              <div className="flex flex-col h-full space-y-4 justify-center">
+                {voiceOver ? (
+                  <div className="bg-gray-950 p-6 rounded-2xl border border-emerald-900/50 space-y-5">
+                    <div className="flex items-center justify-between bg-emerald-950/40 p-3.5 rounded-xl border border-emerald-800/50">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs">✓</span>
+                        <div>
+                          <h3 className="text-xs font-bold text-emerald-400">Voiceover Ready & Completed</h3>
+                          <p className="text-xs text-gray-400 mt-0.5">1 Audio file linked for narrative video sync.</p>
+                        </div>
                       </div>
-                      <div className="max-h-32 overflow-y-auto space-y-0.5 rounded-lg border border-gray-800">
+                      <button
+                        onClick={handleRemoveAudio}
+                        className="px-3 py-1 bg-gray-800 hover:bg-red-900/40 text-gray-400 hover:text-red-400 rounded-lg text-xs font-medium border border-gray-700 transition-all"
+                      >
+                        Remove
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-3 bg-gray-900/80 rounded-xl border border-gray-800">
+                      <span className="p-2.5 bg-purple-600/20 text-purple-400 rounded-lg text-lg">🎙️</span>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xs font-bold text-white font-mono truncate">{voiceOver.name}</h4>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {voiceOver.size ? `${(voiceOver.size / 1024).toFixed(0)} KB` : 'Audio Recording'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <audio src={voiceOver.url} controls className="w-full h-10 rounded-lg" />
+
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-xs text-emerald-400 font-medium">✓ Step 100% Complete</span>
+                      <button
+                        onClick={handleBrowseAudio}
+                        disabled={voiceOverUploading}
+                        className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-xl text-xs font-medium transition-all"
+                      >
+                        Replace Voiceover
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-gray-950 p-8 rounded-2xl border border-dashed border-gray-800 text-center space-y-4">
+                    <div className="w-16 h-16 bg-purple-600/10 text-purple-400 rounded-full flex items-center justify-center mx-auto text-2xl">
+                      🎵
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Upload Voiceover Narration</h3>
+                      <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                        Select an MP3 or WAV audio recording of your narration. This audio will be synced with timeline clips in the render step.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-3 pt-2">
+                      <button
+                        onClick={handleBrowseAudio}
+                        disabled={voiceOverUploading}
+                        className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-purple-600/30 transition-all"
+                      >
+                        {voiceOverUploading ? 'Uploading...' : 'Browse Audio File'}
+                      </button>
+
+                      {audioList.length > 0 && (
+                        <button
+                          onClick={() => setShowAudioList(!showAudioList)}
+                          className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-medium transition-all"
+                        >
+                          Select Existing ({audioList.length})
+                        </button>
+                      )}
+                    </div>
+
+                    {showAudioList && audioList.length > 0 && (
+                      <div className="mt-4 bg-gray-900 p-3 rounded-xl border border-gray-800 text-left max-h-40 overflow-y-auto space-y-1">
                         {audioList.map((f) => (
-                          <div key={f.name} className="flex items-center justify-between px-3 py-1.5 hover:bg-gray-800/50 rounded transition-colors">
-                            <button
-                              onClick={() => handleSelectAudio(f)}
-                              className="flex items-center gap-2 text-left flex-1 min-w-0"
-                            >
-                              <span className="text-xs">🎵</span>
-                              <span className="text-xs text-gray-300 truncate">{f.name}</span>
-                              <span className="text-xs text-gray-500 shrink-0">{f.size ? `${(f.size / 1024).toFixed(0)}KB` : ''}</span>
-                            </button>
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                await api.deleteSource(f.name);
-                                loadAudioList();
-                              }}
-                              className="text-xs text-gray-600 hover:text-red-400 px-1 transition-colors" title="Delete"
-                            >
-                              ✕
+                          <div key={f.name} className="flex items-center justify-between p-2 hover:bg-gray-800 rounded-lg transition-all">
+                            <button onClick={() => handleSelectAudio(f)} className="text-xs text-gray-300 hover:text-purple-300 font-mono truncate flex-1 text-left">
+                              🎵 {f.name}
                             </button>
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
-              {/* Voice-over selected */}
-              {voiceOver && (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-900/60 border border-gray-700/50">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-300 font-mono truncate">{voiceOver.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {voiceOver.size ? `${(voiceOver.size / 1024).toFixed(0)}KB` : ''}
-                        {voiceOver.createdAt ? ` · ${new Date(voiceOver.createdAt).toLocaleDateString()}` : ''}
-                      </p>
-                    </div>
-                    <audio src={voiceOver.url} controls className="h-8" />
+            {/* 3. TRANSCRIPT TAB */}
+            {activeInputTab === 'transcript' && (
+              <div className="flex flex-col h-full space-y-4">
+                <p className="text-xs text-gray-400">Paste the JSON timestamp transcript for subtitle synchronization:</p>
+                <textarea
+                  value={transcriptJson}
+                  onChange={(e) => setTranscriptJson(e.target.value)}
+                  placeholder={`[\n  {\n    "start": 0.0,\n    "end": 3.5,\n    "visual": "...",\n    "text": "..."\n  }\n]`}
+                  className="flex-1 w-full bg-gray-950 text-gray-200 text-xs font-mono p-4 rounded-xl border border-gray-800 focus:border-cyan-500 focus:outline-none resize-none leading-relaxed"
+                  spellCheck={false}
+                />
+
+                {transcriptError && (
+                  <div className="p-3 bg-red-950/40 border border-red-800/50 rounded-xl text-xs text-red-400">
+                    {transcriptError}
                   </div>
-                  <div className="flex justify-center gap-2">
-                    <button
-                      onClick={handleRemoveAudio}
-                      className="px-4 py-1.5 rounded-lg text-xs text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors"
-                    >
-                      Remove
-                    </button>
-                    <button
-                      onClick={handleBrowseAudio}
-                      disabled={voiceOverUploading}
-                      className="px-4 py-1.5 rounded-lg text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white transition-colors"
-                    >
-                      {voiceOverUploading ? 'Uploading...' : 'Change'}
-                    </button>
-                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-2">
+                  <span className="text-xs text-gray-500">
+                    {transcript ? `✓ ${transcript.length} transcript entries loaded` : 'No transcript validated yet'}
+                  </span>
+                  <button
+                    onClick={handleParseTranscript}
+                    disabled={!transcriptJson.trim()}
+                    className={`px-5 py-2 rounded-xl text-xs font-semibold shadow-lg transition-all ${
+                      !transcriptJson.trim()
+                        ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                        : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-600/30'
+                    }`}
+                  >
+                    Validate & Save Transcript
+                  </button>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="p-3 rounded-lg bg-red-900/30 border border-red-700/50">
-            <p className="text-sm text-red-400">{error}</p>
-          </div>
-        )}
-
-        {/* Result preview (before save) */}
-        {result && !saved && (
-          <div className="p-4 rounded-xl bg-gray-800/50 border border-indigo-700/50 space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-indigo-400">✅ Valid JSON</span>
-              <span className="text-xs text-gray-500">
-                {result.script_blocks.length} blocks · ~{result.total_estimated_words} words
-              </span>
-            </div>
-            <p className="text-sm text-gray-300">{result.episode_summary}</p>
-
-            {/* Narration paragraph preview */}
-            <div className="p-3 rounded-lg bg-gray-900/60 border border-gray-700/50 max-h-32 overflow-y-auto">
-              <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{buildNarrationParagraph()}</p>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button onClick={handleCopyNarration} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white transition-colors">
-                {copiedNarration ? '✓ Copied!' : '📝 Copy Narration'}
-              </button>
-              <button onClick={handleClear} className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-gray-200 transition-colors">
-                Clear
-              </button>
-              <button onClick={handleSave} className="px-4 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
-                Save Analysis
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Validate button */}
-        {!result && (
-          <div className="flex justify-center">
-            <button
-              onClick={handleParse}
-              disabled={!jsonRaw.trim()}
-              className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors ${
-                !jsonRaw.trim()
-                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                  : 'bg-indigo-600 hover:bg-indigo-500 text-white'
-              }`}
-            >
-              Validate & Parse
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
