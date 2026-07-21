@@ -639,3 +639,63 @@ ipcMain.handle('render-video', async (_event, mapping, videoPath, audioPath) => 
     });
   });
 });
+
+// ─── Reset project workspace ───────────────────────────
+
+ipcMain.handle('reset-project', async () => {
+  try {
+    const outputDir = path.join(PROJECT_ROOT, 'output');
+    const inputDir = path.join(PROJECT_ROOT, 'input');
+    const assetsDir = path.join(PROJECT_ROOT, 'input', 'assets');
+    const tmpDir = path.join(PROJECT_ROOT, 'input', '.tmp');
+
+    // 1. Clear output directory (delete all rendered MP4s)
+    if (fs.existsSync(outputDir)) {
+      const files = fs.readdirSync(outputDir);
+      for (const f of files) {
+        try { fs.unlinkSync(path.join(outputDir, f)); } catch {}
+      }
+    }
+
+    // 2. Clear input/assets directory (delete all uploaded sources & voiceovers)
+    if (fs.existsSync(assetsDir)) {
+      const files = fs.readdirSync(assetsDir);
+      for (const f of files) {
+        try { fs.unlinkSync(path.join(assetsDir, f)); } catch {}
+      }
+    }
+
+    // 3. Clear input/.tmp directory
+    if (fs.existsSync(tmpDir)) {
+      const files = fs.readdirSync(tmpDir);
+      for (const f of files) {
+        try { fs.unlinkSync(path.join(tmpDir, f)); } catch {}
+      }
+    }
+
+    // 4. Reset JSON files in input/
+    const mappingFile = path.join(inputDir, 'mapping.json');
+    const defaultMapping = {
+      settings: { fps: 30, format: "9:16", fg_aspect: "4:5", bgm: "random" },
+      timeline: []
+    };
+    fs.writeFileSync(mappingFile, JSON.stringify(defaultMapping, null, 2), 'utf-8');
+
+    const transcriptFile = path.join(inputDir, 'transcript.json');
+    fs.writeFileSync(transcriptFile, '[]', 'utf-8');
+
+    const analysisFile = path.join(inputDir, 'analysis.json');
+    if (fs.existsSync(analysisFile)) {
+      try { fs.unlinkSync(analysisFile); } catch {}
+    }
+
+    const voiceoverFile = path.join(inputDir, 'voiceover.json');
+    if (fs.existsSync(voiceoverFile)) {
+      try { fs.unlinkSync(voiceoverFile); } catch {}
+    }
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});

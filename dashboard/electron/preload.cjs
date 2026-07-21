@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Generic project file helpers
+  resetProject: () => ipcRenderer.invoke('reset-project'),
   generateYoutubeTitles: (transcriptText) => ipcRenderer.invoke('generate-youtube-titles', transcriptText),
   saveToProject: (subPath, data) => ipcRenderer.invoke('save-to-project', { subPath, data }),
   readFromProject: (subPath) => ipcRenderer.invoke('read-from-project', subPath),
