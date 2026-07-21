@@ -17,9 +17,19 @@ const UploadPlaceholder: React.FC = () => {
 
   const [renderedVideoPath, setRenderedVideoPath] = useState<string | null>(null);
   const [rendersList, setRendersList] = useState<any[]>([]);
+  const [contentId, setContentId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<boolean>(false);
 
   useEffect(() => {
     (async () => {
+      // 0. Load Content ID
+      try {
+        if (api.getContentId) {
+          const id = await api.getContentId();
+          setContentId(id);
+        }
+      } catch {}
+
       // 1. Load transcript text for AI context
       try {
         const rawTranscript = await api.readFromProject('input/transcript.json');
@@ -266,6 +276,22 @@ const UploadPlaceholder: React.FC = () => {
 
           {/* Video File Specs & Copy Path */}
           <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-3">
+            {contentId && (
+              <div className="flex items-center justify-between pb-2 border-b border-gray-800/80">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-indigo-400 uppercase font-bold tracking-wider">Content Identifier</span>
+                  <span className="text-xs font-mono font-bold text-indigo-300 block">
+                    {contentId}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleCopy(contentId, setCopiedId)}
+                  className="px-2.5 py-1 bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/50 text-indigo-300 rounded-md text-[11px] font-medium transition-all"
+                >
+                  {copiedId ? '✓ Copied' : 'Copy ID'}
+                </button>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <span className="text-[10px] text-gray-500 uppercase block">Selected File Path</span>

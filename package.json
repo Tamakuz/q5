@@ -2,17 +2,22 @@
   "name": "content-auto",
   "version": "0.1.0",
   "private": true,
-  "workspaces": ["dashboard"],
+  "workspaces": [
+    "dashboard"
+  ],
   "description": "Remotion-based automated content rendering engine for YouTube",
   "scripts": {
     "build": "tsc --noEmit",
     "render": "npx tsx cli.ts render",
-    "validate": "npx tsx cli.ts validate"
+    "validate": "npx tsx cli.ts validate",
+    "aistudio": "npx tsx playwright/aistudio.ts",
+    "aistudio:init": "npx tsx playwright/initialize.ts"
   },
   "dependencies": {
     "@remotion/bundler": "^4.0.0",
     "@remotion/renderer": "^4.0.0",
     "commander": "^12.0.0",
+    "playwright": "^1.61.1",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "remotion": "^4.0.0",

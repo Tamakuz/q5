@@ -1,5 +1,5 @@
 // dashboard/src/components/TopBar.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface TopBarProps {
   onResetProject?: () => void;
@@ -8,6 +8,28 @@ interface TopBarProps {
 const TopBar: React.FC<TopBarProps> = ({ onResetProject }) => {
   const [showConfirm, setShowConfirm] = useState<boolean>(false);
   const [resetting, setResetting] = useState<boolean>(false);
+  const [contentId, setContentId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<boolean>(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        if (window.electronAPI?.getContentId) {
+          const id = await window.electronAPI.getContentId();
+          setContentId(id);
+        }
+      } catch {}
+    })();
+  }, []);
+
+  const handleCopyId = async () => {
+    if (!contentId) return;
+    if (window.electronAPI?.copyToClipboard) {
+      await window.electronAPI.copyToClipboard(contentId);
+      setCopiedId(true);
+      setTimeout(() => setCopiedId(false), 2000);
+    }
+  };
 
   const handleConfirmReset = async () => {
     setResetting(true);
@@ -38,6 +60,21 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject }) => {
           <span className="text-[10px] font-mono text-gray-400 bg-gray-800 px-2 py-0.5 rounded-md border border-gray-700">
             v0.1.0
           </span>
+
+          {/* Content ID Badge */}
+          {contentId && (
+            <button
+              onClick={handleCopyId}
+              title="Click to copy Content ID for Google AI Studio / Drive tracking"
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-700/50 rounded-lg transition-all text-xs font-mono text-indigo-300 ml-2"
+            >
+              <span>🆔</span>
+              <span className="font-bold">{contentId}</span>
+              <span className="text-[10px] text-indigo-400">
+                {copiedId ? '✓ Copied' : '📋'}
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Reset Workspace Action */}

@@ -455,4 +455,21 @@ program
     }
   });
 
+program
+  .command('aistudio')
+  .description('Launch Google AI Studio persistent browser session')
+  .option('-h, --headless', 'Run browser in headless mode', false)
+  .action(async (options) => {
+    const { launchAIStudioSession } = await import('./playwright/aistudio');
+    await launchAIStudioSession({ headless: options.headless });
+  });
+
+program
+  .command('aistudio:init')
+  .description('Initialize Google AI Studio profile & Google Account login (Landscape 1920x1080)')
+  .action(async () => {
+    const { initializeUserSession } = await import('./playwright/initialize');
+    await initializeUserSession();
+  });
+
 program.parse();

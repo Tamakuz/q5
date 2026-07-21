@@ -76,16 +76,15 @@ app.whenReady().then(() => {
       filePath = path.join(PROJECT_ROOT, filePath);
     }
 
-    // Security: prevent path traversal outside PROJECT_ROOT
-    if (!filePath.startsWith(PROJECT_ROOT)) {
-      return new Response('Forbidden', { status: 403 });
-    }
-
     if (!fs.existsSync(filePath)) {
       return new Response('File not found', { status: 404 });
     }
 
     const stat = fs.statSync(filePath);
+    if (!stat.isFile()) {
+      return new Response('Not a file', { status: 400 });
+    }
+
     const fileSize = stat.size;
     const rangeHeader = request.headers.get('range');
 
@@ -270,9 +269,44 @@ ipcMain.handle('get-video-meta', async (_event, filePath) => {
   });
 });
 
+// ─── Content ID Helper ────────────────────────────────
+
+function getOrGenerateContentId() {
+  const mappingFile = path.join(PROJECT_ROOT, 'input', 'mapping.json');
+  try {
+    if (fs.existsSync(mappingFile)) {
+      const data = JSON.parse(fs.readFileSync(mappingFile, 'utf-8'));
+      if (data.settings?.content_id) {
+        return data.settings.content_id;
+      }
+    }
+  } catch {}
+
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const randStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const newId = `WV-${dateStr}-${randStr}`;
+
+  try {
+    let mapping = { settings: { fps: 30, format: "9:16", fg_aspect: "4:5", bgm: "random" }, timeline: [] };
+    if (fs.existsSync(mappingFile)) {
+      mapping = JSON.parse(fs.readFileSync(mappingFile, 'utf-8'));
+    }
+    mapping.settings = mapping.settings || {};
+    mapping.settings.content_id = newId;
+    fs.writeFileSync(mappingFile, JSON.stringify(mapping, null, 2), 'utf-8');
+  } catch {}
+
+  return newId;
+}
+
+ipcMain.handle('get-content-id', async () => {
+  return getOrGenerateContentId();
+});
+
 // ─── Upload & trim with FFmpeg ────────────────────────
 
 ipcMain.handle('upload-source', async (_event, { filePath, start, end }) => {
+  const contentId = getOrGenerateContentId();
   const baseName = path.basename(filePath);
   const shouldTrim = start > 0 || end > 0;
 
@@ -281,6 +315,7 @@ ipcMain.handle('upload-source', async (_event, { filePath, start, end }) => {
     fs.copyFileSync(filePath, destPath);
     const stat = fs.statSync(destPath);
     return {
+      id: contentId,
       name: baseName,
       size: stat.size,
       url: mediaUrl(destPath),
