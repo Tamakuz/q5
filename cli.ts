@@ -472,4 +472,58 @@ program
     await initializeUserSession();
   });
 
+program
+  .command('aistudio:prompt')
+  .description('Action 1: Insert Analysis Prompt text into Google AI Studio')
+  .option('-f, --file <string>', 'Path to prompt markdown file', 'dashboard/prompts/analysis-prompt.md')
+  .option('-t, --text <string>', 'Direct prompt text to insert')
+  .option('-m, --model <string>', 'Model name', 'gemini-3.5-flash')
+  .option('-l, --level <string>', 'Thinking level (High|Medium|Low|Off)', 'High')
+  .action(async (options) => {
+    const { launchAIStudioSession } = await import('./playwright/aistudio');
+    const { inputTextPrompt } = await import('./playwright/actions/input-prompt');
+    const { page } = await launchAIStudioSession({ headless: false });
+    await inputTextPrompt(page, {
+      promptFilePath: options.file,
+      promptText: options.text,
+      modelName: options.model,
+      thinkingLevel: options.level as any,
+    });
+  });
+
+program
+  .command('aistudio:model')
+  .description('Configure Gemini Model & Thinking Level (High) in Google AI Studio')
+  .option('-m, --model <string>', 'Model name', 'gemini-3.5-flash')
+  .option('-l, --level <string>', 'Thinking level (High|Medium|Low|Off)', 'High')
+  .action(async (options) => {
+    const { launchAIStudioSession } = await import('./playwright/aistudio');
+    const { configureModelAndThinking } = await import('./playwright/actions/select-model');
+    const { page } = await launchAIStudioSession({ headless: false });
+    await configureModelAndThinking(page, { modelName: options.model, thinkingLevel: options.level as any });
+  });
+
+program
+  .command('aistudio:attach')
+  .description('Action 2: Dynamically attach video/audio asset file into Google AI Studio')
+  .option('-f, --file <string>', 'Explicit asset file path')
+  .option('-d, --dir <string>', 'Asset directory to scan (default: input/assets)', 'input/assets')
+  .action(async (options) => {
+    const { launchAIStudioSession } = await import('./playwright/aistudio');
+    const { attachFile } = await import('./playwright/actions/attach-file');
+    const { page } = await launchAIStudioSession({ headless: false });
+    await attachFile(page, { filePath: options.file, directoryPath: options.dir });
+  });
+
+program
+  .command('aistudio:drive')
+  .description('Action 2 (Drive Mode): Attach file from Google Drive picker into Google AI Studio')
+  .option('-s, --search <string>', 'Search term (Content ID or filename) in Google Drive')
+  .action(async (options) => {
+    const { launchAIStudioSession } = await import('./playwright/aistudio');
+    const { attachDriveFile } = await import('./playwright/actions/attach-drive-file');
+    const { page } = await launchAIStudioSession({ headless: false });
+    await attachDriveFile(page, { searchTerm: options.search });
+  });
+
 program.parse();

@@ -2,20 +2,23 @@
 import { chromium } from 'playwright';
 import readline from 'readline';
 import fs from 'fs';
-import { USER_DATA_DIR, DEFAULT_AI_STUDIO_URL, BROWSER_LAUNCH_OPTIONS } from './config';
+import { Command } from 'commander';
+import { getUserDataDir, DEFAULT_AI_STUDIO_URL, BROWSER_LAUNCH_OPTIONS } from './config';
 
-export async function initializeUserSession(): Promise<void> {
+export async function initializeUserSession(accountName: string = 'default'): Promise<void> {
+  const userDataDir = getUserDataDir(accountName);
+
   console.log('\n======================================================');
-  console.log('🔑 INITIALIZING GOOGLE AI STUDIO PERSISTENT SESSION');
+  console.log(`🔑 INITIALIZING GOOGLE AI STUDIO SESSION FOR: "${accountName}"`);
   console.log('======================================================\n');
-  console.log(`📁 Profile Directory: ${USER_DATA_DIR}`);
+  console.log(`📁 Profile Directory: ${userDataDir}`);
   console.log(`🖥️  Window Aspect: Landscape (1920x1080)`);
 
-  if (!fs.existsSync(USER_DATA_DIR)) {
-    fs.mkdirSync(USER_DATA_DIR, { recursive: true });
+  if (!fs.existsSync(userDataDir)) {
+    fs.mkdirSync(userDataDir, { recursive: true });
   }
 
-  const context = await chromium.launchPersistentContext(USER_DATA_DIR, {
+  const context = await chromium.launchPersistentContext(userDataDir, {
     ...BROWSER_LAUNCH_OPTIONS,
     headless: false,
   });
@@ -31,7 +34,7 @@ export async function initializeUserSession(): Promise<void> {
   await page.goto(DEFAULT_AI_STUDIO_URL, { waitUntil: 'domcontentloaded' });
 
   console.log('\n------------------------------------------------------');
-  console.log('👉 SILAKAN LOGIN GOOGLE AKUN KAMU DI JENDELA BROWSER.');
+  console.log(`👉 SILAKAN LOGIN DENGAN AKUN GOOGLE UNTUK PROFILE: "${accountName}".`);
   console.log('👉 Setelah berhasil masuk ke Google AI Studio,');
   console.log('👉 Tekan [ENTER] di terminal ini untuk menyimpan sesi & menutup browser.');
   console.log('------------------------------------------------------\n');
@@ -42,20 +45,31 @@ export async function initializeUserSession(): Promise<void> {
   });
 
   await new Promise<void>((resolve) => {
-    rl.question('Press ENTER after you have completed login: ', () => {
+    rl.question('Tekan [ENTER] setelah selesai login: ', () => {
       rl.close();
       resolve();
     });
   });
 
-  console.log('\n💾 Saving cookies and session data to ./playwright/user_data...');
+  console.log(`\n💾 Saving cookies and session data to: ${userDataDir}...`);
   await context.close();
-  console.log('✅ Session initialized & saved successfully! You can now run automated scripts.\n');
+  console.log(`✅ Session for account "${accountName}" saved successfully!\n`);
 }
 
 if (require.main === module || process.argv[1]?.endsWith('initialize.ts')) {
-  initializeUserSession().catch((err) => {
-    console.error('❌ Error during session initialization:', err.message);
-    process.exit(1);
-  });
+  const program = new Command();
+  program
+    .name('aistudio:init')
+    .description('Initialize & Save Google AI Studio persistent login session for a specific account profile')
+    .option('-a, --account <string>', 'Account profile name (e.g. user1, user2, jovan)', 'default')
+    .action(async (opts) => {
+      try {
+        await initializeUserSession(opts.account);
+      } catch (err: any) {
+        console.error('❌ Error during session initialization:', err.message);
+        process.exit(1);
+      }
+    });
+
+  program.parse(process.argv);
 }

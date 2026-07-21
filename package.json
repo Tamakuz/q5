@@ -11,7 +11,12 @@
     "render": "npx tsx cli.ts render",
     "validate": "npx tsx cli.ts validate",
     "aistudio": "npx tsx playwright/aistudio.ts",
-    "aistudio:init": "npx tsx playwright/initialize.ts"
+    "aistudio:init": "npx tsx playwright/initialize.ts",
+    "aistudio:prompt": "npx tsx playwright/actions/input-prompt.ts",
+    "aistudio:attach": "npx tsx playwright/actions/attach-file.ts",
+    "aistudio:drive": "npx tsx playwright/actions/attach-drive-file.ts",
+    "aistudio:submit": "npx tsx playwright/actions/submit-and-extract.ts",
+    "aistudio:pipeline": "npx tsx playwright/pipelines/analysis-pipeline.ts"
   },
   "dependencies": {
     "@remotion/bundler": "^4.0.0",
