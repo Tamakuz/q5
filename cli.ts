@@ -33,6 +33,7 @@ const MappingSchema = z.object({
     captions: z.boolean().optional().default(true),
     watermark: z.string().optional(),
     watermark_pos: z.enum(["top_left", "top_right", "random"]).optional().default("random"),
+    bgm: z.string().optional(),
   }),
   timeline: z.array(ClipSchema).min(1),
 });
@@ -171,8 +172,9 @@ program
   .argument('<mapping>', 'Path to AI mapping JSON file')
   .requiredOption('--video <path>', 'Path to source video file')
   .option('-a, --audio <path>', 'Path to voice-over audio file')
+  .option('-b, --bgm <path>', 'Path to background music file')
   .option('-o, --output <path>', 'Output MP4 file path', 'output/video.mp4')
-  .action(async (mappingPath: string, opts: { video: string; audio?: string; output: string }) => {
+  .action(async (mappingPath: string, opts: { video: string; audio?: string; bgm?: string; output: string }) => {
     const resolvedMap = path.resolve(mappingPath);
     const resolvedVideo = path.resolve(opts.video);
     const resolvedAudio = opts.audio ? path.resolve(opts.audio) : null;
@@ -345,21 +347,89 @@ program
       }
       console.log('');
 
-      // 3. Concat + mux audio (single ffmpeg invocation)
-      console.log('🔗 Concatenating + muxing audio...');
+      // 3. Concat + mux audio with BGM mixing
+      console.log('🔗 Concatenating + mixing audio & BGM...');
       const listFile = path.join(tmpDir, 'list.txt');
       fs.writeFileSync(listFile, clipFiles.map((f) => `file '${f}'`).join('\n'), 'utf-8');
+
+      // Auto-detect or AI-decide BGM if not provided explicitly
+      let bgmFile: string | null = opts.bgm ? path.resolve(opts.bgm) : null;
+      if (!bgmFile || !fs.existsSync(bgmFile)) {
+        const bgmCandidates: string[] = [];
+        const searchDirs = [path.join(process.cwd(), 'assets'), path.join(process.cwd(), 'input', 'assets')];
+        for (const dir of searchDirs) {
+          if (fs.existsSync(dir)) {
+            const files = fs.readdirSync(dir);
+            for (const f of files) {
+              const full = path.join(dir, f);
+              if (/\.(mp3|wav|m4a|ogg)$/i.test(f) && full !== resolvedAudioFinal) {
+                if (dir.endsWith('/assets') || f.toLowerCase().includes('bgm') || f.toLowerCase().includes('music') || f.toLowerCase().includes('background')) {
+                  bgmCandidates.push(full);
+                }
+              }
+            }
+          }
+        }
+        if (bgmCandidates.length > 0) {
+          const requestedBgm = mapping.settings.bgm?.toLowerCase();
+          if (requestedBgm && requestedBgm !== 'random') {
+            const matched = bgmCandidates.find((f) => {
+              const lowerName = path.basename(f).toLowerCase();
+              if (requestedBgm.includes('monkey') && lowerName.includes('monkey')) return true;
+              if (requestedBgm.includes('sneaky') && lowerName.includes('sneaky')) return true;
+              if (requestedBgm.includes('snitch') && lowerName.includes('snitch')) return true;
+              if (requestedBgm.includes('duck') && lowerName.includes('duck')) return true;
+              if (requestedBgm.includes('fluffing') && lowerName.includes('fluffing')) return true;
+              if (requestedBgm.includes('elevator') && lowerName.includes('elevator')) return true;
+              if (requestedBgm.includes('forecast') && lowerName.includes('forecast')) return true;
+              return lowerName.includes(requestedBgm);
+            });
+            if (matched) {
+              bgmFile = matched;
+              console.log(`🤖 AI Decided BGM: ${path.basename(matched)} (Key: "${mapping.settings.bgm}")`);
+            }
+          }
+
+          if (!bgmFile) {
+            bgmFile = bgmCandidates[Math.floor(Math.random() * bgmCandidates.length)];
+            console.log(`🎲 Randomized BGM: ${path.basename(bgmFile)}`);
+          }
+        }
+      }
 
       const fargs: string[] = [
         '-y',
         '-f', 'concat', '-safe', '0', '-i', listFile,
       ];
-      if (resolvedAudioFinal) {
+
+      if (resolvedAudioFinal && bgmFile && fs.existsSync(bgmFile)) {
+        console.log(`🎵 Mixing Voiceover + BGM: ${path.basename(bgmFile)} (Volume: 12%)`);
+        fargs.push('-i', resolvedAudioFinal);
+        fargs.push('-i', bgmFile);
+        fargs.push(
+          '-filter_complex',
+          '[1:a]volume=1.0[vo];[2:a]volume=0.12,aloop=loop=-1:size=2e+09[bgm];[vo][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]',
+          '-map', '0:v:0',
+          '-map', '[aout]',
+          '-shortest'
+        );
+      } else if (resolvedAudioFinal) {
         fargs.push('-i', resolvedAudioFinal);
         fargs.push('-map', '0:v:0', '-map', '1:a:0', '-shortest');
+      } else if (bgmFile && fs.existsSync(bgmFile)) {
+        console.log(`🎵 Using BGM: ${path.basename(bgmFile)} (Volume: 20%)`);
+        fargs.push('-i', bgmFile);
+        fargs.push(
+          '-filter_complex',
+          '[1:a]volume=0.20,aloop=loop=-1:size=2e+09[bgm]',
+          '-map', '0:v:0',
+          '-map', '[bgm]',
+          '-shortest'
+        );
       } else {
         fargs.push('-map', '0:v:0');
       }
+
       fargs.push(
         '-c:v', 'copy',                    // no re-encode — clips already H.264
         '-c:a', 'aac', '-b:a', '128k',

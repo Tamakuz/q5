@@ -69,11 +69,16 @@ app.whenReady().then(() => {
   // Register custom protocol for serving local video files
   // Uses fs.createReadStream for proper range request support (needed by <video>)
   protocol.handle(MEDIA_PROTOCOL, (request) => {
-    const filePath = decodeMediaUrl(request.url);
+    let filePath = decodeMediaUrl(request.url);
 
-    // Security: prevent path traversal
-    if (!path.isAbsolute(filePath) || !filePath.startsWith('/')) {
-      return new Response('Invalid path', { status: 400 });
+    // Resolve relative path against PROJECT_ROOT
+    if (!path.isAbsolute(filePath)) {
+      filePath = path.join(PROJECT_ROOT, filePath);
+    }
+
+    // Security: prevent path traversal outside PROJECT_ROOT
+    if (!filePath.startsWith(PROJECT_ROOT)) {
+      return new Response('Forbidden', { status: 403 });
     }
 
     if (!fs.existsSync(filePath)) {
@@ -406,6 +411,34 @@ ipcMain.handle('list-sources', async () => {
   }
 });
 
+// ─── List rendered outputs ─────────────────────────────
+
+ipcMain.handle('list-renders', async () => {
+  const outputDir = path.join(PROJECT_ROOT, 'output');
+  try {
+    if (!fs.existsSync(outputDir)) return [];
+    const files = fs.readdirSync(outputDir)
+      .filter((f) => /\.(mp4|webm|mkv|mov)$/i.test(f))
+      .map((f) => {
+        const fp = path.join(outputDir, f);
+        const stat = fs.statSync(fp);
+        return {
+          name: f,
+          size: stat.size,
+          createdAt: stat.mtime.toISOString(),
+          filePath: path.join('output', f),
+          fullPath: fp,
+          url: mediaUrl(fp),
+        };
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return files;
+  } catch {
+    return [];
+  }
+});
+
 // ─── Delete source ────────────────────────────────────
 
 ipcMain.handle('delete-source', async (_event, fileName) => {
@@ -421,6 +454,50 @@ ipcMain.handle('copy-to-clipboard', async (_event, text) => {
   const { clipboard } = require('electron');
   clipboard.writeText(text);
   return true;
+});
+
+// ─── Generate YouTube Shorts Titles via OpenAI API ───
+
+ipcMain.handle('generate-youtube-titles', async (_event, transcriptText) => {
+  const promptFile = path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'youtube-shorts-prompt.md');
+  let promptTemplate = '';
+  if (fs.existsSync(promptFile)) {
+    promptTemplate = fs.readFileSync(promptFile, 'utf-8');
+  } else {
+    promptTemplate = `Kamu adalah YouTube Shorts Algorithm Expert. Buatkan 5 Judul Viral, Deskripsi, dan Hashtag untuk video recap ini: {{transcript_text}}. Output JSON: {"titles": [], "description": "", "hashtags": [], "recommended_title": ""}`;
+  }
+
+  const fullPrompt = promptTemplate.replace('{{transcript_text}}', transcriptText || 'Video Recap Anime/Cartoon');
+
+  const response = await fetch('https://9router.riztama.my.id/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer sk-6b3ac6ef8e3b70c9-eyxuxt-7adfd291',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'cmc/deepseek/deepseek-v4-pro',
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'user', content: fullPrompt },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`API Error ${response.status}: ${errText}`);
+  }
+
+  const json = await response.json();
+  const content = json.choices?.[0]?.message?.content;
+  if (!content) throw new Error('No content returned from AI API');
+
+  let raw = content.trim();
+  if (raw.startsWith('```')) {
+    raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+  }
+  return JSON.parse(raw);
 });
 
 // ─── Save file to project ─────────────────────────────

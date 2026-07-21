@@ -8,6 +8,7 @@ import BuildPlaceholder from './components/placeholders/BuildPlaceholder';
 import AnalyzePlaceholder from './components/placeholders/AnalyzePlaceholder';
 import TranscriptPlaceholder from './components/placeholders/TranscriptPlaceholder';
 import RenderPlaceholder from './components/placeholders/RenderPlaceholder';
+import UploadPlaceholder from './components/placeholders/UploadPlaceholder';
 
 type Status = 'ready' | 'rendering' | 'error';
 
@@ -16,6 +17,7 @@ const PLACEHOLDERS: Record<StepId, React.FC> = {
   analyze: AnalyzePlaceholder,
   transcript: TranscriptPlaceholder,
   render: RenderPlaceholder,
+  upload: UploadPlaceholder,
 };
 
 const App: React.FC = () => {

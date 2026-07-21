@@ -15,6 +15,14 @@ PENTING — SINKRONISASI VISUAL & VOICE OVER:
 - Durasi visual (`t`) untuk setiap klip WAJIB SAMA PERSIS dengan durasi pengucapan di Voice Over pada item transkrip tersebut (`end_seconds - start_seconds`).
 - Jangan pernah mengurangi atau menebak durasi `t` secara acak! Jika durasi VO kalimat tersebut 5.3 detik, maka `t` HARUS 5.3 detik.
 
+PILIHAN BGM (BACKGROUND MUSIC) BERDASARKAN MOOD NARASI:
+Tentukan nilai field `"bgm"` di dalam `settings` sesuai dengan mood/suasana cerita yang sedang dibahas:
+- `"sneaky_snitch"` : Untuk adegan gosip, intrik nakal, rencana tersembunyi, atau sindiran kocak.
+- `"monkeys_spinning"` : Untuk adegan yang penuh kekonyolan, aksi heboh, atau kekacauan yang bikin tertawa.
+- `"fluffing_duck"` : Untuk adegan santai, absurd, konyol polos, atau momen kocak harian.
+- `"elevator"` : Untuk adegan mikir keras, kebingungan, kesialan, atau momen deadpan/garing.
+- `"random"` : Biarkan sistem memilih secara acak jika mood bercampur.
+
 LANGKAH PERHITUNGAN TIMELINE (`ss` dan `t`):
 
 1. HITUNG DURASI `t` DARI TRANSKRIP AUDIO:
@@ -38,7 +46,8 @@ FORMAT OUTPUT (MURNI JSON OBJECT, TANPA MARKDOWN):
   "settings": {
     "fps": 30,
     "format": "9:16",
-    "fg_aspect": "4:5"
+    "fg_aspect": "4:5",
+    "bgm": "sneaky_snitch"
   },
   "timeline": [
     {
@@ -57,6 +66,7 @@ FORMAT OUTPUT (MURNI JSON OBJECT, TANPA MARKDOWN):
 }
 
 FIELD KETERANGAN:
+- bgm: Pilihan lagu BGM ("sneaky_snitch" | "monkeys_spinning" | "fluffing_duck" | "elevator" | "random").
 - id: Nomor urut klip (integer, mulai dari 1).
 - text: Teks narasi / ucapan yang dibaca pada klip ini (referensi dari transkrip).
 - ss: Seek start waktu mulai adegan di VIDEO MENTAH SUMBER (detik desimal float).

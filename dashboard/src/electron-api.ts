@@ -42,6 +42,22 @@ export interface RenderResult {
   elapsed?: string;
 }
 
+export interface YoutubeTitleResult {
+  titles: string[];
+  description: string;
+  hashtags: string[];
+  recommended_title: string;
+}
+
+export interface RenderFileInfo {
+  name: string;
+  size: number;
+  createdAt: string;
+  filePath: string;
+  fullPath: string;
+  url: string;
+}
+
 export interface ElectronAPI {
   selectFile: () => Promise<SelectedFile | null>;
   getVideoMeta: (filePath: string) => Promise<VideoMeta | null>;
@@ -51,11 +67,13 @@ export interface ElectronAPI {
   selectAudio: () => Promise<SelectedFile | null>;
   uploadAudio: (filePath: string) => Promise<AudioInfo>;
   listAudio: () => Promise<AudioInfo[]>;
+  listRenders: () => Promise<RenderFileInfo[]>;
   copyToClipboard: (text: string) => Promise<boolean>;
   saveToProject: (subPath: string, data: string) => Promise<boolean>;
   readFromProject: (subPath: string) => Promise<string | null>;
   renderVideo: (mapping: object, videoPath: string, audioPath?: string) => Promise<RenderResult | { error: string }>;
   onRenderProgress: (callback: (data: RenderProgress) => void) => () => void;
+  generateYoutubeTitles: (transcriptText: string) => Promise<YoutubeTitleResult>;
 }
 
 declare global {

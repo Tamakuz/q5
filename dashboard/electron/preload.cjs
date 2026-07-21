@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectAudio: () => ipcRenderer.invoke('select-audio'),
   uploadAudio: (filePath) => ipcRenderer.invoke('upload-audio', { filePath }),
   listAudio: () => ipcRenderer.invoke('list-audio'),
+  listRenders: () => ipcRenderer.invoke('list-renders'),
 
   // Clipboard
   copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
@@ -36,6 +37,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Generic project file helpers
+  generateYoutubeTitles: (transcriptText) => ipcRenderer.invoke('generate-youtube-titles', transcriptText),
   saveToProject: (subPath, data) => ipcRenderer.invoke('save-to-project', { subPath, data }),
   readFromProject: (subPath) => ipcRenderer.invoke('read-from-project', subPath),
 });
