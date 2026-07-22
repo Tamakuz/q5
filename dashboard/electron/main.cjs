@@ -271,8 +271,11 @@ ipcMain.handle('get-video-meta', async (_event, filePath) => {
 
 // ─── Content ID Helper ────────────────────────────────
 
-function getOrGenerateContentId() {
-  const mappingFile = path.join(PROJECT_ROOT, 'input', 'mapping.json');
+function getOrGenerateContentId(mode = 'shortform') {
+  const isLongform = mode === 'longform';
+  const fileName = isLongform ? 'longform_mapping.json' : 'mapping.json';
+  const mappingFile = path.join(PROJECT_ROOT, 'input', fileName);
+
   try {
     if (fs.existsSync(mappingFile)) {
       const data = JSON.parse(fs.readFileSync(mappingFile, 'utf-8'));
@@ -284,10 +287,20 @@ function getOrGenerateContentId() {
 
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const randStr = Math.random().toString(36).substring(2, 6).toUpperCase();
-  const newId = `WV-${dateStr}-${randStr}`;
+  const prefix = isLongform ? 'WV-FILM' : 'WV';
+  const newId = `${prefix}-${dateStr}-${randStr}`;
 
   try {
-    let mapping = { settings: { fps: 30, format: "9:16", fg_aspect: "4:5", bgm: "random" }, timeline: [] };
+    let mapping = {
+      settings: {
+        fps: 30,
+        format: isLongform ? "16:9" : "9:16",
+        fg_aspect: isLongform ? "16:9" : "4:5",
+        bgm: "random",
+        content_id: newId
+      },
+      timeline: []
+    };
     if (fs.existsSync(mappingFile)) {
       mapping = JSON.parse(fs.readFileSync(mappingFile, 'utf-8'));
     }
@@ -299,8 +312,8 @@ function getOrGenerateContentId() {
   return newId;
 }
 
-ipcMain.handle('get-content-id', async () => {
-  return getOrGenerateContentId();
+ipcMain.handle('get-content-id', async (_event, mode) => {
+  return getOrGenerateContentId(mode);
 });
 
 // ─── Upload & trim with FFmpeg ────────────────────────
@@ -730,59 +743,65 @@ ipcMain.handle('render-video', async (_event, mapping, videoPath, audioPath) => 
 
 // ─── Reset project workspace ───────────────────────────
 
-ipcMain.handle('reset-project', async () => {
+ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
+  const isLongform = mode === 'longform';
   try {
     const outputDir = path.join(PROJECT_ROOT, 'output');
     const inputDir = path.join(PROJECT_ROOT, 'input');
     const assetsDir = path.join(PROJECT_ROOT, 'input', 'assets');
     const tmpDir = path.join(PROJECT_ROOT, 'input', '.tmp');
 
-    // 1. Clear output directory (delete all rendered MP4s)
-    if (fs.existsSync(outputDir)) {
-      const files = fs.readdirSync(outputDir);
-      for (const f of files) {
-        try { fs.unlinkSync(path.join(outputDir, f)); } catch { }
-      }
-    }
+    // Generate BRAND NEW Content ID for this mode
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const randStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const prefix = isLongform ? 'WV-FILM' : 'WV';
+    const newId = `${prefix}-${dateStr}-${randStr}`;
 
-    // 2. Clear input/assets directory (delete all uploaded sources & voiceovers)
-    if (fs.existsSync(assetsDir)) {
-      const files = fs.readdirSync(assetsDir);
-      for (const f of files) {
-        try { fs.unlinkSync(path.join(assetsDir, f)); } catch { }
-      }
-    }
-
-    // 3. Clear input/.tmp directory
-    if (fs.existsSync(tmpDir)) {
-      const files = fs.readdirSync(tmpDir);
-      for (const f of files) {
-        try { fs.unlinkSync(path.join(tmpDir, f)); } catch { }
-      }
-    }
-
-    // 4. Reset JSON files in input/
-    const mappingFile = path.join(inputDir, 'mapping.json');
+    const mappingFileName = isLongform ? 'longform_mapping.json' : 'mapping.json';
+    const mappingFile = path.join(inputDir, mappingFileName);
     const defaultMapping = {
-      settings: { fps: 30, format: "9:16", fg_aspect: "4:5", bgm: "random" },
+      settings: {
+        fps: 30,
+        format: isLongform ? "16:9" : "9:16",
+        fg_aspect: isLongform ? "16:9" : "4:5",
+        bgm: "random",
+        content_id: newId
+      },
       timeline: []
     };
     fs.writeFileSync(mappingFile, JSON.stringify(defaultMapping, null, 2), 'utf-8');
 
-    const transcriptFile = path.join(inputDir, 'transcript.json');
-    fs.writeFileSync(transcriptFile, '[]', 'utf-8');
+    if (!isLongform) {
+      // 1. Clear output directory
+      if (fs.existsSync(outputDir)) {
+        const files = fs.readdirSync(outputDir);
+        for (const f of files) { try { fs.unlinkSync(path.join(outputDir, f)); } catch { } }
+      }
 
-    const analysisFile = path.join(inputDir, 'analysis.json');
-    if (fs.existsSync(analysisFile)) {
-      try { fs.unlinkSync(analysisFile); } catch { }
+      // 2. Clear input/assets directory
+      if (fs.existsSync(assetsDir)) {
+        const files = fs.readdirSync(assetsDir);
+        for (const f of files) { try { fs.unlinkSync(path.join(assetsDir, f)); } catch { } }
+      }
+
+      // 3. Clear input/.tmp directory
+      if (fs.existsSync(tmpDir)) {
+        const files = fs.readdirSync(tmpDir);
+        for (const f of files) { try { fs.unlinkSync(path.join(tmpDir, f)); } catch { } }
+      }
+
+      // 4. Reset JSON files
+      const transcriptFile = path.join(inputDir, 'transcript.json');
+      fs.writeFileSync(transcriptFile, '[]', 'utf-8');
+
+      const analysisFile = path.join(inputDir, 'analysis.json');
+      if (fs.existsSync(analysisFile)) { try { fs.unlinkSync(analysisFile); } catch { } }
+
+      const voiceoverFile = path.join(inputDir, 'voiceover.json');
+      if (fs.existsSync(voiceoverFile)) { try { fs.unlinkSync(voiceoverFile); } catch { } }
     }
 
-    const voiceoverFile = path.join(inputDir, 'voiceover.json');
-    if (fs.existsSync(voiceoverFile)) {
-      try { fs.unlinkSync(voiceoverFile); } catch { }
-    }
-
-    return { success: true };
+    return { success: true, content_id: newId };
   } catch (err) {
     return { success: false, error: err.message };
   }

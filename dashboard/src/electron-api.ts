@@ -85,8 +85,8 @@ export interface ElectronAPI {
   uploadAudio: (filePath: string) => Promise<AudioInfo>;
   listAudio: () => Promise<AudioInfo[]>;
   listRenders: () => Promise<RenderFileInfo[]>;
-  getContentId: () => Promise<string | null>;
-  resetProject: () => Promise<{ success: boolean; error?: string }>;
+  getContentId: (mode?: string) => Promise<string | null>;
+  resetProject: (mode?: string) => Promise<{ success: boolean; content_id?: string; error?: string }>;
   copyToClipboard: (text: string) => Promise<boolean>;
   saveToProject: (subPath: string, data: string) => Promise<boolean>;
   readFromProject: (subPath: string) => Promise<string | null>;
