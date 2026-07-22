@@ -437,16 +437,33 @@ const AnalyzePlaceholder: React.FC = () => {
                           {result.script_blocks.length} Scene Blocks · ~{result.total_estimated_words} Words
                         </p>
                       </div>
-                      <button
-                        onClick={handleClearAnalysis}
-                        className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-medium transition-all"
-                      >
-                        Edit / Replace
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => copyText(result.script_blocks.map(b => b.narration).join('\n\n'), 'Semua Narasi')}
+                          className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow transition-all flex items-center gap-1"
+                          title="Copy all narration text"
+                        >
+                          <span>📋</span> Copy Semua Narasi
+                        </button>
+                        <button
+                          onClick={handleClearAnalysis}
+                          className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-medium transition-all"
+                        >
+                          Edit / Replace
+                        </button>
+                      </div>
                     </div>
 
                     <div className="bg-gray-950 p-3.5 rounded-xl border border-gray-800">
-                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1">Episode Summary</span>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Episode Summary</span>
+                        <button
+                          onClick={() => copyText(result.episode_summary, 'Episode Summary')}
+                          className="px-2 py-0.5 bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-indigo-300 text-[11px] rounded border border-gray-800 transition-all flex items-center gap-1"
+                        >
+                          📋 Copy Summary
+                        </button>
+                      </div>
                       <p className="text-xs text-gray-300 leading-relaxed">{result.episode_summary}</p>
                     </div>
 
@@ -454,8 +471,17 @@ const AnalyzePlaceholder: React.FC = () => {
                       {result.script_blocks.map((b) => (
                         <div key={b.id} className="p-3 bg-gray-950 rounded-xl border border-gray-800 hover:border-gray-700 transition-all">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-bold text-indigo-400 font-mono">Block #{b.id}</span>
-                            <span className="text-xs text-gray-500 font-mono">{b.estimated_timestamp}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-indigo-400 font-mono">Block #{b.id}</span>
+                              <span className="text-xs text-gray-500 font-mono">{b.estimated_timestamp}</span>
+                            </div>
+                            <button
+                              onClick={() => copyText(b.narration, `Narasi Block #${b.id}`)}
+                              className="px-2 py-0.5 bg-gray-900 hover:bg-gray-800 text-indigo-400 hover:text-indigo-300 text-[11px] font-medium rounded border border-gray-800 hover:border-indigo-800/50 transition-all flex items-center gap-1"
+                              title="Copy block narration"
+                            >
+                              📋 Copy Narasi
+                            </button>
                           </div>
                           <p className="text-xs text-gray-400 italic mb-1.5">{b.visual_context}</p>
                           <p className="text-xs text-gray-200 leading-relaxed">{b.narration}</p>

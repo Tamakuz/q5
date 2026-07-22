@@ -1,6 +1,7 @@
 // playwright/pipelines/analysis-pipeline.ts
 import { Command } from 'commander';
 import { launchAIStudioSession, dismissPopups } from '../aistudio';
+import { configureModelAndThinking, disableAllToolsInSidebar } from '../actions/select-model';
 import { inputTextPrompt } from '../actions/input-prompt';
 import { attachDriveFile } from '../actions/attach-drive-file';
 import { submitAndExtract } from '../actions/submit-and-extract';
@@ -39,26 +40,36 @@ async function executePipelineForAccount(
     // Dismiss initial popups
     await dismissPopups(page);
 
-    // STEP 1: Input Analysis Prompt
-    console.log('\n--- STEP 1: Inputting Analysis Prompt ---');
+    // STEP 1: Configure Model & Ensure ALL Tools are OFF FIRST
+    console.log('\n--- STEP 1: Configuring Model & Disabling ALL Sidebar Tools FIRST ---');
+    await configureModelAndThinking(page, {
+      modelName: 'gemini-3.1-pro-preview',
+      temperature: 1.5,
+      thinkingLevel: 'High',
+    });
+
+    await disableAllToolsInSidebar(page);
+
+    // STEP 2: Input Analysis Prompt ONLY AFTER Tools are confirmed OFF
+    console.log('\n--- STEP 2: Inputting Analysis Prompt ---');
     await inputTextPrompt(page, {
       promptFilePath: options.promptFilePath || 'dashboard/prompts/analysis-prompt.md',
     });
 
-    // STEP 2: Attach Video Asset (Drive-First)
-    console.log('\n--- STEP 2: Attaching Video Asset (Drive-First) ---');
+    // STEP 3: Attach Video Asset (Drive-First)
+    console.log('\n--- STEP 3: Attaching Video Asset (Drive-First) ---');
     await attachDriveFile(page, {
       searchTerm: options.searchTerm,
       filePath: options.filePath,
     });
 
-    // STEP 3: Wait for Token Calculation & Enabled Run Button -> Submit & Extract
-    console.log('\n--- STEP 3: Submitting Prompt & Extracting Response ---');
+    // STEP 4: Submit Prompt & Extract Validated JSON Response
+    console.log('\n--- STEP 4: Submitting Prompt & Extracting Response ---');
     const responseText = await submitAndExtract(page);
 
     // Check if extracted response contained internal error
-    if (responseText.toLowerCase().includes('an internal error has occurred')) {
-      throw new Error('Google AI Studio returned "An internal error has occurred".');
+    if (responseText.toLowerCase().includes('an internal error has occurred') || responseText.toLowerCase().includes('error querying drive')) {
+      throw new Error('GOOGLE_AI_STUDIO_QUOTA_ERROR: Google AI Studio returned an internal error.');
     }
 
     console.log('\n======================================================');
@@ -126,7 +137,7 @@ if (require.main === module || process.argv[1]?.endsWith('analysis-pipeline.ts')
   const program = new Command();
   program
     .name('aistudio:pipeline')
-    .description('Run full 3-step automated analysis pipeline in Google AI Studio with Failover')
+    .description('Run full automated analysis pipeline in Google AI Studio with Failover')
     .option('-a, --account <string>', 'Initial Google account profile name (e.g. user1, user2)')
     .option('-p, --prompt <string>', 'Path to prompt md file', 'dashboard/prompts/analysis-prompt.md')
     .option('-s, --search <string>', 'Search term for Drive asset')

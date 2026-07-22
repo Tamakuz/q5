@@ -67,8 +67,26 @@ export function getUserDataDir(accountName?: string): string {
   return directPath;
 }
 
-// Default target URL with Gemini 3.5 Flash model pre-selected
-export const DEFAULT_AI_STUDIO_URL = 'https://aistudio.google.com/prompts/new_chat?model=gemini-3.5-flash';
+/**
+ * Automatically detect native system Chrome / Brave browser executable path.
+ * Real Google Chrome has official DRM, Widevine, and Google Account OAuth Drive session support.
+ */
+export function getSystemExecutablePath(): string | undefined {
+  const candidates = [
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/brave-browser',
+  ];
+  for (const bin of candidates) {
+    if (fs.existsSync(bin)) {
+      return bin;
+    }
+  }
+  return undefined;
+}
+
+// Default target URL with Gemini 3.1 Pro Preview model pre-selected
+export const DEFAULT_AI_STUDIO_URL = 'https://aistudio.google.com/prompts/new_chat?model=gemini-3.1-pro-preview';
 
 export const BROWSER_LAUNCH_OPTIONS = {
   headless: false,

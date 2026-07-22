@@ -9,7 +9,9 @@ const UploadPlaceholder: React.FC = () => {
   const [generating, setGenerating] = useState<boolean>(false);
   const [result, setResult] = useState<YoutubeTitleResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activePlatform, setActivePlatform] = useState<'youtube' | 'tiktok'>('youtube');
   const [selectedTitle, setSelectedTitle] = useState<string>('');
+  const [selectedTiktokCaption, setSelectedTiktokCaption] = useState<string>('');
 
   const [copiedTitle, setCopiedTitle] = useState<boolean>(false);
   const [copiedDesc, setCopiedDesc] = useState<boolean>(false);
@@ -74,9 +76,14 @@ const UploadPlaceholder: React.FC = () => {
     try {
       const res = await api.generateYoutubeTitles(transcriptText);
       setResult(res);
-      setSelectedTitle(res.recommended_title || res.titles?.[0] || '');
+
+      const ytTitle = res.youtube?.recommended_title || res.recommended_title || res.youtube?.titles?.[0] || res.titles?.[0] || '';
+      setSelectedTitle(ytTitle);
+
+      const ttCaption = res.tiktok?.recommended_caption || res.tiktok?.captions?.[0] || '';
+      setSelectedTiktokCaption(ttCaption);
     } catch (err: any) {
-      setError(err.message || 'Failed to generate YouTube titles via AI');
+      setError(err.message || 'Failed to generate viral social media titles via AI');
     }
     setGenerating(false);
   };
@@ -87,17 +94,26 @@ const UploadPlaceholder: React.FC = () => {
     setTimeout(() => setFn(false), 2000);
   };
 
+  const ytData = result?.youtube || (result?.titles ? {
+    titles: result.titles,
+    description: result.description || '',
+    hashtags: result.hashtags || [],
+    recommended_title: result.recommended_title || ''
+  } : null);
+
+  const ttData = result?.tiktok || null;
+
   return (
     <div className="flex flex-col h-full bg-gray-950 text-gray-100 p-6 overflow-hidden">
       {/* Top Header & Readiness Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-gray-800 shrink-0">
         <div>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <span className="p-2 bg-red-600/20 text-red-400 rounded-lg text-lg">🚀</span>
-            YouTube Shorts Upload & Automation
+            <span className="p-2 bg-gradient-to-r from-red-600 to-cyan-600 text-white rounded-lg text-lg">🚀</span>
+            TikTok FYP & YouTube Shorts Publishing Hub
           </h1>
           <p className="text-xs text-gray-400 mt-1">
-            Generate viral CTR titles, SEO descriptions, and prepare video assets for automated upload.
+            Generate viral CTR titles, engagement captions, FYP hashtag strategies, and prepare video assets.
           </p>
         </div>
 
@@ -105,34 +121,56 @@ const UploadPlaceholder: React.FC = () => {
         <div className="flex items-center gap-2">
           <div className={`px-3.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-2 ${
             result
-              ? 'bg-red-950/60 border-red-700/50 text-red-300 shadow-lg shadow-red-950/40'
+              ? 'bg-emerald-950/60 border-emerald-700/50 text-emerald-300 shadow-lg shadow-emerald-950/40'
               : 'bg-gray-900 border-gray-800 text-gray-500'
           }`}>
-            <span className={`w-2 h-2 rounded-full ${result ? 'bg-red-500 animate-pulse' : 'bg-gray-600'}`}></span>
-            <span>{result ? 'Metadata Ready' : 'Awaiting AI Title'}</span>
+            <span className={`w-2 h-2 rounded-full ${result ? 'bg-emerald-500 animate-pulse' : 'bg-gray-600'}`}></span>
+            <span>{result ? 'Social Metadata Ready' : 'Awaiting AI Generator'}</span>
           </div>
         </div>
       </div>
 
       {/* Main 2-Column Grid Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-5 flex-1 min-h-0 overflow-hidden">
-        {/* LEFT PANEL: AI YouTube Title & Meta Generator (Col 6) */}
+        {/* LEFT PANEL: AI Social Metadata Generator (Col 6) */}
         <div className="lg:col-span-6 flex flex-col bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
           <div className="flex items-center justify-between bg-gray-900 px-4 py-3 border-b border-gray-800 shrink-0">
-            <span className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-              <span>🤖</span> AI Shorts Metadata Generator (DeepSeek AI)
-            </span>
+            <div className="flex items-center gap-2">
+              <div className="flex bg-gray-950 p-1 rounded-lg border border-gray-800">
+                <button
+                  onClick={() => setActivePlatform('youtube')}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activePlatform === 'youtube'
+                      ? 'bg-red-600 text-white shadow'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  <span>🔴</span> YouTube Shorts
+                </button>
+                <button
+                  onClick={() => setActivePlatform('tiktok')}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activePlatform === 'tiktok'
+                      ? 'bg-cyan-600 text-white shadow'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  <span>🎵</span> TikTok FYP
+                </button>
+              </div>
+            </div>
+
             <button
               onClick={handleGenerateTitles}
               disabled={generating}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-lg transition-all flex items-center gap-1.5 ${
                 generating
                   ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                  : 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/30'
+                  : 'bg-gradient-to-r from-red-600 to-cyan-600 hover:from-red-500 hover:to-cyan-500 text-white shadow-indigo-600/30'
               }`}
             >
               <span>{generating ? '⏳' : '✨'}</span>
-              <span>{generating ? 'Generating...' : 'Generate Viral Titles'}</span>
+              <span>{generating ? 'Generating...' : 'Generate Social Metadata'}</span>
             </button>
           </div>
 
@@ -145,86 +183,190 @@ const UploadPlaceholder: React.FC = () => {
 
             {result ? (
               <div className="space-y-4">
-                {/* Active / Selected Title */}
-                <div className="bg-gray-950 p-4 rounded-xl border border-red-900/50 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-red-400 uppercase tracking-wider">
-                      Selected Title (CTR Optimized)
-                    </span>
-                    <button
-                      onClick={() => handleCopy(selectedTitle, setCopiedTitle)}
-                      className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-md text-[11px] font-medium transition-all"
-                    >
-                      {copiedTitle ? '✓ Copied' : 'Copy Title'}
-                    </button>
-                  </div>
-                  <p className="text-sm font-bold text-white leading-snug">{selectedTitle}</p>
-                </div>
+                {/* 1. YOUTUBE SHORTS TAB */}
+                {activePlatform === 'youtube' && ytData && (
+                  <div className="space-y-4">
+                    {/* Active Selected Title */}
+                    <div className="bg-gray-950 p-4 rounded-xl border border-red-900/50 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-red-400 uppercase tracking-wider flex items-center gap-1">
+                          <span>🔴</span> Selected Title (CTR Optimized)
+                        </span>
+                        <button
+                          onClick={() => handleCopy(selectedTitle, setCopiedTitle)}
+                          className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-md text-[11px] font-medium transition-all"
+                        >
+                          {copiedTitle ? '✓ Copied' : 'Copy Title'}
+                        </button>
+                      </div>
+                      <p className="text-sm font-bold text-white leading-snug">{selectedTitle || ytData.recommended_title}</p>
+                    </div>
 
-                {/* 5 Title Variations */}
-                <div className="space-y-2">
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                    Title Variations (Click to select)
-                  </span>
-                  <div className="space-y-1.5">
-                    {result.titles.map((title, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setSelectedTitle(title)}
-                        className={`w-full p-2.5 rounded-xl border text-left text-xs transition-all flex items-center justify-between gap-2 ${
-                          selectedTitle === title
-                            ? 'bg-red-950/40 border-red-600 text-white font-bold'
-                            : 'bg-gray-950 border-gray-800 hover:border-gray-700 text-gray-300'
-                        }`}
-                      >
-                        <span className="truncate">{title}</span>
-                        {selectedTitle === title && <span className="text-red-400 text-xs shrink-0">✓</span>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                    {/* Title Variations */}
+                    <div className="space-y-2">
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                        Shorts Title Variations (Click to select)
+                      </span>
+                      <div className="space-y-1.5">
+                        {ytData.titles.map((title, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setSelectedTitle(title)}
+                            className={`w-full p-2.5 rounded-xl border text-left text-xs transition-all flex items-center justify-between gap-2 ${
+                              selectedTitle === title
+                                ? 'bg-red-950/40 border-red-600 text-white font-bold'
+                                : 'bg-gray-950 border-gray-800 hover:border-gray-700 text-gray-300'
+                            }`}
+                          >
+                            <span className="truncate">{title}</span>
+                            {selectedTitle === title && <span className="text-red-400 text-xs shrink-0">✓</span>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
-                {/* SEO Description */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                      SEO Description & Hashtags
-                    </span>
-                    <button
-                      onClick={() => handleCopy(result.description, setCopiedDesc)}
-                      className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-md text-[11px] font-medium transition-all"
-                    >
-                      {copiedDesc ? '✓ Copied' : 'Copy Description'}
-                    </button>
-                  </div>
-                  <textarea
-                    readOnly
-                    value={result.description}
-                    className="w-full h-28 bg-gray-950 text-gray-300 text-xs font-mono p-3 rounded-xl border border-gray-800 resize-none leading-relaxed"
-                  />
-                </div>
+                    {/* SEO Description */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                          Shorts SEO Description
+                        </span>
+                        <button
+                          onClick={() => handleCopy(ytData.description, setCopiedDesc)}
+                          className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-md text-[11px] font-medium transition-all"
+                        >
+                          {copiedDesc ? '✓ Copied' : 'Copy Description'}
+                        </button>
+                      </div>
+                      <textarea
+                        readOnly
+                        value={ytData.description}
+                        className="w-full h-28 bg-gray-950 text-gray-300 text-xs font-mono p-3 rounded-xl border border-gray-800 resize-none leading-relaxed"
+                      />
+                    </div>
 
-                {/* Hashtags Badges */}
-                <div className="flex flex-wrap gap-1.5">
-                  {result.hashtags.map((tag, idx) => (
-                    <span
-                      key={idx}
-                      className="px-2.5 py-1 bg-red-950/60 border border-red-800/50 text-red-300 rounded-lg text-[11px] font-mono font-medium"
-                    >
-                      {tag.startsWith('#') ? tag : `#${tag}`}
-                    </span>
-                  ))}
-                </div>
+                    {/* Hashtags Badges */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {ytData.hashtags.map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2.5 py-1 bg-red-950/60 border border-red-800/50 text-red-300 rounded-lg text-[11px] font-mono font-medium"
+                        >
+                          {tag.startsWith('#') ? tag : `#${tag}`}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. TIKTOK FYP TAB */}
+                {activePlatform === 'tiktok' && (
+                  <div className="space-y-4">
+                    {ttData ? (
+                      <>
+                        {/* Selected FYP Caption */}
+                        <div className="bg-gray-950 p-4 rounded-xl border border-cyan-900/50 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1">
+                              <span>🎵</span> Selected FYP Caption (Engagement Hook)
+                            </span>
+                            <button
+                              onClick={() => handleCopy(selectedTiktokCaption, setCopiedTitle)}
+                              className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-cyan-300 rounded-md text-[11px] font-medium transition-all"
+                            >
+                              {copiedTitle ? '✓ Copied' : 'Copy Caption'}
+                            </button>
+                          </div>
+                          <p className="text-xs text-cyan-100 font-medium leading-relaxed bg-gray-900/80 p-3 rounded-lg border border-gray-800">
+                            {selectedTiktokCaption || ttData.recommended_caption}
+                          </p>
+                        </div>
+
+                        {/* Strategy Tip */}
+                        {ttData.fyp_strategy_tip && (
+                          <div className="p-3 bg-cyan-950/30 border border-cyan-800/40 rounded-xl text-xs text-cyan-300 flex items-start gap-2">
+                            <span className="text-sm">💡</span>
+                            <span>{ttData.fyp_strategy_tip}</span>
+                          </div>
+                        )}
+
+                        {/* FYP Caption Variations */}
+                        <div className="space-y-2">
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                            TikTok Caption Variations (Click to select)
+                          </span>
+                          <div className="space-y-1.5">
+                            {ttData.captions.map((caption, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => setSelectedTiktokCaption(caption)}
+                                className={`w-full p-3 rounded-xl border text-left text-xs transition-all flex items-start justify-between gap-2 ${
+                                  selectedTiktokCaption === caption
+                                    ? 'bg-cyan-950/40 border-cyan-600 text-white font-medium'
+                                    : 'bg-gray-950 border-gray-800 hover:border-gray-700 text-gray-300'
+                                }`}
+                              >
+                                <span className="leading-relaxed">{caption}</span>
+                                {selectedTiktokCaption === caption && <span className="text-cyan-400 text-xs shrink-0 mt-0.5">✓</span>}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* TikTok Full Description */}
+                        {ttData.description && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                                TikTok Full Caption & Description
+                              </span>
+                              <button
+                                onClick={() => handleCopy(ttData.description, setCopiedDesc)}
+                                className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-md text-[11px] font-medium transition-all"
+                              >
+                                {copiedDesc ? '✓ Copied' : 'Copy Full Description'}
+                              </button>
+                            </div>
+                            <textarea
+                              readOnly
+                              value={ttData.description}
+                              className="w-full h-24 bg-gray-950 text-gray-300 text-xs font-mono p-3 rounded-xl border border-gray-800 resize-none leading-relaxed"
+                            />
+                          </div>
+                        )}
+
+                        {/* FYP Hashtags */}
+                        <div className="flex flex-wrap gap-1.5">
+                          {ttData.hashtags.map((tag, idx) => (
+                            <span
+                              key={idx}
+                              className="px-2.5 py-1 bg-cyan-950/60 border border-cyan-800/50 text-cyan-300 rounded-lg text-[11px] font-mono font-medium"
+                            >
+                              {tag.startsWith('#') ? tag : `#${tag}`}
+                            </span>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      /* Fallback when old format is loaded */
+                      <div className="space-y-3 p-4 bg-gray-950 rounded-xl border border-gray-800 text-xs text-gray-400">
+                        <p className="text-cyan-400 font-bold">🎵 Generated FYP Suggestions:</p>
+                        <p className="text-gray-200 italic">"{selectedTitle}"</p>
+                        <p>Hashtags: #fyp #foryou #foryoupage #viral #WakuVibes #AnimeRecap</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-8 space-y-3 border border-dashed border-gray-800 rounded-2xl">
-                <div className="w-14 h-14 bg-red-600/10 text-red-400 rounded-2xl flex items-center justify-center text-2xl border border-red-500/20">
+                <div className="w-14 h-14 bg-gradient-to-r from-red-600/20 to-cyan-600/20 text-cyan-400 rounded-2xl flex items-center justify-center text-2xl border border-cyan-500/20">
                   ✨
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-white">Generate YouTube Shorts Metadata</h4>
+                  <h4 className="text-sm font-bold text-white">Generate Social Media Metadata</h4>
                   <p className="text-xs text-gray-400 mt-1 max-w-sm">
-                    Click "Generate Viral Titles" to invoke DeepSeek AI for CTR-boosted titles and SEO hashtags.
+                    Click "Generate Social Metadata" to invoke AI for viral YouTube Shorts titles & TikTok FYP engagement captions.
                   </p>
                 </div>
               </div>

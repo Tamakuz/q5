@@ -280,7 +280,7 @@ function getOrGenerateContentId() {
         return data.settings.content_id;
       }
     }
-  } catch {}
+  } catch { }
 
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const randStr = Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -294,7 +294,7 @@ function getOrGenerateContentId() {
     mapping.settings = mapping.settings || {};
     mapping.settings.content_id = newId;
     fs.writeFileSync(mappingFile, JSON.stringify(mapping, null, 2), 'utf-8');
-  } catch {}
+  } catch { }
 
   return newId;
 }
@@ -307,16 +307,18 @@ ipcMain.handle('get-content-id', async () => {
 
 ipcMain.handle('upload-source', async (_event, { filePath, start, end }) => {
   const contentId = getOrGenerateContentId();
-  const baseName = path.basename(filePath);
+  const ext = path.extname(filePath) || '.mp4';
   const shouldTrim = start > 0 || end > 0;
+  const resourceType = shouldTrim ? 'video_trimmed' : 'video_source';
+  const outputName = `${contentId}_${resourceType}${ext}`;
+  const destPath = path.join(INPUT_ASSETS, outputName);
 
   if (!shouldTrim) {
-    const destPath = path.join(INPUT_ASSETS, baseName);
     fs.copyFileSync(filePath, destPath);
     const stat = fs.statSync(destPath);
     return {
       id: contentId,
-      name: baseName,
+      name: outputName,
       size: stat.size,
       url: mediaUrl(destPath),
       filePath: destPath,
@@ -324,9 +326,6 @@ ipcMain.handle('upload-source', async (_event, { filePath, start, end }) => {
   }
 
   return new Promise((resolve, reject) => {
-    const outputName = `trimmed_${Date.now()}_${baseName.replace(/\s/g, '_')}`;
-    const outputPath = path.join(INPUT_ASSETS, outputName);
-
     const args = [
       '-i', filePath,
       '-ss', String(start),
@@ -336,7 +335,7 @@ ipcMain.handle('upload-source', async (_event, { filePath, start, end }) => {
       '-movflags', '+faststart',
       '-preset', 'ultrafast',
       '-y',
-      outputPath,
+      destPath,
     ];
 
     const ffmpeg = spawn(ffmpegPath, args);
@@ -344,12 +343,13 @@ ipcMain.handle('upload-source', async (_event, { filePath, start, end }) => {
 
     ffmpeg.on('close', (code) => {
       if (code !== 0) return reject(new Error(`FFmpeg exited with code ${code}`));
-      const stat = fs.statSync(outputPath);
+      const stat = fs.statSync(destPath);
       resolve({
+        id: contentId,
         name: outputName,
         size: stat.size,
-        url: mediaUrl(outputPath),
-        filePath: outputPath,
+        url: mediaUrl(destPath),
+        filePath: destPath,
       });
     });
 
@@ -384,12 +384,30 @@ ipcMain.handle('select-audio', async () => {
 // ─── Upload audio ─────────────────────────────────────
 
 ipcMain.handle('upload-audio', async (_event, { filePath }) => {
-  const baseName = path.basename(filePath);
-  const destPath = path.join(INPUT_ASSETS, baseName);
+  const contentId = getOrGenerateContentId();
+  const ext = path.extname(filePath) || '.mp3';
+  const outputName = `${contentId}_audio_source${ext}`;
+  const destPath = path.join(INPUT_ASSETS, outputName);
+
   fs.copyFileSync(filePath, destPath);
   const stat = fs.statSync(destPath);
+
+  // Update input/state.json if available
+  try {
+    const stateFile = path.join(PROJECT_ROOT, 'input', 'state.json');
+    if (fs.existsSync(stateFile)) {
+      const stateData = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+      stateData.resources = stateData.resources || {};
+      stateData.resources.audio_source = `input/assets/${outputName}`;
+      stateData.updated_at = new Date().toISOString();
+      fs.writeFileSync(stateFile, JSON.stringify(stateData, null, 2), 'utf-8');
+    }
+  } catch (e) {
+    console.warn('[upload-audio] Could not update state.json:', e.message);
+  }
+
   return {
-    name: baseName,
+    name: outputName,
     size: stat.size,
     url: mediaUrl(destPath),
     filePath: destPath,
@@ -542,6 +560,41 @@ ipcMain.handle('save-to-project', async (_event, { subPath, data }) => {
   const dir = path.dirname(dest);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(dest, data, 'utf-8');
+
+  // Auto-mirror transcript and analysis files to standardized asset filenames
+  try {
+    const contentId = getOrGenerateContentId();
+    if (subPath === 'input/transcript.json') {
+      const assetFileName = `${contentId}_transcript_result.json`;
+      const assetFile = path.join(INPUT_ASSETS, assetFileName);
+      fs.writeFileSync(assetFile, data, 'utf-8');
+
+      const stateFile = path.join(PROJECT_ROOT, 'input', 'state.json');
+      if (fs.existsSync(stateFile)) {
+        const stateData = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+        stateData.resources = stateData.resources || {};
+        stateData.resources.transcript_result = `input/assets/${assetFileName}`;
+        stateData.updated_at = new Date().toISOString();
+        fs.writeFileSync(stateFile, JSON.stringify(stateData, null, 2), 'utf-8');
+      }
+    } else if (subPath === 'input/analysis.json') {
+      const assetFileName = `${contentId}_analysis_result.json`;
+      const assetFile = path.join(INPUT_ASSETS, assetFileName);
+      fs.writeFileSync(assetFile, data, 'utf-8');
+
+      const stateFile = path.join(PROJECT_ROOT, 'input', 'state.json');
+      if (fs.existsSync(stateFile)) {
+        const stateData = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+        stateData.resources = stateData.resources || {};
+        stateData.resources.analysis_result = `input/assets/${assetFileName}`;
+        stateData.updated_at = new Date().toISOString();
+        fs.writeFileSync(stateFile, JSON.stringify(stateData, null, 2), 'utf-8');
+      }
+    }
+  } catch (e) {
+    console.warn('[save-to-project] Auto-mirror error:', e.message);
+  }
+
   return true;
 });
 
@@ -591,7 +644,7 @@ ipcMain.handle('render-video', async (_event, mapping, videoPath, audioPath) => 
       if (audioFiles.length > 0) {
         resolvedAudio = path.join(INPUT_ASSETS, audioFiles[0]);
       }
-    } catch {}
+    } catch { }
   }
 
   // Write mapping to temp file for CLI
@@ -653,7 +706,7 @@ ipcMain.handle('render-video', async (_event, mapping, videoPath, audioPath) => 
     child.on('close', (code) => {
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       // Cleanup mapping temp file
-      try { fs.unlinkSync(mappingFile); } catch {}
+      try { fs.unlinkSync(mappingFile); } catch { }
       if (code === 0) {
         mainWindow.webContents.send('render-progress', {
           stage: 'done',
@@ -669,7 +722,7 @@ ipcMain.handle('render-video', async (_event, mapping, videoPath, audioPath) => 
     });
 
     child.on('error', (err) => {
-      try { fs.unlinkSync(mappingFile); } catch {}
+      try { fs.unlinkSync(mappingFile); } catch { }
       resolve({ error: `Failed to launch render CLI: ${err.message}` });
     });
   });
@@ -688,7 +741,7 @@ ipcMain.handle('reset-project', async () => {
     if (fs.existsSync(outputDir)) {
       const files = fs.readdirSync(outputDir);
       for (const f of files) {
-        try { fs.unlinkSync(path.join(outputDir, f)); } catch {}
+        try { fs.unlinkSync(path.join(outputDir, f)); } catch { }
       }
     }
 
@@ -696,7 +749,7 @@ ipcMain.handle('reset-project', async () => {
     if (fs.existsSync(assetsDir)) {
       const files = fs.readdirSync(assetsDir);
       for (const f of files) {
-        try { fs.unlinkSync(path.join(assetsDir, f)); } catch {}
+        try { fs.unlinkSync(path.join(assetsDir, f)); } catch { }
       }
     }
 
@@ -704,7 +757,7 @@ ipcMain.handle('reset-project', async () => {
     if (fs.existsSync(tmpDir)) {
       const files = fs.readdirSync(tmpDir);
       for (const f of files) {
-        try { fs.unlinkSync(path.join(tmpDir, f)); } catch {}
+        try { fs.unlinkSync(path.join(tmpDir, f)); } catch { }
       }
     }
 
@@ -721,12 +774,12 @@ ipcMain.handle('reset-project', async () => {
 
     const analysisFile = path.join(inputDir, 'analysis.json');
     if (fs.existsSync(analysisFile)) {
-      try { fs.unlinkSync(analysisFile); } catch {}
+      try { fs.unlinkSync(analysisFile); } catch { }
     }
 
     const voiceoverFile = path.join(inputDir, 'voiceover.json');
     if (fs.existsSync(voiceoverFile)) {
-      try { fs.unlinkSync(voiceoverFile); } catch {}
+      try { fs.unlinkSync(voiceoverFile); } catch { }
     }
 
     return { success: true };

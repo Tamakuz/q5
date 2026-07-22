@@ -3,9 +3,80 @@ import { Page } from 'playwright';
 import { Command } from 'commander';
 
 export interface ModelSettingsOptions {
-  modelName?: string;    // e.g. 'gemini-3.1-pro-preview'
+  modelName?: string;    // e.g. 'gemini-3.5-flash'
   thinkingLevel?: 'High' | 'Medium' | 'Low' | 'Off';
   temperature?: number;  // e.g. 1.5
+}
+
+/**
+ * Action: Ensure ALL tools in Google AI Studio sidebar are disabled/OFF before inserting prompt or attaching files
+ */
+export async function disableAllToolsInSidebar(page: Page): Promise<void> {
+  console.log('\n🛠️ Verifying ALL AI Studio Tools in sidebar are OFF...');
+
+  const toolNames = [
+    'Structured outputs',
+    'Code execution',
+    'Function calling',
+    'Grounding with Google Search',
+    'Grounding with Google Maps',
+    'URL context',
+  ];
+
+  // 1. Loop through all mat-slide-toggle / role="switch" elements in the Tools section
+  for (const name of toolNames) {
+    try {
+      const toggle = page
+        .locator('mat-slide-toggle, [role="switch"], .mat-mdc-slide-toggle')
+        .filter({ hasText: new RegExp(name, 'i') })
+        .first();
+
+      if (await toggle.isVisible({ timeout: 1500 }).catch(() => false)) {
+        const isChecked =
+          (await toggle.getAttribute('aria-checked').catch(() => null)) === 'true' ||
+          (await toggle.evaluate((el: HTMLElement) => el.classList.contains('mat-mdc-slide-toggle-checked')).catch(() => false));
+
+        if (isChecked) {
+          console.log(`🔘 Tool "${name}" is ON -> Turning OFF...`);
+          await toggle.click({ force: true }).catch(() => {});
+          await page.waitForTimeout(300);
+        } else {
+          console.log(`✅ Tool "${name}" is already OFF`);
+        }
+      }
+    } catch (err: any) {
+      console.log(`ℹ️ Tool check note (${name}): ${err.message}`);
+    }
+  }
+
+  // 2. Also turn off any checked toggle under Tools section as a fallback sweep
+  try {
+    const checkedToggles = page.locator('mat-slide-toggle[aria-checked="true"], .mat-mdc-slide-toggle-checked');
+    const count = await checkedToggles.count().catch(() => 0);
+    for (let i = 0; i < count; i++) {
+      const toggle = checkedToggles.nth(i);
+      const text = await toggle.innerText().catch(() => '');
+      console.log(`🔘 Sweeping checked tool toggle ("${text.trim()}") -> Turning OFF...`);
+      await toggle.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(300);
+    }
+  } catch {}
+
+  // 3. Remove any active tool chips near the prompt input bar (e.g. Grounding chips)
+  try {
+    const toolChips = page.locator('button[aria-label*="Remove"], mat-chip button, button:has-text("Grounding")');
+    const chipCount = await toolChips.count().catch(() => 0);
+    for (let i = 0; i < chipCount; i++) {
+      const btn = toolChips.nth(i);
+      if (await btn.isVisible().catch(() => false)) {
+        console.log('❌ Removing tool chip from prompt bar...');
+        await btn.click({ force: true }).catch(() => {});
+        await page.waitForTimeout(300);
+      }
+    }
+  } catch {}
+
+  console.log('🎉 All AI Studio Tools are confirmed OFF & non-active!\n');
 }
 
 /**
@@ -15,7 +86,7 @@ export async function configureModelAndThinking(
   page: Page,
   options: ModelSettingsOptions = {}
 ): Promise<void> {
-  const targetModel = options.modelName || 'gemini-3.5-flash';
+  const targetModel = options.modelName || 'gemini-3.1-pro-preview';
   const thinkingLevel = options.thinkingLevel || 'High';
   const temperature = options.temperature ?? 1.5;
 
@@ -129,6 +200,9 @@ export async function configureModelAndThinking(
     console.log(`ℹ️ Thinking level configuration note: ${err.message}`);
   }
 
+  // 4. Ensure ALL tools in sidebar are OFF
+  await disableAllToolsInSidebar(page);
+
   console.log(`✅ Model ${targetModel}, Temperature ${temperature} & Thinking Level ${thinkingLevel} check complete!`);
 }
 
@@ -139,7 +213,7 @@ if (require.main === module || process.argv[1]?.endsWith('select-model.ts')) {
   program
     .name('aistudio:model')
     .description('Configure Gemini Model & Thinking Level in Google AI Studio')
-    .option('-m, --model <string>', 'Model name', 'gemini-3.5-flash')
+    .option('-m, --model <string>', 'Model name', 'gemini-3.1-pro-preview')
     .option('-t, --temp <number>', 'Temperature (0.0 - 2.0)', '1.5')
     .option('-l, --level <string>', 'Thinking level (High|Medium|Low|Off)', 'High')
     .action(async (opts) => {

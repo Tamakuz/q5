@@ -48,6 +48,7 @@ const TranscriptPlaceholder: React.FC = () => {
   const [searchFilter, setSearchFilter] = useState<string>('');
   const [copiedJson, setCopiedJson] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [voDuration, setVoDuration] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -66,6 +67,19 @@ const TranscriptPlaceholder: React.FC = () => {
           }
         } catch {}
       }
+
+      try {
+        const savedVO = await api.readFromProject('input/voiceover.json');
+        if (savedVO && savedVO.trim()) {
+          const parsedVO = JSON.parse(savedVO);
+          if (parsedVO.filePath) {
+            const meta = await api.getVideoMeta(parsedVO.filePath);
+            if (meta && meta.duration) {
+              setVoDuration(meta.duration);
+            }
+          }
+        }
+      } catch {}
     })();
   }, []);
 
@@ -114,6 +128,27 @@ const TranscriptPlaceholder: React.FC = () => {
     } catch (e: any) {
       setError(`Gagal menyimpan: ${e.message}`);
     }
+  };
+
+  const handleFixTailGap = async () => {
+    if (!entries || entries.length === 0 || !voDuration) return;
+    const updated = [...entries];
+    const lastIdx = updated.length - 1;
+    const last = updated[lastIdx];
+
+    const startSec = last.start_seconds;
+    const endSec = voDuration;
+    const tsMin = `${formatMinute(startSec)} - ${formatMinute(endSec)}`;
+
+    updated[lastIdx] = {
+      ...last,
+      end_seconds: endSec,
+      timestamp_minute: tsMin,
+    };
+
+    setEntries(updated);
+    setJsonRaw(JSON.stringify(updated, null, 2));
+    await handleSave(updated);
   };
 
   const filteredEntries = entries ? entries.filter(e => {
@@ -217,6 +252,7 @@ const TranscriptPlaceholder: React.FC = () => {
                 <div className="flex items-center justify-between gap-3 bg-gray-950 p-3 rounded-xl border border-gray-800">
                   <span className="text-xs text-gray-400">
                     Total: <strong className="text-cyan-400 font-mono">{entries.length} entries</strong> · Duration: <strong className="text-cyan-400 font-mono">{formatMinute(totalDuration)} ({totalDuration.toFixed(1)}s)</strong>
+                    {voDuration ? ` · VO: ${formatMinute(voDuration)} (${voDuration.toFixed(1)}s)` : ''}
                   </span>
                   <div className="relative w-48">
                     <input
@@ -229,6 +265,24 @@ const TranscriptPlaceholder: React.FC = () => {
                     <span className="absolute left-2.5 top-1.5 text-[11px] text-gray-500">🔍</span>
                   </div>
                 </div>
+
+                {/* Tail Gap Warning & Auto-Fix Banner */}
+                {voDuration && totalDuration > 0 && voDuration - totalDuration > 0.8 && (
+                  <div className="flex items-center justify-between bg-amber-950/40 p-3 rounded-xl border border-amber-800/50 text-amber-300 text-xs font-medium">
+                    <div className="flex items-center gap-2">
+                      <span className="text-amber-400 text-sm">⚠️</span>
+                      <span>
+                        Transkrip terpotong di <strong className="font-mono">{formatMinute(totalDuration)} ({totalDuration.toFixed(1)}s)</strong> (VO: <strong className="font-mono">{formatMinute(voDuration)} ({voDuration.toFixed(1)}s)</strong>). Ada gap <strong>{(voDuration - totalDuration).toFixed(1)}s</strong> di akhir.
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleFixTailGap}
+                      className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold shadow transition-all shrink-0 ml-2 flex items-center gap-1"
+                    >
+                      <span>⚡</span> Pas-kan ke Voiceover ({formatMinute(voDuration)})
+                    </button>
+                  </div>
+                )}
 
                 {/* Table List */}
                 <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">

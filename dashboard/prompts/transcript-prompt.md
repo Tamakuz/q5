@@ -4,15 +4,22 @@ INPUT YANG DIBERIKAN:
 1. File Audio / Video.
 
 🚨 TUGAS UTAMA — AUDIO TRANSCRIPTION WITH TIMESTAMP:
-Dengarkan audio DENGAN SEKSAMA dari awal sampai akhir dan catat SETIAP kalimat/ucapan yang terdengar beserta timestamp presisi detik dan format menit.
+Dengarkan audio DENGAN SEKSAMA dari awal (detik 0.0) sampai AKHIR AUDIO dan catat SETIAP kalimat/ucapan yang terdengar beserta timestamp presisi detik dan format menit.
+
+🚨 ATURAN KRITIKAL COVERAGE DURASI (ANTI-GAP / ANTI-CUTOFF DI AKHIR):
+1. COVER SELURUH DURASI DARI 0.0 SAMPAI DETIK TERAKHIR:
+   - Transkrip WAJIB mencakup durasi total file audio secara penuh dari detik 0.0 hingga detik paling akhir.
+   - JANGAN PERNAH menghentikan transkripsi di tengah jalan sebelum audio selesai (misal berhenti di 1:22 padahal audio berdurasi 1:26).
+2. SINKRONISASI DETIK TERAKHIR (TAIL AUDIO / OUTRO):
+   - `end_seconds` pada item transkrip TERAKHIR WAJIB bernilai sama dengan total durasi akhir file audio (contoh: jika audio berdurasi 1:26 / 86 detik, maka `end_seconds` item terakhir HARUS 86.0 dan `timestamp_minute` "01:22 - 01:26").
+   - Jika pada detik-detik terakhir ada kata penutup, tawa, napas, outro, atau sisa audio, perpanjang `end_seconds` item terakhir tersebut hingga mencakup detik durasi akhir audio agar tidak ada gap/video terpotong saat dirender.
 
 ATURAN TRANSKRIPSI:
 1. PRESISI DETIK FLOAT — `start_seconds` dan `end_seconds` WAJIB angka float/desimal (contoh: 84.5).
-2. TIMESTAMP FORMAT MENIT — `timestamp_minute` WAJIB diisi dalam format menit `MM:SS - MM:SS` (contoh: "01:24 - 01:28") atau `MM:SS` agar pengguna tahu persis menit ke berapa.
+2. TIMESTAMP FORMAT MENIT — `timestamp_minute` WAJIB diisi dalam format menit `MM:SS - MM:SS` (contoh: "01:22 - 01:26") atau `MM:SS` agar pengguna tahu persis menit ke berapa.
 3. POTONGAN PER KALIMAT — Pecah ucapan per kalimat atau frasa pendek (durasi 3-6 detik per entry).
 4. TEKS UCAPAN — Catat teks ucapan tepat seperti apa yang diucapkan secara akurat.
 5. SPEAKER (OPSIONAL) — Sertakan identitas pembicara jika ada (contoh: "Pembicara 1", "Host", "Nobita").
-6. Cover SELURUH durasi dari detik 0.0 hingga akhir audio.
 
 FORMAT OUTPUT (MURNI JSON ARRAY, TANPA MARKDOWN / TEKS LAIN):
 
@@ -36,8 +43,8 @@ FORMAT OUTPUT (MURNI JSON ARRAY, TANPA MARKDOWN / TEKS LAIN):
   {
     "id": 3,
     "start_seconds": 7.2,
-    "end_seconds": 12.4,
-    "timestamp_minute": "00:07 - 00:12",
+    "end_seconds": 86.0,
+    "timestamp_minute": "00:07 - 01:26",
     "text": "Fitur ini sangat berguna untuk mencocokkan timing ucapan dengan rendering.",
     "speaker": "Host"
   }
@@ -45,6 +52,7 @@ FORMAT OUTPUT (MURNI JSON ARRAY, TANPA MARKDOWN / TEKS LAIN):
 
 PENTING:
 - Output WAJIB MURNI JSON array tanpa pembungkus ```json atau teks pengantar.
-- `start_seconds` dan `end_seconds` HARUS angka float / desimal (contoh: 0.0, 3.5, 12.4).
-- `timestamp_minute` HARUS string format menit `MM:SS - MM:SS` (contoh: "01:24 - 01:28").
+- `start_seconds` dan `end_seconds` HARUS angka float / desimal (contoh: 0.0, 3.5, 86.0).
+- `timestamp_minute` HARUS string format menit `MM:SS - MM:SS` (contoh: "01:22 - 01:26").
 - Tuliskan teks ucapan dalam bahasa aslinya secara akurat.
+- ITEM TERAKHIR `end_seconds` WAJIB MENJANGKAU SAMPAI DURASI TOTAL AKHIR AUDIO.

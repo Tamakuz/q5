@@ -20,7 +20,7 @@ export async function attachDriveFile(
   options: AttachDriveFileOptions = {}
 ): Promise<string | null> {
   const state = loadProjectState();
-  
+
   // ⚠️ CRITICAL: Strip file extension (.mp4, etc.) for Google Drive search query
   const rawSearchTerm = options.searchTerm || state.drive_search_query || `${state.content_id}_video_trimmed`;
   const cleanSearchTerm = rawSearchTerm.replace(/\.[^/.]+$/, '');
@@ -49,7 +49,7 @@ export async function attachDriveFile(
   let plusBtn = null;
   for (const sel of plusButtonSelectors) {
     const loc = page.locator(sel).first();
-    if (await loc.isVisible().catch(() => false)) {
+    if (await loc.isVisible({ timeout: 2000 }).catch(() => false)) {
       plusBtn = loc;
       console.log(`🔍 Found insert button using selector: ${sel}`);
       break;
@@ -60,7 +60,7 @@ export async function attachDriveFile(
     await dismissPopups(page);
     for (const sel of plusButtonSelectors) {
       const loc = page.locator(sel).first();
-      if (await loc.isVisible().catch(() => false)) {
+      if (await loc.isVisible({ timeout: 2000 }).catch(() => false)) {
         plusBtn = loc;
         break;
       }
@@ -80,7 +80,7 @@ export async function attachDriveFile(
     .filter({ hasText: /^Drive$|^Google Drive$/i })
     .first();
 
-  await driveMenuItem.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+  await driveMenuItem.waitFor({ state: 'visible', timeout: 5000 }).catch(() => { });
 
   let targetDriveBtn = driveMenuItem;
   if (!(await targetDriveBtn.isVisible().catch(() => false))) {
@@ -97,7 +97,7 @@ export async function attachDriveFile(
 
   // 3. Locate Google Drive Picker Frame
   console.log('⏳ Waiting for Google Drive picker iframe to open...');
-  await page.waitForSelector('iframe.picker-frame, iframe[src*="picker"]', { timeout: 10000 }).catch(() => {});
+  await page.waitForSelector('iframe.picker-frame, iframe[src*="picker"]', { timeout: 10000 }).catch(() => { });
   await page.waitForTimeout(2000);
 
   let pickerFrame = page.frames().find(f => f.url().includes('picker'));
@@ -114,14 +114,14 @@ export async function attachDriveFile(
   // 4. Search for the exact file in Google Drive (WITHOUT extension)
   if (cleanSearchTerm) {
     console.log(`🔎 Locating search input box in Drive picker...`);
-    
+
     let searchInput = null;
 
     if (pickerFrame) {
       // Check if search icon needs to be clicked first
       const searchBtn = pickerFrame.locator('.picker-search-button, button[aria-label*="Search"]').first();
       if (await searchBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
-        await searchBtn.click({ force: true }).catch(() => {});
+        await searchBtn.click({ force: true }).catch(() => { });
         await page.waitForTimeout(500);
       }
 
@@ -158,11 +158,11 @@ export async function attachDriveFile(
 
     if (searchInput) {
       console.log(`🔎 Typing search query: "${cleanSearchTerm}"...`);
-      await searchInput.click({ force: true }).catch(() => {});
+      await searchInput.click({ force: true }).catch(() => { });
       await searchInput.fill('');
       await searchInput.pressSequentially(cleanSearchTerm, { delay: 40 });
       await page.keyboard.press('Enter');
-      
+
       console.log('⏳ Waiting 6 seconds for Google Drive search query results to load...');
       await page.waitForTimeout(6000);
       console.log('✅ Google Drive search query wait complete!');
@@ -220,11 +220,19 @@ export async function attachDriveFile(
 
     if (!inserted) {
       console.log('ℹ️ Insert button not clicked directly, double-clicking file card fallback...');
-      await targetItem.dblclick({ force: true }).catch(() => {});
-      await page.keyboard.press('Enter').catch(() => {});
+      await targetItem.dblclick({ force: true }).catch(() => { });
+      await page.keyboard.press('Enter').catch(() => { });
     }
 
-    await page.waitForTimeout(4000);
+    await page.waitForTimeout(3000);
+
+    // Immediate error check after inserting Drive file
+    const driveError = page.locator('text=/Error querying Drive|An internal error has occurred|failed to generate content/i').first();
+    if (await driveError.isVisible({ timeout: 2000 }).catch(() => false)) {
+      const errTxt = await driveError.innerText().catch(() => 'Error querying Drive');
+      throw new Error(`GOOGLE_AI_STUDIO_QUOTA_ERROR: Drive Attachment Error ("${errTxt}").`);
+    }
+
     console.log(`✅ File attached from Google Drive successfully!`);
     updateStateResource('video_trimmed', `drive://${cleanSearchTerm}`);
     return cleanSearchTerm;
@@ -232,10 +240,10 @@ export async function attachDriveFile(
 
   // 7. IF FILE IS NOT IN DRIVE ("No matching results"): Back -> Upload Tab -> Set File
   console.log(`\n⚠️ FILE DENGAN NAMA PERSIS BELUM ADA DI GOOGLE DRIVE! ("No matching results")`);
-  
+
   // Step 7A: Click exact "← Back" button [aria-label="Back"] in Drive picker header
   console.log('⬅️ Clicking real "← Back" button in Drive picker header...');
-  
+
   let backClicked = false;
   const realBackBtn = pickerFrame ? pickerFrame.locator('[aria-label="Back"]').first() : page.locator('[aria-label="Back"]').first();
   if (await realBackBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -273,7 +281,7 @@ export async function attachDriveFile(
 
   for (const tab of uploadTabLocators) {
     if (await tab.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await tab.click({ force: true }).catch(() => {});
+      await tab.click({ force: true }).catch(() => { });
       uploadTabClicked = true;
       console.log('✅ Clicked "Upload" tab in Drive Picker!');
       break;
@@ -319,7 +327,7 @@ export async function attachDriveFile(
           console.log('✅ Local file set via frame input[type="file"]!');
           break;
         }
-      } catch (e: any) {}
+      } catch (e: any) { }
     }
   }
 

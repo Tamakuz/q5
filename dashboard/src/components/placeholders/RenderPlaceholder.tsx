@@ -12,7 +12,7 @@ interface MappingBlock {
 }
 
 interface MappingTimeline {
-  settings: { fps: number; format: string };
+  settings: { fps: number; format: string; fg_aspect?: string; bgm?: string };
   timeline: MappingBlock[];
 }
 
@@ -47,9 +47,15 @@ const RenderPlaceholder: React.FC = () => {
   const [renderResult, setRenderResult] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
 
+  const [copyToast, setCopyToast] = useState<string | null>(null);
+  const [isEditingMapping, setIsEditingMapping] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptEntry[] | null>(null);
-  const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [copiedPath, setCopiedPath] = useState(false);
+
+  const showToast = (msg: string) => {
+    setCopyToast(msg);
+    setTimeout(() => setCopyToast(null), 2500);
+  };
 
   useEffect(() => {
     (async () => {
@@ -109,8 +115,7 @@ const RenderPlaceholder: React.FC = () => {
 
   const handleCopyPrompt = async () => {
     await api.copyToClipboard(getFormattedPrompt());
-    setCopiedPrompt(true);
-    setTimeout(() => setCopiedPrompt(false), 2000);
+    showToast('✓ Mapping Prompt Copied!');
   };
 
   const handleParseMapping = () => {
@@ -126,7 +131,9 @@ const RenderPlaceholder: React.FC = () => {
         return;
       }
       setMapping(parsed);
+      setIsEditingMapping(false);
       handleSaveMapping(parsed);
+      showToast('✓ Timeline Saved & Validated!');
     } catch (e: any) {
       setMappingError(`Invalid JSON: ${e.message}`);
     }
@@ -168,14 +175,21 @@ const RenderPlaceholder: React.FC = () => {
 
   const handleCopyPath = async (path: string) => {
     await api.copyToClipboard(path);
-    setCopiedPath(true);
-    setTimeout(() => setCopiedPath(false), 2000);
+    showToast('✓ Path Copied!');
   };
 
+  const totalTimelineDuration = mapping?.timeline ? mapping.timeline.reduce((acc, item) => acc + (item.t || 0), 0) : 0;
   const canRender = !!sourceVideo && !!mapping;
 
   return (
     <div className="flex flex-col h-full bg-gray-950 text-gray-100 p-6 overflow-hidden">
+      {/* Toast Feedback */}
+      {copyToast && (
+        <div className="fixed top-5 right-5 z-50 bg-indigo-600 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-lg border border-indigo-400 animate-bounce">
+          {copyToast}
+        </div>
+      )}
+
       {/* Top Header & Readiness Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-gray-800 shrink-0">
         <div>
@@ -225,8 +239,7 @@ const RenderPlaceholder: React.FC = () => {
               onClick={handleCopyPrompt}
               className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition-all shadow flex items-center gap-1"
             >
-              <span>{copiedPrompt ? '✓' : '📋'}</span>
-              <span>{copiedPrompt ? 'Copied!' : 'Copy Mapping Prompt'}</span>
+              <span>📋</span> Copy Mapping Prompt
             </button>
           </div>
 
@@ -243,36 +256,84 @@ const RenderPlaceholder: React.FC = () => {
               </div>
             </div>
 
-            {/* Mapping JSON Textarea / View */}
+            {/* Mapping JSON Textarea / Validated View */}
             <div className="flex-1 flex flex-col min-h-0 space-y-2">
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Mapping JSON (mapping.json)</span>
-              <textarea
-                value={mappingJson}
-                onChange={(e) => setMappingJson(e.target.value)}
-                placeholder={`{\n  "settings": { "fps": 60, "format": "9:16" },\n  "timeline": [\n    { "id": 1, "ss": 12.5, "t": 4.0, "text": "..." }\n  ]\n}`}
-                className="flex-1 w-full bg-gray-950 text-gray-200 text-xs font-mono p-3.5 rounded-xl border border-gray-800 focus:border-indigo-500 focus:outline-none resize-none leading-relaxed"
-                spellCheck={false}
-              />
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Mapping JSON (mapping.json)</span>
+                {mapping && !isEditingMapping && (
+                  <button
+                    onClick={() => setIsEditingMapping(true)}
+                    className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-medium transition-all"
+                  >
+                    Edit / Replace JSON
+                  </button>
+                )}
+              </div>
 
-              {mappingError && (
-                <div className="p-3 bg-red-950/40 border border-red-800/50 rounded-xl text-xs text-red-400">
-                  {mappingError}
+              {mapping && !isEditingMapping ? (
+                /* Formatted Validated Timeline View */
+                <div className="flex-1 flex flex-col min-h-0 space-y-3">
+                  <div className="flex items-center justify-between bg-emerald-950/40 p-3 rounded-xl border border-emerald-800/50">
+                    <div>
+                      <h3 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                        <span>✓</span> Valid Timeline Mapping
+                      </h3>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {mapping.timeline.length} Scene Clips · Total ~{totalTimelineDuration.toFixed(1)}s
+                        {mapping.settings?.bgm ? ` · BGM: ${mapping.settings.bgm}` : ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+                    {mapping.timeline.map((clip) => (
+                      <div key={clip.id} className="p-3 bg-gray-950 rounded-xl border border-gray-800 space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-indigo-400 font-mono">Clip #{clip.id}</span>
+                          <div className="flex gap-2 font-mono text-gray-400 text-[11px]">
+                            <span>ss: <strong className="text-emerald-400">{clip.ss}s</strong></span>
+                            <span>dur: <strong className="text-purple-400">{clip.t}s</strong></span>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-300 leading-relaxed italic font-mono bg-gray-900 p-2 rounded-lg border border-gray-800">
+                          "{clip.text}"
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                /* Raw Edit Mode */
+                <div className="flex-1 flex flex-col min-h-0 space-y-2">
+                  <textarea
+                    value={mappingJson}
+                    onChange={(e) => setMappingJson(e.target.value)}
+                    placeholder={`{\n  "settings": { "fps": 60, "format": "9:16" },\n  "timeline": [\n    { "id": 1, "ss": 12.5, "t": 4.0, "text": "..." }\n  ]\n}`}
+                    className="flex-1 w-full bg-gray-950 text-gray-200 text-xs font-mono p-3.5 rounded-xl border border-gray-800 focus:border-indigo-500 focus:outline-none resize-none leading-relaxed"
+                    spellCheck={false}
+                  />
+
+                  {mappingError && (
+                    <div className="p-3 bg-red-950/40 border border-red-800/50 rounded-xl text-xs text-red-400">
+                      {mappingError}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={handleParseMapping}
+                      disabled={!mappingJson.trim()}
+                      className={`px-5 py-2 rounded-xl text-xs font-semibold shadow-lg transition-all ${
+                        !mappingJson.trim()
+                          ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                          : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'
+                      }`}
+                    >
+                      Validate & Save Timeline
+                    </button>
+                  </div>
                 </div>
               )}
-
-              <div className="flex justify-end pt-1">
-                <button
-                  onClick={handleParseMapping}
-                  disabled={!mappingJson.trim()}
-                  className={`px-5 py-2 rounded-xl text-xs font-semibold shadow-lg transition-all ${
-                    !mappingJson.trim()
-                      ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                      : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'
-                  }`}
-                >
-                  Validate & Save Timeline
-                </button>
-              </div>
             </div>
           </div>
         </div>

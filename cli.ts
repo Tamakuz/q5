@@ -477,7 +477,7 @@ program
   .description('Action 1: Insert Analysis Prompt text into Google AI Studio')
   .option('-f, --file <string>', 'Path to prompt markdown file', 'dashboard/prompts/analysis-prompt.md')
   .option('-t, --text <string>', 'Direct prompt text to insert')
-  .option('-m, --model <string>', 'Model name', 'gemini-3.5-flash')
+  .option('-m, --model <string>', 'Model name', 'gemini-3.1-pro-preview')
   .option('-l, --level <string>', 'Thinking level (High|Medium|Low|Off)', 'High')
   .action(async (options) => {
     const { launchAIStudioSession } = await import('./playwright/aistudio');
@@ -494,7 +494,7 @@ program
 program
   .command('aistudio:model')
   .description('Configure Gemini Model & Thinking Level (High) in Google AI Studio')
-  .option('-m, --model <string>', 'Model name', 'gemini-3.5-flash')
+  .option('-m, --model <string>', 'Model name', 'gemini-3.1-pro-preview')
   .option('-l, --level <string>', 'Thinking level (High|Medium|Low|Off)', 'High')
   .action(async (options) => {
     const { launchAIStudioSession } = await import('./playwright/aistudio');

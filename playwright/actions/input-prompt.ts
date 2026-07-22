@@ -18,7 +18,7 @@ export interface InputPromptOptions {
 export async function inputTextPrompt(page: Page, options: InputPromptOptions = {}): Promise<void> {
   // Ensure Gemini 3.5 Flash and Thinking Level High are active
   await configureModelAndThinking(page, {
-    modelName: options.modelName || 'gemini-3.5-flash',
+    modelName: options.modelName || 'gemini-3.1-pro-preview',
     thinkingLevel: options.thinkingLevel || 'High',
   });
 
@@ -94,7 +94,7 @@ if (require.main === module || process.argv[1]?.endsWith('input-prompt.ts')) {
     .description('Action 1: Insert Analysis Prompt text into open AI Studio session')
     .option('-f, --file <string>', 'Path to prompt md file', 'dashboard/prompts/analysis-prompt.md')
     .option('-t, --text <string>', 'Direct prompt text to insert')
-    .option('-m, --model <string>', 'Model name', 'gemini-3.5-flash')
+    .option('-m, --model <string>', 'Model name', 'gemini-3.1-pro-preview')
     .option('-l, --level <string>', 'Thinking level (High|Medium|Low|Off)', 'High')
     .action(async (opts) => {
       const { launchAIStudioSession } = await import('../aistudio');

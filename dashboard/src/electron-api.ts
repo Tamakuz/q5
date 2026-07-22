@@ -42,11 +42,28 @@ export interface RenderResult {
   elapsed?: string;
 }
 
-export interface YoutubeTitleResult {
+export interface TiktokMetadata {
+  captions: string[];
+  description: string;
+  hashtags: string[];
+  recommended_caption: string;
+  fyp_strategy_tip?: string;
+}
+
+export interface YoutubeMetadata {
   titles: string[];
   description: string;
   hashtags: string[];
   recommended_title: string;
+}
+
+export interface YoutubeTitleResult {
+  titles?: string[];
+  description?: string;
+  hashtags?: string[];
+  recommended_title?: string;
+  youtube?: YoutubeMetadata;
+  tiktok?: TiktokMetadata;
 }
 
 export interface RenderFileInfo {

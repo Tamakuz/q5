@@ -6,7 +6,6 @@ import type { StepId } from './components/Sidebar';
 import StatusBar from './components/StatusBar';
 import BuildPlaceholder from './components/placeholders/BuildPlaceholder';
 import AnalyzePlaceholder from './components/placeholders/AnalyzePlaceholder';
-import TranscriptPlaceholder from './components/placeholders/TranscriptPlaceholder';
 import RenderPlaceholder from './components/placeholders/RenderPlaceholder';
 import UploadPlaceholder from './components/placeholders/UploadPlaceholder';
 
@@ -15,7 +14,6 @@ type Status = 'ready' | 'rendering' | 'error';
 const PLACEHOLDERS: Record<StepId, React.FC> = {
   source: BuildPlaceholder,
   analyze: AnalyzePlaceholder,
-  transcript: TranscriptPlaceholder,
   render: RenderPlaceholder,
   upload: UploadPlaceholder,
 };
