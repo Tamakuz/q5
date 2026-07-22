@@ -17,6 +17,10 @@ const STEPS: Step[] = [
   { id: 'upload', icon: '🚀', label: 'Publish' },
 ];
 
+const LONGFORM_STEPS: Step[] = [
+  { id: 'source', icon: '✂️', label: 'Splitter (10 Min)' },
+];
+
 interface SidebarProps {
   activeStep: StepId;
   onStepChange: (step: StepId) => void;
@@ -25,6 +29,8 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode, onModeChange }) => {
+  const activeStepsList = contentMode === 'shortform' ? STEPS : LONGFORM_STEPS;
+
   return (
     <nav className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col py-4 shrink-0 justify-between">
       <div className="space-y-4">
@@ -66,38 +72,28 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
             </span>
           </div>
 
-          {contentMode === 'shortform' ? (
-            STEPS.map((step) => {
-              const isActive = activeStep === step.id;
-              return (
-                <button
-                  key={step.id}
-                  onClick={() => onStepChange(step.id)}
-                  className={`
-                    flex items-center gap-3 px-5 py-3 mx-2 rounded-lg text-sm font-medium
-                    transition-all duration-150 text-left w-[calc(100%-16px)]
-                    ${isActive
+          {activeStepsList.map((step) => {
+            const isActive = activeStep === step.id;
+            return (
+              <button
+                key={step.id}
+                onClick={() => onStepChange(step.id)}
+                className={`
+                  flex items-center gap-3 px-5 py-3 mx-2 rounded-lg text-sm font-medium
+                  transition-all duration-150 text-left w-[calc(100%-16px)]
+                  ${isActive
+                    ? contentMode === 'shortform'
                       ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                      : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
-                    }
-                  `}
-                >
-                  <span className="text-lg">{step.icon}</span>
-                  <span>{step.label}</span>
-                </button>
-              );
-            })
-          ) : (
-            <div className="px-4 py-8 text-center space-y-2 border border-dashed border-gray-800/80 mx-3 rounded-xl bg-gray-950/40">
-              <span className="text-xl block opacity-40">🍿</span>
-              <span className="text-xs text-gray-500 font-medium block">
-                Belum Ada Workflow
-              </span>
-              <span className="text-[10px] text-gray-600 block leading-tight">
-                Alur kerja Alur Cerita Film (16:9) masih terisolasi kosongan.
-              </span>
-            </div>
-          )}
+                      : 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                    : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                  }
+                `}
+              >
+                <span className="text-lg">{step.icon}</span>
+                <span>{step.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

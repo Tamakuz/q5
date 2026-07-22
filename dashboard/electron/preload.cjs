@@ -36,6 +36,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('render-progress', handler);
   },
 
+  // Alur Film Specific IPC Helpers
+  uploadAlurfilmSource: (filePath) => ipcRenderer.invoke('upload-alurfilm-source', { filePath }),
+  splitAlurfilmVideo: (masterPath, startTime, endTime) =>
+    ipcRenderer.invoke('split-alurfilm-video', { masterPath, startTime, endTime }),
+  listAlurfilmChunks: (modeContentId) => ipcRenderer.invoke('list-alurfilm-chunks', modeContentId),
+
   // Generic project file helpers
   getContentId: (mode) => ipcRenderer.invoke('get-content-id', mode),
   resetProject: (mode) => ipcRenderer.invoke('reset-project', mode),

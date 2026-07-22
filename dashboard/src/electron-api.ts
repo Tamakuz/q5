@@ -75,6 +75,16 @@ export interface RenderFileInfo {
   url: string;
 }
 
+export interface AlurfilmChunk {
+  part: number;
+  name: string;
+  size: number;
+  startSec?: number;
+  durationSec?: number;
+  filePath: string;
+  url: string;
+}
+
 export interface ElectronAPI {
   selectFile: () => Promise<SelectedFile | null>;
   getVideoMeta: (filePath: string) => Promise<VideoMeta | null>;
@@ -85,6 +95,9 @@ export interface ElectronAPI {
   uploadAudio: (filePath: string) => Promise<AudioInfo>;
   listAudio: () => Promise<AudioInfo[]>;
   listRenders: () => Promise<RenderFileInfo[]>;
+  uploadAlurfilmSource: (filePath: string) => Promise<SourceInfo>;
+  splitAlurfilmVideo: (masterPath: string, startTime: string | number, endTime: string | number) => Promise<AlurfilmChunk[]>;
+  listAlurfilmChunks: (modeContentId?: string) => Promise<AlurfilmChunk[]>;
   getContentId: (mode?: string) => Promise<string | null>;
   resetProject: (mode?: string) => Promise<{ success: boolean; content_id?: string; error?: string }>;
   copyToClipboard: (text: string) => Promise<boolean>;

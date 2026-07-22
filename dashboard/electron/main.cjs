@@ -327,8 +327,10 @@ ipcMain.handle('upload-source', async (_event, { filePath, start, end }) => {
   const destPath = path.join(INPUT_ASSETS, outputName);
 
   if (!shouldTrim) {
-    fs.copyFileSync(filePath, destPath);
-    const stat = fs.statSync(destPath);
+    if (filePath !== destPath) {
+      await fs.promises.copyFile(filePath, destPath);
+    }
+    const stat = await fs.promises.stat(destPath);
     return {
       id: contentId,
       name: outputName,
@@ -368,6 +370,146 @@ ipcMain.handle('upload-source', async (_event, { filePath, start, end }) => {
 
     ffmpeg.on('error', (err) => reject(err));
   });
+});
+
+// ─── Alur Film Video Handlers ────────────────────────
+
+const ALURFILM_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm');
+const ALURFILM_CHUNKS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'chunks');
+
+if (!fs.existsSync(ALURFILM_DIR)) {
+  fs.mkdirSync(ALURFILM_DIR, { recursive: true });
+}
+if (!fs.existsSync(ALURFILM_CHUNKS_DIR)) {
+  fs.mkdirSync(ALURFILM_CHUNKS_DIR, { recursive: true });
+}
+
+ipcMain.handle('upload-alurfilm-source', async (_event, { filePath }) => {
+  const contentId = getOrGenerateContentId('longform');
+  const stat = await fs.promises.stat(filePath);
+  const baseName = path.basename(filePath);
+
+  return {
+    id: contentId,
+    name: baseName,
+    size: stat.size,
+    url: mediaUrl(filePath),
+    filePath: filePath,
+  };
+});
+
+ipcMain.handle('split-alurfilm-video', async (_event, { masterPath, startTime, endTime }) => {
+  const contentId = getOrGenerateContentId('longform');
+  const chunkDuration = 600; // Locked at 10 minutes (600 seconds)
+
+  if (!fs.existsSync(ALURFILM_CHUNKS_DIR)) {
+    fs.mkdirSync(ALURFILM_CHUNKS_DIR, { recursive: true });
+  }
+
+  function parseTimeToSeconds(val) {
+    if (typeof val === 'number') return val;
+    if (!val || typeof val !== 'string') return 0;
+    const parts = val.split(':').map(Number);
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    return Number(val) || 0;
+  }
+
+  const startSec = parseTimeToSeconds(startTime);
+  const endSec = parseTimeToSeconds(endTime);
+
+  if (endSec <= startSec) {
+    throw new Error('End time must be greater than start time');
+  }
+
+  const totalRangeSec = endSec - startSec;
+  const numParts = Math.ceil(totalRangeSec / chunkDuration);
+  const createdChunks = [];
+
+  for (let i = 0; i < numParts; i++) {
+    const partStartSec = startSec + (i * chunkDuration);
+    const partDurationSec = Math.min(chunkDuration, endSec - partStartSec);
+    const partNumStr = String(i + 1).padStart(2, '0');
+    const outputName = `${contentId}_part_${partNumStr}.mp4`;
+    const destPath = path.join(ALURFILM_CHUNKS_DIR, outputName);
+
+    await new Promise((resolve, reject) => {
+      const args = [
+        '-ss', String(partStartSec),
+        '-i', masterPath,
+        '-t', String(partDurationSec),
+        '-c', 'copy',
+        '-avoid_negative_ts', 'make_zero',
+        '-y',
+        destPath
+      ];
+
+      const ffmpeg = spawn(ffmpegPath, args);
+      let stderr = '';
+      ffmpeg.stderr.on('data', (d) => { stderr += d.toString(); });
+
+      ffmpeg.on('close', (code) => {
+        if (code !== 0) {
+          const fallbackArgs = [
+            '-ss', String(partStartSec),
+            '-i', masterPath,
+            '-t', String(partDurationSec),
+            '-c:v', 'libx264',
+            '-c:a', 'aac',
+            '-preset', 'ultrafast',
+            '-y',
+            destPath
+          ];
+          const fallbackFfmpeg = spawn(ffmpegPath, fallbackArgs);
+          fallbackFfmpeg.on('close', (fbCode) => {
+            if (fbCode !== 0) return reject(new Error(`FFmpeg split failed code ${fbCode}`));
+            resolve();
+          });
+        } else {
+          resolve();
+        }
+      });
+      ffmpeg.on('error', (err) => reject(err));
+    });
+
+    if (fs.existsSync(destPath)) {
+      const stat = fs.statSync(destPath);
+      createdChunks.push({
+        part: i + 1,
+        name: outputName,
+        size: stat.size,
+        startSec: partStartSec,
+        durationSec: partDurationSec,
+        filePath: destPath,
+        url: mediaUrl(destPath)
+      });
+    }
+  }
+
+  return createdChunks;
+});
+
+ipcMain.handle('list-alurfilm-chunks', async (_event, modeContentId) => {
+  const contentId = modeContentId || getOrGenerateContentId('longform');
+  if (!fs.existsSync(ALURFILM_CHUNKS_DIR)) return [];
+
+  const files = fs.readdirSync(ALURFILM_CHUNKS_DIR);
+  const chunks = files
+    .filter(f => f.startsWith(contentId) && f.endsWith('.mp4'))
+    .sort()
+    .map((f, idx) => {
+      const fullPath = path.join(ALURFILM_CHUNKS_DIR, f);
+      const stat = fs.statSync(fullPath);
+      return {
+        part: idx + 1,
+        name: f,
+        size: stat.size,
+        filePath: fullPath,
+        url: mediaUrl(fullPath)
+      };
+    });
+
+  return chunks;
 });
 
 // ─── Select audio file ────────────────────────────────

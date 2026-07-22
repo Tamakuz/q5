@@ -8,6 +8,7 @@ import BuildPlaceholder from './components/placeholders/BuildPlaceholder';
 import AnalyzePlaceholder from './components/placeholders/AnalyzePlaceholder';
 import RenderPlaceholder from './components/placeholders/RenderPlaceholder';
 import UploadPlaceholder from './components/placeholders/UploadPlaceholder';
+import AlurfilmSplitterPlaceholder from './components/placeholders/longform/AlurfilmSplitterPlaceholder';
 
 type Status = 'ready' | 'rendering' | 'error';
 
@@ -56,6 +57,8 @@ const App: React.FC = () => {
         <main className="flex-1 p-6 overflow-auto">
           {contentMode === 'shortform' ? (
             <ActivePlaceholder key={`shortform-${activeStep}`} />
+          ) : activeStep === 'source' ? (
+            <AlurfilmSplitterPlaceholder key={`longform-source-${longformId}`} />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
               <div className="w-20 h-20 bg-purple-600/10 text-purple-400 rounded-3xl flex items-center justify-center text-4xl border border-purple-500/20 shadow-xl shadow-purple-950/40">
@@ -67,20 +70,10 @@ const App: React.FC = () => {
                     Alur Cerita Film (16:9)
                   </span>
                 </div>
-                <h2 className="text-lg font-bold text-white pt-1">Workflow Alur Cerita Film Masih Kosong</h2>
+                <h2 className="text-lg font-bold text-white pt-1">Workflow Step Belum Ada</h2>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  Alur pekerjaan untuk Alur Cerita Film (16:9) belum dibuat dan terisolasi sepenuhnya dari Shorts.
+                  Langkah ini belum dibuat untuk Alur Cerita Film (16:9). Gunakan step 1 (Splitter 10 Min).
                 </p>
-                {longformId && (
-                  <div className="pt-2">
-                    <span className="text-[10px] text-purple-400 font-mono font-bold uppercase block">
-                      Isolated Content ID:
-                    </span>
-                    <span className="inline-block mt-1 px-3 py-1 bg-purple-950/80 border border-purple-700/50 text-purple-200 text-xs font-mono font-bold rounded-lg">
-                      🆔 {longformId}
-                    </span>
-                  </div>
-                )}
               </div>
             </div>
           )}
