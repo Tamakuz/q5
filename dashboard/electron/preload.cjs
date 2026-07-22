@@ -41,6 +41,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
   splitAlurfilmVideo: (masterPath, startTime, endTime) =>
     ipcRenderer.invoke('split-alurfilm-video', { masterPath, startTime, endTime }),
   listAlurfilmChunks: (modeContentId) => ipcRenderer.invoke('list-alurfilm-chunks', modeContentId),
+  analyzeAlurfilmChunk: (chunkPath, chunkPart, previousContext) =>
+    ipcRenderer.invoke('analyze-alurfilm-chunk', { chunkPath, chunkPart, previousContext }),
+  listAlurfilmAnalyses: (modeContentId) => ipcRenderer.invoke('list-alurfilm-analyses', modeContentId),
+  getAlurfilmPrompt: (chunkPart, totalChunks, previousContext) =>
+    ipcRenderer.invoke('get-alurfilm-prompt', { chunkPart, totalChunks, previousContext }),
+  saveAlurfilmAnalysis: (chunkPart, jsonText) =>
+    ipcRenderer.invoke('save-alurfilm-analysis', { chunkPart, jsonText }),
+  uploadAlurfilmAudio: (part, filePath) =>
+    ipcRenderer.invoke('upload-alurfilm-audio', { part, filePath }),
+  listAlurfilmAudios: (modeContentId) =>
+    ipcRenderer.invoke('list-alurfilm-audios', modeContentId),
+  deleteAlurfilmAudio: (part) =>
+    ipcRenderer.invoke('delete-alurfilm-audio', { part }),
+  getAlurfilmTranscriptPrompt: (chunkPart, totalChunks) =>
+    ipcRenderer.invoke('get-alurfilm-transcript-prompt', { chunkPart, totalChunks }),
+  saveAlurfilmTranscript: (chunkPart, jsonText) =>
+    ipcRenderer.invoke('save-alurfilm-transcript', { chunkPart, jsonText }),
+  listAlurfilmTranscripts: (modeContentId) =>
+    ipcRenderer.invoke('list-alurfilm-transcripts', modeContentId),
 
   // Generic project file helpers
   getContentId: (mode) => ipcRenderer.invoke('get-content-id', mode),

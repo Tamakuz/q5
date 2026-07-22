@@ -512,6 +512,228 @@ ipcMain.handle('list-alurfilm-chunks', async (_event, modeContentId) => {
   return chunks;
 });
 
+ipcMain.handle('analyze-alurfilm-chunk', async (_event) => {
+  throw new Error('Panggilan API 9router dinonaktifkan. Gunakan workflow manual Copy Prompt & Import Output JSON.');
+});
+
+ipcMain.handle('list-alurfilm-analyses', async (_event, modeContentId) => {
+  const contentId = modeContentId || getOrGenerateContentId('longform');
+  if (!fs.existsSync(ALURFILM_DIR)) return [];
+
+  const files = fs.readdirSync(ALURFILM_DIR);
+  const analyses = files
+    .filter(f => f.startsWith(contentId) && f.includes('_analysis_part_') && f.endsWith('.json'))
+    .sort()
+    .map(f => {
+      const fullPath = path.join(ALURFILM_DIR, f);
+      try {
+        const data = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+        return {
+          name: f,
+          filePath: fullPath,
+          data
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+
+  return analyses;
+});
+
+ipcMain.handle('get-alurfilm-prompt', async (_event, { chunkPart, totalChunks = 2, previousContext, styleExample }) => {
+  const promptFile = path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'alurfilm-singlepass-prompt.md');
+  let promptTemplate = '';
+  if (fs.existsSync(promptFile)) {
+    promptTemplate = fs.readFileSync(promptFile, 'utf-8');
+  } else {
+    promptTemplate = `Kamu adalah Master Scriptwriter Alur Film. Tulis naskah voiceover recap Macro Storytelling. Output JSON valid.`;
+  }
+
+  const totalTargetWords = 2400;
+  const computedWordsPerChunk = Math.max(300, Math.round(totalTargetWords / Math.max(1, totalChunks)));
+
+  const prevCtxStr = previousContext ? JSON.stringify(previousContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
+  const isFirstPart = Number(chunkPart) === 1;
+  const isFirstPartStr = isFirstPart ? 'YA (Chunk #1 / Part Pembuka Film)' : `TIDAK (Chunk #${chunkPart} / Part Lanjutan)`;
+  const styleExampleStr = styleExample ? String(styleExample) : 'Gunakan gaya penceritaan alur film santai, jernih, dan mengalir.';
+  const fullPrompt = promptTemplate
+    .replace(/{{chunk_part}}/g, String(chunkPart))
+    .replace(/{{total_chunks}}/g, String(totalChunks))
+    .replace(/{{is_first_part}}/g, isFirstPartStr)
+    .replace(/{{target_words_per_chunk}}/g, String(computedWordsPerChunk))
+    .replace(/{{previous_context}}/g, prevCtxStr)
+    .replace(/{{style_example}}/g, styleExampleStr);
+
+  return fullPrompt;
+});
+
+ipcMain.handle('save-alurfilm-analysis', async (_event, { chunkPart, jsonText }) => {
+  const contentId = getOrGenerateContentId('longform');
+  let raw = (jsonText || '').trim();
+  if (raw.startsWith('```')) {
+    raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+  }
+
+  const resultData = JSON.parse(raw);
+  const partStr = String(chunkPart).padStart(2, '0');
+  const outputName = `${contentId}_analysis_part_${partStr}.json`;
+  const destPath = path.join(ALURFILM_DIR, outputName);
+
+  if (!fs.existsSync(ALURFILM_DIR)) {
+    fs.mkdirSync(ALURFILM_DIR, { recursive: true });
+  }
+
+  fs.writeFileSync(destPath, JSON.stringify(resultData, null, 2), 'utf-8');
+
+  return {
+    part: chunkPart,
+    name: outputName,
+    filePath: destPath,
+    data: resultData
+  };
+});
+
+ipcMain.handle('upload-alurfilm-audio', async (_event, { part, filePath }) => {
+  const contentId = getOrGenerateContentId('longform');
+  if (!fs.existsSync(ALURFILM_DIR)) {
+    fs.mkdirSync(ALURFILM_DIR, { recursive: true });
+  }
+
+  const ext = path.extname(filePath) || '.mp3';
+  const partStr = String(part).padStart(2, '0');
+  const outputName = `${contentId}_audio_part_${partStr}${ext}`;
+  const destPath = path.join(ALURFILM_DIR, outputName);
+
+  // Remove existing audio files for this part if any
+  const existingFiles = fs.readdirSync(ALURFILM_DIR).filter(f => f.startsWith(`${contentId}_audio_part_${partStr}`));
+  for (const f of existingFiles) {
+    try { fs.unlinkSync(path.join(ALURFILM_DIR, f)); } catch {}
+  }
+
+  fs.copyFileSync(filePath, destPath);
+  const stat = fs.statSync(destPath);
+
+  return {
+    part,
+    name: outputName,
+    filePath: destPath,
+    url: mediaUrl(destPath),
+    size: stat.size
+  };
+});
+
+ipcMain.handle('list-alurfilm-audios', async (_event, modeContentId) => {
+  const contentId = modeContentId || getOrGenerateContentId('longform');
+  if (!fs.existsSync(ALURFILM_DIR)) return [];
+
+  const files = fs.readdirSync(ALURFILM_DIR);
+  const audioExtensions = ['.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac'];
+  const audios = files
+    .filter(f => f.startsWith(`${contentId}_audio_part_`) && audioExtensions.includes(path.extname(f).toLowerCase()))
+    .map(f => {
+      const match = f.match(/_audio_part_(\d+)/);
+      const part = match ? parseInt(match[1], 10) : 1;
+      const fullPath = path.join(ALURFILM_DIR, f);
+      const stat = fs.statSync(fullPath);
+      return {
+        part,
+        name: f,
+        filePath: fullPath,
+        url: mediaUrl(fullPath),
+        size: stat.size
+      };
+    })
+    .sort((a, b) => a.part - b.part);
+
+  return audios;
+});
+
+ipcMain.handle('delete-alurfilm-audio', async (_event, { part }) => {
+  const contentId = getOrGenerateContentId('longform');
+  if (!fs.existsSync(ALURFILM_DIR)) return true;
+
+  const partStr = String(part).padStart(2, '0');
+  const existingFiles = fs.readdirSync(ALURFILM_DIR).filter(f => f.startsWith(`${contentId}_audio_part_${partStr}`));
+  for (const f of existingFiles) {
+    try { fs.unlinkSync(path.join(ALURFILM_DIR, f)); } catch {}
+  }
+
+  return true;
+});
+
+ipcMain.handle('get-alurfilm-transcript-prompt', async (_event, { chunkPart, totalChunks = 2 }) => {
+  const promptFile = path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'alurfilm-transcript-prompt.md');
+  let promptTemplate = '';
+  if (fs.existsSync(promptFile)) {
+    promptTemplate = fs.readFileSync(promptFile, 'utf-8');
+  } else {
+    promptTemplate = `Kamu adalah AI Audio Transcriber presisi tinggi. Transkrip audio part ${chunkPart} ke JSON array dengan start_seconds, end_seconds, timestamp_minute, text.`;
+  }
+
+  const fullPrompt = promptTemplate
+    .replace(/{{chunk_part}}/g, String(chunkPart))
+    .replace(/{{total_chunks}}/g, String(totalChunks));
+
+  return fullPrompt;
+});
+
+ipcMain.handle('save-alurfilm-transcript', async (_event, { chunkPart, jsonText }) => {
+  const contentId = getOrGenerateContentId('longform');
+  if (!fs.existsSync(ALURFILM_DIR)) {
+    fs.mkdirSync(ALURFILM_DIR, { recursive: true });
+  }
+
+  let raw = (jsonText || '').trim();
+  if (raw.startsWith('```')) {
+    raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+  }
+
+  const parsed = JSON.parse(raw);
+  const partStr = String(chunkPart).padStart(2, '0');
+  const outputName = `${contentId}_transcript_part_${partStr}.json`;
+  const destPath = path.join(ALURFILM_DIR, outputName);
+
+  fs.writeFileSync(destPath, JSON.stringify(parsed, null, 2), 'utf-8');
+
+  return {
+    part: chunkPart,
+    name: outputName,
+    filePath: destPath,
+    data: parsed
+  };
+});
+
+ipcMain.handle('list-alurfilm-transcripts', async (_event, modeContentId) => {
+  const contentId = modeContentId || getOrGenerateContentId('longform');
+  if (!fs.existsSync(ALURFILM_DIR)) return [];
+
+  const files = fs.readdirSync(ALURFILM_DIR);
+  const transcripts = files
+    .filter(f => f.startsWith(`${contentId}_transcript_part_`) && f.endsWith('.json'))
+    .map(f => {
+      const match = f.match(/_transcript_part_(\d+)/);
+      const part = match ? parseInt(match[1], 10) : 1;
+      const fullPath = path.join(ALURFILM_DIR, f);
+      try {
+        const data = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+        return {
+          part,
+          name: f,
+          filePath: fullPath,
+          data
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.part - b.part);
+
+  return transcripts;
+});
+
 // ─── Select audio file ────────────────────────────────
 
 ipcMain.handle('select-audio', async () => {

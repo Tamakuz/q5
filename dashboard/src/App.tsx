@@ -9,12 +9,18 @@ import AnalyzePlaceholder from './components/placeholders/AnalyzePlaceholder';
 import RenderPlaceholder from './components/placeholders/RenderPlaceholder';
 import UploadPlaceholder from './components/placeholders/UploadPlaceholder';
 import AlurfilmSplitterPlaceholder from './components/placeholders/longform/AlurfilmSplitterPlaceholder';
+import AlurfilmAnalyzePlaceholder from './components/placeholders/longform/AlurfilmAnalyzePlaceholder';
+import AlurfilmAudioPlaceholder from './components/placeholders/longform/AlurfilmAudioPlaceholder';
+import AlurfilmTranscriptPlaceholder from './components/placeholders/longform/AlurfilmTranscriptPlaceholder';
+import TranscriptPlaceholder from './components/placeholders/TranscriptPlaceholder';
 
 type Status = 'ready' | 'rendering' | 'error';
 
 const SHORTFORM_PLACEHOLDERS: Record<StepId, React.FC> = {
   source: BuildPlaceholder,
   analyze: AnalyzePlaceholder,
+  audio: AnalyzePlaceholder,
+  transcript: TranscriptPlaceholder,
   render: RenderPlaceholder,
   upload: UploadPlaceholder,
 };
@@ -42,7 +48,7 @@ const App: React.FC = () => {
     setActiveStep('source');
   };
 
-  const ActivePlaceholder = SHORTFORM_PLACEHOLDERS[activeStep];
+  const ActivePlaceholder = SHORTFORM_PLACEHOLDERS[activeStep] || BuildPlaceholder;
 
   return (
     <div className="flex flex-col h-screen bg-gray-950">
@@ -59,6 +65,12 @@ const App: React.FC = () => {
             <ActivePlaceholder key={`shortform-${activeStep}`} />
           ) : activeStep === 'source' ? (
             <AlurfilmSplitterPlaceholder key={`longform-source-${longformId}`} />
+          ) : activeStep === 'analyze' ? (
+            <AlurfilmAnalyzePlaceholder key={`longform-analyze-${longformId}`} />
+          ) : activeStep === 'audio' ? (
+            <AlurfilmAudioPlaceholder key={`longform-audio-${longformId}`} />
+          ) : activeStep === 'transcript' ? (
+            <AlurfilmTranscriptPlaceholder key={`longform-transcript-${longformId}`} />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
               <div className="w-20 h-20 bg-purple-600/10 text-purple-400 rounded-3xl flex items-center justify-center text-4xl border border-purple-500/20 shadow-xl shadow-purple-950/40">
