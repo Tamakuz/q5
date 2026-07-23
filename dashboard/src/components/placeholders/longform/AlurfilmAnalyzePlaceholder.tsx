@@ -61,6 +61,7 @@ const AlurfilmAnalyzePlaceholder: React.FC = () => {
       prevContext = {
         last_part: partNum - 1,
         macro_summary: prevData.naskah_voiceover?.macro_summary || '',
+        previous_script_text: prevData.naskah_voiceover?.script_text || '',
         character_registry: prevData.character_registry || [],
       };
     }
@@ -104,6 +105,7 @@ const AlurfilmAnalyzePlaceholder: React.FC = () => {
         prevContext = {
           last_part: partNum - 1,
           macro_summary: prevData.naskah_voiceover?.macro_summary || '',
+          previous_script_text: prevData.naskah_voiceover?.script_text || '',
           character_registry: prevData.character_registry || [],
         };
       }

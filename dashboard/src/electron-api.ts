@@ -137,6 +137,53 @@ export interface AlurfilmTranscriptResult {
   data: AlurfilmTranscriptEntry[];
 }
 
+export interface AlurfilmVisualClip {
+  type: 'slow_motion' | 'mirror_cut' | 'freeze_frame_with_zoom' | 'video_cut' | 'pan_and_zoom_cut';
+  duration: number;
+  source_start_seconds?: number;
+  source_timestamp_seconds?: number;
+  slow_mo_factor?: number;
+  mirror_mode?: 'horizontal' | 'vertical';
+  pan_direction?: 'left' | 'right' | 'up' | 'down';
+  zoom_speed?: number;
+  color_grading_shift?: {
+    contrast?: number;
+    brightness?: number;
+    saturation?: number;
+  };
+}
+
+export interface AlurfilmSentenceMapping {
+  sentence_index: number;
+  text: string;
+  start: number;
+  end: number;
+  duration: number;
+  visuals: AlurfilmVisualClip[];
+}
+
+export interface AlurfilmMappingData {
+  scene_id: string;
+  mappings: AlurfilmSentenceMapping[];
+  status: string;
+}
+
+export interface AlurfilmMappingResult {
+  part: number;
+  name: string;
+  filePath: string;
+  data: AlurfilmMappingData;
+}
+
+export interface AlurfilmRenderResult {
+  part: number;
+  outputPath: string;
+  elapsed: string;
+  name: string;
+  mediaUrl: string;
+  error?: string;
+}
+
 export interface ElectronAPI {
   selectFile: () => Promise<SelectedFile | null>;
   getVideoMeta: (filePath: string) => Promise<VideoMeta | null>;
@@ -160,6 +207,11 @@ export interface ElectronAPI {
   getAlurfilmTranscriptPrompt: (chunkPart: number, totalChunks?: number) => Promise<string>;
   saveAlurfilmTranscript: (chunkPart: number, jsonText: string) => Promise<AlurfilmTranscriptResult>;
   listAlurfilmTranscripts: (modeContentId?: string) => Promise<AlurfilmTranscriptResult[]>;
+  getAlurfilmMappingPrompt: (chunkPart: number, totalChunks?: number) => Promise<string>;
+  saveAlurfilmMapping: (chunkPart: number, jsonText: string) => Promise<AlurfilmMappingResult>;
+  listAlurfilmMappings: (modeContentId?: string) => Promise<AlurfilmMappingResult[]>;
+  listAlurfilmRenders: (modeContentId?: string) => Promise<AlurfilmRenderResult[]>;
+  renderAlurfilmVideo: (part: number, mapping: any, videoPath: string, audioPath?: string) => Promise<AlurfilmRenderResult>;
   getContentId: (mode?: string) => Promise<string | null>;
   resetProject: (mode?: string) => Promise<{ success: boolean; content_id?: string; error?: string }>;
   copyToClipboard: (text: string) => Promise<boolean>;

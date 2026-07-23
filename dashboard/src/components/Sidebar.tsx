@@ -1,7 +1,7 @@
 // dashboard/src/components/Sidebar.tsx
 import React from 'react';
 
-export type StepId = 'source' | 'analyze' | 'audio' | 'transcript' | 'render' | 'upload';
+export type StepId = 'source' | 'analyze' | 'audio' | 'transcript' | 'mapping' | 'render' | 'upload';
 export type ContentMode = 'shortform' | 'longform';
 
 interface Step {
@@ -22,6 +22,8 @@ const LONGFORM_STEPS: Step[] = [
   { id: 'analyze', icon: '⚡', label: 'Script Generator' },
   { id: 'audio', icon: '🎙️', label: 'Voice Over Audio' },
   { id: 'transcript', icon: '📝', label: 'Audio Transcript' },
+  { id: 'mapping', icon: '🎯', label: 'Video Mapping' },
+  { id: 'render', icon: '🎬', label: 'Video Render' },
 ];
 
 interface SidebarProps {

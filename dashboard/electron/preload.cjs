@@ -60,6 +60,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('save-alurfilm-transcript', { chunkPart, jsonText }),
   listAlurfilmTranscripts: (modeContentId) =>
     ipcRenderer.invoke('list-alurfilm-transcripts', modeContentId),
+  getAlurfilmMappingPrompt: (chunkPart, totalChunks) =>
+    ipcRenderer.invoke('get-alurfilm-mapping-prompt', { chunkPart, totalChunks }),
+  saveAlurfilmMapping: (chunkPart, jsonText) =>
+    ipcRenderer.invoke('save-alurfilm-mapping', { chunkPart, jsonText }),
+  listAlurfilmMappings: (modeContentId) =>
+    ipcRenderer.invoke('list-alurfilm-mappings', modeContentId),
+  listAlurfilmRenders: (modeContentId) =>
+    ipcRenderer.invoke('list-alurfilm-renders', modeContentId),
+  renderAlurfilmVideo: (part, mapping, videoPath, audioPath) =>
+    ipcRenderer.invoke('render-alurfilm-video', { part, mapping, videoPath, audioPath }),
 
   // Generic project file helpers
   getContentId: (mode) => ipcRenderer.invoke('get-content-id', mode),

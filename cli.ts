@@ -23,6 +23,15 @@ const ClipSchema = z.object({
   text: z.string().optional(),
   ss: z.number().min(0),
   t: z.number().positive(),
+  type: z.string().optional(),
+  slow_mo_factor: z.number().optional(),
+  mirror_mode: z.string().optional(),
+  zoom_speed: z.number().optional(),
+  color_grading_shift: z.object({
+    contrast: z.number().optional(),
+    brightness: z.number().optional(),
+    saturation: z.number().optional(),
+  }).optional(),
 });
 
 const MappingSchema = z.object({
@@ -272,53 +281,115 @@ program
             }
           }
 
-          const filterNodes = [
-            'split=2[bg_in][fg_in]',
-            `[bg_in]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},boxblur=25:2,eq=brightness=-0.15[bg]`,
-          ];
+          const is16by9 = mapping.settings.format === '16:9';
 
-          if (watermarkFile) {
-            filterNodes.push(`[fg_in]${fgScaleFilter}[fg_raw]`);
-            if (watermarkFile.includes('logo-transparent.png')) {
-              // Crop 600x600 transparent padding bounding box (crop=456:99:77:252) and scale to 340px width
-              filterNodes.push(`[1:v]crop=456:99:77:252,scale=340:-1[wm_scaled]`);
-            } else {
-              filterNodes.push(`[1:v]scale=340:-1[wm_scaled]`);
-            }
-            filterNodes.push(`[fg_raw][wm_scaled]overlay=${watermarkCoords}[fg]`);
-          } else {
-            filterNodes.push(`[fg_in]${fgScaleFilter}[fg]`);
+          // Build visual effect filters (slow motion, mirror, color shift)
+          const fxFilters: string[] = [];
+          if (clip.mirror_mode === 'horizontal') fxFilters.push('hflip');
+          else if (clip.mirror_mode === 'vertical') fxFilters.push('vflip');
+
+          if (clip.slow_mo_factor && clip.slow_mo_factor > 0 && clip.slow_mo_factor !== 1) {
+            const ptsFactor = (1 / clip.slow_mo_factor).toFixed(2);
+            fxFilters.push(`setpts=${ptsFactor}*PTS`);
           }
 
-          filterNodes.push(
-            '[fg]split=2[fg_main][fg_shadow_src]',
-            '[fg_shadow_src]drawbox=color=black@0.8:t=fill,pad=w=iw:h=ih+40:x=0:y=20:color=black@0,boxblur=20:2[shadow]',
-            '[bg][shadow]overlay=x=0:y=\'(main_h-overlay_h)/2+6\'[bg_sh]'
-          );
+          if (clip.color_grading_shift) {
+            const contrast = clip.color_grading_shift.contrast ?? 1.04;
+            const brightness = clip.color_grading_shift.brightness ?? 0.005;
+            const saturation = clip.color_grading_shift.saturation ?? 1.05;
+            fxFilters.push(`eq=contrast=${contrast}:brightness=${brightness}:saturation=${saturation}`);
+          }
 
-          const showCaptions = mapping.settings.captions !== false && clip.text && clip.text.trim().length > 0;
-          if (showCaptions) {
-            const fontPath = getCaptionFontPath();
-            const chunks = generateCaptionChunks(clip.text!, clip.t, 3);
+          const fxChain = fxFilters.length > 0 ? ',' + fxFilters.join(',') : '';
 
-            let lastLabel = 'v_base';
-            filterNodes.push('[bg_sh][fg_main]overlay=x=0:y=\'(main_h-overlay_h)/2\'[v_base]');
+          const filterNodes: string[] = [];
 
-            chunks.forEach((chunk, idx) => {
-              const nextLabel = idx === chunks.length - 1 ? 'outv' : `v_c${idx + 1}`;
-              const escaped = chunk.text.replace(/\\/g, '\\\\').replace(/'/g, "'\\\\''").replace(/:/g, '\\\\:');
-              filterNodes.push(`[${lastLabel}]drawtext=fontfile='${fontPath}':text='${escaped}':fontsize=40:fontcolor=white:borderw=4:bordercolor=black:x=(w-text_w)/2:y=1440:enable='between(t,${chunk.start},${chunk.end})'[${nextLabel}]`);
-              lastLabel = nextLabel;
-            });
+          if (is16by9) {
+            // 16:9 Fullscreen Landscape Render Mode
+            const scaleFilter = `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}${fxChain}`;
+            filterNodes.push(`[0:v]${scaleFilter}[fg_raw]`);
+
+            if (watermarkFile) {
+              if (watermarkFile.includes('logo-transparent.png')) {
+                filterNodes.push(`[1:v]crop=456:99:77:252,scale=340:-1[wm_scaled]`);
+              } else {
+                filterNodes.push(`[1:v]scale=340:-1[wm_scaled]`);
+              }
+              filterNodes.push(`[fg_raw][wm_scaled]overlay=${watermarkCoords}[fg]`);
+            } else {
+              filterNodes.push(`[fg_raw]copy[fg]`);
+            }
+
+            const showCaptions = mapping.settings.captions !== false && clip.text && clip.text.trim().length > 0;
+            if (showCaptions) {
+              const fontPath = getCaptionFontPath();
+              const chunks = generateCaptionChunks(clip.text!, clip.t, 3);
+              let lastLabel = 'fg';
+              chunks.forEach((chunk, idx) => {
+                const nextLabel = idx === chunks.length - 1 ? 'outv' : `v_c${idx + 1}`;
+                const escaped = chunk.text.replace(/\\/g, '\\\\').replace(/'/g, "'\\\\''").replace(/:/g, '\\\\:');
+                filterNodes.push(`[${lastLabel}]drawtext=fontfile='${fontPath}':text='${escaped}':fontsize=48:fontcolor=white:borderw=4:bordercolor=black:x=(w-text_w)/2:y=940:enable='between(t,${chunk.start},${chunk.end})'[${nextLabel}]`);
+                lastLabel = nextLabel;
+              });
+            } else {
+              filterNodes.push('[fg]copy[outv]');
+            }
           } else {
-            filterNodes.push('[bg_sh][fg_main]overlay=x=0:y=\'(main_h-overlay_h)/2\'[outv]');
+            // 9:16 Vertical Video Mode (Shorts)
+            filterNodes.push(
+              'split=2[bg_in][fg_in]',
+              `[bg_in]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},boxblur=25:2,eq=brightness=-0.15[bg]`
+            );
+
+            const fgScaleWithFx = `${fgScaleFilter}${fxChain}`;
+            if (watermarkFile) {
+              filterNodes.push(`[fg_in]${fgScaleWithFx}[fg_raw]`);
+              if (watermarkFile.includes('logo-transparent.png')) {
+                filterNodes.push(`[1:v]crop=456:99:77:252,scale=340:-1[wm_scaled]`);
+              } else {
+                filterNodes.push(`[1:v]scale=340:-1[wm_scaled]`);
+              }
+              filterNodes.push(`[fg_raw][wm_scaled]overlay=${watermarkCoords}[fg]`);
+            } else {
+              filterNodes.push(`[fg_in]${fgScaleWithFx}[fg]`);
+            }
+
+            filterNodes.push(
+              '[fg]split=2[fg_main][fg_shadow_src]',
+              '[fg_shadow_src]drawbox=color=black@0.8:t=fill,pad=w=iw:h=ih+40:x=0:y=20:color=black@0,boxblur=20:2[shadow]',
+              '[bg][shadow]overlay=x=0:y=\'(main_h-overlay_h)/2+6\'[bg_sh]'
+            );
+
+            const showCaptions = mapping.settings.captions !== false && clip.text && clip.text.trim().length > 0;
+            if (showCaptions) {
+              const fontPath = getCaptionFontPath();
+              const chunks = generateCaptionChunks(clip.text!, clip.t, 3);
+
+              let lastLabel = 'v_base';
+              filterNodes.push('[bg_sh][fg_main]overlay=x=0:y=\'(main_h-overlay_h)/2\'[v_base]');
+
+              chunks.forEach((chunk, idx) => {
+                const nextLabel = idx === chunks.length - 1 ? 'outv' : `v_c${idx + 1}`;
+                const escaped = chunk.text.replace(/\\/g, '\\\\').replace(/'/g, "'\\\\''").replace(/:/g, '\\\\:');
+                filterNodes.push(`[${lastLabel}]drawtext=fontfile='${fontPath}':text='${escaped}':fontsize=40:fontcolor=white:borderw=4:bordercolor=black:x=(w-text_w)/2:y=1440:enable='between(t,${chunk.start},${chunk.end})'[${nextLabel}]`);
+                lastLabel = nextLabel;
+              });
+            } else {
+              filterNodes.push('[bg_sh][fg_main]overlay=x=0:y=\'(main_h-overlay_h)/2\'[outv]');
+            }
           }
 
           const filterComplex = filterNodes.join(';');
 
+          // Calculate input read duration considering slow motion factor
+          const inputReadDuration = (clip.slow_mo_factor && clip.slow_mo_factor > 0)
+            ? (clip.t * clip.slow_mo_factor).toFixed(3)
+            : String(clip.t);
+
           const ffmpegArgs = [
             '-y',
             '-ss', String(clip.ss),
+            '-t', inputReadDuration,
             '-i', resolvedVideo,
           ];
 
@@ -327,7 +398,6 @@ program
           }
 
           ffmpegArgs.push(
-            '-t', String(clip.t),
             '-filter_complex', filterComplex,
             '-map', '[outv]',
             '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18',

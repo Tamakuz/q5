@@ -5,7 +5,7 @@ INPUT KONTEKS & PARAMETER:
 - Part Saat Ini: Part {{chunk_part}} dari {{total_chunks}} Part Total Film (Di mana 1 Part = 1 Scene Utama)
 - Status Part Pembuka: {{is_first_part}}
 - Target Kata Per Part Ini: {{target_words_per_chunk}} KATA
-- Konteks Part Sebelumnya (jika ada): {{previous_context}}
+- Konteks & Naskah Part Sebelumnya (jika ada): {{previous_context}}
 - Referensi / Contoh Gaya Penulisan (jika ada): {{style_example}}
 
 ==================================================
@@ -16,7 +16,16 @@ INPUT KONTEKS & PARAMETER:
 - **Kemudahan Pemahaman**: Pastikan penonton dapat mengikuti perkembangan cerita makro dengan mudah dalam sekali dengar tanpa perlu berpikir keras.
 
 ==================================================
-2. ATURAN PENULISAN KETAT & BATASAN (RULES & CONSTRAINTS)
+2. KONTINUITAS & TRANSISI NARASI ANTAR-PART
+==================================================
+- **MENYAMBUNG DARI NASKAH SEBELUMNYA**:
+  - Untuk Part Lanjutan (Part 2, 3, dst.), pahami betul konteks naskah dari part sebelumnya (`previous_script_text`) dan ringkasan makro (`macro_summary`) pada `previous_context`.
+  - Sambungkan kalimat awal di Part ini secara langsung dan mengalir dari kejadian atau ucapan terakhir di part sebelumnya.
+  - Gunakan variasi kata atau kalimat penghubung alur yang bebas, kreatif, dan fleksibel sesuai perkembangan situasi adegan, tanpa terpaku pada pola frasa kaku tertentu.
+  - Pastikan transisi cerita terasa organis dan tidak terputus.
+
+==================================================
+3. ATURAN PENULISAN KETAT & BATASAN (RULES & CONSTRAINTS)
 ==================================================
 
 🛑 DILARANG KERAS 1: META-KOMENTAR NARATOR
@@ -30,19 +39,19 @@ INPUT KONTEKS & PARAMETER:
 - Dilarang menambahkan fakta, latar belakang karakter, atau spekulasi cerita yang tidak terdapat pada tayangan/konteks adegan yang sedang dianalisis.
 
 🛑 DILARANG KERAS 4: FRASA KLISE PEMBUKA (KHUSUS PART 1)
-- Jika Status Part Pembuka adalah YA, DILARANG KERAS membuka naskah dengan frasa klise pembuka cerita/film yang pasaran.
+- Jika Status Part Pembuka adalah YA (Part 1), DILARANG KERAS membuka naskah dengan frasa klise pembuka cerita/film yang pasaran.
 - WAJIB gunakan penceritaan langsung (In-Medias-Res / Action First / Situation First): langsung sorot subjek/karakter, aksi utama, atau situasi penting di adegan pembuka secara alami tanpa intro pasaran.
-- Jika Status Part Pembuka adalah TIDAK, langsung sambungkan alur dari Konteks Part Sebelumnya secara mengalir.
+- Jika Status Part Pembuka adalah TIDAK (Part 2+), langsung sambungkan alur dari naskah part sebelumnya secara mengalir.
 
 ✅ DIWAJIBKAN: STRUKTUR NASKAH RECAP YOUTUBE
-- Gunakan kata penyambung alur yang natural untuk menghubungkan antar-kalimat dan antar-kejadian secara halus.
+- Gunakan penyambung alur yang natural untuk menghubungkan antar-kalimat dan antar-kejadian secara halus.
 - Gunakan struktur kalimat pendek dan efektif (sekitar 10-15 kata per kalimat) agar naskah mudah dibaca dan langsung dipahami dalam sekali penceritaan.
 
 ==================================================
-3. TARGET KATA & KONTINUITAS
+4. TARGET KATA & KONTINUITAS KARAKTER
 ==================================================
 - **TARGET KATA PART CHUNK INI**: **{{target_words_per_chunk}} KATA**.
-- **KONTINUITAS NAMA KARAKTER**: Jika di {{previous_context}} sudah ada nama karakter yang ditetapkan, WAJIB gunakan nama yang konsisten.
+- **KONTINUITAS NAMA KARAKTER**: Jika di {{previous_context}} sudah ada nama karakter yang ditetapkan (`character_registry`), WAJIB gunakan nama yang konsisten.
 
 ==================================================
 FORMAT OUTPUT JSON MURNI (TANPA MARKDOWN ```json)
@@ -53,7 +62,7 @@ FORMAT OUTPUT JSON MURNI (TANPA MARKDOWN ```json)
   "total_chunks": {{total_chunks}},
   "naskah_voiceover": {
     "word_count": {{target_words_per_chunk}},
-    "script_text": "[Teks naskah voiceover recap lengkap untuk part ini]",
+    "script_text": "[Teks naskah voiceover recap lengkap untuk part ini, yang menyambung secara mengalir dari part sebelumnya]",
     "macro_summary": "Ringkasan 2-3 kalimat santai tentang kondisi cerita di akhir part ini untuk dibawa ke part berikutnya."
   },
   "character_registry": [

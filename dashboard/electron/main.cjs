@@ -734,6 +734,138 @@ ipcMain.handle('list-alurfilm-transcripts', async (_event, modeContentId) => {
   return transcripts;
 });
 
+ipcMain.handle('get-alurfilm-mapping-prompt', async (_event, { chunkPart, totalChunks = 2 }) => {
+  const contentId = getOrGenerateContentId('longform');
+  const partStr = String(chunkPart).padStart(2, '0');
+  const promptFile = path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'alurfilm-mapping-prompt.md');
+
+  let promptTemplate = '';
+  if (fs.existsSync(promptFile)) {
+    promptTemplate = fs.readFileSync(promptFile, 'utf-8');
+  } else {
+    promptTemplate = `Kamu adalah Editor Video Spesialis FFmpeg Mapping. Output JSON murni.`;
+  }
+
+  // Load VO sentences from Step 3 Transcript (or fallback)
+  let voSentences = [];
+  const transcriptPath = path.join(ALURFILM_DIR, `${contentId}_transcript_part_${partStr}.json`);
+  if (fs.existsSync(transcriptPath)) {
+    try {
+      const rawTranscript = JSON.parse(fs.readFileSync(transcriptPath, 'utf-8'));
+      if (Array.isArray(rawTranscript)) {
+        voSentences = rawTranscript.map((t, idx) => ({
+          sentence_index: idx,
+          text: t.text || t.narration || '',
+          start: typeof t.start_seconds === 'number' ? t.start_seconds : 0.0,
+          end: typeof t.end_seconds === 'number' ? t.end_seconds : 0.0,
+          duration: Number(((typeof t.end_seconds === 'number' ? t.end_seconds : 0) - (typeof t.start_seconds === 'number' ? t.start_seconds : 0)).toFixed(2))
+        }));
+      }
+    } catch {}
+  }
+
+  const chunkVideoName = `${contentId}_chunk_${partStr}.mp4`;
+  const voSentencesJson = JSON.stringify(voSentences, null, 2);
+
+  const fullPrompt = promptTemplate
+    .replace(/{{chunk_part}}/g, String(chunkPart))
+    .replace(/{{total_chunks}}/g, String(totalChunks))
+    .replace(/{{voiceover_sentences}}/g, voSentencesJson)
+    .replace(/{{source_video_name}}/g, chunkVideoName)
+    .replace(/{{scene_id}}/g, `part_${partStr}`);
+
+  return fullPrompt;
+});
+
+ipcMain.handle('save-alurfilm-mapping', async (_event, { chunkPart, jsonText }) => {
+  const contentId = getOrGenerateContentId('longform');
+  if (!fs.existsSync(ALURFILM_DIR)) {
+    fs.mkdirSync(ALURFILM_DIR, { recursive: true });
+  }
+
+  let raw = (jsonText || '').trim();
+  if (raw.startsWith('```')) {
+    raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+  }
+
+  const parsed = JSON.parse(raw);
+  const partStr = String(chunkPart).padStart(2, '0');
+  const outputName = `${contentId}_mapping_part_${partStr}.json`;
+  const destPath = path.join(ALURFILM_DIR, outputName);
+
+  fs.writeFileSync(destPath, JSON.stringify(parsed, null, 2), 'utf-8');
+
+  return {
+    part: chunkPart,
+    name: outputName,
+    filePath: destPath,
+    data: parsed
+  };
+});
+
+ipcMain.handle('list-alurfilm-mappings', async (_event, modeContentId) => {
+  const contentId = modeContentId || getOrGenerateContentId('longform');
+  if (!fs.existsSync(ALURFILM_DIR)) return [];
+
+  const files = fs.readdirSync(ALURFILM_DIR);
+  const mappings = files
+    .filter(f => f.startsWith(`${contentId}_mapping_part_`) && f.endsWith('.json'))
+    .map(f => {
+      const match = f.match(/_mapping_part_(\d+)/);
+      const part = match ? parseInt(match[1], 10) : 1;
+      const fullPath = path.join(ALURFILM_DIR, f);
+      try {
+        const data = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+        return {
+          part,
+          name: f,
+          filePath: fullPath,
+          data
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.part - b.part);
+
+  return mappings;
+});
+
+ipcMain.handle('list-alurfilm-renders', async (_event, modeContentId) => {
+  const contentId = modeContentId || getOrGenerateContentId('longform');
+  const outputDir = path.join(PROJECT_ROOT, 'output');
+  if (!fs.existsSync(outputDir)) return [];
+
+  const files = fs.readdirSync(outputDir);
+  const partMap = {};
+
+  for (const f of files) {
+    if (f.startsWith(`alurfilm_${contentId}_part_`) && f.endsWith('.mp4')) {
+      const match = f.match(/_part_(\d+)_/);
+      if (match) {
+        const part = parseInt(match[1], 10);
+        const fullPath = path.join(outputDir, f);
+        try {
+          const stat = fs.statSync(fullPath);
+          if (!partMap[part] || stat.mtimeMs > partMap[part].mtimeMs) {
+            partMap[part] = {
+              part,
+              name: f,
+              filePath: fullPath,
+              mediaUrl: mediaUrl(fullPath),
+              mtimeMs: stat.mtimeMs,
+              elapsed: 'Done'
+            };
+          }
+        } catch {}
+      }
+    }
+  }
+
+  return Object.values(partMap).sort((a, b) => a.part - b.part);
+});
+
 // ─── Select audio file ────────────────────────────────
 
 ipcMain.handle('select-audio', async () => {
@@ -1024,9 +1156,54 @@ ipcMain.handle('render-video', async (_event, mapping, videoPath, audioPath) => 
     } catch { }
   }
 
+  // Convert Alurfilm mapping format (scene_id + mappings) if present
+  let renderMapping = mapping;
+  if (mapping && mapping.mappings && Array.isArray(mapping.mappings)) {
+    const timelineClips = [];
+    let clipIdCounter = 1;
+
+    for (const item of mapping.mappings) {
+      if (item.visuals && Array.isArray(item.visuals)) {
+        for (const vis of item.visuals) {
+          const ss = vis.source_start_seconds !== undefined
+            ? vis.source_start_seconds
+            : (vis.source_timestamp_seconds !== undefined ? vis.source_timestamp_seconds : 0);
+
+          timelineClips.push({
+            id: clipIdCounter++,
+            text: item.text || '',
+            ss: ss,
+            t: vis.duration || item.duration || 2.5,
+            type: vis.type,
+            slow_mo_factor: vis.slow_mo_factor,
+            mirror_mode: vis.mirror_mode,
+            zoom_speed: vis.zoom_speed,
+            color_grading_shift: vis.color_grading_shift,
+          });
+        }
+      } else {
+        timelineClips.push({
+          id: clipIdCounter++,
+          text: item.text || '',
+          ss: item.start || 0,
+          t: item.duration || 2.5,
+        });
+      }
+    }
+
+    renderMapping = {
+      settings: {
+        fps: 30,
+        format: "16:9",
+        captions: false,
+      },
+      timeline: timelineClips,
+    };
+  }
+
   // Write mapping to temp file for CLI
   const mappingFile = path.join(TMP_DIR, `mapping_${Date.now()}.json`);
-  fs.writeFileSync(mappingFile, JSON.stringify(mapping, null, 2), 'utf-8');
+  fs.writeFileSync(mappingFile, JSON.stringify(renderMapping, null, 2), 'utf-8');
 
   const outputDir = path.join(PROJECT_ROOT, 'output');
   if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
@@ -1101,6 +1278,140 @@ ipcMain.handle('render-video', async (_event, mapping, videoPath, audioPath) => 
     child.on('error', (err) => {
       try { fs.unlinkSync(mappingFile); } catch { }
       resolve({ error: `Failed to launch render CLI: ${err.message}` });
+    });
+  });
+});
+
+ipcMain.handle('render-alurfilm-video', async (_event, { part, mapping, videoPath, audioPath }) => {
+  if (!mapping || !videoPath) {
+    return { error: 'Missing Alurfilm mapping or video path.' };
+  }
+
+  const contentId = getOrGenerateContentId('longform');
+  const partStr = String(part).padStart(2, '0');
+
+  let resolvedVideo = path.isAbsolute(videoPath) ? videoPath : path.join(ALURFILM_CHUNKS_DIR, videoPath);
+  if (!fs.existsSync(resolvedVideo)) {
+    resolvedVideo = path.resolve(videoPath);
+  }
+  if (!fs.existsSync(resolvedVideo)) {
+    return { error: `Alurfilm video chunk not found: ${resolvedVideo}` };
+  }
+
+  let resolvedAudio = null;
+  if (audioPath) {
+    resolvedAudio = path.isAbsolute(audioPath) ? audioPath : path.join(ALURFILM_DIR, audioPath);
+    if (!fs.existsSync(resolvedAudio)) {
+      resolvedAudio = path.resolve(audioPath);
+    }
+  }
+
+  // Write mapping to temp file for render-alurfilm CLI
+  const mappingFile = path.join(TMP_DIR, `alurfilm_mapping_part_${partStr}_${Date.now()}.json`);
+  fs.writeFileSync(mappingFile, JSON.stringify(mapping, null, 2), 'utf-8');
+
+  const outputDir = path.join(PROJECT_ROOT, 'output');
+  if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+  const outputFileName = `alurfilm_${contentId}_part_${partStr}_${Date.now()}.mp4`;
+  const outputPath = path.join(outputDir, outputFileName);
+
+  return new Promise((resolve) => {
+    const startTime = Date.now();
+    const cliPath = path.join(PROJECT_ROOT, 'render-alurfilm.ts');
+
+    let cmd = `npx tsx "${cliPath}" render "${mappingFile}" --video "${resolvedVideo}"`;
+    if (resolvedAudio && fs.existsSync(resolvedAudio)) cmd += ` --audio "${resolvedAudio}"`;
+    cmd += ` -o "${outputPath}"`;
+
+    const child = spawn('bash', ['-c', cmd], {
+      cwd: PROJECT_ROOT,
+      env: { ...process.env },
+    });
+
+    let fullStdout = '';
+    let fullStderr = '';
+    let currentProgress = 0.05;
+
+    child.stdout.on('data', (d) => {
+      const text = d.toString();
+      fullStdout += text;
+
+      const lines = text.split(/[\r\n]+/);
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) continue;
+
+        const pctMatch = line.match(/(\d+)%/);
+        if (pctMatch) {
+          currentProgress = Math.min(0.99, parseInt(pctMatch[1], 10) / 100);
+        }
+
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('render-progress', {
+            stage: 'render',
+            progress: currentProgress,
+            message: line,
+          });
+        }
+      }
+    });
+
+    child.stderr.on('data', (d) => {
+      const text = d.toString();
+      fullStderr += text;
+
+      const lines = text.split(/[\r\n]+/);
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) continue;
+
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('render-progress', {
+            stage: 'render',
+            progress: currentProgress,
+            message: `[STDERR] ${line}`,
+          });
+        }
+      }
+    });
+
+    child.on('close', (code) => {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      try { fs.unlinkSync(mappingFile); } catch { }
+      if (code === 0) {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('render-progress', {
+            stage: 'done',
+            progress: 1,
+            message: `🎉 [Alurfilm Engine] Render Part #${part} Done in ${elapsed}s`,
+          });
+        }
+        resolve({ part, outputPath, elapsed, name: outputFileName, mediaUrl: mediaUrl(outputPath) });
+      } else {
+        const errLines = (fullStderr || fullStdout).split('\n').filter(Boolean).slice(-20).join('\n');
+        const errMsg = `❌ [Alurfilm CLI Exit Code ${code}]\n${errLines}`;
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('render-progress', {
+            stage: 'error',
+            progress: 0,
+            message: errMsg,
+          });
+        }
+        resolve({ error: errMsg });
+      }
+    });
+
+    child.on('error', (err) => {
+      try { fs.unlinkSync(mappingFile); } catch { }
+      const errMsg = `❌ Failed to launch Alurfilm render CLI: ${err.message}`;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('render-progress', {
+          stage: 'error',
+          progress: 0,
+          message: errMsg,
+        });
+      }
+      resolve({ error: errMsg });
     });
   });
 });

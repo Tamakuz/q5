@@ -12,6 +12,8 @@ import AlurfilmSplitterPlaceholder from './components/placeholders/longform/Alur
 import AlurfilmAnalyzePlaceholder from './components/placeholders/longform/AlurfilmAnalyzePlaceholder';
 import AlurfilmAudioPlaceholder from './components/placeholders/longform/AlurfilmAudioPlaceholder';
 import AlurfilmTranscriptPlaceholder from './components/placeholders/longform/AlurfilmTranscriptPlaceholder';
+import AlurfilmMappingPlaceholder from './components/placeholders/longform/AlurfilmMappingPlaceholder';
+import AlurfilmRenderPlaceholder from './components/placeholders/longform/AlurfilmRenderPlaceholder';
 import TranscriptPlaceholder from './components/placeholders/TranscriptPlaceholder';
 
 type Status = 'ready' | 'rendering' | 'error';
@@ -21,6 +23,7 @@ const SHORTFORM_PLACEHOLDERS: Record<StepId, React.FC> = {
   analyze: AnalyzePlaceholder,
   audio: AnalyzePlaceholder,
   transcript: TranscriptPlaceholder,
+  mapping: RenderPlaceholder,
   render: RenderPlaceholder,
   upload: UploadPlaceholder,
 };
@@ -71,6 +74,10 @@ const App: React.FC = () => {
             <AlurfilmAudioPlaceholder key={`longform-audio-${longformId}`} />
           ) : activeStep === 'transcript' ? (
             <AlurfilmTranscriptPlaceholder key={`longform-transcript-${longformId}`} />
+          ) : activeStep === 'mapping' ? (
+            <AlurfilmMappingPlaceholder key={`longform-mapping-${longformId}`} />
+          ) : activeStep === 'render' ? (
+            <AlurfilmRenderPlaceholder key={`longform-render-${longformId}`} />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
               <div className="w-20 h-20 bg-purple-600/10 text-purple-400 rounded-3xl flex items-center justify-center text-4xl border border-purple-500/20 shadow-xl shadow-purple-950/40">
