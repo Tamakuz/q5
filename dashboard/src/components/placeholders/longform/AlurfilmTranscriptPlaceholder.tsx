@@ -1,14 +1,15 @@
 // dashboard/src/components/placeholders/longform/AlurfilmTranscriptPlaceholder.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { AlurfilmChunk, AlurfilmAudioResult, AlurfilmTranscriptResult, AlurfilmTranscriptEntry } from '../../../electron-api';
+import {
+  validateTranscript,
+  autoFixTranscript,
+  formatMinute,
+  ValidationReport,
+  ValidationIssue
+} from '../../../utils/transcriptValidation';
 
 const api = window.electronAPI;
-
-function formatMinute(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
 
 function normalizeEntry(entry: any, index: number): AlurfilmTranscriptEntry {
   const startSec = typeof entry.start_seconds === 'number'
@@ -40,6 +41,9 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  // Audio Durations per Part (cache for validation)
+  const [audioDurations, setAudioDurations] = useState<Record<number, number>>({});
+
   // JSON Import & Edit Modal State
   const [showImportModal, setShowImportModal] = useState<boolean>(false);
   const [pasteJsonInput, setPasteJsonInput] = useState<string>('');
@@ -65,12 +69,22 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
         // Load audios
         const audioList = await api.listAlurfilmAudios(id);
         const audioMap: Record<number, AlurfilmAudioResult> = {};
+        const durMap: Record<number, number> = {};
         if (audioList) {
           for (const item of audioList) {
             audioMap[item.part] = item;
+            if (item.filePath) {
+              try {
+                const meta = await api.getVideoMeta(item.filePath);
+                if (meta && meta.duration) {
+                  durMap[item.part] = meta.duration;
+                }
+              } catch {}
+            }
           }
         }
         setAudios(audioMap);
+        setAudioDurations(durMap);
 
         // Load transcripts
         const transcriptList = await api.listAlurfilmTranscripts(id);
@@ -106,6 +120,9 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
           const meta = await api.getVideoMeta(audio.filePath);
           if (meta && meta.duration) {
             setAudioDuration(meta.duration);
+            setAudioDurations((prev) => ({ ...prev, [activePart]: meta.duration }));
+          } else {
+            setAudioDuration(null);
           }
         } catch {
           setAudioDuration(null);
@@ -115,6 +132,42 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
       }
     })();
   }, [activePart, audios]);
+
+  const totalPartsCount = Math.max(chunks.length, Object.keys(transcripts).length, 1);
+  const partsList = Array.from({ length: totalPartsCount }, (_, i) => i + 1);
+
+  // Compute Validation Reports per Part (initialized on mount & recalculates when state changes)
+  const validationReports = useMemo(() => {
+    const reports: Record<number, ValidationReport> = {};
+    for (const p of partsList) {
+      const data = transcripts[p]?.data;
+      const dur = audioDurations[p] ?? null;
+      reports[p] = validateTranscript(data, dur);
+    }
+    return reports;
+  }, [transcripts, audioDurations, partsList]);
+
+  const activeReport = validationReports[activePart] || validateTranscript(transcripts[activePart]?.data, audioDuration);
+
+  // Modal Pre-Validation Calculation
+  const modalPreValidation = useMemo(() => {
+    if (!pasteJsonInput.trim()) return null;
+    try {
+      let raw = pasteJsonInput.trim();
+      if (raw.startsWith('```')) {
+        raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+      }
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed) || parsed.length === 0) return null;
+      const normalized = parsed.map((e, idx) => normalizeEntry(e, idx));
+      return {
+        normalized,
+        report: validateTranscript(normalized, audioDuration),
+      };
+    } catch {
+      return null;
+    }
+  }, [pasteJsonInput, audioDuration]);
 
   const handleCopyTranscriptPrompt = async (partNum: number) => {
     try {
@@ -127,58 +180,56 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
     }
   };
 
-  const handleSaveImportedJson = async () => {
-    if (!pasteJsonInput.trim()) return;
-
+  const handleSaveImportedJson = async (customEntries?: AlurfilmTranscriptEntry[]) => {
     try {
       setError(null);
-      let raw = pasteJsonInput.trim();
-      if (raw.startsWith('```')) {
-        raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+      let normalized: AlurfilmTranscriptEntry[] = [];
+
+      if (customEntries) {
+        normalized = customEntries;
+      } else {
+        if (!pasteJsonInput.trim()) return;
+        let raw = pasteJsonInput.trim();
+        if (raw.startsWith('```')) {
+          raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+        }
+
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          setError('Data transkrip harus berupa JSON array non-kosong');
+          return;
+        }
+        normalized = parsed.map((e, idx) => normalizeEntry(e, idx));
       }
 
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        setError('Data transkrip harus berupa JSON array non-kosong');
-        return;
-      }
-
-      const normalized = parsed.map((e, idx) => normalizeEntry(e, idx));
       const savedResult = await api.saveAlurfilmTranscript(activePart, JSON.stringify(normalized));
 
       setTranscripts((prev) => ({ ...prev, [activePart]: savedResult }));
       setShowImportModal(false);
       setPasteJsonInput('');
-      showToast(`✨ Transkrip Part ${activePart} berhasil disimpan! (${normalized.length} entry)`);
+      showToast(`✨ Transkrip Part ${activePart} disimpan! (${normalized.length} entry)`);
     } catch (err: any) {
       setError(`Format JSON tidak valid: ${err.message}`);
     }
   };
 
-  const handleFixTailGap = async () => {
+  const handleAutoFixAndImport = async () => {
+    if (!modalPreValidation) return;
+    const fixed = autoFixTranscript(modalPreValidation.normalized, audioDuration);
+    await handleSaveImportedJson(fixed);
+  };
+
+  const handleAutoFixValidation = async () => {
     const currentData = transcripts[activePart]?.data;
-    if (!currentData || currentData.length === 0 || !audioDuration) return;
-
-    const updated = [...currentData];
-    const lastIdx = updated.length - 1;
-    const last = updated[lastIdx];
-
-    const startSec = last.start_seconds;
-    const endSec = audioDuration;
-    const tsMin = `${formatMinute(startSec)} - ${formatMinute(endSec)}`;
-
-    updated[lastIdx] = {
-      ...last,
-      end_seconds: endSec,
-      timestamp_minute: tsMin,
-    };
+    if (!currentData || currentData.length === 0) return;
 
     try {
-      const savedResult = await api.saveAlurfilmTranscript(activePart, JSON.stringify(updated));
+      const fixed = autoFixTranscript(currentData, audioDuration);
+      const savedResult = await api.saveAlurfilmTranscript(activePart, JSON.stringify(fixed));
       setTranscripts((prev) => ({ ...prev, [activePart]: savedResult }));
-      showToast(`🛠️ Tail Gap Part ${activePart} disinkronkan ke ${endSec.toFixed(1)}s!`);
+      showToast(`⚡ Validasi & Timing Part ${activePart} berhasil diperbaiki secara otomatis!`);
     } catch (err: any) {
-      setError(`Gagal memperbaiki tail gap: ${err.message}`);
+      setError(`Gagal melakukan auto-fix: ${err.message}`);
     }
   };
 
@@ -191,10 +242,8 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
     } catch (err: any) {}
   };
 
-  const totalPartsCount = Math.max(chunks.length, Object.keys(transcripts).length, 1);
-  const partsList = Array.from({ length: totalPartsCount }, (_, i) => i + 1);
-
   const completedTranscriptsCount = partsList.filter((p) => transcripts[p]?.data?.length > 0).length;
+  const validTranscriptsCount = partsList.filter((p) => validationReports[p]?.status === 'SUCCESS').length;
   const transcriptProgressPercent = Math.round((completedTranscriptsCount / totalPartsCount) * 100);
 
   const activeTranscriptData = transcripts[activePart]?.data;
@@ -231,10 +280,10 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
         </div>
       )}
 
-      {/* JSON Import Modal */}
+      {/* JSON Import & Validation Preview Modal */}
       {showImportModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-purple-800 rounded-3xl p-6 max-w-2xl w-full space-y-4 shadow-2xl animate-in zoom-in-95">
+          <div className="bg-gray-900 border border-purple-800 rounded-3xl p-6 max-w-2xl w-full space-y-4 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-gray-800 pb-3">
               <div>
                 <span className="text-[10px] font-mono text-purple-400 font-bold uppercase">
@@ -251,16 +300,57 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
             </div>
 
             <p className="text-xs text-gray-400">
-              Paste JSON array transkrip audio yang dihasilkan dari AI Transcriber untuk Part #{activePart}:
+              Paste JSON array transkrip audio dari AI Transcriber (Google AI Studio/Gemini). Sistem akan otomatis mevalidasi presisi timestamp & durasi:
             </p>
 
             <textarea
               value={pasteJsonInput}
               onChange={(e) => setPasteJsonInput(e.target.value)}
               placeholder='[\n  {\n    "id": 1,\n    "start_seconds": 0.0,\n    "end_seconds": 3.8,\n    "timestamp_minute": "00:00 - 00:03",\n    "text": "Tekstual narasi...",\n    "speaker": "Narator"\n  }\n]'
-              rows={12}
+              rows={9}
               className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-4 text-xs font-mono text-purple-200 placeholder-gray-700 focus:outline-none focus:border-purple-500 transition-all leading-relaxed"
             />
+
+            {/* Modal Live Validation Preview Box */}
+            {modalPreValidation && (
+              <div
+                className={`p-4 rounded-2xl border text-xs space-y-2 ${
+                  modalPreValidation.report.status === 'SUCCESS'
+                    ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-200'
+                    : modalPreValidation.report.status === 'WARNING'
+                    ? 'bg-amber-950/40 border-amber-800/80 text-amber-200'
+                    : 'bg-rose-950/40 border-rose-800/80 text-rose-200'
+                }`}
+              >
+                <div className="flex items-center justify-between font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <span>
+                      {modalPreValidation.report.status === 'SUCCESS'
+                        ? '✅'
+                        : modalPreValidation.report.status === 'WARNING'
+                        ? '⚠️'
+                        : '🔴'}
+                    </span>
+                    <span>{modalPreValidation.report.summaryText}</span>
+                  </span>
+                  <span className="font-mono text-[11px]">
+                    {modalPreValidation.report.entryCount} Entry | End: {modalPreValidation.report.totalTranscriptDuration.toFixed(1)}s
+                    {audioDuration ? ` (Audio: ${audioDuration.toFixed(1)}s)` : ''}
+                  </span>
+                </div>
+
+                {modalPreValidation.report.issues.length > 0 && (
+                  <ul className="space-y-1 pt-1 text-[11px] font-mono border-t border-gray-800/60 max-h-28 overflow-y-auto">
+                    {modalPreValidation.report.issues.map((issue, i) => (
+                      <li key={i} className="flex items-start gap-1.5">
+                        <span>•</span>
+                        <span>{issue.message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
 
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
@@ -269,8 +359,19 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
               >
                 Batal
               </button>
+
+              {modalPreValidation && modalPreValidation.report.issues.length > 0 && (
+                <button
+                  onClick={handleAutoFixAndImport}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-600/30 transition-all flex items-center gap-1.5"
+                  title="Otomatis perbaiki timestamp overlap, format menit & tail gap audio sebelum simpan"
+                >
+                  <span>⚡</span> Auto-Fix & Import
+                </button>
+              )}
+
               <button
-                onClick={handleSaveImportedJson}
+                onClick={() => handleSaveImportedJson()}
                 disabled={!pasteJsonInput.trim()}
                 className="px-5 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-600/30 transition-all disabled:opacity-50"
               >
@@ -311,7 +412,7 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
               disabled={loading}
               className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-bold rounded-xl border border-gray-700 transition-all flex items-center gap-2"
             >
-              <span className={loading ? 'animate-spin' : ''}>🔄</span> Refresh
+              <span className={loading ? 'animate-spin' : ''}>🔄</span> Refresh & Validasi
             </button>
           </div>
         </div>
@@ -331,9 +432,9 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
           </div>
 
           <div className="bg-gray-950/80 p-3.5 rounded-2xl border border-gray-800/80">
-            <span className="text-[10px] font-bold text-gray-500 uppercase block">Entry Transkrip (Part #{activePart})</span>
-            <span className="text-lg font-black text-emerald-400">
-              {activeTranscriptData ? `${activeTranscriptData.length} Frasa` : '0 Frasa'}
+            <span className="text-[10px] font-bold text-gray-500 uppercase block">Status Validasi Durasi</span>
+            <span className={`text-lg font-black ${validTranscriptsCount === totalPartsCount ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {validTranscriptsCount} / {totalPartsCount} Valid
             </span>
           </div>
 
@@ -373,6 +474,7 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
               const isSelected = activePart === partNum;
               const hasTranscript = !!transcripts[partNum]?.data?.length;
               const entryCount = transcripts[partNum]?.data?.length || 0;
+              const partReport = validationReports[partNum];
 
               return (
                 <div
@@ -390,9 +492,19 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
                     </span>
 
                     {hasTranscript ? (
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1">
-                        <span>📝</span> Transkrip Ready
-                      </span>
+                      partReport?.status === 'SUCCESS' ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1">
+                          <span>✅</span> Valid ({partReport.totalTranscriptDuration.toFixed(1)}s)
+                        </span>
+                      ) : partReport?.status === 'WARNING' ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 text-amber-400 border border-amber-800 flex items-center gap-1">
+                          <span>⚠️</span> Warning ({partReport.warningCount})
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-950 text-rose-400 border border-rose-800 flex items-center gap-1">
+                          <span>🔴</span> Error ({partReport.errorCount})
+                        </span>
+                      )
                     ) : (
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 text-amber-400 border border-amber-800 flex items-center gap-1">
                         <span>⏳</span> Pending Transkrip
@@ -500,6 +612,52 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
               </div>
             )}
 
+            {/* Validation Banner for Active Part */}
+            {activeTranscriptData && activeTranscriptData.length > 0 && (
+              <div
+                className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs ${
+                  activeReport.status === 'SUCCESS'
+                    ? 'bg-emerald-950/30 border-emerald-800/80 text-emerald-200'
+                    : activeReport.status === 'WARNING'
+                    ? 'bg-amber-950/30 border-amber-800/80 text-amber-200'
+                    : 'bg-rose-950/30 border-rose-800/80 text-rose-200'
+                }`}
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-sm">
+                    <span>
+                      {activeReport.status === 'SUCCESS' ? '✅' : activeReport.status === 'WARNING' ? '⚠️' : '🔴'}
+                    </span>
+                    <span>{activeReport.summaryText}</span>
+                    <span className="font-mono text-xs opacity-80">
+                      (Transkrip: {activeReport.totalTranscriptDuration.toFixed(1)}s
+                      {audioDuration ? ` vs Audio: ${audioDuration.toFixed(1)}s` : ''})
+                    </span>
+                  </div>
+
+                  {activeReport.issues.length > 0 && (
+                    <div className="text-[11px] font-mono opacity-90 space-y-0.5 pt-1">
+                      {activeReport.issues.map((iss, i) => (
+                        <div key={i} className="flex items-center gap-1.5">
+                          <span>•</span>
+                          <span>{iss.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {activeReport.issues.some((i) => i.fixable) && (
+                  <button
+                    onClick={handleAutoFixValidation}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl shadow-lg shadow-amber-600/30 transition-all flex items-center gap-1.5 shrink-0"
+                  >
+                    <span>⚡</span> Auto-Fix Validation
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Transcript Timeline Toolbar */}
             {activeTranscriptData && activeTranscriptData.length > 0 && (
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-950 p-3 rounded-2xl border border-gray-800">
@@ -514,15 +672,13 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                  {audioDuration && (
-                    <button
-                      onClick={handleFixTailGap}
-                      className="px-3 py-1.5 bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
-                      title="Perpanjang end_seconds item terakhir agar sesuai total durasi audio"
-                    >
-                      <span>🛠️</span> Fix Tail Gap ({audioDuration.toFixed(1)}s)
-                    </button>
-                  )}
+                  <button
+                    onClick={handleAutoFixValidation}
+                    className="px-3 py-1.5 bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+                    title="Perbaiki timestamp desimal desimal, format menit, dan tail gap otomatis"
+                  >
+                    <span>⚡</span> Auto-Fix Timing
+                  </button>
 
                   <button
                     onClick={handleCopyJson}
@@ -549,10 +705,22 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-850">
-                      {filteredEntries.map((entry) => {
+                      {filteredEntries.map((entry, idx) => {
                         const durationSec = (entry.end_seconds - entry.start_seconds).toFixed(1);
+                        const itemNum = entry.id || idx + 1;
+                        const rowIssue = activeReport.issues.find((i) => i.itemIndex === itemNum);
+
                         return (
-                          <tr key={entry.id} className="hover:bg-purple-950/20 transition-colors">
+                          <tr
+                            key={entry.id}
+                            className={`transition-colors ${
+                              rowIssue?.severity === 'error'
+                                ? 'bg-rose-950/40 border-l-4 border-l-rose-500 hover:bg-rose-950/60'
+                                : rowIssue?.severity === 'warning'
+                                ? 'bg-amber-950/30 border-l-4 border-l-amber-500 hover:bg-amber-950/50'
+                                : 'hover:bg-purple-950/20'
+                            }`}
+                          >
                             <td className="py-3 px-4 font-mono font-bold text-gray-500 text-center">
                               {entry.id}
                             </td>
@@ -564,7 +732,18 @@ const AlurfilmTranscriptPlaceholder: React.FC = () => {
                               <span className="text-[10px] text-gray-600 block">({durationSec}s)</span>
                             </td>
                             <td className="py-3 px-4 text-white font-medium leading-relaxed">
-                              {entry.text}
+                              <div>{entry.text}</div>
+                              {rowIssue && (
+                                <span
+                                  className={`inline-block mt-1 text-[10px] font-mono px-2 py-0.5 rounded ${
+                                    rowIssue.severity === 'error'
+                                      ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                                      : 'bg-amber-950 text-amber-300 border border-amber-800'
+                                  }`}
+                                >
+                                  {rowIssue.severity === 'error' ? '🔴' : '⚠️'} {rowIssue.message}
+                                </span>
+                              )}
                             </td>
                             <td className="py-3 px-4">
                               <span className="px-2 py-0.5 rounded bg-gray-900 border border-gray-800 text-[10px] font-mono text-gray-400">

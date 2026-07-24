@@ -211,7 +211,39 @@ export interface ElectronAPI {
   saveAlurfilmMapping: (chunkPart: number, jsonText: string) => Promise<AlurfilmMappingResult>;
   listAlurfilmMappings: (modeContentId?: string) => Promise<AlurfilmMappingResult[]>;
   listAlurfilmRenders: (modeContentId?: string) => Promise<AlurfilmRenderResult[]>;
-  renderAlurfilmVideo: (part: number, mapping: any, videoPath: string, audioPath?: string) => Promise<AlurfilmRenderResult>;
+  renderAlurfilmVideo: (
+    part: number,
+    mapping: any,
+    videoPath: string,
+    audioPath?: string,
+    opts?: {
+      bgmPath?: string;
+      bgmVolume?: number;
+      logoPath?: string;
+      logoOpacity?: number;
+      logoMargin?: number;
+    }
+  ) => Promise<AlurfilmRenderResult>;
+  listProjectAssets: () => Promise<{
+    logos: Array<{ name: string; path: string; url: string }>;
+    bgms: Array<{ name: string; path: string; url: string }>;
+  }>;
+  concatAlurfilmFinalVideo: (
+    parts: number[],
+    opts?: {
+      bgmPath?: string;
+      bgmVolume?: number;
+      logoPath?: string;
+      logoOpacity?: number;
+      logoMargin?: number;
+      logoScale?: number;
+    }
+  ) => Promise<{
+    filePath?: string;
+    fileName?: string;
+    mediaUrl?: string;
+    error?: string;
+  }>;
   getContentId: (mode?: string) => Promise<string | null>;
   resetProject: (mode?: string) => Promise<{ success: boolean; content_id?: string; error?: string }>;
   copyToClipboard: (text: string) => Promise<boolean>;

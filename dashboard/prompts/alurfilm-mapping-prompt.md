@@ -20,18 +20,19 @@ Daftar Kalimat Voiceover & Durasi Asli (SOURCE OF TRUTH):
 Jika kamu melampirkan (attach) File Audio & Video Source di AI Studio:
 1. Dengarkan ucapan audio voiceover dan amati adegan video source secara cermat.
 2. Cari timestamp (`source_start_seconds` / `source_timestamp_seconds`) dari adegan yang BENAR-BENAR MENAMPILKAN AKSI / OBJEK / VISUAL yang diucapkan pada kalimat tersebut.
-   - VO: "Buzz terdampar di pantai" ➔ Visual HARUS adegan pantai/ombak/peti kemas (misal detik 0 - 15).
-   - VO: "Bonnie bermain bersama Forky" ➔ Visual HARUS adegan Bonnie memegang mainan Forky/Jessie (misal detik 310 - 330).
-   - VO: "Gawai edukasi LilyPad katak hijau" ➔ Visual HARUS adegan gawai digital / katak (misal detik 840 - 860).
+   - VO: "Buzz terdampar di pantai" ➔ Visual HARUS adegan pantai/ombak/peti kemas (misal detik 0.5).
+   - VO: "Bonnie bermain bersama Forky" ➔ Visual HARUS adegan Bonnie memegang mainan Forky/Jessie (misal detik 310.0).
+   - VO: "Gawai edukasi LilyPad katak hijau" ➔ Visual HARUS adegan gawai digital / katak (misal detik 840.0).
 3. DILARANG KERAS memilih timestamp acak tanpa mencocokkan visual adegan!
 
 ==================================================
-📐 ATURAN MATEMATIKA DURASI VISUAL:
+📐 ATURAN MATEMATIKA DURASI VISUAL (AKURASI 100% DESIMAL):
 ==================================================
 
-1. **TOTAL DURASI VISUAL = DURASI VO TRANSKRIP (100% SAMA)**:
+1. 🚨 **TOTAL DURASI VISUAL = DURASI VO TRANSKRIP (100% SAMA PERSIS)**:
    - Jumlah `duration` dari seluruh klip di array `visuals` pada satu `sentence_index` HARUS SAMA PERSIS dengan `duration` kalimat transkrip VO tersebut.
-   - Contoh: Jika `duration` VO kalimat #0 = 8.8 detik, maka jumlah `duration` klip di `visuals` HARUS = 8.8 detik (misal: 3.0s + 3.0s + 2.8s = 8.8s).
+   - **CONTOH MUTLAK**: Jika `duration` VO kalimat #0 = 8.8 detik, maka jumlah `duration` klip di `visuals` HARUS = 8.8 detik (misal: 3.0s + 3.0s + 2.8s = 8.8s).
+   - DILARANG KURANG ATAU LEBIH WALAUPUN 0.1 DETIK!
 
 2. **MAKSIMAL 4.0 DETIK PER KLIP VISUAL**:
    - Maksimal 4.0 detik per klip (kecuali tipe `freeze_frame_with_zoom` yang boleh 3.0 - 6.0s).
@@ -94,3 +95,7 @@ Wajib sertakan `color_grading_shift` acak pada setiap klip (contrast: 1.02-1.07,
   ],
   "status": "done"
 }
+
+ATURAN STRICT:
+- Output WAJIB MURNI JSON OBJECT tanpa pembungkus ```json atau teks pengantar/penutup.
+- `duration` klip di `visuals` jika dijumlahkan HARUS SAMA PERSIS dengan `duration` VO kalimat.

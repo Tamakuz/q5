@@ -152,6 +152,11 @@ const RenderPlaceholder: React.FC = () => {
 
   const handleRender = async () => {
     if (!mapping || !sourceVideo) return;
+    const hasTimelineClips = mapping.timeline && Array.isArray(mapping.timeline) && mapping.timeline.length > 0;
+    if (!hasTimelineClips) {
+      setRenderError('Timeline mapping masih kosong (0 Scene Clips). Silakan klik "Edit / Replace JSON" dan masukkan JSON Timeline Mapping hasil dari AI Studio terlebih dahulu.');
+      return;
+    }
     setRendering(true);
     setRenderError(null);
     setRenderResult(null);
@@ -179,7 +184,8 @@ const RenderPlaceholder: React.FC = () => {
   };
 
   const totalTimelineDuration = mapping?.timeline ? mapping.timeline.reduce((acc, item) => acc + (item.t || 0), 0) : 0;
-  const canRender = !!sourceVideo && !!mapping;
+  const hasTimelineClips = !!(mapping?.timeline && Array.isArray(mapping.timeline) && mapping.timeline.length > 0);
+  const canRender = !!sourceVideo && !!mapping && hasTimelineClips;
 
   return (
     <div className="flex flex-col h-full bg-gray-950 text-gray-100 p-6 overflow-hidden">

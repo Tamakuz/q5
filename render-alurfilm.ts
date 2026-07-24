@@ -110,8 +110,23 @@ program
   .requiredOption('--video <path>', 'Path to source video chunk')
   .option('-a, --audio <path>', 'Path to voice-over audio file')
   .option('-b, --bgm <path>', 'Path to background music file')
+  .option('--bgm-volume <volume>', 'BGM volume factor (e.g. 0.10)', '0.10')
+  .option('-l, --logo <path>', 'Path to logo image watermark')
+  .option('--logo-opacity <opacity>', 'Logo opacity factor (0.1 to 1.0)', '0.6')
+  .option('--logo-margin <pixels>', 'Logo margin from top-left corner in px', '40')
+  .option('--logo-scale <height>', 'Logo height in pixels for watermark', '60')
   .option('-o, --output <path>', 'Output MP4 file path', 'output/alurfilm_render.mp4')
-  .action(async (mappingPath: string, opts: { video: string; audio?: string; bgm?: string; output: string }) => {
+  .action(async (mappingPath: string, opts: {
+    video: string;
+    audio?: string;
+    bgm?: string;
+    bgmVolume?: string;
+    logo?: string;
+    logoOpacity?: string;
+    logoMargin?: string;
+    logoScale?: string;
+    output: string;
+  }) => {
     const resolvedMap = path.resolve(mappingPath);
     const resolvedVideo = path.resolve(opts.video);
     const resolvedAudio = opts.audio ? path.resolve(opts.audio) : null;
@@ -128,6 +143,25 @@ program
 
     const outDir = path.dirname(resolvedOutput);
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+
+    // Use explicit logo file if provided (for partial render, logo is usually applied in final render)
+    let logoFile: string | null = opts.logo ? path.resolve(opts.logo) : null;
+    if (logoFile && !fs.existsSync(logoFile)) {
+      console.warn(`⚠️ Specified logo watermark file not found: ${logoFile}`);
+      logoFile = null;
+    }
+
+    // Use explicit BGM file if provided (for partial render, BGM is usually applied in final render)
+    let bgmFile: string | null = opts.bgm ? path.resolve(opts.bgm) : null;
+    if (bgmFile && !fs.existsSync(bgmFile)) {
+      console.warn(`⚠️ Specified BGM file not found: ${bgmFile}`);
+      bgmFile = null;
+    }
+
+    const bgmVolume = parseFloat(opts.bgmVolume || '0.10') || 0.10;
+    const logoOpacity = parseFloat(opts.logoOpacity || '0.6') || 0.6;
+    const logoMargin = parseInt(opts.logoMargin || '40', 10) || 40;
+    const logoScale = parseInt(opts.logoScale || '60', 10) || 60;
 
     console.log('🎬 [Alurfilm Engine] Loading 16:9 mapping JSON...');
     let mapping: AlurfilmMapping;
@@ -276,44 +310,82 @@ program
       }
       console.log('');
 
-      // Concat all TS clips & mix Voiceover audio
-      console.log('🔗 [Alurfilm Engine] Concatenating all visual clips & combining with Voiceover audio...');
+      // Concat all TS clips & mix Voiceover audio + Logo + BGM
+      console.log('🔗 [Alurfilm Engine] Concatenating visual clips, logo overlay & audio mixing...');
       const listFile = path.join(tmpDir, 'list.txt');
       fs.writeFileSync(listFile, clipFiles.map((f) => `file '${f}'`).join('\n'), 'utf-8');
 
-      // Check if user explicitly provided a BGM file via --bgm option ONLY (no auto-search)
-      let bgmFile: string | null = opts.bgm ? path.resolve(opts.bgm) : null;
-      if (bgmFile && !fs.existsSync(bgmFile)) {
-        console.warn(`⚠️ User specified BGM file not found: ${bgmFile}`);
-        bgmFile = null;
-      }
-
       const fargs: string[] = [
         '-y',
-        '-f', 'concat', '-safe', '0', '-i', listFile,
+        '-f', 'concat', '-safe', '0', '-i', listFile, // Stream 0:v
       ];
 
-      if (resolvedAudioFinal && bgmFile) {
-        console.log(`🎵 [Alurfilm Engine] Combining Voiceover + Custom BGM (${path.basename(bgmFile)})`);
+      let streamIndex = 1;
+      let voIndex: number | null = null;
+      let bgmIndex: number | null = null;
+      let logoIndex: number | null = null;
+
+      if (resolvedAudioFinal) {
         fargs.push('-i', resolvedAudioFinal);
+        voIndex = streamIndex++;
+      }
+
+      if (bgmFile) {
+        console.log(`🎵 [Alurfilm Engine] BGM Audio: ${path.basename(bgmFile)} (Volume: ${bgmVolume})`);
         fargs.push('-i', bgmFile);
-        fargs.push(
-          '-filter_complex',
-          '[1:a]volume=1.0[vo];[2:a]volume=0.12,aloop=loop=-1:size=2e+09[bgm];[vo][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]',
-          '-map', '0:v:0',
-          '-map', '[aout]'
-        );
-      } else if (resolvedAudioFinal) {
-        console.log(`🎙️ [Alurfilm Engine] Muxing Full Voiceover Audio (${path.basename(resolvedAudioFinal)})`);
-        fargs.push('-i', resolvedAudioFinal);
-        fargs.push('-map', '0:v:0', '-map', '1:a:0');
+        bgmIndex = streamIndex++;
+      }
+
+      if (logoFile) {
+        console.log(`🎨 [Alurfilm Engine] Logo Watermark: ${path.basename(logoFile)} (Margin: ${logoMargin}px, Opacity: ${logoOpacity})`);
+        fargs.push('-i', logoFile);
+        logoIndex = streamIndex++;
+      }
+
+      const filterParts: string[] = [];
+      let vMap = '0:v';
+      let aMap: string | null = null;
+
+      // Video filter for logo watermark
+      if (logoIndex !== null) {
+        filterParts.push(`[${logoIndex}:v]scale=-1:${logoScale},format=rgba,colorchannelmixer=aa=${logoOpacity}[logo_alpha]`);
+        filterParts.push(`[0:v][logo_alpha]overlay=${logoMargin}:${logoMargin}[vout]`);
+        vMap = '[vout]';
+      }
+
+      // Audio filter for VO + BGM mixing
+      if (voIndex !== null && bgmIndex !== null) {
+        filterParts.push(`[${voIndex}:a]volume=1.0[vo]`);
+        filterParts.push(`[${bgmIndex}:a]volume=${bgmVolume},aloop=loop=-1:size=2e+09,afade=t=out:st=${Math.max(0, totalDur - 2)}:d=2[bgm]`);
+        filterParts.push(`[vo][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]`);
+        aMap = '[aout]';
+      } else if (voIndex !== null) {
+        aMap = `${voIndex}:a`;
+      } else if (bgmIndex !== null) {
+        filterParts.push(`[${bgmIndex}:a]volume=${bgmVolume},aloop=loop=-1:size=2e+09,afade=t=out:st=${Math.max(0, totalDur - 2)}:d=2[bgm]`);
+        aMap = '[bgm]';
+      }
+
+      if (filterParts.length > 0) {
+        fargs.push('-filter_complex', filterParts.join(';'));
+      }
+
+      fargs.push('-map', vMap);
+      if (aMap) {
+        fargs.push('-map', aMap);
+      }
+
+      if (logoIndex !== null) {
+        fargs.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '18', '-pix_fmt', 'yuv420p');
       } else {
-        fargs.push('-map', '0:v:0');
+        fargs.push('-c:v', 'copy');
+      }
+
+      if (aMap) {
+        fargs.push('-c:a', 'aac', '-b:a', '192k');
       }
 
       fargs.push(
-        '-c:v', 'copy',
-        '-c:a', 'aac', '-b:a', '192k',
         '-movflags', '+faststart',
         '-progress', 'pipe:1', '-nostats',
         resolvedOutput,

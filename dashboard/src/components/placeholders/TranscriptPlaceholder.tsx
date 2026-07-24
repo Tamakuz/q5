@@ -1,5 +1,11 @@
 // dashboard/src/components/placeholders/TranscriptPlaceholder.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  validateTranscript,
+  autoFixTranscript,
+  formatMinute,
+  ValidationReport
+} from '../../utils/transcriptValidation';
 
 const api = window.electronAPI;
 
@@ -10,12 +16,6 @@ export interface NormalizedTranscriptEntry {
   timestamp_minute: string;
   text: string;
   speaker: string;
-}
-
-function formatMinute(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 function normalizeEntry(entry: any, index: number): NormalizedTranscriptEntry {
@@ -83,6 +83,10 @@ const TranscriptPlaceholder: React.FC = () => {
     })();
   }, []);
 
+  const report: ValidationReport = useMemo(() => {
+    return validateTranscript(entries, voDuration);
+  }, [entries, voDuration]);
+
   const handleCopyPrompt = async () => {
     await api.copyToClipboard(prompt);
     setCopiedPrompt(true);
@@ -96,29 +100,6 @@ const TranscriptPlaceholder: React.FC = () => {
     setTimeout(() => setCopiedJson(false), 2000);
   };
 
-  const handleParse = () => {
-    setError(null);
-    try {
-      let raw = jsonRaw.trim();
-      if (raw.startsWith('```')) {
-        raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
-      }
-
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        setError('Data transkrip harus berupa JSON array non-kosong');
-        return;
-      }
-
-      const normalized = parsed.map((e, idx) => normalizeEntry(e, idx));
-      setEntries(normalized);
-      setIsEditing(false);
-      handleSave(normalized);
-    } catch (e: any) {
-      setError(`Format JSON tidak valid: ${e.message}`);
-    }
-  };
-
   const handleSave = async (dataToSave = entries) => {
     if (!dataToSave) return;
     try {
@@ -130,25 +111,45 @@ const TranscriptPlaceholder: React.FC = () => {
     }
   };
 
-  const handleFixTailGap = async () => {
-    if (!entries || entries.length === 0 || !voDuration) return;
-    const updated = [...entries];
-    const lastIdx = updated.length - 1;
-    const last = updated[lastIdx];
+  const handleParse = (customData?: NormalizedTranscriptEntry[]) => {
+    setError(null);
+    try {
+      let normalized: NormalizedTranscriptEntry[] = [];
+      if (customData) {
+        normalized = customData;
+      } else {
+        let raw = jsonRaw.trim();
+        if (raw.startsWith('```')) {
+          raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+        }
 
-    const startSec = last.start_seconds;
-    const endSec = voDuration;
-    const tsMin = `${formatMinute(startSec)} - ${formatMinute(endSec)}`;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          setError('Data transkrip harus berupa JSON array non-kosong');
+          return;
+        }
 
-    updated[lastIdx] = {
-      ...last,
-      end_seconds: endSec,
-      timestamp_minute: tsMin,
-    };
+        normalized = parsed.map((e, idx) => normalizeEntry(e, idx));
+      }
 
-    setEntries(updated);
-    setJsonRaw(JSON.stringify(updated, null, 2));
-    await handleSave(updated);
+      setEntries(normalized);
+      setJsonRaw(JSON.stringify(normalized, null, 2));
+      setIsEditing(false);
+      handleSave(normalized);
+    } catch (e: any) {
+      setError(`Format JSON tidak valid: ${e.message}`);
+    }
+  };
+
+  const handleAutoFixValidation = async () => {
+    if (!entries || entries.length === 0) return;
+    const fixed = autoFixTranscript(entries, voDuration).map((e) => ({
+      ...e,
+      speaker: e.speaker || '',
+    }));
+    setEntries(fixed);
+    setJsonRaw(JSON.stringify(fixed, null, 2));
+    await handleSave(fixed);
   };
 
   const filteredEntries = entries ? entries.filter(e => {
@@ -180,12 +181,14 @@ const TranscriptPlaceholder: React.FC = () => {
         {/* Readiness Badge */}
         <div className="flex items-center gap-2">
           <div className={`px-3.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-2 ${
-            saved
-              ? 'bg-cyan-950/60 border-cyan-700/50 text-cyan-300 shadow-lg shadow-cyan-950/40'
+            saved && report.isValid
+              ? 'bg-emerald-950/60 border-emerald-700/50 text-emerald-300 shadow-lg shadow-emerald-950/40'
+              : saved
+              ? 'bg-amber-950/60 border-amber-700/50 text-amber-300'
               : 'bg-gray-900 border-gray-800 text-gray-500'
           }`}>
-            <span className={`w-2 h-2 rounded-full ${saved ? 'bg-cyan-400 animate-pulse' : 'bg-gray-600'}`}></span>
-            <span>{saved ? 'Transcript Saved' : 'No Transcript'}</span>
+            <span className={`w-2 h-2 rounded-full ${saved && report.isValid ? 'bg-emerald-400 animate-pulse' : saved ? 'bg-amber-400' : 'bg-gray-600'}`}></span>
+            <span>{saved ? (report.isValid ? 'Valid Transcript Saved' : report.summaryText) : 'No Transcript'}</span>
           </div>
         </div>
       </div>
@@ -228,6 +231,14 @@ const TranscriptPlaceholder: React.FC = () => {
 
             {entries && !isEditing && (
               <div className="flex gap-2">
+                {report.issues.length > 0 && (
+                  <button
+                    onClick={handleAutoFixValidation}
+                    className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-medium transition-all shadow flex items-center gap-1"
+                  >
+                    <span>⚡</span> Auto-Fix Validation
+                  </button>
+                )}
                 <button
                   onClick={handleCopyJson}
                   className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-xs font-medium transition-all"
@@ -266,47 +277,75 @@ const TranscriptPlaceholder: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Tail Gap Warning & Auto-Fix Banner */}
-                {voDuration && totalDuration > 0 && voDuration - totalDuration > 0.8 && (
-                  <div className="flex items-center justify-between bg-amber-950/40 p-3 rounded-xl border border-amber-800/50 text-amber-300 text-xs font-medium">
-                    <div className="flex items-center gap-2">
-                      <span className="text-amber-400 text-sm">⚠️</span>
-                      <span>
-                        Transkrip terpotong di <strong className="font-mono">{formatMinute(totalDuration)} ({totalDuration.toFixed(1)}s)</strong> (VO: <strong className="font-mono">{formatMinute(voDuration)} ({voDuration.toFixed(1)}s)</strong>). Ada gap <strong>{(voDuration - totalDuration).toFixed(1)}s</strong> di akhir.
-                      </span>
+                {/* Validation Status & Auto-Fix Banner */}
+                {report.issues.length > 0 && (
+                  <div
+                    className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs font-medium ${
+                      report.status === 'ERROR'
+                        ? 'bg-rose-950/40 border-rose-800/50 text-rose-300'
+                        : 'bg-amber-950/40 border-amber-800/50 text-amber-300'
+                    }`}
+                  >
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <span>{report.status === 'ERROR' ? '🔴' : '⚠️'}</span>
+                        <span>{report.summaryText}</span>
+                      </div>
+                      <div className="text-[11px] font-mono opacity-90">
+                        {report.issues[0]?.message}
+                        {report.issues.length > 1 ? ` (+${report.issues.length - 1} isu lainnya)` : ''}
+                      </div>
                     </div>
+
                     <button
-                      onClick={handleFixTailGap}
-                      className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold shadow transition-all shrink-0 ml-2 flex items-center gap-1"
+                      onClick={handleAutoFixValidation}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold shadow transition-all shrink-0 flex items-center gap-1"
                     >
-                      <span>⚡</span> Pas-kan ke Voiceover ({formatMinute(voDuration)})
+                      <span>⚡</span> Auto-Fix Timing
                     </button>
                   </div>
                 )}
 
                 {/* Table List */}
                 <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
-                  {filteredEntries.map((e) => (
-                    <div
-                      key={e.id}
-                      className="p-3 rounded-xl bg-gray-950 border border-gray-800 hover:border-cyan-900/60 transition-all space-y-1.5"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono font-bold text-gray-500">#{e.id}</span>
-                          <span className="px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-cyan-950 text-cyan-300 border border-cyan-800/50">
-                            ⏱️ {e.timestamp_minute}
+                  {filteredEntries.map((e, idx) => {
+                    const itemNum = e.id || idx + 1;
+                    const rowIssue = report.issues.find((i) => i.itemIndex === itemNum);
+
+                    return (
+                      <div
+                        key={e.id}
+                        className={`p-3 rounded-xl border transition-all space-y-1.5 ${
+                          rowIssue?.severity === 'error'
+                            ? 'bg-rose-950/30 border-rose-800'
+                            : rowIssue?.severity === 'warning'
+                            ? 'bg-amber-950/20 border-amber-800/60'
+                            : 'bg-gray-950 border-gray-800 hover:border-cyan-900/60'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-bold text-gray-500">#{e.id}</span>
+                            <span className="px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-cyan-950 text-cyan-300 border border-cyan-800/50">
+                              ⏱️ {e.timestamp_minute}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-gray-500 font-mono">
+                            {e.start_seconds.toFixed(1)}s - {e.end_seconds.toFixed(1)}s
                           </span>
                         </div>
-                        <span className="text-[11px] text-gray-500 font-mono">
-                          {e.start_seconds.toFixed(1)}s - {e.end_seconds.toFixed(1)}s
-                        </span>
+                        <p className="text-xs text-gray-200 leading-relaxed font-normal bg-gray-900/80 p-2.5 rounded-lg border border-gray-800">
+                          "{e.text}"
+                        </p>
+                        {rowIssue && (
+                          <div className="text-[10px] font-mono text-amber-300 pt-0.5 flex items-center gap-1">
+                            <span>{rowIssue.severity === 'error' ? '🔴' : '⚠️'}</span>
+                            <span>{rowIssue.message}</span>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-xs text-gray-200 leading-relaxed font-normal bg-gray-900/80 p-2.5 rounded-lg border border-gray-800">
-                        "{e.text}"
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : (
@@ -337,7 +376,7 @@ const TranscriptPlaceholder: React.FC = () => {
                     </button>
                   )}
                   <button
-                    onClick={handleParse}
+                    onClick={() => handleParse()}
                     disabled={!jsonRaw.trim()}
                     className={`px-5 py-2 rounded-xl text-xs font-semibold shadow-lg transition-all ${
                       !jsonRaw.trim()

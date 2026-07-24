@@ -68,8 +68,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('list-alurfilm-mappings', modeContentId),
   listAlurfilmRenders: (modeContentId) =>
     ipcRenderer.invoke('list-alurfilm-renders', modeContentId),
-  renderAlurfilmVideo: (part, mapping, videoPath, audioPath) =>
-    ipcRenderer.invoke('render-alurfilm-video', { part, mapping, videoPath, audioPath }),
+  renderAlurfilmVideo: (part, mapping, videoPath, audioPath, opts) =>
+    ipcRenderer.invoke('render-alurfilm-video', { part, mapping, videoPath, audioPath, ...opts }),
+  listProjectAssets: () =>
+    ipcRenderer.invoke('list-project-assets'),
+  concatAlurfilmFinalVideo: (parts, opts) =>
+    ipcRenderer.invoke('concat-alurfilm-final-video', { parts, ...opts }),
 
   // Generic project file helpers
   getContentId: (mode) => ipcRenderer.invoke('get-content-id', mode),

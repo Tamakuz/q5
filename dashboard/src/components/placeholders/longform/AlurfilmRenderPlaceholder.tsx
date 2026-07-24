@@ -24,6 +24,43 @@ const AlurfilmRenderPlaceholder: React.FC = () => {
   const [toast, setToast] = useState<string | null>(null);
   const [isBatchRendering, setIsBatchRendering] = useState<boolean>(false);
 
+  // Asset Settings State
+  const [assets, setAssets] = useState<{ logos: Array<{ name: string; path: string; url: string }>; bgms: Array<{ name: string; path: string; url: string }> }>({ logos: [], bgms: [] });
+  const [selectedLogo, setSelectedLogo] = useState<string>('');
+  const [logoOpacity, setLogoOpacity] = useState<number>(() => {
+    const saved = localStorage.getItem('alurfilm_logo_opacity');
+    return saved ? parseFloat(saved) : 0.6;
+  });
+  const [logoMargin, setLogoMargin] = useState<number>(() => {
+    const saved = localStorage.getItem('alurfilm_logo_margin');
+    return saved ? parseInt(saved, 10) : 40;
+  });
+  const [logoScale, setLogoScale] = useState<number>(() => {
+    const saved = localStorage.getItem('alurfilm_logo_scale');
+    return saved ? parseInt(saved, 10) : 60;
+  });
+  const [selectedBgm, setSelectedBgm] = useState<string>('');
+  const [bgmVolume, setBgmVolume] = useState<number>(0.10);
+  const [finalVideoOutput, setFinalVideoOutput] = useState<{ filePath?: string; fileName?: string; mediaUrl?: string } | null>(null);
+  const [isConcatenatingFinal, setIsConcatenatingFinal] = useState<boolean>(false);
+
+  const handleSaveDefaultWatermark = () => {
+    localStorage.setItem('alurfilm_logo_scale', String(logoScale));
+    localStorage.setItem('alurfilm_logo_opacity', String(logoOpacity));
+    localStorage.setItem('alurfilm_logo_margin', String(logoMargin));
+    showToast('💾 Pengaturan Watermark (60px / 60%) Berhasil Disimpan Sebagai Default!');
+  };
+
+  const handleResetDefaultWatermark = () => {
+    setLogoScale(60);
+    setLogoOpacity(0.6);
+    setLogoMargin(40);
+    localStorage.setItem('alurfilm_logo_scale', '60');
+    localStorage.setItem('alurfilm_logo_opacity', '0.6');
+    localStorage.setItem('alurfilm_logo_margin', '40');
+    showToast('🔄 Dikembalikan ke Default (60px / 60% Opacity)');
+  };
+
   const logEndRef = useRef<HTMLDivElement>(null);
   const cancelBatchRef = useRef<boolean>(false);
 
@@ -62,6 +99,25 @@ const AlurfilmRenderPlaceholder: React.FC = () => {
     try {
       const id = await api.getContentId('longform');
       setContentId(id);
+
+      if (api.listProjectAssets) {
+        const assetData = await api.listProjectAssets();
+        setAssets(assetData || { logos: [], bgms: [] });
+
+        if (assetData.logos.length > 0) {
+          const logo = assetData.logos.find(l => l.name === 'logo.png' || l.name === 'logo-transparent.png') || assetData.logos[0];
+          setSelectedLogo(logo.path);
+        }
+
+        if (assetData.bgms.length > 0) {
+          const thomasNewman = assetData.bgms.find(b => b.name.toLowerCase().includes('thomas newman'));
+          if (thomasNewman) {
+            setSelectedBgm(thomasNewman.path);
+          } else {
+            setSelectedBgm(assetData.bgms[0].path);
+          }
+        }
+      }
 
       if (id) {
         // Load chunks
@@ -197,6 +253,39 @@ const AlurfilmRenderPlaceholder: React.FC = () => {
     showToast('⏳ Meminta pemberhentian batch render...');
   };
 
+  const handleConcatFinalVideo = async () => {
+    if (isConcatenatingFinal) return;
+    setIsConcatenatingFinal(true);
+    setError(null);
+    showToast('🎬 Menggabungkan seluruh Part menjadi 1 Video Final Full...');
+
+    try {
+      const partsToConcat = partsList.filter((p) => !!renderOutputs[p]);
+      if (partsToConcat.length === 0) {
+        setError('Belum ada video Part yang selesai dirender. Render minimal 1 Part terlebih dahulu.');
+        return;
+      }
+      const res = await api.concatAlurfilmFinalVideo(partsToConcat, {
+        bgmPath: selectedBgm || undefined,
+        bgmVolume,
+        logoPath: selectedLogo || undefined,
+        logoOpacity,
+        logoMargin,
+        logoScale,
+      });
+      if (res.error) {
+        setError(`Gagal gabung video: ${res.error}`);
+      } else {
+        setFinalVideoOutput(res);
+        showToast(`🎉 Video Final Full Alur Cerita Film Berhasil Dibuat! (${res.fileName})`);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Gagal menggabungkan video final');
+    } finally {
+      setIsConcatenatingFinal(false);
+    }
+  };
+
   const totalPartsCount = Math.max(chunks.length, Object.keys(mappings).length, 1);
   const partsList = Array.from({ length: totalPartsCount }, (_, i) => i + 1);
 
@@ -324,6 +413,273 @@ const AlurfilmRenderPlaceholder: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Watermark & BGM Settings Card with Live 16:9 Canvas Visualizer */}
+      <div className="bg-gray-900 border border-gray-800 rounded-3xl p-6 shadow-xl space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-800">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🎛️</span>
+            <div>
+              <h2 className="text-base font-bold text-white">Visualizer Interactive Canvas & Audio BGM Setup</h2>
+              <p className="text-xs text-gray-400">Atur ukuran, transparansi, dan posisi logo watermark secara visual di atas layar 16:9 (1920x1080)</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleResetDefaultWatermark}
+              className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-bold rounded-xl border border-gray-700 transition-all flex items-center gap-1.5"
+            >
+              <span>🔄</span> Reset Default (60px / 60%)
+            </button>
+            <button
+              onClick={handleSaveDefaultWatermark}
+              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-purple-950/40 transition-all flex items-center gap-1.5"
+            >
+              <span>💾</span> Simpan Sebagai Default
+            </button>
+          </div>
+        </div>
+
+        {/* 16:9 Interactive Visual Canvas Preview */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-bold text-gray-300 flex items-center gap-2">
+              <span>🖥️</span> Live 16:9 Canvas Preview Screen (1920 x 1080 Video Frame)
+            </span>
+            <span className="text-[10px] font-mono text-purple-400 font-bold bg-purple-950 px-2 py-0.5 rounded border border-purple-900">
+              Logo Height: {logoScale}px | Opacity: {Math.round(logoOpacity * 100)}% | Margin: {logoMargin}px
+            </span>
+          </div>
+
+          <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-gray-950 border border-gray-800 shadow-2xl flex items-center justify-center group">
+            {/* Cinematic background mock pattern */}
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/40 via-purple-950/20 to-gray-950 flex items-center justify-center">
+              <div className="text-center space-y-1 opacity-20 pointer-events-none">
+                <span className="text-4xl block">🍿</span>
+                <span className="text-xs font-mono font-bold tracking-widest uppercase block text-gray-400">16:9 Alur Film Safe Zone</span>
+              </div>
+            </div>
+
+            {/* Rule of thirds grid lines */}
+            <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 opacity-15">
+              <div className="border-r border-b border-gray-400/50" />
+              <div className="border-r border-b border-gray-400/50" />
+              <div className="border-b border-gray-400/50" />
+              <div className="border-r border-b border-gray-400/50" />
+              <div className="border-r border-b border-gray-400/50" />
+              <div className="border-b border-gray-400/50" />
+              <div className="border-r border-gray-400/50" />
+              <div className="border-r border-gray-400/50" />
+              <div />
+            </div>
+
+            {/* Real-time Watermark Logo Canvas Overlay */}
+            {assets.logos.length > 0 && (
+              <div
+                className="absolute transition-all duration-75 pointer-events-none flex items-center justify-center"
+                style={{
+                  top: `${(logoMargin / 1080) * 100}%`,
+                  left: `${(logoMargin / 1920) * 100}%`,
+                  height: `${(logoScale / 1080) * 100}%`,
+                  opacity: logoOpacity,
+                }}
+              >
+                <img
+                  src={assets.logos.find(l => l.path === selectedLogo)?.url || assets.logos[0].url}
+                  alt="Watermark Logo Preview"
+                  className="h-full w-auto object-contain filter drop-shadow-md"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+          {/* Logo Watermark Control Sliders */}
+          <div className="bg-gray-950 p-4 rounded-2xl border border-gray-800 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-300 flex items-center gap-2">
+                <span>🖼️</span> Kontrol Watermark Logo
+              </span>
+              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-900 font-bold">
+                Live Interactive Sliders
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] text-gray-400 block font-medium">Pilih File Logo (assets/):</label>
+              <select
+                value={selectedLogo}
+                onChange={(e) => setSelectedLogo(e.target.value)}
+                className="w-full bg-gray-900 text-white text-xs px-3 py-2 rounded-xl border border-gray-800 focus:outline-none focus:border-purple-500"
+              >
+                {assets.logos.length > 0 ? (
+                  assets.logos.map((l) => (
+                    <option key={l.path} value={l.path}>
+                      {l.name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">logo.png (Auto-Detect in assets/)</option>
+                )}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-gray-400">Ukuran / Tinggi Logo:</span>
+                <span className="text-purple-400 font-mono font-bold">{logoScale}px (Recommended: 60px)</span>
+              </div>
+              <input
+                type="range"
+                min="30"
+                max="150"
+                step="2"
+                value={logoScale}
+                onChange={(e) => setLogoScale(parseInt(e.target.value, 10))}
+                className="w-full accent-purple-500 bg-gray-800 rounded-lg cursor-pointer h-2"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-gray-400">Transparansi / Opacity Logo:</span>
+                <span className="text-purple-400 font-mono font-bold">{Math.round(logoOpacity * 100)}% (Recommended: 60%)</span>
+              </div>
+              <input
+                type="range"
+                min="0.2"
+                max="1.0"
+                step="0.05"
+                value={logoOpacity}
+                onChange={(e) => setLogoOpacity(parseFloat(e.target.value))}
+                className="w-full accent-purple-500 bg-gray-800 rounded-lg cursor-pointer h-2"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-gray-400">Jarak Tepi / Margin Offsets:</span>
+                <span className="text-purple-400 font-mono font-bold">{logoMargin}px</span>
+              </div>
+              <input
+                type="range"
+                min="10"
+                max="100"
+                step="5"
+                value={logoMargin}
+                onChange={(e) => setLogoMargin(parseInt(e.target.value, 10))}
+                className="w-full accent-purple-500 bg-gray-800 rounded-lg cursor-pointer h-2"
+              />
+            </div>
+          </div>
+
+          {/* BGM Control */}
+          <div className="bg-gray-950 p-4 rounded-2xl border border-gray-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-300 flex items-center gap-2">
+                <span>🎵</span> Background Music (BGM)
+              </span>
+              <span className="text-[10px] font-mono text-purple-300 bg-purple-950 px-2 py-0.5 rounded border border-purple-900 font-bold">
+                Piano Thomas Newman Style
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] text-gray-400 block font-medium">Pilih Musik BGM (assets/):</label>
+              <select
+                value={selectedBgm}
+                onChange={(e) => setSelectedBgm(e.target.value)}
+                className="w-full bg-gray-900 text-white text-xs px-3 py-2 rounded-xl border border-gray-800 focus:outline-none focus:border-purple-500"
+              >
+                {assets.bgms.length > 0 ? (
+                  assets.bgms.map((b) => (
+                    <option key={b.path} value={b.path}>
+                      {b.name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">Thomas Newman Piano (Auto-Detect)</option>
+                )}
+              </select>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-gray-400 font-medium">Volume Musik BGM (Background Music):</span>
+                <span className="text-emerald-400 font-mono font-bold bg-emerald-950 px-2 py-0.5 rounded border border-emerald-900">
+                  {Math.round(bgmVolume * 100)}% {bgmVolume === 0.10 ? '(Recommended)' : ''}
+                </span>
+              </div>
+
+              {/* Volume Slider with Explicit Direction Labels */}
+              <input
+                type="range"
+                min="0.02"
+                max="0.50"
+                step="0.01"
+                value={bgmVolume}
+                onChange={(e) => setBgmVolume(parseFloat(e.target.value))}
+                className="w-full accent-emerald-500 bg-gray-800 rounded-lg cursor-pointer h-2.5"
+              />
+
+              {/* Explicit Visual Direction Indicators */}
+              <div className="flex justify-between items-center text-[10px] text-gray-400 font-medium px-0.5 pt-0.5">
+                <span className="flex items-center gap-1 text-gray-400">
+                  <span>◀</span> <span>KIRI: Pelan (2%)</span>
+                </span>
+                <span className="text-emerald-400/80 font-mono">Center: 10% (-20dB)</span>
+                <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                  <span>KANAN: Lebih Keras (50%)</span> <span>▶</span>
+                </span>
+              </div>
+
+              <p className="text-[10px] text-gray-400 bg-gray-900 p-2 rounded-xl border border-gray-800/80">
+                💡 <span className="font-semibold text-gray-300">Petunjuk BGM:</span> Geser slider ke <span className="text-emerald-400 font-bold">KANAN</span> untuk membesarkan volume musik BGM, atau ke <span className="text-gray-300 font-bold">KIRI</span> untuk mempelankannya agar tidak menutupi narasi voiceover.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Final Concatenation Button & Output Player */}
+        <div className="pt-4 border-t border-gray-800/80 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-xs text-gray-400">
+            <span className="font-bold text-white block">🎬 Penggabungan Full Alur Cerita Film</span>
+            <span>{completedRendersCount} dari {totalPartsCount} Part siap digabungkan menjadi 1 Video Full MP4 dengan Watermark Logo & BGM.</span>
+          </div>
+
+          <button
+            onClick={handleConcatFinalVideo}
+            disabled={isConcatenatingFinal || completedRendersCount === 0}
+            className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-600 to-purple-600 hover:from-emerald-500 hover:to-purple-500 text-white font-extrabold text-xs rounded-2xl shadow-xl shadow-emerald-950/40 transition-all flex items-center justify-center gap-2 disabled:opacity-40"
+          >
+            <span>{isConcatenatingFinal ? '⏳' : '✨'}</span>
+            <span>{isConcatenatingFinal ? 'Menggabungkan Video...' : 'Render & Gabungkan Full Film Final'}</span>
+          </button>
+        </div>
+
+        {/* Preview Player for Final Concat Output */}
+        {finalVideoOutput?.mediaUrl && (
+          <div className="mt-4 p-5 bg-emerald-950/40 border border-emerald-500/40 rounded-2xl space-y-3 animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-300 flex items-center gap-2">
+                <span>🎉</span> Hasil Render Video Full Final Selesai!
+              </span>
+              <span className="text-[11px] font-mono text-gray-300 bg-gray-900 px-3 py-1 rounded-lg border border-gray-800">
+                {finalVideoOutput.fileName}
+              </span>
+            </div>
+
+            <div className="aspect-video w-full bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-800">
+              <video
+                src={finalVideoOutput.mediaUrl}
+                controls
+                className="w-full h-full object-contain"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Workspace Layout */}

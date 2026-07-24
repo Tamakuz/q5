@@ -185,19 +185,13 @@ ipcMain.handle('select-file', async () => {
 
 // ─── Get video metadata via ffprobe ───────────────────
 
-ipcMain.handle('get-video-meta', async (_event, filePath) => {
+function getVideoMetaHelper(filePath) {
   return new Promise((resolve) => {
-    console.log('[get-video-meta] filePath:', filePath);
-    console.log('[get-video-meta] ffprobePath:', ffprobePath);
-
     if (!fs.existsSync(filePath)) {
-      console.log('[get-video-meta] File does not exist');
       return resolve(null);
     }
 
     const stat = fs.statSync(filePath);
-    console.log('[get-video-meta] File size:', stat.size);
-
     const args = [
       '-v', 'error',
       '-print_format', 'json',
@@ -214,15 +208,9 @@ ipcMain.handle('get-video-meta', async (_event, filePath) => {
     ffprobe.stderr.on('data', (d) => { stderr += d.toString(); });
 
     ffprobe.on('close', (code) => {
-      console.log('[get-video-meta] Exit code:', code);
-      if (stderr) console.log('[get-video-meta] stderr:', stderr.substring(0, 200));
-
-      // Fallback: if ffprobe fails, return basic info so the flow doesn't break
       if (code !== 0 || !stdout.trim()) {
-        console.log('[get-video-meta] ffprobe failed, using fallback');
-        // Return what we have — let the video element figure out dimensions
         return resolve({
-          duration: 0,       // unknown
+          duration: 0,
           width: 0,
           height: 0,
           name: path.basename(filePath),
@@ -238,8 +226,6 @@ ipcMain.handle('get-video-meta', async (_event, filePath) => {
         const width = videoStream?.width ?? 0;
         const height = videoStream?.height ?? 0;
 
-        console.log('[get-video-meta] Success:', { duration, width, height });
-
         resolve({
           duration: isNaN(duration) ? 0 : duration,
           width,
@@ -248,9 +234,7 @@ ipcMain.handle('get-video-meta', async (_event, filePath) => {
           size: stat.size,
           url: mediaUrl(filePath),
         });
-      } catch (e) {
-        console.log('[get-video-meta] Parse error:', e.message);
-        // Fallback
+      } catch {
         resolve({
           duration: 0,
           width: 0,
@@ -262,11 +246,14 @@ ipcMain.handle('get-video-meta', async (_event, filePath) => {
       }
     });
 
-    ffprobe.on('error', (e) => {
-      console.log('[get-video-meta] Spawn error:', e.message);
+    ffprobe.on('error', () => {
       resolve(null);
     });
   });
+}
+
+ipcMain.handle('get-video-meta', async (_event, filePath) => {
+  return getVideoMetaHelper(filePath);
 });
 
 // ─── Content ID Helper ────────────────────────────────
@@ -664,17 +651,39 @@ ipcMain.handle('delete-alurfilm-audio', async (_event, { part }) => {
 });
 
 ipcMain.handle('get-alurfilm-transcript-prompt', async (_event, { chunkPart, totalChunks = 2 }) => {
+  const contentId = getOrGenerateContentId('longform');
   const promptFile = path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'alurfilm-transcript-prompt.md');
   let promptTemplate = '';
   if (fs.existsSync(promptFile)) {
     promptTemplate = fs.readFileSync(promptFile, 'utf-8');
   } else {
-    promptTemplate = `Kamu adalah AI Audio Transcriber presisi tinggi. Transkrip audio part ${chunkPart} ke JSON array dengan start_seconds, end_seconds, timestamp_minute, text.`;
+    promptTemplate = `Kamu adalah AI Audio Transcriber presisi tinggi. Transkrip audio part ${chunkPart} ke JSON array dengan start_seconds, end_seconds, timestamp_minute, text. Parameter durasi audio: {{audio_duration}}.`;
+  }
+
+  let audioDurationText = `[Sesuai total durasi file audio Part #${chunkPart}]`;
+  if (fs.existsSync(ALURFILM_DIR)) {
+    const partStr = String(chunkPart).padStart(2, '0');
+    const audioExtensions = ['.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac'];
+    const files = fs.readdirSync(ALURFILM_DIR);
+    const audioFile = files.find(f => f.startsWith(`${contentId}_audio_part_${partStr}`) && audioExtensions.includes(path.extname(f).toLowerCase()));
+    if (audioFile) {
+      const fullPath = path.join(ALURFILM_DIR, audioFile);
+      try {
+        const meta = await getVideoMetaHelper(fullPath);
+        if (meta && meta.duration && meta.duration > 0) {
+          const m = Math.floor(meta.duration / 60);
+          const s = Math.floor(meta.duration % 60);
+          const minStr = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+          audioDurationText = `${meta.duration.toFixed(1)} Detik (${minStr})`;
+        }
+      } catch {}
+    }
   }
 
   const fullPrompt = promptTemplate
     .replace(/{{chunk_part}}/g, String(chunkPart))
-    .replace(/{{total_chunks}}/g, String(totalChunks));
+    .replace(/{{total_chunks}}/g, String(totalChunks))
+    .replace(/{{audio_duration}}/g, audioDurationText);
 
   return fullPrompt;
 });
@@ -1282,7 +1291,167 @@ ipcMain.handle('render-video', async (_event, mapping, videoPath, audioPath) => 
   });
 });
 
-ipcMain.handle('render-alurfilm-video', async (_event, { part, mapping, videoPath, audioPath }) => {
+ipcMain.handle('list-project-assets', async () => {
+  const assetsDir = path.join(PROJECT_ROOT, 'assets');
+  if (!fs.existsSync(assetsDir)) return { logos: [], bgms: [] };
+
+  const files = fs.readdirSync(assetsDir);
+  const logos = files.filter(f => f.match(/\.(png|jpg|jpeg|webp)$/i)).map(f => ({
+    name: f,
+    path: path.join(assetsDir, f),
+    url: mediaUrl(path.join(assetsDir, f)),
+  }));
+  const bgms = files.filter(f => f.match(/\.(mp3|wav|m4a|aac|flac)$/i)).map(f => ({
+    name: f,
+    path: path.join(assetsDir, f),
+    url: mediaUrl(path.join(assetsDir, f)),
+  }));
+
+  return { logos, bgms };
+});
+
+ipcMain.handle('concat-alurfilm-final-video', async (_event, { parts, bgmPath, bgmVolume, logoPath, logoOpacity, logoMargin, logoScale }) => {
+  const contentId = getOrGenerateContentId('longform');
+  const outputDir = path.join(PROJECT_ROOT, 'output');
+  if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+  const files = fs.readdirSync(outputDir);
+  const partFiles = [];
+
+  for (const p of parts) {
+    const partStr = String(p).padStart(2, '0');
+    const matches = files
+      .filter((f) => f.startsWith(`alurfilm_${contentId}_part_${partStr}_`) && f.endsWith('.mp4'))
+      .sort()
+      .reverse();
+
+    if (matches.length > 0) {
+      partFiles.push(path.join(outputDir, matches[0]));
+    }
+  }
+
+  if (partFiles.length === 0) {
+    return { error: 'Belum ada video part yang dirender.' };
+  }
+
+  const finalOutputName = `WV-FILM-${contentId}-FULL-FINAL.mp4`;
+  const finalOutputPath = path.join(outputDir, finalOutputName);
+
+  const listFile = path.join(TMP_DIR, `concat_list_${Date.now()}.txt`);
+  fs.writeFileSync(listFile, partFiles.map((f) => `file '${f}'`).join('\n'), 'utf-8');
+
+  // Auto-detect logo if not provided
+  let resolvedLogo = logoPath && fs.existsSync(logoPath) ? logoPath : null;
+  if (!resolvedLogo) {
+    const defaultLogo = path.join(PROJECT_ROOT, 'assets', 'logo.png');
+    const transparentLogo = path.join(PROJECT_ROOT, 'assets', 'logo-transparent.png');
+    if (fs.existsSync(defaultLogo)) resolvedLogo = defaultLogo;
+    else if (fs.existsSync(transparentLogo)) resolvedLogo = transparentLogo;
+  }
+
+  // Auto-detect BGM if not provided
+  let resolvedBgm = bgmPath && fs.existsSync(bgmPath) ? bgmPath : null;
+  if (!resolvedBgm) {
+    const assetsDir = path.join(PROJECT_ROOT, 'assets');
+    if (fs.existsSync(assetsDir)) {
+      const mp3s = fs.readdirSync(assetsDir).filter(f => f.toLowerCase().endsWith('.mp3'));
+      const thomasNewman = mp3s.find(f => f.toLowerCase().includes('thomas newman'));
+      if (thomasNewman) {
+        resolvedBgm = path.join(assetsDir, thomasNewman);
+      } else if (mp3s.length > 0) {
+        resolvedBgm = path.join(assetsDir, mp3s[0]);
+      }
+    }
+  }
+
+  const vol = bgmVolume ?? 0.10;
+  const opacity = logoOpacity ?? 0.6;
+  const margin = logoMargin ?? 40;
+  const scaleHeight = logoScale ?? 60;
+
+  const args = [
+    '-y',
+    '-f', 'concat',
+    '-safe', '0',
+    '-i', listFile, // Stream 0:v (video) and 0:a (voiceover)
+  ];
+
+  let streamIndex = 1;
+  let bgmIndex = null;
+  let logoIndex = null;
+
+  if (resolvedBgm && fs.existsSync(resolvedBgm)) {
+    console.log(`🎵 [Final Render] Injecting BGM: ${path.basename(resolvedBgm)} (Volume: ${vol})`);
+    args.push('-i', resolvedBgm);
+    bgmIndex = streamIndex++;
+  }
+
+  if (resolvedLogo && fs.existsSync(resolvedLogo)) {
+    console.log(`🎨 [Final Render] Injecting Logo Watermark: ${path.basename(resolvedLogo)} (Opacity: ${opacity}, Scale: ${scaleHeight}px, Margin: ${margin}px)`);
+    args.push('-i', resolvedLogo);
+    logoIndex = streamIndex++;
+  }
+
+  const filterParts = [];
+  let vMap = '0:v';
+  let aMap = '0:a';
+
+  // Video filter: overlay logo watermark at top-left
+  if (logoIndex !== null) {
+    filterParts.push(`[${logoIndex}:v]scale=-1:${scaleHeight},format=rgba,colorchannelmixer=aa=${opacity}[logo_alpha]`);
+    filterParts.push(`[0:v][logo_alpha]overlay=${margin}:${margin}[vout]`);
+    vMap = '[vout]';
+  }
+
+  // Audio filter: mix BGM underneath voiceover
+  if (bgmIndex !== null) {
+    filterParts.push(`[0:a]volume=1.0[vo]`);
+    filterParts.push(`[${bgmIndex}:a]volume=${vol},aloop=loop=-1:size=2e+09[bgm]`);
+    filterParts.push(`[vo][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]`);
+    aMap = '[aout]';
+  }
+
+  if (filterParts.length > 0) {
+    args.push('-filter_complex', filterParts.join(';'));
+  }
+
+  args.push('-map', vMap);
+  args.push('-map', aMap);
+
+  if (logoIndex !== null) {
+    args.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '18', '-pix_fmt', 'yuv420p');
+  } else {
+    args.push('-c:v', 'copy');
+  }
+
+  args.push(
+    '-c:a', 'aac', '-b:a', '192k',
+    '-movflags', '+faststart',
+    finalOutputPath
+  );
+
+  return new Promise((resolve) => {
+    const child = spawn(ffmpegPath, args, { cwd: PROJECT_ROOT });
+    let stderr = '';
+    child.stderr.on('data', (d) => { stderr += d.toString(); });
+    child.on('close', (code) => {
+      try { fs.unlinkSync(listFile); } catch {}
+      if (code === 0) {
+        resolve({
+          filePath: finalOutputPath,
+          fileName: finalOutputName,
+          mediaUrl: mediaUrl(finalOutputPath),
+        });
+      } else {
+        const lastErr = stderr.split('\n').filter(Boolean).slice(-10).join(' | ');
+        resolve({ error: `FFmpeg final render exit ${code}: ${lastErr}` });
+      }
+    });
+    child.on('error', (e) => resolve({ error: e.message }));
+  });
+});
+
+ipcMain.handle('render-alurfilm-video', async (_event, { part, mapping, videoPath, audioPath, bgmPath, bgmVolume, logoPath, logoOpacity, logoMargin }) => {
   if (!mapping || !videoPath) {
     return { error: 'Missing Alurfilm mapping or video path.' };
   }
@@ -1321,6 +1490,11 @@ ipcMain.handle('render-alurfilm-video', async (_event, { part, mapping, videoPat
 
     let cmd = `npx tsx "${cliPath}" render "${mappingFile}" --video "${resolvedVideo}"`;
     if (resolvedAudio && fs.existsSync(resolvedAudio)) cmd += ` --audio "${resolvedAudio}"`;
+    if (bgmPath && fs.existsSync(bgmPath)) cmd += ` --bgm "${bgmPath}"`;
+    if (bgmVolume) cmd += ` --bgm-volume ${bgmVolume}`;
+    if (logoPath && fs.existsSync(logoPath)) cmd += ` --logo "${logoPath}"`;
+    if (logoOpacity) cmd += ` --logo-opacity ${logoOpacity}`;
+    if (logoMargin) cmd += ` --logo-margin ${logoMargin}`;
     cmd += ` -o "${outputPath}"`;
 
     const child = spawn('bash', ['-c', cmd], {
