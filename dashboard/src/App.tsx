@@ -1,31 +1,40 @@
 // dashboard/src/App.tsx
 import React, { useState } from 'react';
-import TopBar from './components/TopBar';
-import Sidebar from './components/Sidebar';
-import type { StepId, ContentMode } from './components/Sidebar';
-import StatusBar from './components/StatusBar';
-import BuildPlaceholder from './components/placeholders/BuildPlaceholder';
-import AnalyzePlaceholder from './components/placeholders/AnalyzePlaceholder';
-import RenderPlaceholder from './components/placeholders/RenderPlaceholder';
-import UploadPlaceholder from './components/placeholders/UploadPlaceholder';
-import AlurfilmSplitterPlaceholder from './components/placeholders/longform/AlurfilmSplitterPlaceholder';
-import AlurfilmAnalyzePlaceholder from './components/placeholders/longform/AlurfilmAnalyzePlaceholder';
-import AlurfilmAudioPlaceholder from './components/placeholders/longform/AlurfilmAudioPlaceholder';
-import AlurfilmTranscriptPlaceholder from './components/placeholders/longform/AlurfilmTranscriptPlaceholder';
-import AlurfilmMappingPlaceholder from './components/placeholders/longform/AlurfilmMappingPlaceholder';
-import AlurfilmRenderPlaceholder from './components/placeholders/longform/AlurfilmRenderPlaceholder';
-import TranscriptPlaceholder from './components/placeholders/TranscriptPlaceholder';
+import TopBar from './components/common/TopBar';
+import Sidebar from './components/common/Sidebar';
+import type { StepId, ContentMode } from './components/common/Sidebar';
+import MediaPreviewDrawer from './components/common/MediaPreviewDrawer';
+import StatusBar from './components/common/StatusBar';
+
+// Shortform Feature Components
+import ShortformBuildStep from './components/shortform/ShortformBuildStep';
+import ShortformAnalyzeStep from './components/shortform/ShortformAnalyzeStep';
+import ShortformTranscriptStep from './components/shortform/ShortformTranscriptStep';
+import ShortformRenderStep from './components/shortform/ShortformRenderStep';
+import ShortformUploadStep from './components/shortform/ShortformUploadStep';
+
+// Longform (Alur Film) Feature Components
+import AlurfilmSplitterStep from './components/longform/AlurfilmSplitterStep';
+import AlurfilmAnalyzeStep from './components/longform/AlurfilmAnalyzeStep';
+import AlurfilmAudioStep from './components/longform/AlurfilmAudioStep';
+import AlurfilmTranscriptStep from './components/longform/AlurfilmTranscriptStep';
+import AlurfilmMappingStep from './components/longform/AlurfilmMappingStep';
+import AlurfilmRenderStep from './components/longform/AlurfilmRenderStep';
 
 type Status = 'ready' | 'rendering' | 'error';
 
-const SHORTFORM_PLACEHOLDERS: Record<StepId, React.FC> = {
-  source: BuildPlaceholder,
-  analyze: AnalyzePlaceholder,
-  audio: AnalyzePlaceholder,
-  transcript: TranscriptPlaceholder,
-  mapping: RenderPlaceholder,
-  render: RenderPlaceholder,
-  upload: UploadPlaceholder,
+interface StepProps {
+  onStepChange?: (step: StepId) => void;
+}
+
+const SHORTFORM_PLACEHOLDERS: Partial<Record<StepId, React.FC<StepProps>>> = {
+  source: ShortformBuildStep,
+  analyze: ShortformAnalyzeStep,
+  audio: ShortformAnalyzeStep,
+  transcript: ShortformTranscriptStep,
+  mapping: ShortformRenderStep,
+  render: ShortformRenderStep,
+  upload: ShortformUploadStep,
 };
 
 const App: React.FC = () => {
@@ -33,6 +42,9 @@ const App: React.FC = () => {
   const [contentMode, setContentMode] = useState<ContentMode>('shortform');
   const [status] = useState<Status>('ready');
   const [longformId, setLongformId] = useState<string | null>(null);
+
+  // Global Media Preview Drawer state
+  const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
 
   React.useEffect(() => {
     if (contentMode === 'longform') {
@@ -47,37 +59,47 @@ const App: React.FC = () => {
     }
   }, [contentMode]);
 
-  const handleResetProject = () => {
+  const handleResetProject = async () => {
     setActiveStep('source');
+    try {
+      if (window.electronAPI?.getContentId) {
+        const id = await window.electronAPI.getContentId(contentMode);
+        if (contentMode === 'longform') {
+          setLongformId(id);
+        }
+      }
+    } catch {}
   };
 
-  const ActivePlaceholder = SHORTFORM_PLACEHOLDERS[activeStep] || BuildPlaceholder;
+  const ActiveShortformStep = SHORTFORM_PLACEHOLDERS[activeStep] || ShortformBuildStep;
 
   return (
-    <div className="flex flex-col h-screen bg-gray-950">
+    <div className="flex flex-col h-screen bg-gray-950 font-sans overflow-hidden">
       <TopBar onResetProject={handleResetProject} contentMode={contentMode} />
-      <div className="flex flex-1 min-h-0">
+
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         <Sidebar
           activeStep={activeStep}
           onStepChange={setActiveStep}
           contentMode={contentMode}
           onModeChange={setContentMode}
         />
-        <main className="flex-1 p-6 overflow-auto">
+
+        <main className="flex-1 p-6 overflow-auto bg-gradient-to-br from-gray-950 via-gray-950 to-gray-900">
           {contentMode === 'shortform' ? (
-            <ActivePlaceholder key={`shortform-${activeStep}`} />
+            <ActiveShortformStep key={`shortform-${activeStep}`} onStepChange={setActiveStep} />
           ) : activeStep === 'source' ? (
-            <AlurfilmSplitterPlaceholder key={`longform-source-${longformId}`} />
+            <AlurfilmSplitterStep key={`longform-source-${longformId}`} />
           ) : activeStep === 'analyze' ? (
-            <AlurfilmAnalyzePlaceholder key={`longform-analyze-${longformId}`} />
+            <AlurfilmAnalyzeStep key={`longform-analyze-${longformId}`} />
           ) : activeStep === 'audio' ? (
-            <AlurfilmAudioPlaceholder key={`longform-audio-${longformId}`} />
+            <AlurfilmAudioStep key={`longform-audio-${longformId}`} />
           ) : activeStep === 'transcript' ? (
-            <AlurfilmTranscriptPlaceholder key={`longform-transcript-${longformId}`} />
+            <AlurfilmTranscriptStep key={`longform-transcript-${longformId}`} />
           ) : activeStep === 'mapping' ? (
-            <AlurfilmMappingPlaceholder key={`longform-mapping-${longformId}`} />
+            <AlurfilmMappingStep key={`longform-mapping-${longformId}`} />
           ) : activeStep === 'render' ? (
-            <AlurfilmRenderPlaceholder key={`longform-render-${longformId}`} />
+            <AlurfilmRenderStep key={`longform-render-${longformId}`} />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
               <div className="w-20 h-20 bg-purple-600/10 text-purple-400 rounded-3xl flex items-center justify-center text-4xl border border-purple-500/20 shadow-xl shadow-purple-950/40">
@@ -98,7 +120,14 @@ const App: React.FC = () => {
           )}
         </main>
       </div>
+
       <StatusBar status={status} />
+
+      {/* Global Media Preview Center Drawer */}
+      <MediaPreviewDrawer
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+      />
     </div>
   );
 };

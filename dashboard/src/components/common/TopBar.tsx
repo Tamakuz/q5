@@ -1,4 +1,4 @@
-// dashboard/src/components/TopBar.tsx
+// dashboard/src/components/common/TopBar.tsx
 import React, { useState, useEffect } from 'react';
 
 import type { ContentMode } from './Sidebar';

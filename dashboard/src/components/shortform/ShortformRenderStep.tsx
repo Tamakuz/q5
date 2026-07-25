@@ -1,4 +1,4 @@
-// dashboard/src/components/placeholders/RenderPlaceholder.tsx
+// dashboard/src/components/shortform/ShortformRenderStep.tsx
 import React, { useState, useEffect } from 'react';
 import type { SourceInfo, AudioInfo, RenderProgress } from '../../electron-api';
 
@@ -33,7 +33,11 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const RenderPlaceholder: React.FC = () => {
+interface ShortformRenderStepProps {
+  onStepChange?: (step: any) => void;
+}
+
+const ShortformRenderStep: React.FC<ShortformRenderStepProps> = ({ onStepChange }) => {
   const [sourceVideo, setSourceVideo] = useState<SourceInfo | null>(null);
   const [voiceOver, setVoiceOver] = useState<AudioInfo | null>(null);
   const [mappingPrompt, setMappingPrompt] = useState('');
@@ -60,7 +64,7 @@ const RenderPlaceholder: React.FC = () => {
   useEffect(() => {
     (async () => {
       try {
-        const raw = await api.readFromProject('dashboard/prompts/mapping-prompt.md');
+        const raw = await api.readFromProject('dashboard/prompts/shortform/mapping-prompt.md');
         if (raw) setMappingPrompt(raw);
       } catch {}
       try {
@@ -115,7 +119,7 @@ const RenderPlaceholder: React.FC = () => {
 
   const handleCopyPrompt = async () => {
     await api.copyToClipboard(getFormattedPrompt());
-    showToast('✓ Mapping Prompt Copied!');
+    showToast('✓ Shorts Mapping Prompt Copied!');
   };
 
   const handleParseMapping = () => {
@@ -201,7 +205,7 @@ const RenderPlaceholder: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
             <span className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg text-lg">🎬</span>
-            High-Fidelity Render Engine
+            Shorts Render Engine
           </h1>
           <p className="text-xs text-gray-400 mt-1">
             Automated FFmpeg video stitching, dynamic captions, background blur, and randomized WakuVibes watermark overlay.
@@ -230,6 +234,16 @@ const RenderPlaceholder: React.FC = () => {
             <span>{mappingSaved ? '✓' : '○'}</span>
             <span>Timeline Mapping</span>
           </div>
+
+          {onStepChange && (
+            <button
+              onClick={() => onStepChange('upload')}
+              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-1.5"
+            >
+              <span>Next: 5. Publish Hub</span>
+              <span>➔</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -239,7 +253,7 @@ const RenderPlaceholder: React.FC = () => {
         <div className="lg:col-span-5 flex flex-col bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
           <div className="flex items-center justify-between bg-gray-900 px-4 py-3 border-b border-gray-800 shrink-0">
             <span className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-              <span>🎯</span> Scene Timeline Mapping
+              <span>🎯</span> Shorts Scene Mapping
             </span>
             <button
               onClick={handleCopyPrompt}
@@ -350,7 +364,7 @@ const RenderPlaceholder: React.FC = () => {
           <div className="flex items-center justify-between pb-3 border-b border-gray-800">
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <span>🚀</span> Production Execution
+                <span>🚀</span> Shorts Render Execution
               </h3>
               <p className="text-xs text-gray-400 mt-0.5">
                 FFmpeg 60fps HD video output with CRF 18 slow preset encoding.
@@ -447,4 +461,4 @@ const RenderPlaceholder: React.FC = () => {
   );
 };
 
-export default RenderPlaceholder;
+export default ShortformRenderStep;

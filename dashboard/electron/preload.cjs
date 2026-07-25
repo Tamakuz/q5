@@ -38,9 +38,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Alur Film Specific IPC Helpers
   uploadAlurfilmSource: (filePath) => ipcRenderer.invoke('upload-alurfilm-source', { filePath }),
+  uploadAlurfilmMaster: (filePath) => ipcRenderer.invoke('upload-alurfilm-source', { filePath }),
   splitAlurfilmVideo: (masterPath, startTime, endTime) =>
     ipcRenderer.invoke('split-alurfilm-video', { masterPath, startTime, endTime }),
+  splitAlurfilmMaster: (masterPath, intervalSeconds, startTime, endTime) =>
+    ipcRenderer.invoke('split-alurfilm-master', { masterPath, intervalSeconds, startTime, endTime }),
+  splitAlurfilmMasterRange: (masterPath, startSec, durationSec, partNum) =>
+    ipcRenderer.invoke('split-alurfilm-master-range', { masterPath, startSec, durationSec, partNum }),
   listAlurfilmChunks: (modeContentId) => ipcRenderer.invoke('list-alurfilm-chunks', modeContentId),
+  deleteAlurfilmChunk: (part) => ipcRenderer.invoke('delete-alurfilm-chunk', { part }),
   analyzeAlurfilmChunk: (chunkPath, chunkPart, previousContext) =>
     ipcRenderer.invoke('analyze-alurfilm-chunk', { chunkPath, chunkPart, previousContext }),
   listAlurfilmAnalyses: (modeContentId) => ipcRenderer.invoke('list-alurfilm-analyses', modeContentId),

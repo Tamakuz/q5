@@ -278,11 +278,33 @@ export function autoFixTranscript(
     return [];
   }
 
-  const fixed: TranscriptEntry[] = entries.map((entry, i) => ({
+  let fixed: TranscriptEntry[] = entries.map((entry, i) => ({
     ...entry,
     id: i + 1,
     speaker: entry.speaker || '',
   }));
+
+  const lastEntry = fixed[fixed.length - 1];
+  const originalMaxEnd = typeof lastEntry.end_seconds === 'number' ? lastEntry.end_seconds : 0;
+
+  // Step 0: Proportional Linear Rescaling if transcript duration overflown/underflown > 1.5s
+  if (
+    typeof audioDuration === 'number' &&
+    audioDuration > 0 &&
+    originalMaxEnd > 0 &&
+    Math.abs(originalMaxEnd - audioDuration) > 1.5
+  ) {
+    const scale = audioDuration / originalMaxEnd;
+    fixed = fixed.map((entry) => {
+      const newStart = Number((entry.start_seconds * scale).toFixed(1));
+      const newEnd = Number((entry.end_seconds * scale).toFixed(1));
+      return {
+        ...entry,
+        start_seconds: newStart,
+        end_seconds: newEnd,
+      };
+    });
+  }
 
   // Step 1: Ensure monotonically increasing non-overlapping timing
   let currentStart = 0;

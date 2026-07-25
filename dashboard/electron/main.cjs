@@ -385,7 +385,7 @@ ipcMain.handle('upload-alurfilm-source', async (_event, { filePath }) => {
   };
 });
 
-ipcMain.handle('split-alurfilm-video', async (_event, { masterPath, startTime, endTime }) => {
+async function splitAlurfilmVideoHelper(masterPath, startTime, endTime) {
   const contentId = getOrGenerateContentId('longform');
   const chunkDuration = 600; // Locked at 10 minutes (600 seconds)
 
@@ -474,6 +474,93 @@ ipcMain.handle('split-alurfilm-video', async (_event, { masterPath, startTime, e
   }
 
   return createdChunks;
+}
+
+ipcMain.handle('split-alurfilm-video', async (_event, opts) => {
+  const masterPath = typeof opts === 'string' ? opts : opts?.masterPath;
+  const startTime = opts?.startTime ?? 0;
+  const endTime = opts?.endTime ?? 0;
+  return splitAlurfilmVideoHelper(masterPath, startTime, endTime);
+});
+
+ipcMain.handle('split-alurfilm-master', async (_event, opts) => {
+  const masterPath = typeof opts === 'string' ? opts : opts?.masterPath;
+  const startTime = opts?.startTime ?? 0;
+  let endTime = opts?.endTime ?? 0;
+
+  const contentId = getOrGenerateContentId('longform');
+  if (!endTime || endTime === '00:00:00' || endTime === 0) {
+    try {
+      const meta = await getVideoMetaHelper(masterPath);
+      if (meta && meta.duration) endTime = meta.duration;
+    } catch {}
+  }
+
+  const chunks = await splitAlurfilmVideoHelper(masterPath, startTime, endTime);
+
+  return { chunks: chunks || [], content_id: contentId };
+});
+
+ipcMain.handle('split-alurfilm-master-range', async (_event, { masterPath, startSec, durationSec, partNum }) => {
+  const contentId = getOrGenerateContentId('longform');
+  const partStr = String(partNum).padStart(2, '0');
+  const outputName = `${contentId}_part_${partStr}.mp4`;
+  const destPath = path.join(ALURFILM_CHUNKS_DIR, outputName);
+
+  if (!fs.existsSync(ALURFILM_CHUNKS_DIR)) {
+    fs.mkdirSync(ALURFILM_CHUNKS_DIR, { recursive: true });
+  }
+
+  await new Promise((resolve, reject) => {
+    const args = [
+      '-ss', String(startSec),
+      '-i', masterPath,
+      '-t', String(durationSec),
+      '-c', 'copy',
+      '-avoid_negative_ts', 'make_zero',
+      '-y',
+      destPath
+    ];
+    const ffmpeg = spawn(ffmpegPath, args);
+    ffmpeg.on('close', (code) => {
+      if (code !== 0) {
+        const fallbackArgs = [
+          '-ss', String(startSec),
+          '-i', masterPath,
+          '-t', String(durationSec),
+          '-c:v', 'libx264',
+          '-c:a', 'aac',
+          '-preset', 'ultrafast',
+          '-y',
+          destPath
+        ];
+        const fallbackFfmpeg = spawn(ffmpegPath, fallbackArgs);
+        fallbackFfmpeg.on('close', () => resolve());
+      } else {
+        resolve();
+      }
+    });
+    ffmpeg.on('error', (err) => reject(err));
+  });
+
+  const files = fs.readdirSync(ALURFILM_CHUNKS_DIR);
+  const chunks = files
+    .filter(f => f.startsWith(contentId) && f.endsWith('.mp4'))
+    .sort()
+    .map((f, idx) => {
+      const fullPath = path.join(ALURFILM_CHUNKS_DIR, f);
+      const stat = fs.statSync(fullPath);
+      return {
+        part: idx + 1,
+        name: f,
+        size: stat.size,
+        filePath: fullPath,
+        url: mediaUrl(fullPath),
+        mediaUrl: mediaUrl(fullPath)
+      };
+    });
+
+  return { chunks: chunks || [], content_id: contentId };
 });
 
 ipcMain.handle('list-alurfilm-chunks', async (_event, modeContentId) => {
@@ -497,6 +584,25 @@ ipcMain.handle('list-alurfilm-chunks', async (_event, modeContentId) => {
     });
 
   return chunks;
+});
+
+ipcMain.handle('delete-alurfilm-chunk', async (_event, opts) => {
+  const contentId = getOrGenerateContentId('longform');
+  const part = typeof opts === 'object' ? opts.part : opts;
+  if (!fs.existsSync(ALURFILM_CHUNKS_DIR)) return true;
+
+  const files = fs.readdirSync(ALURFILM_CHUNKS_DIR);
+  const partStr = String(part).padStart(2, '0');
+  const targetFiles = files.filter(f => f.startsWith(`${contentId}_part_${partStr}.mp4`));
+
+  for (const f of targetFiles) {
+    try {
+      fs.unlinkSync(path.join(ALURFILM_CHUNKS_DIR, f));
+    } catch (e) {
+      console.error('Failed to delete chunk:', e);
+    }
+  }
+  return true;
 });
 
 ipcMain.handle('analyze-alurfilm-chunk', async (_event) => {
@@ -1597,6 +1703,8 @@ ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
   try {
     const outputDir = path.join(PROJECT_ROOT, 'output');
     const inputDir = path.join(PROJECT_ROOT, 'input');
+    const alurfilmDir = path.join(PROJECT_ROOT, 'input', 'alurfilm');
+    const alurfilmChunksDir = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'chunks');
     const assetsDir = path.join(PROJECT_ROOT, 'input', 'assets');
     const tmpDir = path.join(PROJECT_ROOT, 'input', '.tmp');
 
@@ -1606,21 +1714,59 @@ ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
     const prefix = isLongform ? 'WV-FILM' : 'WV';
     const newId = `${prefix}-${dateStr}-${randStr}`;
 
-    const mappingFileName = isLongform ? 'longform_mapping.json' : 'mapping.json';
-    const mappingFile = path.join(inputDir, mappingFileName);
-    const defaultMapping = {
-      settings: {
-        fps: 30,
-        format: isLongform ? "16:9" : "9:16",
-        fg_aspect: isLongform ? "16:9" : "4:5",
-        bgm: "random",
-        content_id: newId
-      },
-      timeline: []
-    };
-    fs.writeFileSync(mappingFile, JSON.stringify(defaultMapping, null, 2), 'utf-8');
+    if (isLongform) {
+      console.log(`🧹 [Reset Longform] Clearing all longform files and setting new Content ID: ${newId}`);
 
-    if (!isLongform) {
+      // 1. Clear input/alurfilm/chunks directory (cut video chunks)
+      if (fs.existsSync(alurfilmChunksDir)) {
+        const files = fs.readdirSync(alurfilmChunksDir);
+        for (const f of files) {
+          try { fs.unlinkSync(path.join(alurfilmChunksDir, f)); } catch { }
+        }
+      }
+
+      // 2. Clear input/alurfilm directory (files only, preserve chunks subfolder)
+      if (fs.existsSync(alurfilmDir)) {
+        const files = fs.readdirSync(alurfilmDir);
+        for (const f of files) {
+          const fullPath = path.join(alurfilmDir, f);
+          try {
+            if (fs.statSync(fullPath).isFile()) {
+              fs.unlinkSync(fullPath);
+            }
+          } catch { }
+        }
+      }
+
+      // 3. Clear output directory (all rendered part MP4s and final MP4s)
+      if (fs.existsSync(outputDir)) {
+        const files = fs.readdirSync(outputDir);
+        for (const f of files) {
+          try { fs.unlinkSync(path.join(outputDir, f)); } catch { }
+        }
+      }
+
+      // 4. Save new default longform mapping
+      const mappingFile = path.join(inputDir, 'longform_mapping.json');
+      const defaultMapping = {
+        settings: {
+          fps: 30,
+          format: "16:9",
+          fg_aspect: "16:9",
+          bgm: "random",
+          content_id: newId
+        },
+        timeline: []
+      };
+      fs.writeFileSync(mappingFile, JSON.stringify(defaultMapping, null, 2), 'utf-8');
+
+      // 5. Store current content ID in alurfilm folder for auto-detection
+      if (!fs.existsSync(alurfilmDir)) fs.mkdirSync(alurfilmDir, { recursive: true });
+      fs.writeFileSync(path.join(alurfilmDir, '.current_content_id'), newId, 'utf-8');
+
+    } else {
+      console.log(`🧹 [Reset Shortform] Clearing all shortform files and setting new Content ID: ${newId}`);
+
       // 1. Clear output directory
       if (fs.existsSync(outputDir)) {
         const files = fs.readdirSync(outputDir);
@@ -1639,7 +1785,20 @@ ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
         for (const f of files) { try { fs.unlinkSync(path.join(tmpDir, f)); } catch { } }
       }
 
-      // 4. Reset JSON files
+      // 4. Reset JSON files & save default mapping
+      const mappingFile = path.join(inputDir, 'mapping.json');
+      const defaultMapping = {
+        settings: {
+          fps: 30,
+          format: "9:16",
+          fg_aspect: "4:5",
+          bgm: "random",
+          content_id: newId
+        },
+        timeline: []
+      };
+      fs.writeFileSync(mappingFile, JSON.stringify(defaultMapping, null, 2), 'utf-8');
+
       const transcriptFile = path.join(inputDir, 'transcript.json');
       fs.writeFileSync(transcriptFile, '[]', 'utf-8');
 
@@ -1652,6 +1811,7 @@ ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
 
     return { success: true, content_id: newId };
   } catch (err) {
+    console.error('Reset project error:', err);
     return { success: false, error: err.message };
   }
 });

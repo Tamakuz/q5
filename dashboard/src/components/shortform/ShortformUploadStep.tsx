@@ -1,10 +1,14 @@
-// dashboard/src/components/placeholders/UploadPlaceholder.tsx
+// dashboard/src/components/shortform/ShortformUploadStep.tsx
 import React, { useState, useEffect } from 'react';
 import type { YoutubeTitleResult } from '../../electron-api';
 
 const api = window.electronAPI;
 
-const UploadPlaceholder: React.FC = () => {
+interface ShortformUploadStepProps {
+  onStepChange?: (step: any) => void;
+}
+
+const ShortformUploadStep: React.FC<ShortformUploadStepProps> = ({ onStepChange }) => {
   const [transcriptText, setTranscriptText] = useState<string>('');
   const [generating, setGenerating] = useState<boolean>(false);
   const [result, setResult] = useState<YoutubeTitleResult | null>(null);
@@ -117,7 +121,7 @@ const UploadPlaceholder: React.FC = () => {
           </p>
         </div>
 
-        {/* Status Badge */}
+        {/* Status Badge & Start New Short */}
         <div className="flex items-center gap-2">
           <div className={`px-3.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-2 ${
             result
@@ -127,6 +131,15 @@ const UploadPlaceholder: React.FC = () => {
             <span className={`w-2 h-2 rounded-full ${result ? 'bg-emerald-500 animate-pulse' : 'bg-gray-600'}`}></span>
             <span>{result ? 'Social Metadata Ready' : 'Awaiting AI Generator'}</span>
           </div>
+
+          {onStepChange && (
+            <button
+              onClick={() => onStepChange('source')}
+              className="px-3.5 py-1.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-indigo-300 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5"
+            >
+              <span>↺ Start New Short (Step 1)</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -457,4 +470,4 @@ const UploadPlaceholder: React.FC = () => {
   );
 };
 
-export default UploadPlaceholder;
+export default ShortformUploadStep;

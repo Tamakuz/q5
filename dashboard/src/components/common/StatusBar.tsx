@@ -1,4 +1,4 @@
-// dashboard/src/components/StatusBar.tsx
+// dashboard/src/components/common/StatusBar.tsx
 import React from 'react';
 
 interface StatusBarProps {

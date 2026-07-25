@@ -1,4 +1,4 @@
-// dashboard/src/components/placeholders/AnalyzePlaceholder.tsx
+// dashboard/src/components/shortform/ShortformAnalyzeStep.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import type { AudioInfo } from '../../electron-api';
 
@@ -32,7 +32,11 @@ interface TranscriptEntry {
 const SCENE = "A Gen-Z TikToker gossiping and recapping a funny cartoon episode very passionately in a casual studio.";
 const SAMPLE_CONTEXT = "Speaking very fast, using informal Indonesian slang. Laughing at their own jokes, sounding sarcastic, deadpan, and highly expressive.";
 
-const AnalyzePlaceholder: React.FC = () => {
+interface ShortformAnalyzeStepProps {
+  onStepChange?: (step: any) => void;
+}
+
+const ShortformAnalyzeStep: React.FC<ShortformAnalyzeStepProps> = ({ onStepChange }) => {
   // Prompts & Context
   const [prompt, setPrompt] = useState('');
   const [transcriptPrompt, setTranscriptPrompt] = useState('');
@@ -79,10 +83,10 @@ const AnalyzePlaceholder: React.FC = () => {
 
   useEffect(() => {
     (async () => {
-      const savedPrompt = await api.readFromProject('dashboard/prompts/analysis-prompt.md');
+      const savedPrompt = await api.readFromProject('dashboard/prompts/shortform/analysis-prompt.md');
       if (savedPrompt) setPrompt(savedPrompt);
 
-      const tp = await api.readFromProject('dashboard/prompts/transcript-prompt.md');
+      const tp = await api.readFromProject('dashboard/prompts/shortform/transcript-prompt.md');
       if (tp) setTranscriptPrompt(tp);
 
       const savedAnalysis = await api.readFromProject('input/analysis.json');
@@ -233,14 +237,14 @@ const AnalyzePlaceholder: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
             <span className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg text-lg">⚡</span>
-            AI Script & Audio Analysis
+            Shorts AI Script & Audio Analysis
           </h1>
           <p className="text-xs text-gray-400 mt-1">
             Generate AI scene recaps, paste structured analysis JSON, sync voiceovers, and manage audio transcriptions.
           </p>
         </div>
 
-        {/* Readiness Badges */}
+        {/* Readiness Badges & Next Step */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 ${
             saved ? 'bg-emerald-950/60 border-emerald-700/50 text-emerald-300' : 'bg-gray-900 border-gray-800 text-gray-500'
@@ -260,6 +264,16 @@ const AnalyzePlaceholder: React.FC = () => {
             <span>{transcriptSaved ? '✓' : '○'}</span>
             <span>Transcript</span>
           </div>
+
+          {onStepChange && (
+            <button
+              onClick={() => onStepChange('transcript')}
+              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-1.5 ml-2"
+            >
+              <span>Next: 3. Audio Transcript</span>
+              <span>➔</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -306,7 +320,7 @@ const AnalyzePlaceholder: React.FC = () => {
             {activePromptTab === 'analysis' && (
               <div className="flex flex-col h-full space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs text-gray-400">Master system prompt for ChatGPT / Claude analysis:</p>
+                  <p className="text-xs text-gray-400">Master system prompt for Shorts video analysis:</p>
                   <button
                     onClick={() => copyText(prompt, 'Analysis Prompt')}
                     className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow transition-all flex items-center gap-1"
@@ -660,4 +674,4 @@ const AnalyzePlaceholder: React.FC = () => {
   );
 };
 
-export default AnalyzePlaceholder;
+export default ShortformAnalyzeStep;

@@ -267,18 +267,19 @@ program
           const outFile = path.join(tmpDir, `c${String(i).padStart(4, '0')}.ts`);
           clipFiles[i] = outFile;
 
-          const candidates = [
-            mapping.settings.watermark,
-            'assets/logo-transparent.png',
-            'input/assets/logo-transparent.png',
-            'input/assets/watermark_placeholder.png'
-          ];
+          // Shortform watermark: EXCLUSIVELY use assets/logo-transparent.png for Shorts
           let watermarkFile: string | null = null;
-          for (const cand of candidates) {
-            if (cand && fs.existsSync(cand)) {
-              watermarkFile = cand;
-              break;
-            }
+          const shortsLogoPath = path.join(process.cwd(), 'assets', 'logo-transparent.png');
+          const inputShortsLogoPath = path.join(process.cwd(), 'input', 'assets', 'logo-transparent.png');
+
+          if (fs.existsSync(shortsLogoPath)) {
+            watermarkFile = shortsLogoPath;
+          } else if (fs.existsSync(inputShortsLogoPath)) {
+            watermarkFile = inputShortsLogoPath;
+          }
+
+          if (i === 0 && watermarkFile) {
+            console.log(`🎨 [Shorts Engine] Watermark Logo attached: ${path.basename(watermarkFile)} (${watermarkFile})`);
           }
 
           const is16by9 = mapping.settings.format === '16:9';
@@ -310,11 +311,7 @@ program
             filterNodes.push(`[0:v]${scaleFilter}[fg_raw]`);
 
             if (watermarkFile) {
-              if (watermarkFile.includes('logo-transparent.png')) {
-                filterNodes.push(`[1:v]crop=456:99:77:252,scale=340:-1[wm_scaled]`);
-              } else {
-                filterNodes.push(`[1:v]scale=340:-1[wm_scaled]`);
-              }
+              filterNodes.push(`[1:v]scale=340:-1[wm_scaled]`);
               filterNodes.push(`[fg_raw][wm_scaled]overlay=${watermarkCoords}[fg]`);
             } else {
               filterNodes.push(`[fg_raw]copy[fg]`);
@@ -344,11 +341,7 @@ program
             const fgScaleWithFx = `${fgScaleFilter}${fxChain}`;
             if (watermarkFile) {
               filterNodes.push(`[fg_in]${fgScaleWithFx}[fg_raw]`);
-              if (watermarkFile.includes('logo-transparent.png')) {
-                filterNodes.push(`[1:v]crop=456:99:77:252,scale=340:-1[wm_scaled]`);
-              } else {
-                filterNodes.push(`[1:v]scale=340:-1[wm_scaled]`);
-              }
+              filterNodes.push(`[1:v]scale=340:-1[wm_scaled]`);
               filterNodes.push(`[fg_raw][wm_scaled]overlay=${watermarkCoords}[fg]`);
             } else {
               filterNodes.push(`[fg_in]${fgScaleWithFx}[fg]`);
@@ -545,7 +538,7 @@ program
 program
   .command('aistudio:prompt')
   .description('Action 1: Insert Analysis Prompt text into Google AI Studio')
-  .option('-f, --file <string>', 'Path to prompt markdown file', 'dashboard/prompts/analysis-prompt.md')
+  .option('-f, --file <string>', 'Path to prompt markdown file', 'dashboard/prompts/shortform/analysis-prompt.md')
   .option('-t, --text <string>', 'Direct prompt text to insert')
   .option('-m, --model <string>', 'Model name', 'gemini-3.1-pro-preview')
   .option('-l, --level <string>', 'Thinking level (High|Medium|Low|Off)', 'High')

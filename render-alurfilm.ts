@@ -144,9 +144,12 @@ program
     const outDir = path.dirname(resolvedOutput);
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-    // Use explicit logo file if provided (for partial render, logo is usually applied in final render)
+    // Use explicit logo file if provided, or default to assets/logo.png for Alurfilm
     let logoFile: string | null = opts.logo ? path.resolve(opts.logo) : null;
-    if (logoFile && !fs.existsSync(logoFile)) {
+    if (!logoFile) {
+      const alurfilmDefaultLogo = path.join(process.cwd(), 'assets', 'logo.png');
+      if (fs.existsSync(alurfilmDefaultLogo)) logoFile = alurfilmDefaultLogo;
+    } else if (logoFile && !fs.existsSync(logoFile)) {
       console.warn(`⚠️ Specified logo watermark file not found: ${logoFile}`);
       logoFile = null;
     }

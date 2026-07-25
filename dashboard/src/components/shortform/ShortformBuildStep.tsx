@@ -1,4 +1,4 @@
-// dashboard/src/components/placeholders/BuildPlaceholder.tsx
+// dashboard/src/components/shortform/ShortformBuildStep.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import type { SourceInfo } from '../../electron-api';
 
@@ -41,7 +41,11 @@ function formatResolution(w: number, h: number): string {
 
 const api = window.electronAPI;
 
-const BuildPlaceholder: React.FC = () => {
+interface ShortformBuildStepProps {
+  onStepChange?: (step: any) => void;
+}
+
+const ShortformBuildStep: React.FC<ShortformBuildStepProps> = ({ onStepChange }) => {
   const [source, setSource] = useState<SourceInfo | null>(null);
   const [selection, setSelection] = useState<SelectionState | null>(null);
   const [existingFiles, setExistingFiles] = useState<SourceInfo[]>([]);
@@ -188,14 +192,14 @@ const BuildPlaceholder: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
             <span className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg text-lg">🎬</span>
-            Source Video Management
+            Shorts Source Video Management
           </h1>
           <p className="text-xs text-gray-400 mt-1">
-            Import, preview, crop, and manage high-resolution raw video assets for automated recap generation.
+            Import, preview, crop, and manage raw video assets for automated Short video generation.
           </p>
         </div>
 
-        {/* Readiness Badge */}
+        {/* Readiness Badge & Next Step */}
         <div className="flex items-center gap-2">
           <div className={`px-3.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-2 ${
             source
@@ -212,6 +216,16 @@ const BuildPlaceholder: React.FC = () => {
               className="px-3.5 py-1.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-300 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5"
             >
               <span>📁</span> Library ({existingFiles.length})
+            </button>
+          )}
+
+          {onStepChange && (
+            <button
+              onClick={() => onStepChange('analyze')}
+              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-1.5"
+            >
+              <span>Next: 2. Video Analysis</span>
+              <span>➔</span>
             </button>
           )}
         </div>
@@ -287,7 +301,7 @@ const BuildPlaceholder: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <span className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm">✓</span>
                   <div>
-                    <h3 className="text-sm font-bold text-white">Active Source Video</h3>
+                    <h3 className="text-sm font-bold text-white">Active Shorts Source Video</h3>
                     <p className="text-xs text-emerald-400 font-medium">Ready for AI Script Analysis</p>
                   </div>
                 </div>
@@ -462,7 +476,7 @@ const BuildPlaceholder: React.FC = () => {
                       🎬
                     </div>
                     <div>
-                      <h3 className="text-base font-bold text-white">Drag & Drop Source Video</h3>
+                      <h3 className="text-base font-bold text-white">Drag & Drop Shorts Source Video</h3>
                       <p className="text-xs text-gray-400 mt-1">
                         Select raw cartoon/anime episode video (MP4, MOV, MKV)
                       </p>
@@ -490,4 +504,4 @@ const BuildPlaceholder: React.FC = () => {
   );
 };
 
-export default BuildPlaceholder;
+export default ShortformBuildStep;

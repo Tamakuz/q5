@@ -53,7 +53,7 @@ async function executePipelineForAccount(
     // STEP 2: Input Analysis Prompt ONLY AFTER Tools are confirmed OFF
     console.log('\n--- STEP 2: Inputting Analysis Prompt ---');
     await inputTextPrompt(page, {
-      promptFilePath: options.promptFilePath || 'dashboard/prompts/analysis-prompt.md',
+      promptFilePath: options.promptFilePath || 'dashboard/prompts/shortform/analysis-prompt.md',
     });
 
     // STEP 3: Attach Video Asset (Drive-First)
@@ -139,7 +139,7 @@ if (require.main === module || process.argv[1]?.endsWith('analysis-pipeline.ts')
     .name('aistudio:pipeline')
     .description('Run full automated analysis pipeline in Google AI Studio with Failover')
     .option('-a, --account <string>', 'Initial Google account profile name (e.g. user1, user2)')
-    .option('-p, --prompt <string>', 'Path to prompt md file', 'dashboard/prompts/analysis-prompt.md')
+    .option('-p, --prompt <string>', 'Path to prompt md file', 'dashboard/prompts/shortform/analysis-prompt.md')
     .option('-s, --search <string>', 'Search term for Drive asset')
     .option('-f, --file <string>', 'Fallback local file path')
     .option('-h, --headless', 'Run browser in headless mode', false)

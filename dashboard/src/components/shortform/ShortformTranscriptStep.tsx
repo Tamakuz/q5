@@ -1,4 +1,4 @@
-// dashboard/src/components/placeholders/TranscriptPlaceholder.tsx
+// dashboard/src/components/shortform/ShortformTranscriptStep.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   validateTranscript,
@@ -38,7 +38,11 @@ function normalizeEntry(entry: any, index: number): NormalizedTranscriptEntry {
   };
 }
 
-const TranscriptPlaceholder: React.FC = () => {
+interface ShortformTranscriptStepProps {
+  onStepChange?: (step: any) => void;
+}
+
+const ShortformTranscriptStep: React.FC<ShortformTranscriptStepProps> = ({ onStepChange }) => {
   const [prompt, setPrompt] = useState<string>('');
   const [copiedPrompt, setCopiedPrompt] = useState<boolean>(false);
   const [jsonRaw, setJsonRaw] = useState<string>('');
@@ -52,7 +56,7 @@ const TranscriptPlaceholder: React.FC = () => {
 
   useEffect(() => {
     (async () => {
-      const savedPrompt = await api.readFromProject('dashboard/prompts/transcript-prompt.md');
+      const savedPrompt = await api.readFromProject('dashboard/prompts/shortform/transcript-prompt.md');
       if (savedPrompt) setPrompt(savedPrompt);
 
       const savedTranscript = await api.readFromProject('input/transcript.json');
@@ -87,8 +91,17 @@ const TranscriptPlaceholder: React.FC = () => {
     return validateTranscript(entries, voDuration);
   }, [entries, voDuration]);
 
+  const finalPrompt = useMemo(() => {
+    if (!prompt) return '';
+    if (voDuration && voDuration > 0) {
+      const durFormatted = `${voDuration.toFixed(1)}s (${formatMinute(voDuration)})`;
+      return prompt.replace(/\{\{audio_duration\}\}/g, durFormatted);
+    }
+    return prompt;
+  }, [prompt, voDuration]);
+
   const handleCopyPrompt = async () => {
-    await api.copyToClipboard(prompt);
+    await api.copyToClipboard(finalPrompt);
     setCopiedPrompt(true);
     setTimeout(() => setCopiedPrompt(false), 2000);
   };
@@ -170,15 +183,14 @@ const TranscriptPlaceholder: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-gray-800 shrink-0">
         <div>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <span className="p-2 bg-cyan-600/20 text-cyan-400 rounded-lg text-lg">📜</span>
-            Audio Transcript Management
+            <span className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg text-lg">📝</span>
+            Shorts Audio Transcript & Timestamp Studio
           </h1>
           <p className="text-xs text-gray-400 mt-1">
-            Generate audio speech transcription prompts, manage timestamps, and edit JSON subtitles.
+            Transcribe voiceover audio with exact decimal timestamps (`start_seconds`, `end_seconds`) and validate continuity.
           </p>
         </div>
 
-        {/* Readiness Badge */}
         <div className="flex items-center gap-2">
           <div className={`px-3.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-2 ${
             saved && report.isValid
@@ -188,8 +200,18 @@ const TranscriptPlaceholder: React.FC = () => {
               : 'bg-gray-900 border-gray-800 text-gray-500'
           }`}>
             <span className={`w-2 h-2 rounded-full ${saved && report.isValid ? 'bg-emerald-400 animate-pulse' : saved ? 'bg-amber-400' : 'bg-gray-600'}`}></span>
-            <span>{saved ? (report.isValid ? 'Valid Transcript Saved' : report.summaryText) : 'No Transcript'}</span>
+            <span>{saved ? (report.isValid ? 'Transcript Ready' : report.summaryText) : 'No Transcript'}</span>
           </div>
+
+          {onStepChange && (
+            <button
+              onClick={() => onStepChange('render')}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-1.5"
+            >
+              <span>Next: 4. Render Video</span>
+              <span>➔</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -216,7 +238,7 @@ const TranscriptPlaceholder: React.FC = () => {
             </p>
             <div className="relative flex-1 min-h-0">
               <pre className="absolute inset-0 bg-gray-950 text-cyan-300 text-xs font-mono p-3.5 rounded-xl border border-gray-800 overflow-y-auto whitespace-pre-wrap leading-relaxed select-all">
-                {prompt || 'Loading prompt template...'}
+                {finalPrompt || 'Loading prompt template...'}
               </pre>
             </div>
           </div>
@@ -396,4 +418,4 @@ const TranscriptPlaceholder: React.FC = () => {
   );
 };
 
-export default TranscriptPlaceholder;
+export default ShortformTranscriptStep;
