@@ -28,6 +28,7 @@ const LONGFORM_STEPS: StepItem[] = [
 
 const SPENSIA_STEPS: StepItem[] = [
   { id: 'source', label: '1. Topics Generator', shortLabel: 'Topics', icon: '💡' },
+  { id: 'analyze', label: '2. Script Generator', shortLabel: 'Script', icon: '⚡' },
 ];
 
 interface WorkflowHeaderProps {

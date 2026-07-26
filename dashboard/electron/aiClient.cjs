@@ -9,14 +9,6 @@ const DEFAULT_MODEL = 'cx/gpt-5.5';
 
 /**
  * Perform a Chat Completion request against 9router / OpenAI API
- *
- * @param {Object} options
- * @param {string} options.prompt - The main user prompt text
- * @param {string} [options.systemPrompt] - Optional system prompt
- * @param {string} [options.model] - Model name (defaults to 'cx/gpt-5.5')
- * @param {boolean} [options.jsonMode] - Whether to enforce response_format json_object
- * @param {number} [options.temperature] - Optional temperature
- * @returns {Promise<string>} The raw text response content from the AI
  */
 async function chatCompletion({
   prompt,
@@ -78,13 +70,122 @@ async function chatCompletion({
 }
 
 /**
- * Generate Spensia Topics using AI
+ * Perform a Streaming Chat Completion request against 9router / OpenAI API
  */
-async function generateSpensiaTopics({ promptText, model = DEFAULT_MODEL }) {
-  const rawText = await chatCompletion({
+async function streamChatCompletion({
+  prompt,
+  systemPrompt,
+  model = DEFAULT_MODEL,
+  jsonMode = false,
+  temperature = 0.7,
+  onChunk,
+}) {
+  const targetModel = model || DEFAULT_MODEL;
+  const messages = [];
+
+  if (systemPrompt) {
+    messages.push({ role: 'system', content: systemPrompt });
+  }
+
+  messages.push({ role: 'user', content: prompt });
+
+  const reqBody = {
+    model: targetModel,
+    messages,
+    temperature,
+    stream: true,
+  };
+
+  if (jsonMode) {
+    reqBody.response_format = { type: 'json_object' };
+  }
+
+  console.log(`🤖 [AI Client Stream] Calling 9router SSE API (model: ${targetModel}, jsonMode: ${jsonMode})...`);
+
+  const response = await fetch(`${NINEROUTER_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${NINEROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(reqBody),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`9router API Stream Error (${response.status}): ${errText}`);
+  }
+
+  let accumulatedText = '';
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith(':')) continue;
+
+      if (trimmed === 'data: [DONE]') {
+        break;
+      }
+
+      if (trimmed.startsWith('data: ')) {
+        const jsonStr = trimmed.slice(6);
+        try {
+          const parsed = JSON.parse(jsonStr);
+          const delta = parsed.choices?.[0]?.delta?.content || '';
+          if (delta) {
+            accumulatedText += delta;
+            if (typeof onChunk === 'function') {
+              onChunk(delta, accumulatedText);
+            }
+          }
+        } catch {
+          // Ignore partial chunk parse error
+        }
+      }
+    }
+  }
+
+  if (buffer.trim().startsWith('data: ') && buffer.trim() !== 'data: [DONE]') {
+    const jsonStr = buffer.trim().slice(6);
+    try {
+      const parsed = JSON.parse(jsonStr);
+      const delta = parsed.choices?.[0]?.delta?.content || '';
+      if (delta) {
+        accumulatedText += delta;
+        if (typeof onChunk === 'function') {
+          onChunk(delta, accumulatedText);
+        }
+      }
+    } catch {}
+  }
+
+  let raw = accumulatedText.trim();
+  if (raw.startsWith('```')) {
+    raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+  }
+
+  return raw;
+}
+
+/**
+ * Generate Spensia Topics using AI (with optional streaming onChunk)
+ */
+async function generateSpensiaTopics({ promptText, model = DEFAULT_MODEL, onChunk }) {
+  const rawText = await streamChatCompletion({
     prompt: promptText,
     model,
     jsonMode: true,
+    onChunk,
   });
 
   let parsed = null;
@@ -113,9 +214,35 @@ async function generateYoutubeTitles({ fullPrompt, model = DEFAULT_MODEL }) {
   return JSON.parse(rawText);
 }
 
+/**
+ * Generate Spensia Script using AI (with optional streaming onChunk)
+ */
+async function generateSpensiaScript({ promptText, model = DEFAULT_MODEL, onChunk }) {
+  const rawText = await streamChatCompletion({
+    prompt: promptText,
+    model,
+    jsonMode: true,
+    onChunk,
+  });
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch (e) {
+    console.warn('Could not parse Script JSON response directly from AI:', e);
+  }
+
+  return {
+    rawText,
+    scriptData: parsed || null,
+  };
+}
+
 module.exports = {
   chatCompletion,
+  streamChatCompletion,
   generateSpensiaTopics,
+  generateSpensiaScript,
   generateYoutubeTitles,
   NINEROUTER_BASE_URL,
   DEFAULT_MODEL,

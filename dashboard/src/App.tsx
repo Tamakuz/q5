@@ -23,6 +23,7 @@ import AlurfilmRenderStep from './components/longform/AlurfilmRenderStep';
 
 // Spensia Feature Components
 import SpensiaTopicsStep from './components/spensia/SpensiaTopicsStep';
+import SpensiaScriptStep from './components/spensia/SpensiaScriptStep';
 
 type Status = 'ready' | 'rendering' | 'error';
 
@@ -92,6 +93,8 @@ const App: React.FC = () => {
           {contentMode === 'spensia' ? (
             activeStep === 'source' ? (
               <SpensiaTopicsStep key="spensia-topics" />
+            ) : activeStep === 'analyze' ? (
+              <SpensiaScriptStep key="spensia-script" />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
                 <div className="w-20 h-20 bg-emerald-600/10 text-emerald-400 rounded-3xl flex items-center justify-center text-4xl border border-emerald-500/20 shadow-xl shadow-emerald-950/40">
@@ -105,7 +108,7 @@ const App: React.FC = () => {
                   </div>
                   <h2 className="text-lg font-bold text-white pt-1">Workflow Step Belum Ada</h2>
                   <p className="text-xs text-gray-400 leading-relaxed">
-                    Langkah ini belum dikonfigurasi untuk Spensia. Gunakan Step 1 (Topics Generator).
+                    Langkah ini belum dikonfigurasi untuk Spensia. Gunakan Step 1 (Topics) atau Step 2 (Script Generator).
                   </p>
                 </div>
               </div>

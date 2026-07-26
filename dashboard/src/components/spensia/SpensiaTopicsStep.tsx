@@ -94,9 +94,12 @@ const SpensiaTopicsStep: React.FC = () => {
       .replace(/{jumlah}/g, String(itemCount));
   };
 
-  // 🤖 Automated Generation Handler via 9router API with Strict Validation
+  // 🤖 Automated Generation Handler via 9router API with Realtime Streaming & Strict Validation
   const handleAutoGenerate = async () => {
     setIsGenerating(true);
+    setPastedOutput('');
+    let unsubscribeStream: (() => void) | null = null;
+
     try {
       let currentPrompt = masterPrompt;
       if (!currentPrompt) {
@@ -107,6 +110,13 @@ const SpensiaTopicsStep: React.FC = () => {
 
       if (!api?.generateSpensiaTopics) {
         throw new Error('API generateSpensiaTopics tidak tersedia pada Electron preload.');
+      }
+
+      // Subscribe to real-time streaming chunks
+      if (api?.onSpensiaTopicsChunk) {
+        unsubscribeStream = api.onSpensiaTopicsChunk(({ fullText }) => {
+          setPastedOutput(fullText);
+        });
       }
 
       const res = await api.generateSpensiaTopics(computed, selectedModel);
@@ -128,6 +138,7 @@ const SpensiaTopicsStep: React.FC = () => {
       console.error('Auto generate error:', err);
       showToast(`❌ Gagal me-generate topik: ${err?.message || err}`);
     } finally {
+      if (unsubscribeStream) unsubscribeStream();
       setIsGenerating(false);
     }
   };
@@ -434,7 +445,13 @@ const SpensiaTopicsStep: React.FC = () => {
                 Hasil Respon AI (Auto / Manual Paste)
               </h2>
               <div className="flex items-center gap-2">
-                {validationReport && (
+                {isGenerating && (
+                  <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-md bg-emerald-950/90 text-emerald-300 border border-emerald-700/80 font-bold animate-pulse flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    <span>🔴 Streaming Response Live... ({pastedOutput.length} char)</span>
+                  </span>
+                )}
+                {!isGenerating && validationReport && (
                   <span
                     className={`text-[10px] font-mono px-2.5 py-0.5 rounded-md border font-bold ${
                       validationReport.isValid

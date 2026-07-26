@@ -31,6 +31,7 @@ const LONGFORM_STEPS: Step[] = [
 
 const SPENSIA_STEPS: Step[] = [
   { id: 'source', icon: '💡', label: '1. Topics Generator', subText: 'Ide topik & fakta kontraintuitif' },
+  { id: 'analyze', icon: '⚡', label: '2. Script Generator', subText: 'Naskah voiceover Style DNA Spensia' },
 ];
 
 interface SidebarProps {

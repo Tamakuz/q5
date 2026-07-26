@@ -103,6 +103,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resetProject: (mode) => ipcRenderer.invoke('reset-project', mode),
   generateYoutubeTitles: (transcriptText) => ipcRenderer.invoke('generate-youtube-titles', transcriptText),
   generateSpensiaTopics: (promptText, model) => ipcRenderer.invoke('generate-spensia-topics', { promptText, model }),
+  generateSpensiaScript: (promptText, model) => ipcRenderer.invoke('generate-spensia-script', { promptText, model }),
+  onSpensiaTopicsChunk: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('spensia-topics-chunk', handler);
+    return () => ipcRenderer.removeListener('spensia-topics-chunk', handler);
+  },
+  onSpensiaScriptChunk: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('spensia-script-chunk', handler);
+    return () => ipcRenderer.removeListener('spensia-script-chunk', handler);
+  },
   saveToProject: (subPath, data) => ipcRenderer.invoke('save-to-project', { subPath, data }),
   readFromProject: (subPath) => ipcRenderer.invoke('read-from-project', subPath),
 });

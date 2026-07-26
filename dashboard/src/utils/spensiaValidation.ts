@@ -14,6 +14,28 @@ export interface SpensiaTopicsData {
   topics: SpensiaTopicItem[];
 }
 
+export interface SpensiaScriptSection {
+  section_number: number;
+  section_title: string;
+  transition_phrase?: string;
+  content: string;
+}
+
+export interface SpensiaScriptData {
+  video_title: string;
+  target_duration: string;
+  estimated_word_count?: number;
+  actual_word_count?: number;
+  hook?: {
+    imaginative_scenario?: string;
+    surprising_detail?: string;
+    philosophical_closing?: string;
+  };
+  sections: SpensiaScriptSection[];
+  closing_reflection?: string;
+  full_script: string;
+}
+
 export interface SpensiaValidationIssue {
   id: string;
   severity: 'error' | 'warning';
@@ -27,6 +49,15 @@ export interface SpensiaTopicsValidationReport {
   errorCount: number;
   warningCount: number;
   normalizedData: SpensiaTopicsData | null;
+  summaryText: string;
+}
+
+export interface SpensiaScriptValidationReport {
+  isValid: boolean;
+  issues: SpensiaValidationIssue[];
+  errorCount: number;
+  warningCount: number;
+  normalizedData: SpensiaScriptData | null;
   summaryText: string;
 }
 
@@ -208,5 +239,109 @@ export function validateSpensiaTopics(rawInput: any): SpensiaTopicsValidationRep
     summaryText: isValid
       ? `Valid Spensia Topics JSON (${normalizedTopics.length} Topik)`
       : `Strict Validation Failed: ${errors.map((e) => e.message).join('; ')}`,
+  };
+}
+
+/**
+ * Perform strict JSON validation and normalization for Spensia Script Generator output
+ */
+export function validateSpensiaScript(rawInput: any): SpensiaScriptValidationReport {
+  const issues: SpensiaValidationIssue[] = [];
+  let data: any = rawInput;
+
+  if (typeof rawInput === 'string') {
+    let cleaned = rawInput.trim();
+    if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+    }
+    try {
+      data = JSON.parse(cleaned);
+    } catch (err: any) {
+      return {
+        isValid: false,
+        issues: [{ id: 'INVALID_JSON_SYNTAX', severity: 'error', field: 'root', message: `JSON Error: ${err.message}` }],
+        errorCount: 1,
+        warningCount: 0,
+        normalizedData: null,
+        summaryText: `JSON Error: ${err.message}`,
+      };
+    }
+  }
+
+  if (!data || typeof data !== 'object') {
+    return {
+      isValid: false,
+      issues: [{ id: 'INVALID_ROOT', severity: 'error', field: 'root', message: 'Script output must be a valid JSON Object.' }],
+      errorCount: 1,
+      warningCount: 0,
+      normalizedData: null,
+      summaryText: 'Root is not an object.',
+    };
+  }
+
+  // Validate full_script or construct it from sections
+  let fullScriptStr = typeof data.full_script === 'string' ? data.full_script.trim() : '';
+
+  const sectionsList: SpensiaScriptSection[] = [];
+  if (Array.isArray(data.sections)) {
+    data.sections.forEach((sec: any, idx: number) => {
+      if (sec && typeof sec === 'object') {
+        const secContent = typeof sec.content === 'string' ? sec.content.trim() : '';
+        sectionsList.push({
+          section_number: Number(sec.section_number) || idx + 1,
+          section_title: String(sec.section_title || `Segmen ${idx + 1}`).trim(),
+          transition_phrase: typeof sec.transition_phrase === 'string' ? sec.transition_phrase.trim() : undefined,
+          content: secContent,
+        });
+      }
+    });
+  }
+
+  if (!fullScriptStr && sectionsList.length > 0) {
+    fullScriptStr = sectionsList.map((s) => s.content).join('\n\n');
+  }
+
+  if (!fullScriptStr) {
+    issues.push({
+      id: 'MISSING_FULL_SCRIPT',
+      severity: 'error',
+      field: 'full_script',
+      message: 'Missing or empty "full_script" in JSON output.',
+    });
+  }
+
+  const words = fullScriptStr ? fullScriptStr.split(/\s+/).filter(Boolean).length : 0;
+  if (words < 100) {
+    issues.push({
+      id: 'SHORT_SCRIPT_WARNING',
+      severity: 'warning',
+      field: 'full_script',
+      message: `Naskah relatif pendek (${words} kata).`,
+    });
+  }
+
+  const normalized: SpensiaScriptData = {
+    video_title: String(data.video_title || 'Judul Video Spensia').trim(),
+    target_duration: String(data.target_duration || '10 menit').trim(),
+    estimated_word_count: Number(data.estimated_word_count) || 1500,
+    actual_word_count: words,
+    hook: data.hook && typeof data.hook === 'object' ? data.hook : undefined,
+    sections: sectionsList,
+    closing_reflection: typeof data.closing_reflection === 'string' ? data.closing_reflection.trim() : undefined,
+    full_script: fullScriptStr,
+  };
+
+  const errors = issues.filter((i) => i.severity === 'error');
+  const isValid = errors.length === 0 && fullScriptStr.length > 0;
+
+  return {
+    isValid,
+    issues,
+    errorCount: errors.length,
+    warningCount: issues.filter((i) => i.severity === 'warning').length,
+    normalizedData: isValid ? normalized : null,
+    summaryText: isValid
+      ? `Valid Spensia Script (${words} Kata)`
+      : `Script Validation Failed: ${errors.map((e) => e.message).join('; ')}`,
   };
 }

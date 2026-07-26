@@ -1211,10 +1211,30 @@ ipcMain.handle('generate-youtube-titles', async (_event, transcriptText) => {
   return aiClient.generateYoutubeTitles({ fullPrompt });
 });
 
-// ─── Generate Spensia Topics via AI ───
+// ─── Generate Spensia Topics & Script via Streaming AI ───
 
-ipcMain.handle('generate-spensia-topics', async (_event, { promptText, model }) => {
-  return aiClient.generateSpensiaTopics({ promptText, model });
+ipcMain.handle('generate-spensia-topics', async (event, { promptText, model }) => {
+  return aiClient.generateSpensiaTopics({
+    promptText,
+    model,
+    onChunk: (chunk, fullText) => {
+      try {
+        event.sender.send('spensia-topics-chunk', { chunk, fullText });
+      } catch (err) {}
+    },
+  });
+});
+
+ipcMain.handle('generate-spensia-script', async (event, { promptText, model }) => {
+  return aiClient.generateSpensiaScript({
+    promptText,
+    model,
+    onChunk: (chunk, fullText) => {
+      try {
+        event.sender.send('spensia-script-chunk', { chunk, fullText });
+      } catch (err) {}
+    },
+  });
 });
 
 // ─── Save file to project ─────────────────────────────

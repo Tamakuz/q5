@@ -267,6 +267,9 @@ export interface ElectronAPI {
   onRenderProgress: (callback: (data: RenderProgress) => void) => () => void;
   generateYoutubeTitles: (transcriptText: string) => Promise<YoutubeTitleResult>;
   generateSpensiaTopics: (promptText: string, model?: string) => Promise<{ rawText: string; topics?: Array<{ id: number; title: string; summary: string }> | null; theme?: string | null }>;
+  generateSpensiaScript: (promptText: string, model?: string) => Promise<{ rawText: string; scriptData?: any }>;
+  onSpensiaTopicsChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  onSpensiaScriptChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
 }
 
 declare global {
