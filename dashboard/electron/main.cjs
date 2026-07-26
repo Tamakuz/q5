@@ -260,7 +260,12 @@ ipcMain.handle('get-video-meta', async (_event, filePath) => {
 
 function getOrGenerateContentId(mode = 'shortform') {
   const isLongform = mode === 'longform';
-  const fileName = isLongform ? 'longform_mapping.json' : 'mapping.json';
+  const isSpensia = mode === 'spensia';
+  const fileName = isSpensia
+    ? 'spensia_mapping.json'
+    : isLongform
+    ? 'longform_mapping.json'
+    : 'mapping.json';
   const mappingFile = path.join(PROJECT_ROOT, 'input', fileName);
 
   try {
@@ -274,15 +279,15 @@ function getOrGenerateContentId(mode = 'shortform') {
 
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const randStr = Math.random().toString(36).substring(2, 6).toUpperCase();
-  const prefix = isLongform ? 'WV-FILM' : 'WV';
+  const prefix = isSpensia ? 'WV-SPENSIA' : isLongform ? 'WV-FILM' : 'WV';
   const newId = `${prefix}-${dateStr}-${randStr}`;
 
   try {
     let mapping = {
       settings: {
         fps: 30,
-        format: isLongform ? "16:9" : "9:16",
-        fg_aspect: isLongform ? "16:9" : "4:5",
+        format: isSpensia ? "16:9" : isLongform ? "16:9" : "9:16",
+        fg_aspect: isSpensia ? "16:9" : isLongform ? "16:9" : "4:5",
         bgm: "random",
         content_id: newId
       },
@@ -1753,6 +1758,7 @@ ipcMain.handle('render-alurfilm-video', async (_event, { part, mapping, videoPat
 
 ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
   const isLongform = mode === 'longform';
+  const isSpensia = mode === 'spensia';
   try {
     const outputDir = path.join(PROJECT_ROOT, 'output');
     const inputDir = path.join(PROJECT_ROOT, 'input');
@@ -1764,8 +1770,21 @@ ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
     // Generate BRAND NEW Content ID for this mode
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const randStr = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const prefix = isLongform ? 'WV-FILM' : 'WV';
+    const prefix = isSpensia ? 'WV-SPENSIA' : isLongform ? 'WV-FILM' : 'WV';
     const newId = `${prefix}-${dateStr}-${randStr}`;
+
+    if (isSpensia) {
+      console.log(`🧹 [Reset Spensia] Setting new Content ID: ${newId}`);
+      const mappingFile = path.join(inputDir, 'spensia_mapping.json');
+      let mapping = { settings: { content_id: newId }, timeline: [] };
+      if (fs.existsSync(mappingFile)) {
+        try { mapping = JSON.parse(fs.readFileSync(mappingFile, 'utf-8')); } catch {}
+      }
+      mapping.settings = mapping.settings || {};
+      mapping.settings.content_id = newId;
+      fs.writeFileSync(mappingFile, JSON.stringify(mapping, null, 2), 'utf-8');
+      return { success: true, content_id: newId };
+    }
 
     if (isLongform) {
       console.log(`🧹 [Reset Longform] Clearing all longform files and setting new Content ID: ${newId}`);

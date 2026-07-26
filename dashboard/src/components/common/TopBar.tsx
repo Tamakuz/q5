@@ -76,9 +76,11 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
           <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
             contentMode === 'shortform'
               ? 'bg-indigo-950/80 text-indigo-300 border-indigo-800/80'
-              : 'bg-purple-950/80 text-purple-300 border-purple-800/80'
+              : contentMode === 'longform'
+              ? 'bg-purple-950/80 text-purple-300 border-purple-800/80'
+              : 'bg-emerald-950/80 text-emerald-300 border-emerald-800/80'
           }`}>
-            {contentMode === 'shortform' ? '📱 Shorts Mode' : '🍿 Alur Film Mode'}
+            {contentMode === 'shortform' ? '📱 Shorts Mode' : contentMode === 'longform' ? '🍿 Alur Film Mode' : '✨ Spensia Mode'}
           </span>
 
           {/* Content ID Badge */}
@@ -89,7 +91,9 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all text-xs font-mono border ml-1 ${
                 contentMode === 'shortform'
                   ? 'bg-indigo-950/60 hover:bg-indigo-900/80 border-indigo-700/50 text-indigo-300'
-                  : 'bg-purple-950/60 hover:bg-purple-900/80 border-purple-700/50 text-purple-300'
+                  : contentMode === 'longform'
+                  ? 'bg-purple-950/60 hover:bg-purple-900/80 border-purple-700/50 text-purple-300'
+                  : 'bg-emerald-950/60 hover:bg-emerald-900/80 border-emerald-700/50 text-emerald-300'
               }`}
             >
               <span>🆔</span>
@@ -107,7 +111,7 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
           className="px-3 py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/50 rounded-lg text-xs font-semibold shadow-md transition-all flex items-center gap-1.5"
         >
           <span>🔄</span>
-          <span>New Content / Reset ID ({contentMode === 'shortform' ? 'Shorts' : 'Alur Film'})</span>
+          <span>New Content / Reset ID ({contentMode === 'shortform' ? 'Shorts' : contentMode === 'longform' ? 'Alur Film' : 'Spensia'})</span>
         </button>
       </header>
 

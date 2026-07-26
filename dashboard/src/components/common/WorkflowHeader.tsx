@@ -26,6 +26,8 @@ const LONGFORM_STEPS: StepItem[] = [
   { id: 'render', label: '6. Video Render', shortLabel: 'Render', icon: '🎬' },
 ];
 
+const SPENSIA_STEPS: StepItem[] = [];
+
 interface WorkflowHeaderProps {
   contentMode: ContentMode;
   activeStep: StepId;
@@ -39,55 +41,68 @@ const WorkflowHeader: React.FC<WorkflowHeaderProps> = ({
   onStepChange,
   onOpenPreview,
 }) => {
-  const steps = contentMode === 'shortform' ? SHORTFORM_STEPS : LONGFORM_STEPS;
+  const steps =
+    contentMode === 'shortform'
+      ? SHORTFORM_STEPS
+      : contentMode === 'longform'
+      ? LONGFORM_STEPS
+      : SPENSIA_STEPS;
   const activeIndex = steps.findIndex((s) => s.id === activeStep);
 
   return (
     <div className="bg-gray-900/90 border-b border-gray-800/80 px-6 py-2.5 flex items-center justify-between gap-4 shrink-0 backdrop-blur-md">
       {/* Visual Workflow Steps Bar */}
       <div className="flex items-center gap-1.5 overflow-x-auto min-w-0 flex-1 py-0.5 no-scrollbar">
-        {steps.map((step, index) => {
-          const isActive = step.id === activeStep;
-          const isPassed = index < activeIndex;
+        {steps.length === 0 ? (
+          <span className="text-xs text-gray-500 italic">Workflow Spensia (Belum ada step)</span>
+        ) : (
+          steps.map((step, index) => {
+            const isActive = step.id === activeStep;
+            const isPassed = index < activeIndex;
 
-          return (
-            <React.Fragment key={step.id}>
-              <button
-                onClick={() => onStepChange(step.id)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 border ${
-                  isActive
-                    ? contentMode === 'shortform'
-                      ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30'
-                      : 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/30'
-                    : isPassed
-                    ? 'bg-gray-950/80 border-gray-800/90 text-gray-300 hover:border-gray-700'
-                    : 'bg-gray-950/30 border-transparent text-gray-500 hover:text-gray-400 hover:bg-gray-900'
-                }`}
-              >
-                <span className="text-sm">{step.icon}</span>
-                <span className="hidden md:inline">{step.label}</span>
-                <span className="inline md:hidden">{step.shortLabel}</span>
-                {isPassed && (
-                  <span className="w-4 h-4 rounded-full bg-emerald-950 border border-emerald-700/60 text-emerald-400 flex items-center justify-center text-[10px] font-bold">
-                    ✓
-                  </span>
-                )}
-              </button>
-
-              {index < steps.length - 1 && (
-                <div
-                  className={`h-0.5 w-4 rounded-full shrink-0 transition-colors ${
-                    index < activeIndex
+            return (
+              <React.Fragment key={step.id}>
+                <button
+                  onClick={() => onStepChange(step.id)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 border ${
+                    isActive
                       ? contentMode === 'shortform'
-                        ? 'bg-indigo-500/60'
-                        : 'bg-purple-500/60'
-                      : 'bg-gray-800'
+                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30'
+                        : contentMode === 'longform'
+                        ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/30'
+                        : 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-600/30'
+                      : isPassed
+                      ? 'bg-gray-950/80 border-gray-800/90 text-gray-300 hover:border-gray-700'
+                      : 'bg-gray-950/30 border-transparent text-gray-500 hover:text-gray-400 hover:bg-gray-900'
                   }`}
-                />
-              )}
-            </React.Fragment>
-          );
-        })}
+                >
+                  <span className="text-sm">{step.icon}</span>
+                  <span className="hidden md:inline">{step.label}</span>
+                  <span className="inline md:hidden">{step.shortLabel}</span>
+                  {isPassed && (
+                    <span className="w-4 h-4 rounded-full bg-emerald-950 border border-emerald-700/60 text-emerald-400 flex items-center justify-center text-[10px] font-bold">
+                      ✓
+                    </span>
+                  )}
+                </button>
+
+                {index < steps.length - 1 && (
+                  <div
+                    className={`h-0.5 w-4 rounded-full shrink-0 transition-colors ${
+                      index < activeIndex
+                        ? contentMode === 'shortform'
+                          ? 'bg-indigo-500/60'
+                          : contentMode === 'longform'
+                          ? 'bg-purple-500/60'
+                          : 'bg-emerald-500/60'
+                        : 'bg-gray-800'
+                    }`}
+                  />
+                )}
+              </React.Fragment>
+            );
+          })
+        )}
       </div>
 
       {/* Media Quick Preview Trigger */}
