@@ -636,25 +636,32 @@ ipcMain.handle('list-alurfilm-analyses', async (_event, modeContentId) => {
 });
 
 ipcMain.handle('get-alurfilm-prompt', async (_event, { chunkPart, totalChunks = 2, previousContext, styleExample }) => {
-  const promptFile = path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'alurfilm-singlepass-prompt.md');
+  const possiblePaths = [
+    path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'longform', 'script-prompt.md'),
+    path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'longform', 'alurfilm-singlepass-prompt.md'),
+    path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'alurfilm-singlepass-prompt.md')
+  ];
+  let promptFile = possiblePaths.find(p => fs.existsSync(p));
   let promptTemplate = '';
-  if (fs.existsSync(promptFile)) {
+  if (promptFile && fs.existsSync(promptFile)) {
     promptTemplate = fs.readFileSync(promptFile, 'utf-8');
   } else {
     promptTemplate = `Kamu adalah Master Scriptwriter Alur Film. Tulis naskah voiceover recap Macro Storytelling. Output JSON valid.`;
   }
 
-  const totalTargetWords = 2400;
-  const computedWordsPerChunk = Math.max(300, Math.round(totalTargetWords / Math.max(1, totalChunks)));
+  const computedWordsPerChunk = 350;
 
   const prevCtxStr = previousContext ? JSON.stringify(previousContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
   const isFirstPart = Number(chunkPart) === 1;
+  const isLastPart = Number(chunkPart) === Number(totalChunks);
   const isFirstPartStr = isFirstPart ? 'YA (Chunk #1 / Part Pembuka Film)' : `TIDAK (Chunk #${chunkPart} / Part Lanjutan)`;
+  const isLastPartStr = isLastPart ? 'YA (Chunk Terakhir / Part Penutup Film)' : `TIDAK (Part Bukan Penutup)`;
   const styleExampleStr = styleExample ? String(styleExample) : 'Gunakan gaya penceritaan alur film santai, jernih, dan mengalir.';
   const fullPrompt = promptTemplate
     .replace(/{{chunk_part}}/g, String(chunkPart))
     .replace(/{{total_chunks}}/g, String(totalChunks))
     .replace(/{{is_first_part}}/g, isFirstPartStr)
+    .replace(/{{is_last_part}}/g, isLastPartStr)
     .replace(/{{target_words_per_chunk}}/g, String(computedWordsPerChunk))
     .replace(/{{previous_context}}/g, prevCtxStr)
     .replace(/{{style_example}}/g, styleExampleStr);
@@ -664,13 +671,45 @@ ipcMain.handle('get-alurfilm-prompt', async (_event, { chunkPart, totalChunks = 
 
 ipcMain.handle('save-alurfilm-analysis', async (_event, { chunkPart, jsonText }) => {
   const contentId = getOrGenerateContentId('longform');
-  let raw = (jsonText || '').trim();
-  if (raw.startsWith('```')) {
-    raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+  
+  let resultData = null;
+  if (typeof jsonText === 'string') {
+    let raw = jsonText.trim();
+    if (raw.startsWith('```')) {
+      raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+    }
+    try {
+      resultData = JSON.parse(raw);
+    } catch (err) {
+      throw new Error(`Invalid JSON syntax: ${err.message}`);
+    }
+  } else if (typeof jsonText === 'object' && jsonText !== null) {
+    resultData = jsonText;
+  } else {
+    throw new Error(`Invalid JSON input: expected string or object, received ${typeof jsonText}`);
   }
 
-  const resultData = JSON.parse(raw);
-  const partStr = String(chunkPart).padStart(2, '0');
+  // Validate basic schema
+  if (!resultData || typeof resultData !== 'object' || Array.isArray(resultData)) {
+    throw new Error('Script Analysis Error: Root JSON output must be a valid JSON Object.');
+  }
+
+  if (!resultData.naskah_voiceover || typeof resultData.naskah_voiceover !== 'object') {
+    throw new Error('Script Analysis Error: Missing "naskah_voiceover" object in JSON output.');
+  }
+
+  if (!resultData.naskah_voiceover.script_text || typeof resultData.naskah_voiceover.script_text !== 'string') {
+    throw new Error('Script Analysis Error: Missing or invalid "naskah_voiceover.script_text" string.');
+  }
+
+  // Normalize part and calculate actual word count
+  const partNum = Number(resultData.chunk_part || chunkPart) || 1;
+  const words = resultData.naskah_voiceover.script_text.trim().split(/\s+/).filter(Boolean);
+  resultData.naskah_voiceover.word_count = words.length;
+  resultData.chunk_part = partNum;
+  resultData.status = resultData.status || 'done';
+
+  const partStr = String(partNum).padStart(2, '0');
   const outputName = `${contentId}_analysis_part_${partStr}.json`;
   const destPath = path.join(ALURFILM_DIR, outputName);
 
@@ -681,7 +720,7 @@ ipcMain.handle('save-alurfilm-analysis', async (_event, { chunkPart, jsonText })
   fs.writeFileSync(destPath, JSON.stringify(resultData, null, 2), 'utf-8');
 
   return {
-    part: chunkPart,
+    part: partNum,
     name: outputName,
     filePath: destPath,
     data: resultData
@@ -758,9 +797,14 @@ ipcMain.handle('delete-alurfilm-audio', async (_event, { part }) => {
 
 ipcMain.handle('get-alurfilm-transcript-prompt', async (_event, { chunkPart, totalChunks = 2 }) => {
   const contentId = getOrGenerateContentId('longform');
-  const promptFile = path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'alurfilm-transcript-prompt.md');
+  const possiblePaths = [
+    path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'longform', 'transcript-prompt.md'),
+    path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'longform', 'alurfilm-transcript-prompt.md'),
+    path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'alurfilm-transcript-prompt.md')
+  ];
+  let promptFile = possiblePaths.find(p => fs.existsSync(p));
   let promptTemplate = '';
-  if (fs.existsSync(promptFile)) {
+  if (promptFile && fs.existsSync(promptFile)) {
     promptTemplate = fs.readFileSync(promptFile, 'utf-8');
   } else {
     promptTemplate = `Kamu adalah AI Audio Transcriber presisi tinggi. Transkrip audio part ${chunkPart} ke JSON array dengan start_seconds, end_seconds, timestamp_minute, text. Parameter durasi audio: {{audio_duration}}.`;
@@ -852,10 +896,15 @@ ipcMain.handle('list-alurfilm-transcripts', async (_event, modeContentId) => {
 ipcMain.handle('get-alurfilm-mapping-prompt', async (_event, { chunkPart, totalChunks = 2 }) => {
   const contentId = getOrGenerateContentId('longform');
   const partStr = String(chunkPart).padStart(2, '0');
-  const promptFile = path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'alurfilm-mapping-prompt.md');
+  const possiblePaths = [
+    path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'longform', 'mapping-prompt.md'),
+    path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'longform', 'alurfilm-mapping-prompt.md'),
+    path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'alurfilm-mapping-prompt.md')
+  ];
+  let promptFile = possiblePaths.find(p => fs.existsSync(p));
 
   let promptTemplate = '';
-  if (fs.existsSync(promptFile)) {
+  if (promptFile && fs.existsSync(promptFile)) {
     promptTemplate = fs.readFileSync(promptFile, 'utf-8');
   } else {
     promptTemplate = `Kamu adalah Editor Video Spesialis FFmpeg Mapping. Output JSON murni.`;
@@ -1136,9 +1185,13 @@ ipcMain.handle('copy-to-clipboard', async (_event, text) => {
 // ─── Generate YouTube Shorts Titles via OpenAI API ───
 
 ipcMain.handle('generate-youtube-titles', async (_event, transcriptText) => {
-  const promptFile = path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'youtube-shorts-prompt.md');
+  const possiblePaths = [
+    path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'shortform', 'youtube-shorts-prompt.md'),
+    path.join(PROJECT_ROOT, 'dashboard', 'prompts', 'youtube-shorts-prompt.md')
+  ];
+  let promptFile = possiblePaths.find(p => fs.existsSync(p));
   let promptTemplate = '';
-  if (fs.existsSync(promptFile)) {
+  if (promptFile && fs.existsSync(promptFile)) {
     promptTemplate = fs.readFileSync(promptFile, 'utf-8');
   } else {
     promptTemplate = `Kamu adalah YouTube Shorts Algorithm Expert. Buatkan 5 Judul Viral, Deskripsi, dan Hashtag untuk video recap ini: {{transcript_text}}. Output JSON: {"titles": [], "description": "", "hashtags": [], "recommended_title": ""}`;

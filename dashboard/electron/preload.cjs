@@ -52,8 +52,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listAlurfilmAnalyses: (modeContentId) => ipcRenderer.invoke('list-alurfilm-analyses', modeContentId),
   getAlurfilmPrompt: (chunkPart, totalChunks, previousContext) =>
     ipcRenderer.invoke('get-alurfilm-prompt', { chunkPart, totalChunks, previousContext }),
-  saveAlurfilmAnalysis: (chunkPart, jsonText) =>
-    ipcRenderer.invoke('save-alurfilm-analysis', { chunkPart, jsonText }),
+  saveAlurfilmAnalysis: (...args) => {
+    let chunkPart = 1;
+    let jsonText = null;
+    if (args.length >= 3) {
+      chunkPart = args[1];
+      jsonText = args[2];
+    } else if (args.length === 2) {
+      if (typeof args[0] === 'number' || !isNaN(Number(args[0]))) {
+        chunkPart = Number(args[0]);
+        jsonText = args[1];
+      } else {
+        chunkPart = Number(args[1]) || 1;
+        jsonText = args[0] || args[2];
+      }
+    } else if (args.length === 1) {
+      jsonText = args[0];
+    }
+    return ipcRenderer.invoke('save-alurfilm-analysis', { chunkPart, jsonText });
+  },
   uploadAlurfilmAudio: (part, filePath) =>
     ipcRenderer.invoke('upload-alurfilm-audio', { part, filePath }),
   listAlurfilmAudios: (modeContentId) =>

@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import type { AlurfilmChunk, AlurfilmAnalysisResult, AlurfilmAudioResult } from '../../electron-api';
 
+import { validateScriptAnalysis } from '../../utils/scriptValidation';
+
 const api = window.electronAPI;
 
 const AlurfilmAnalyzeStep: React.FC = () => {
@@ -67,6 +69,8 @@ const AlurfilmAnalyzeStep: React.FC = () => {
     })();
   }, []);
 
+  const [copiedPromptPart, setCopiedPromptPart] = useState<number | null>(null);
+
   const handleCopyPromptForPart = async (partNum: number) => {
     let prevContext = null;
     if (partNum > 1 && analyses[partNum - 1]?.data) {
@@ -79,51 +83,72 @@ const AlurfilmAnalyzeStep: React.FC = () => {
     }
 
     try {
-      let promptTpl = await api.readFromProject('dashboard/prompts/longform/script-prompt.md');
-      if (!promptTpl) {
-        promptTpl = await api.readFromProject('dashboard/prompts/longform/alurfilm-singlepass-prompt.md');
-      }
-      if (!promptTpl) {
-        promptTpl = `Kamu adalah seorang "Master Scriptwriter & Storyteller Alur Film". Analyze chunk part {{chunk_part}} of {{total_chunks}}. Target words: {{target_words_per_chunk}}.`;
-      }
-
       const totalChunks = chunks.length || 1;
-      const targetWords = 1400;
-
-      let formattedPrompt = promptTpl
-        .replace(/\{\{chunk_part\}\}/g, String(partNum))
-        .replace(/\{\{total_chunks\}\}/g, String(totalChunks))
-        .replace(/\{\{is_first_part\}\}/g, partNum === 1 ? 'YA (Part Pembuka)' : 'TIDAK (Part Lanjutan)')
-        .replace(/\{\{target_words_per_chunk\}\}/g, String(targetWords))
-        .replace(/\{\{previous_context\}\}/g, prevContext ? JSON.stringify(prevContext, null, 2) : 'None (Part Pembuka)');
-
-      if (api.copyToClipboard) {
-        await api.copyToClipboard(formattedPrompt);
-        showToast(`📋 Copied Prompt for Part #${partNum}! Silakan paste ke AI Studio / Gemini.`);
+      let formattedPrompt = '';
+      if (api.getAlurfilmPrompt) {
+        formattedPrompt = await api.getAlurfilmPrompt(partNum, totalChunks, prevContext);
       }
+      
+      if (!formattedPrompt || formattedPrompt.includes('Kamu adalah Master Scriptwriter Alur Film. Tulis naskah')) {
+        let promptTpl = await api.readFromProject('dashboard/prompts/longform/script-prompt.md');
+        if (!promptTpl) {
+          promptTpl = await api.readFromProject('dashboard/prompts/longform/alurfilm-singlepass-prompt.md');
+        }
+        const computedWords = 250;
+        const isFirstPartStr = partNum === 1 ? 'YA (Part Pembuka)' : `TIDAK (Chunk #${partNum} / Part Lanjutan)`;
+        const isLastPartStr = partNum === totalChunks ? 'YA (Part Penutup / Final Part)' : 'TIDAK (Part Bukan Penutup)';
+        const prevCtxStr = prevContext ? JSON.stringify(prevContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
+        formattedPrompt = (promptTpl || '')
+          .replace(/\{\{chunk_part\}\}/g, String(partNum))
+          .replace(/\{\{total_chunks\}\}/g, String(totalChunks))
+          .replace(/\{\{is_first_part\}\}/g, isFirstPartStr)
+          .replace(/\{\{is_last_part\}\}/g, isLastPartStr)
+          .replace(/\{\{target_words_per_chunk\}\}/g, String(computedWords))
+          .replace(/\{\{previous_context\}\}/g, prevCtxStr)
+          .replace(/\{\{style_example\}\}/g, 'Gunakan gaya penceritaan alur film santai, jernih, dan mengalir.');
+      }
+
+      let copied = false;
+      if (api.copyToClipboard) {
+        try {
+          await api.copyToClipboard(formattedPrompt);
+          copied = true;
+        } catch {}
+      }
+      if (!copied && navigator.clipboard) {
+        await navigator.clipboard.writeText(formattedPrompt);
+        copied = true;
+      }
+
+      setCopiedPromptPart(partNum);
+      setTimeout(() => setCopiedPromptPart(null), 3000);
+      showToast(`📋 Copied Prompt for Part #${partNum}! Silakan paste ke AI Studio / Gemini.`);
     } catch (err: any) {
       setError(`Failed to format prompt: ${err.message}`);
     }
   };
 
+
   const handleManualImportJson = async () => {
     if (!pasteJsonInput.trim()) return;
     setError(null);
     try {
-      let raw = pasteJsonInput.trim();
-      if (raw.startsWith('```')) {
-        raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+      const report = validateScriptAnalysis(pasteJsonInput, activePart);
+      if (!report.isValid) {
+        setError(`⚠️ Script JSON Validation Error: ${report.summaryText}`);
+        return;
       }
-      const parsed = JSON.parse(raw);
-      const partNum = parsed.chunk_part || activePart;
 
-      const saveRes = await api.saveAlurfilmAnalysis(contentId || 'default', partNum, parsed);
+      const validData = report.normalizedData;
+      const partNum = validData?.chunk_part || activePart;
+
+      const saveRes = await api.saveAlurfilmAnalysis(partNum, validData);
       setAnalyses((prev) => ({ ...prev, [partNum]: saveRes }));
       setShowPasteModal(false);
       setPasteJsonInput('');
-      showToast(`🎉 Successfully saved Script Analysis JSON for Part #${partNum}!`);
+      showToast(`🎉 Successfully saved & validated Script Analysis JSON for Part #${partNum}!`);
     } catch (err: any) {
-      setError(`Invalid JSON format: ${err.message}`);
+      setError(`Failed to save Script JSON: ${err.message}`);
     }
   };
 
@@ -148,7 +173,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
             Alur Film Script & Story Generator
           </h1>
           <p className="text-xs text-gray-400 mt-1">
-            Generate & preview 10-minute recap scripts alongside video scene chunks (1,200 - 1,500 words/part).
+            Generate & preview 10-minute recap scripts alongside video scene chunks (~350 words/part for 2-3 min VO).
           </p>
         </div>
 
@@ -218,9 +243,14 @@ const AlurfilmAnalyzeStep: React.FC = () => {
 
             <button
               onClick={() => handleCopyPromptForPart(activePart)}
-              className="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-600/30 transition-all flex items-center gap-1.5 shrink-0"
+              className={`px-3.5 py-2 text-white rounded-xl text-xs font-bold shadow-lg transition-all flex items-center gap-1.5 shrink-0 ${
+                copiedPromptPart === activePart
+                  ? 'bg-emerald-600 border border-emerald-400 shadow-emerald-600/30 ring-2 ring-emerald-500/50'
+                  : 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/30'
+              }`}
             >
-              <span>📋</span> Copy Prompt #{activePart}
+              <span>{copiedPromptPart === activePart ? '✓' : '📋'}</span>
+              {copiedPromptPart === activePart ? `Copied Part #${activePart}!` : `Copy Prompt #${activePart}`}
             </button>
           </div>
 
@@ -261,14 +291,15 @@ const AlurfilmAnalyzeStep: React.FC = () => {
           <div className="flex-1 bg-gray-950 p-4 rounded-xl border border-gray-800 overflow-y-auto space-y-2.5 font-mono text-xs text-gray-300 leading-relaxed min-h-0">
             <p className="text-purple-400 font-bold">// Prompt Configuration for Part #{activePart}</p>
             <p>- Part: {activePart} / {chunks.length || 1}</p>
-            <p>- Target Word Count: ~1400 Kata</p>
-            <p>- Status: {activePart === 1 ? 'Part Pembuka (In-Medias-Res)' : `Part Lanjutan (Connected to Part #${activePart - 1})`}</p>
+            <p>- Target VO Duration: ~2.0 - 3.0 Menit (~350 Kata per Part)</p>
+            <p>- Status: {activePart === 1 ? 'Part Pembuka (Intro Film)' : activePart === (chunks.length || 1) ? 'Part Penutup (Outro Recap)' : `Part Lanjutan (Connected to Part #${activePart - 1})`}</p>
             {activePart > 1 && analyses[activePart - 1]?.data && (
               <div className="p-2.5 bg-purple-950/40 rounded-lg border border-purple-800/40 text-[11px] text-purple-300">
                 ✓ Context & Characters from Part #{activePart - 1} auto-attached.
               </div>
             )}
           </div>
+
 
           {error && (
             <div className="p-3 bg-red-950/40 border border-red-800/50 rounded-xl text-xs text-red-400">
