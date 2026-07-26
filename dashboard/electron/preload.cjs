@@ -102,6 +102,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getContentId: (mode) => ipcRenderer.invoke('get-content-id', mode),
   resetProject: (mode) => ipcRenderer.invoke('reset-project', mode),
   generateYoutubeTitles: (transcriptText) => ipcRenderer.invoke('generate-youtube-titles', transcriptText),
+  generateSpensiaTopics: (promptText, model) => ipcRenderer.invoke('generate-spensia-topics', { promptText, model }),
   saveToProject: (subPath, data) => ipcRenderer.invoke('save-to-project', { subPath, data }),
   readFromProject: (subPath) => ipcRenderer.invoke('read-from-project', subPath),
 });

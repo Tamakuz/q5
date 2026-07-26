@@ -29,7 +29,9 @@ const LONGFORM_STEPS: Step[] = [
   { id: 'render', icon: '🎬', label: '6. Video Render', subText: 'Render & merge final movie' },
 ];
 
-const SPENSIA_STEPS: Step[] = [];
+const SPENSIA_STEPS: Step[] = [
+  { id: 'source', icon: '💡', label: '1. Topics Generator', subText: 'Ide topik & fakta kontraintuitif' },
+];
 
 interface SidebarProps {
   activeStep: StepId;

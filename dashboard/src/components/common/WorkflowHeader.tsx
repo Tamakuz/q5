@@ -26,7 +26,9 @@ const LONGFORM_STEPS: StepItem[] = [
   { id: 'render', label: '6. Video Render', shortLabel: 'Render', icon: '🎬' },
 ];
 
-const SPENSIA_STEPS: StepItem[] = [];
+const SPENSIA_STEPS: StepItem[] = [
+  { id: 'source', label: '1. Topics Generator', shortLabel: 'Topics', icon: '💡' },
+];
 
 interface WorkflowHeaderProps {
   contentMode: ContentMode;

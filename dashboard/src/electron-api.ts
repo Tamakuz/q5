@@ -266,6 +266,7 @@ export interface ElectronAPI {
   renderVideo: (mapping: object, videoPath: string, audioPath?: string) => Promise<RenderResult | { error: string }>;
   onRenderProgress: (callback: (data: RenderProgress) => void) => () => void;
   generateYoutubeTitles: (transcriptText: string) => Promise<YoutubeTitleResult>;
+  generateSpensiaTopics: (promptText: string, model?: string) => Promise<{ rawText: string; topics?: Array<{ id: number; title: string; summary: string }> | null; theme?: string | null }>;
 }
 
 declare global {

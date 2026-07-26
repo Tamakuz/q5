@@ -21,6 +21,9 @@ import AlurfilmTranscriptStep from './components/longform/AlurfilmTranscriptStep
 import AlurfilmMappingStep from './components/longform/AlurfilmMappingStep';
 import AlurfilmRenderStep from './components/longform/AlurfilmRenderStep';
 
+// Spensia Feature Components
+import SpensiaTopicsStep from './components/spensia/SpensiaTopicsStep';
+
 type Status = 'ready' | 'rendering' | 'error';
 
 interface StepProps {
@@ -87,22 +90,26 @@ const App: React.FC = () => {
 
         <main className="flex-1 p-6 overflow-auto bg-gradient-to-br from-gray-950 via-gray-950 to-gray-900">
           {contentMode === 'spensia' ? (
-            <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
-              <div className="w-20 h-20 bg-emerald-600/10 text-emerald-400 rounded-3xl flex items-center justify-center text-4xl border border-emerald-500/20 shadow-xl shadow-emerald-950/40">
-                ✨
-              </div>
-              <div className="max-w-md space-y-2">
-                <div className="flex items-center justify-center gap-2">
-                  <span className="px-3 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-xs font-mono font-bold uppercase tracking-wider">
-                    Workflow Spensia
-                  </span>
+            activeStep === 'source' ? (
+              <SpensiaTopicsStep key="spensia-topics" />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
+                <div className="w-20 h-20 bg-emerald-600/10 text-emerald-400 rounded-3xl flex items-center justify-center text-4xl border border-emerald-500/20 shadow-xl shadow-emerald-950/40">
+                  ✨
                 </div>
-                <h2 className="text-lg font-bold text-white pt-1">Workflow Spensia</h2>
-                <p className="text-xs text-gray-400 leading-relaxed">
-                  Workflow ini belum memiliki langkah aktif. Silakan tentukan konfigurasi untuk Spensia nanti.
-                </p>
+                <div className="max-w-md space-y-2">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="px-3 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-xs font-mono font-bold uppercase tracking-wider">
+                      Workflow Spensia
+                    </span>
+                  </div>
+                  <h2 className="text-lg font-bold text-white pt-1">Workflow Step Belum Ada</h2>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Langkah ini belum dikonfigurasi untuk Spensia. Gunakan Step 1 (Topics Generator).
+                  </p>
+                </div>
               </div>
-            </div>
+            )
           ) : contentMode === 'shortform' ? (
             <ActiveShortformStep key={`shortform-${activeStep}`} onStepChange={setActiveStep} />
           ) : activeStep === 'source' ? (

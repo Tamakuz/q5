@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, dialog, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const aiClient = require('./aiClient.cjs');
 
 // ─── FFmpeg / FFprobe paths ──────────────────────────
 const ffmpegBin = require('@ffmpeg-installer/ffmpeg');
@@ -15,9 +16,11 @@ const ffprobePath = ffprobeBin.path;
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 const INPUT_ASSETS = path.join(PROJECT_ROOT, 'input', 'assets');
 const TMP_DIR = path.join(PROJECT_ROOT, 'input', '.tmp');
+const SPENSIA_INPUT_DIR = path.join(PROJECT_ROOT, 'input', 'spensia');
+const SPENSIA_OUTPUT_DIR = path.join(PROJECT_ROOT, 'output', 'spensia');
 
 // Ensure dirs exist
-[INPUT_ASSETS, TMP_DIR].forEach((dir) => {
+[INPUT_ASSETS, TMP_DIR, SPENSIA_INPUT_DIR, SPENSIA_OUTPUT_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -261,12 +264,14 @@ ipcMain.handle('get-video-meta', async (_event, filePath) => {
 function getOrGenerateContentId(mode = 'shortform') {
   const isLongform = mode === 'longform';
   const isSpensia = mode === 'spensia';
-  const fileName = isSpensia
-    ? 'spensia_mapping.json'
+  const mappingFile = isSpensia
+    ? path.join(PROJECT_ROOT, 'input', 'spensia', 'spensia_mapping.json')
     : isLongform
-    ? 'longform_mapping.json'
-    : 'mapping.json';
-  const mappingFile = path.join(PROJECT_ROOT, 'input', fileName);
+    ? path.join(PROJECT_ROOT, 'input', 'longform_mapping.json')
+    : path.join(PROJECT_ROOT, 'input', 'mapping.json');
+
+  const dir = path.dirname(mappingFile);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
   try {
     if (fs.existsSync(mappingFile)) {
@@ -1187,7 +1192,7 @@ ipcMain.handle('copy-to-clipboard', async (_event, text) => {
   return true;
 });
 
-// ─── Generate YouTube Shorts Titles via OpenAI API ───
+// ─── Generate YouTube Shorts Titles via AI ───
 
 ipcMain.handle('generate-youtube-titles', async (_event, transcriptText) => {
   const possiblePaths = [
@@ -1203,36 +1208,13 @@ ipcMain.handle('generate-youtube-titles', async (_event, transcriptText) => {
   }
 
   const fullPrompt = promptTemplate.replace('{{transcript_text}}', transcriptText || 'Video Recap Anime/Cartoon');
+  return aiClient.generateYoutubeTitles({ fullPrompt });
+});
 
-  const response = await fetch('https://9router.riztama.my.id/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer sk-6b3ac6ef8e3b70c9-eyxuxt-7adfd291',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'cmc/deepseek/deepseek-v4-pro',
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'user', content: fullPrompt },
-      ],
-    }),
-  });
+// ─── Generate Spensia Topics via AI ───
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`API Error ${response.status}: ${errText}`);
-  }
-
-  const json = await response.json();
-  const content = json.choices?.[0]?.message?.content;
-  if (!content) throw new Error('No content returned from AI API');
-
-  let raw = content.trim();
-  if (raw.startsWith('```')) {
-    raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
-  }
-  return JSON.parse(raw);
+ipcMain.handle('generate-spensia-topics', async (_event, { promptText, model }) => {
+  return aiClient.generateSpensiaTopics({ promptText, model });
 });
 
 // ─── Save file to project ─────────────────────────────
@@ -1774,15 +1756,36 @@ ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
     const newId = `${prefix}-${dateStr}-${randStr}`;
 
     if (isSpensia) {
-      console.log(`🧹 [Reset Spensia] Setting new Content ID: ${newId}`);
-      const mappingFile = path.join(inputDir, 'spensia_mapping.json');
-      let mapping = { settings: { content_id: newId }, timeline: [] };
-      if (fs.existsSync(mappingFile)) {
-        try { mapping = JSON.parse(fs.readFileSync(mappingFile, 'utf-8')); } catch {}
+      console.log(`🧹 [Reset Spensia] Clearing spensia workspace and setting new Content ID: ${newId}`);
+      const spensiaInputDir = path.join(inputDir, 'spensia');
+      const spensiaOutputDir = path.join(outputDir, 'spensia');
+
+      if (!fs.existsSync(spensiaInputDir)) fs.mkdirSync(spensiaInputDir, { recursive: true });
+      if (!fs.existsSync(spensiaOutputDir)) fs.mkdirSync(spensiaOutputDir, { recursive: true });
+
+      // Clear input/spensia files
+      const inputFiles = fs.readdirSync(spensiaInputDir);
+      for (const f of inputFiles) {
+        try {
+          const fullPath = path.join(spensiaInputDir, f);
+          if (fs.statSync(fullPath).isFile()) fs.unlinkSync(fullPath);
+        } catch { }
       }
-      mapping.settings = mapping.settings || {};
+
+      // Clear output/spensia files
+      const outputFiles = fs.readdirSync(spensiaOutputDir);
+      for (const f of outputFiles) {
+        try {
+          const fullPath = path.join(spensiaOutputDir, f);
+          if (fs.statSync(fullPath).isFile()) fs.unlinkSync(fullPath);
+        } catch { }
+      }
+
+      const mappingFile = path.join(spensiaInputDir, 'spensia_mapping.json');
+      let mapping = { settings: { content_id: newId }, timeline: [] };
       mapping.settings.content_id = newId;
       fs.writeFileSync(mappingFile, JSON.stringify(mapping, null, 2), 'utf-8');
+      fs.writeFileSync(path.join(spensiaInputDir, '.current_content_id'), newId, 'utf-8');
       return { success: true, content_id: newId };
     }
 
