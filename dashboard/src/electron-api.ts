@@ -268,8 +268,17 @@ export interface ElectronAPI {
   generateYoutubeTitles: (transcriptText: string) => Promise<YoutubeTitleResult>;
   generateSpensiaTopics: (promptText: string, model?: string) => Promise<{ rawText: string; topics?: Array<{ id: number; title: string; summary: string }> | null; theme?: string | null }>;
   generateSpensiaScript: (promptText: string, model?: string) => Promise<{ rawText: string; scriptData?: any }>;
+  generateSpensiaBreakdown: (promptText: string, model?: string) => Promise<{ rawText: string; breakdownData?: any }>;
+  generateSpensiaImagePrompts: (promptText: string, model?: string) => Promise<{ rawText: string; imagePromptsData?: any }>;
   onSpensiaTopicsChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
   onSpensiaScriptChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  onSpensiaBreakdownChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  onSpensiaImagePromptsChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  generateSpensiaSingleImage: (segmentId: number, prompt: string, model?: string, size?: string, quality?: string, imageDetail?: string) => Promise<{ segmentId: number; filePath: string; url: string; originalUrl?: string }>;
+  generateSpensiaBatchImages: (items: Array<{ segment_id: number; prompt: string }>, model?: string, size?: string, quality?: string, imageDetail?: string, concurrency?: number) => Promise<Array<any>>;
+  onSpensiaImageProgress: (callback: (data: { current: number; total: number; segmentId: number; saved?: any; error?: string; status: string }) => void) => () => void;
+  onSpensiaImageChunkStart: (callback: (data: { segmentIds: number[] }) => void) => () => void;
+  uploadSpensiaVoAudio: (segmentId?: number, sourcePath?: string, bufferArray?: ArrayBuffer | number[]) => Promise<{ segmentId?: number; filename: string; filePath: string; url: string }>;
 }
 
 declare global {

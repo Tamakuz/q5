@@ -44,6 +44,8 @@ function decodeMediaUrl(url) {
 
 let mainWindow = null;
 
+process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -62,7 +64,6 @@ function createWindow() {
   const isDev = process.env.NODE_ENV !== 'production';
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
-    mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   }
@@ -1236,6 +1237,142 @@ ipcMain.handle('generate-spensia-script', async (event, { promptText, model }) =
     },
   });
 });
+
+ipcMain.handle('generate-spensia-breakdown', async (event, { promptText, model }) => {
+  return aiClient.generateSpensiaBreakdown({
+    promptText,
+    model,
+    onChunk: (chunk, fullText) => {
+      try {
+        event.sender.send('spensia-breakdown-chunk', { chunk, fullText });
+      } catch (err) {}
+    },
+  });
+});
+
+ipcMain.handle('generate-spensia-image-prompts', async (event, { promptText, model }) => {
+  return aiClient.generateSpensiaImagePrompts({
+    promptText,
+    model,
+    onChunk: (chunk, fullText) => {
+      try {
+        event.sender.send('spensia-image-prompts-chunk', { chunk, fullText });
+      } catch (err) {}
+    },
+  });
+});
+
+const SPENSIA_IMAGES_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'images');
+if (!fs.existsSync(SPENSIA_IMAGES_DIR)) fs.mkdirSync(SPENSIA_IMAGES_DIR, { recursive: true });
+
+async function saveSpensiaImageFile(segmentId, res) {
+  const destPath = path.join(SPENSIA_IMAGES_DIR, `segment_${segmentId}.png`);
+  if (res.b64_json) {
+    const buffer = Buffer.from(res.b64_json, 'base64');
+    await fs.promises.writeFile(destPath, buffer);
+  } else if (res.url) {
+    const imgRes = await fetch(res.url);
+    if (!imgRes.ok) throw new Error(`Failed to download generated image from URL.`);
+    const arrayBuffer = await imgRes.arrayBuffer();
+    await fs.promises.writeFile(destPath, Buffer.from(arrayBuffer));
+  }
+  return {
+    segmentId,
+    filePath: destPath,
+    url: mediaUrl(destPath),
+    originalUrl: res.url || null,
+  };
+}
+
+ipcMain.handle('generate-spensia-single-image', async (_event, { segmentId, prompt, model, size, quality, image_detail }) => {
+  const res = await aiClient.generateImage({ prompt, model, size, quality, image_detail });
+  return saveSpensiaImageFile(segmentId, res);
+});
+
+ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, size, quality, image_detail, concurrency = 5 }) => {
+  const results = [];
+  const total = items.length;
+  let completedCount = 0;
+  const batchSize = Math.max(1, Math.min(10, Number(concurrency) || 5));
+
+  for (let i = 0; i < items.length; i += batchSize) {
+    const chunk = items.slice(i, i + batchSize);
+
+    try {
+      event.sender.send('spensia-image-chunk-start', {
+        segmentIds: chunk.map((c) => c.segment_id),
+      });
+    } catch {}
+
+    const chunkPromises = chunk.map(async (item) => {
+      try {
+        const res = await aiClient.generateImage({ prompt: item.prompt, model, size, quality, image_detail });
+        const saved = await saveSpensiaImageFile(item.segment_id, res);
+        completedCount++;
+
+        const resultObj = { ...saved, status: 'success' };
+        results.push(resultObj);
+
+        try {
+          event.sender.send('spensia-image-progress', {
+            current: completedCount,
+            total,
+            segmentId: item.segment_id,
+            saved,
+            status: 'success',
+          });
+        } catch {}
+        return resultObj;
+      } catch (err) {
+        completedCount++;
+        const resultObj = { segmentId: item.segment_id, error: err.message, status: 'error' };
+        results.push(resultObj);
+
+        try {
+          event.sender.send('spensia-image-progress', {
+            current: completedCount,
+            total,
+            segmentId: item.segment_id,
+            error: err.message,
+            status: 'error',
+          });
+        } catch {}
+        return resultObj;
+      }
+    });
+
+    await Promise.all(chunkPromises);
+  }
+
+  return results;
+});
+
+const SPENSIA_AUDIO_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'audio');
+if (!fs.existsSync(SPENSIA_AUDIO_DIR)) fs.mkdirSync(SPENSIA_AUDIO_DIR, { recursive: true });
+
+ipcMain.handle('upload-spensia-vo-audio', async (_event, { segmentId, sourcePath, bufferArray }) => {
+  const ext = sourcePath ? path.extname(sourcePath) || '.mp3' : '.mp3';
+  const filename = segmentId !== undefined ? `segment_${segmentId}${ext}` : `full_narration${ext}`;
+  const destPath = path.join(SPENSIA_AUDIO_DIR, filename);
+
+  if (bufferArray) {
+    const buffer = Buffer.from(bufferArray);
+    await fs.promises.writeFile(destPath, buffer);
+  } else if (sourcePath && fs.existsSync(sourcePath)) {
+    await fs.promises.copyFile(sourcePath, destPath);
+  } else {
+    throw new Error('File audio source atau buffer tidak valid.');
+  }
+
+  return {
+    segmentId,
+    filename,
+    filePath: destPath,
+    url: mediaUrl(destPath),
+  };
+});
+
+
 
 // ─── Save file to project ─────────────────────────────
 

@@ -36,8 +36,6 @@ async function chatCompletion({
     reqBody.response_format = { type: 'json_object' };
   }
 
-  console.log(`🤖 [AI Client] Calling 9router API (model: ${targetModel}, jsonMode: ${jsonMode})...`);
-
   const response = await fetch(`${NINEROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -99,8 +97,6 @@ async function streamChatCompletion({
   if (jsonMode) {
     reqBody.response_format = { type: 'json_object' };
   }
-
-  console.log(`🤖 [AI Client Stream] Calling 9router SSE API (model: ${targetModel}, jsonMode: ${jsonMode})...`);
 
   const response = await fetch(`${NINEROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',
@@ -191,9 +187,7 @@ async function generateSpensiaTopics({ promptText, model = DEFAULT_MODEL, onChun
   let parsed = null;
   try {
     parsed = JSON.parse(rawText);
-  } catch (e) {
-    console.warn('Could not parse JSON response directly from AI:', e);
-  }
+  } catch (e) {}
 
   return {
     rawText,
@@ -228,13 +222,124 @@ async function generateSpensiaScript({ promptText, model = DEFAULT_MODEL, onChun
   let parsed = null;
   try {
     parsed = JSON.parse(rawText);
-  } catch (e) {
-    console.warn('Could not parse Script JSON response directly from AI:', e);
-  }
+  } catch (e) {}
 
   return {
     rawText,
     scriptData: parsed || null,
+  };
+}
+
+/**
+ * Generate Spensia Breakdown (Scene Splitter) using AI
+ */
+async function generateSpensiaBreakdown({ promptText, model = DEFAULT_MODEL, onChunk }) {
+  const rawText = await streamChatCompletion({
+    prompt: promptText,
+    model,
+    jsonMode: true,
+    onChunk,
+  });
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch (e) {}
+
+  return {
+    rawText,
+    breakdownData: parsed || null,
+  };
+}
+
+/**
+ * Generate Spensia Image Prompts using AI
+ */
+async function generateSpensiaImagePrompts({ promptText, model = DEFAULT_MODEL, onChunk }) {
+  const rawText = await streamChatCompletion({
+    prompt: promptText,
+    model,
+    jsonMode: true,
+    onChunk,
+  });
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch (e) {}
+
+  return {
+    rawText,
+    imagePromptsData: parsed || null,
+  };
+}
+
+const DEFAULT_IMAGE_MODEL = 'cx/gpt-5.5-image';
+
+/**
+ * Generate Image via 9router Images API (/v1/images/generations)
+ */
+async function generateImage({ prompt, model = DEFAULT_IMAGE_MODEL, size = '1280x720', quality = 'low', image_detail = 'low' }) {
+  const targetModel = model || DEFAULT_IMAGE_MODEL;
+
+  const reqBody = {
+    model: targetModel,
+    prompt,
+    n: 1,
+    size: size || '1280x720',
+    quality: quality || 'low',
+    background: 'auto',
+    image_detail: image_detail || 'low',
+    output_format: 'png',
+  };
+
+  const response = await fetch(`${NINEROUTER_BASE_URL}/images/generations`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${NINEROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(reqBody),
+  });
+
+  const rawText = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`9router Image API Error (${response.status}): ${rawText}`);
+  }
+
+  let json = null;
+  try {
+    json = JSON.parse(rawText);
+  } catch (e) {
+    // Fallback: Parse SSE data stream format "data: {...}"
+    const dataLines = rawText
+      .split('\n')
+      .filter((line) => line.trim().startsWith('data:'))
+      .map((line) => line.replace(/^data:\s*/, '').trim());
+
+    for (let i = dataLines.length - 1; i >= 0; i--) {
+      try {
+        const parsed = JSON.parse(dataLines[i]);
+        if (parsed?.data?.[0]?.url || parsed?.data?.[0]?.b64_json || parsed?.url || parsed?.b64_json) {
+          json = parsed;
+          break;
+        }
+      } catch {}
+    }
+  }
+
+  const imageUrl = json?.data?.[0]?.url || json?.url;
+  const b64Data = json?.data?.[0]?.b64_json || json?.b64_json;
+
+  if (!imageUrl && !b64Data) {
+    throw new Error(`No image URL or b64_json found in response: ${rawText.slice(0, 300)}`);
+  }
+
+  return {
+    url: imageUrl || null,
+    b64_json: b64Data || null,
   };
 }
 
@@ -243,7 +348,11 @@ module.exports = {
   streamChatCompletion,
   generateSpensiaTopics,
   generateSpensiaScript,
+  generateSpensiaBreakdown,
+  generateSpensiaImagePrompts,
+  generateImage,
   generateYoutubeTitles,
   NINEROUTER_BASE_URL,
   DEFAULT_MODEL,
+  DEFAULT_IMAGE_MODEL,
 };

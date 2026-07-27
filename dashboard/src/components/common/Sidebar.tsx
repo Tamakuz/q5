@@ -1,7 +1,7 @@
 // dashboard/src/components/common/Sidebar.tsx
 import React from 'react';
 
-export type StepId = 'source' | 'analyze' | 'audio' | 'transcript' | 'mapping' | 'render' | 'upload';
+export type StepId = 'source' | 'analyze' | 'audio' | 'transcript' | 'mapping' | 'render' | 'upload' | 'publish';
 export type ContentMode = 'shortform' | 'longform' | 'spensia';
 
 interface Step {
@@ -32,6 +32,10 @@ const LONGFORM_STEPS: Step[] = [
 const SPENSIA_STEPS: Step[] = [
   { id: 'source', icon: '💡', label: '1. Topics Generator', subText: 'Ide topik & fakta kontraintuitif' },
   { id: 'analyze', icon: '⚡', label: '2. Script Generator', subText: 'Naskah voiceover Style DNA Spensia' },
+  { id: 'audio', icon: '✂️', label: '3. Scene Splitter', subText: 'Breakdown segmen visual adegan' },
+  { id: 'mapping', icon: '🎨', label: '4. Image Prompt Generator', subText: 'Visual Style DNA Spensia prompts' },
+  { id: 'render', icon: '🖼️', label: '5. Image Generator', subText: 'Generate ilustrasi adegan 9router' },
+  { id: 'publish', icon: '🎙️', label: '6. Voice Over Generator', subText: 'Prompt TTS & Upload Audio Spensia' },
 ];
 
 interface SidebarProps {

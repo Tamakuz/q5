@@ -135,7 +135,6 @@ const SpensiaTopicsStep: React.FC = () => {
         showToast(`⚠️ Validasi JSON Gagal: ${report.summaryText}`);
       }
     } catch (err: any) {
-      console.error('Auto generate error:', err);
       showToast(`❌ Gagal me-generate topik: ${err?.message || err}`);
     } finally {
       if (unsubscribeStream) unsubscribeStream();

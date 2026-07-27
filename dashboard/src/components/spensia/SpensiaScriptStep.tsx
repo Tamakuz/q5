@@ -155,7 +155,6 @@ const SpensiaScriptStep: React.FC = () => {
         showToast(`⚠️ Validasi JSON Gagal: ${report.summaryText}`);
       }
     } catch (err: any) {
-      console.error('Script generate error:', err);
       showToast(`❌ Gagal me-generate naskah: ${err?.message || err}`);
     } finally {
       if (unsubscribeStream) unsubscribeStream();

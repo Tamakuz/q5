@@ -104,6 +104,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   generateYoutubeTitles: (transcriptText) => ipcRenderer.invoke('generate-youtube-titles', transcriptText),
   generateSpensiaTopics: (promptText, model) => ipcRenderer.invoke('generate-spensia-topics', { promptText, model }),
   generateSpensiaScript: (promptText, model) => ipcRenderer.invoke('generate-spensia-script', { promptText, model }),
+  generateSpensiaBreakdown: (promptText, model) => ipcRenderer.invoke('generate-spensia-breakdown', { promptText, model }),
+  generateSpensiaImagePrompts: (promptText, model) => ipcRenderer.invoke('generate-spensia-image-prompts', { promptText, model }),
   onSpensiaTopicsChunk: (callback) => {
     const handler = (_e, data) => callback(data);
     ipcRenderer.on('spensia-topics-chunk', handler);
@@ -114,6 +116,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('spensia-script-chunk', handler);
     return () => ipcRenderer.removeListener('spensia-script-chunk', handler);
   },
+  onSpensiaBreakdownChunk: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('spensia-breakdown-chunk', handler);
+    return () => ipcRenderer.removeListener('spensia-breakdown-chunk', handler);
+  },
+  onSpensiaImagePromptsChunk: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('spensia-image-prompts-chunk', handler);
+    return () => ipcRenderer.removeListener('spensia-image-prompts-chunk', handler);
+  },
+  generateSpensiaSingleImage: (segmentId, prompt, model, size, quality, imageDetail) =>
+    ipcRenderer.invoke('generate-spensia-single-image', { segmentId, prompt, model, size, quality, image_detail: imageDetail }),
+  generateSpensiaBatchImages: (items, model, size, quality, imageDetail, concurrency = 5) =>
+    ipcRenderer.invoke('generate-spensia-batch-images', { items, model, size, quality, image_detail: imageDetail, concurrency }),
+  onSpensiaImageProgress: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('spensia-image-progress', handler);
+    return () => ipcRenderer.removeListener('spensia-image-progress', handler);
+  },
+  onSpensiaImageChunkStart: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('spensia-image-chunk-start', handler);
+    return () => ipcRenderer.removeListener('spensia-image-chunk-start', handler);
+  },
+  uploadSpensiaVoAudio: (segmentId, sourcePath, bufferArray) =>
+    ipcRenderer.invoke('upload-spensia-vo-audio', { segmentId, sourcePath, bufferArray }),
   saveToProject: (subPath, data) => ipcRenderer.invoke('save-to-project', { subPath, data }),
   readFromProject: (subPath) => ipcRenderer.invoke('read-from-project', subPath),
 });

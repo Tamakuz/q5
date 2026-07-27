@@ -24,6 +24,10 @@ import AlurfilmRenderStep from './components/longform/AlurfilmRenderStep';
 // Spensia Feature Components
 import SpensiaTopicsStep from './components/spensia/SpensiaTopicsStep';
 import SpensiaScriptStep from './components/spensia/SpensiaScriptStep';
+import SpensiaBreakdownStep from './components/spensia/SpensiaBreakdownStep';
+import SpensiaImagePromptStep from './components/spensia/SpensiaImagePromptStep';
+import SpensiaImageGeneratorStep from './components/spensia/SpensiaImageGeneratorStep';
+import SpensiaVoiceOverStep from './components/spensia/SpensiaVoiceOverStep';
 
 type Status = 'ready' | 'rendering' | 'error';
 
@@ -95,6 +99,14 @@ const App: React.FC = () => {
               <SpensiaTopicsStep key="spensia-topics" />
             ) : activeStep === 'analyze' ? (
               <SpensiaScriptStep key="spensia-script" />
+            ) : activeStep === 'audio' ? (
+              <SpensiaBreakdownStep key="spensia-breakdown" />
+            ) : activeStep === 'mapping' ? (
+              <SpensiaImagePromptStep key="spensia-image-prompts" />
+            ) : activeStep === 'render' ? (
+              <SpensiaImageGeneratorStep key="spensia-image-generator" />
+            ) : activeStep === 'publish' ? (
+              <SpensiaVoiceOverStep key="spensia-voice-over" />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
                 <div className="w-20 h-20 bg-emerald-600/10 text-emerald-400 rounded-3xl flex items-center justify-center text-4xl border border-emerald-500/20 shadow-xl shadow-emerald-950/40">

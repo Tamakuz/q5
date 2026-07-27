@@ -345,3 +345,339 @@ export function validateSpensiaScript(rawInput: any): SpensiaScriptValidationRep
       : `Script Validation Failed: ${errors.map((e) => e.message).join('; ')}`,
   };
 }
+
+export interface SpensiaSegmentItem {
+  segment_id: number;
+  text: string;
+}
+
+export interface SpensiaBreakdownData {
+  total_segments: number;
+  segments: SpensiaSegmentItem[];
+}
+
+export interface SpensiaBreakdownValidationReport {
+  isValid: boolean;
+  issues: SpensiaValidationIssue[];
+  errorCount: number;
+  warningCount: number;
+  normalizedData: SpensiaBreakdownData | null;
+  summaryText: string;
+}
+
+/**
+ * Perform strict JSON / Text validation and normalization for Spensia Scene Splitter output
+ */
+export function validateSpensiaBreakdown(rawInput: any): SpensiaBreakdownValidationReport {
+  const issues: SpensiaValidationIssue[] = [];
+  const segmentsList: SpensiaSegmentItem[] = [];
+
+  let textContent = typeof rawInput === 'string' ? rawInput.trim() : '';
+
+  // 1. Try parsing JSON first
+  if (typeof rawInput === 'object' && rawInput !== null) {
+    const list = Array.isArray(rawInput) ? rawInput : Array.isArray(rawInput.segments) ? rawInput.segments : null;
+    if (list) {
+      list.forEach((item: any, idx: number) => {
+        const segText = item.text || item.content || item.quote;
+        if (typeof segText === 'string' && segText.trim()) {
+          segmentsList.push({
+            segment_id: Number(item.segment_id || item.id) || idx + 1,
+            text: segText.replace(/^["“']|["”']$/g, '').trim(),
+          });
+        }
+      });
+    }
+  } else if (textContent) {
+    if (textContent.startsWith('```')) {
+      textContent = textContent.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+    }
+
+    try {
+      const parsed = JSON.parse(textContent);
+      const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed.segments) ? parsed.segments : null;
+      if (list) {
+        list.forEach((item: any, idx: number) => {
+          const segText = item.text || item.content || item.quote;
+          if (typeof segText === 'string' && segText.trim()) {
+            segmentsList.push({
+              segment_id: Number(item.segment_id || item.id) || idx + 1,
+              text: segText.replace(/^["“']|["”']$/g, '').trim(),
+            });
+          }
+        });
+      }
+    } catch {
+      // Fallback: Parse Markdown line-by-line format "Segmen X: "..." or "1. "...""
+      const lines = textContent.split('\n');
+      let idCounter = 1;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        const match = trimmed.match(/(?:Segmen\s*\d+:|\d+[\.\)]\s*)?\s*["“]?([^"\n\r”]+)["“]?/i);
+        if (match && match[1]) {
+          const clean = match[1].replace(/^Segmen\s*\d+:\s*/i, '').replace(/^["“']|["”']$/g, '').trim();
+          if (clean.length > 3) {
+            segmentsList.push({
+              segment_id: idCounter++,
+              text: clean,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  if (segmentsList.length === 0) {
+    issues.push({
+      id: 'EMPTY_SEGMENTS',
+      severity: 'error',
+      field: 'segments',
+      message: 'Tidak ada segmen pemotongan adegan yang berhasil di-parse.',
+    });
+  }
+
+  const errors = issues.filter((i) => i.severity === 'error');
+  const isValid = errors.length === 0 && segmentsList.length > 0;
+
+  return {
+    isValid,
+    issues,
+    errorCount: errors.length,
+    warningCount: issues.filter((i) => i.severity === 'warning').length,
+    normalizedData: isValid ? { total_segments: segmentsList.length, segments: segmentsList } : null,
+    summaryText: isValid
+      ? `Valid Scene Breakdown (${segmentsList.length} Segmen Adegan)`
+      : `Breakdown Validation Failed: ${errors.map((e) => e.message).join('; ')}`,
+  };
+}
+
+export interface SpensiaImagePromptItem {
+  segment_id: number;
+  segment_quote: string;
+  prompt: string;
+}
+
+export interface SpensiaImagePromptsData {
+  total_prompts: number;
+  image_prompts: SpensiaImagePromptItem[];
+}
+
+export interface SpensiaImagePromptsValidationReport {
+  isValid: boolean;
+  issues: SpensiaValidationIssue[];
+  errorCount: number;
+  warningCount: number;
+  normalizedData: SpensiaImagePromptsData | null;
+  summaryText: string;
+}
+
+/**
+ * Perform strict JSON / Text validation and normalization for Spensia Image Prompt Generator output
+ */
+export function validateSpensiaImagePrompts(rawInput: any): SpensiaImagePromptsValidationReport {
+  const issues: SpensiaValidationIssue[] = [];
+  const promptsList: SpensiaImagePromptItem[] = [];
+
+  let textContent = typeof rawInput === 'string' ? rawInput.trim() : '';
+
+  // 1. Try parsing JSON
+  if (typeof rawInput === 'object' && rawInput !== null) {
+    const list = Array.isArray(rawInput) ? rawInput : Array.isArray(rawInput.image_prompts) ? rawInput.image_prompts : null;
+    if (list) {
+      list.forEach((item: any, idx: number) => {
+        const pText = item.prompt || item.image_prompt || item.text;
+        if (typeof pText === 'string' && pText.trim()) {
+          promptsList.push({
+            segment_id: Number(item.segment_id || item.id) || idx + 1,
+            segment_quote: String(item.segment_quote || item.quote || `Segmen #${idx + 1}`).trim(),
+            prompt: pText.trim(),
+          });
+        }
+      });
+    }
+  } else if (textContent) {
+    if (textContent.startsWith('```')) {
+      textContent = textContent.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+    }
+
+    try {
+      const parsed = JSON.parse(textContent);
+      const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed.image_prompts) ? parsed.image_prompts : null;
+      if (list) {
+        list.forEach((item: any, idx: number) => {
+          const pText = item.prompt || item.image_prompt || item.text;
+          if (typeof pText === 'string' && pText.trim()) {
+            promptsList.push({
+              segment_id: Number(item.segment_id || item.id) || idx + 1,
+              segment_quote: String(item.segment_quote || item.quote || `Segmen #${idx + 1}`).trim(),
+              prompt: pText.trim(),
+            });
+          }
+        });
+      }
+    } catch {
+      // Fallback text parser for Markdown "Segmen X: "..." \n Prompt: ..."
+      const blocks = textContent.split(/(?=Segmen\s*\d+:)/gi);
+      let idCounter = 1;
+      for (const block of blocks) {
+        const trimmed = block.trim();
+        if (!trimmed) continue;
+
+        const quoteMatch = trimmed.match(/Segmen\s*(\d+):\s*["“]?([^"\n\r”]+)["“]?/i);
+        const promptMatch = trimmed.match(/Prompt:\s*([\s\S]+)/i);
+
+        if (promptMatch && promptMatch[1]) {
+          const segId = quoteMatch ? Number(quoteMatch[1]) : idCounter++;
+          const segQuote = quoteMatch && quoteMatch[2] ? quoteMatch[2].trim() : `Segmen #${segId}`;
+          const promptContent = promptMatch[1].trim();
+
+          promptsList.push({
+            segment_id: segId,
+            segment_quote: segQuote,
+            prompt: promptContent,
+          });
+        }
+      }
+    }
+  }
+
+  if (promptsList.length === 0) {
+    issues.push({
+      id: 'EMPTY_IMAGE_PROMPTS',
+      severity: 'error',
+      field: 'image_prompts',
+      message: 'Tidak ada image prompt yang berhasil di-parse.',
+    });
+  }
+
+  const errors = issues.filter((i) => i.severity === 'error');
+  const isValid = errors.length === 0 && promptsList.length > 0;
+
+  return {
+    isValid,
+    issues,
+    errorCount: errors.length,
+    warningCount: issues.filter((i) => i.severity === 'warning').length,
+    normalizedData: isValid ? { total_prompts: promptsList.length, image_prompts: promptsList } : null,
+    summaryText: isValid
+      ? `Valid Image Prompts (${promptsList.length} Prompt Gambar)`
+      : `Image Prompt Validation Failed: ${errors.map((e) => e.message).join('; ')}`,
+  };
+}
+
+export interface SpensiaWordTimestamp {
+  word: string;
+  start: number;
+  end: number;
+}
+
+export interface SpensiaTranscriptData {
+  transcript_full: string;
+  words: SpensiaWordTimestamp[];
+}
+
+export interface SpensiaTranscriptValidationReport {
+  isValid: boolean;
+  issues: SpensiaValidationIssue[];
+  errorCount: number;
+  warningCount: number;
+  normalizedData: SpensiaTranscriptData | null;
+  summaryText: string;
+}
+
+/**
+ * Validate and normalize Word-Level Audio Transcript output from AI
+ */
+export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptValidationReport {
+  const issues: SpensiaValidationIssue[] = [];
+  const wordsList: SpensiaWordTimestamp[] = [];
+  let transcriptFull = '';
+
+  let textContent = typeof rawInput === 'string' ? rawInput.trim() : '';
+
+  const parseSec = (val: any, defaultVal: number = 0): number => {
+    if (typeof val === 'number') return isNaN(val) ? defaultVal : val;
+    if (typeof val === 'string') {
+      const cleaned = val.replace(/[^0-9.]/g, '');
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? defaultVal : num;
+    }
+    return defaultVal;
+  };
+
+  if (typeof rawInput === 'object' && rawInput !== null) {
+    transcriptFull = String(rawInput.transcript_full || rawInput.text || '').trim();
+    const wList = Array.isArray(rawInput.words) ? rawInput.words : null;
+    if (wList) {
+      wList.forEach((w: any) => {
+        if (typeof w.word === 'string' && w.word.trim()) {
+          const sSec = parseSec(w.start, 0);
+          const eSec = parseSec(w.end, sSec + 0.3);
+          wordsList.push({
+            word: w.word.trim(),
+            start: sSec,
+            end: eSec > sSec ? eSec : sSec + 0.3,
+          });
+        }
+      });
+    }
+  } else if (textContent) {
+    if (textContent.startsWith('```')) {
+      textContent = textContent.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+    }
+
+    try {
+      const parsed = JSON.parse(textContent);
+      transcriptFull = String(parsed.transcript_full || parsed.text || '').trim();
+      const wList = Array.isArray(parsed.words) ? parsed.words : null;
+      if (wList) {
+        wList.forEach((w: any) => {
+          if (typeof w.word === 'string' && w.word.trim()) {
+            const sSec = parseSec(w.start, 0);
+            const eSec = parseSec(w.end, sSec + 0.3);
+            wordsList.push({
+              word: w.word.trim(),
+              start: sSec,
+              end: eSec > sSec ? eSec : sSec + 0.3,
+            });
+          }
+        });
+      }
+    } catch {
+      // Fallback parser if plain text
+      transcriptFull = textContent;
+    }
+  }
+
+  if (wordsList.length === 0 && !transcriptFull) {
+    issues.push({
+      id: 'EMPTY_TRANSCRIPT',
+      severity: 'error',
+      field: 'words',
+      message: 'Tidak ada kata transkrip audio yang berhasil di-parse.',
+    });
+  }
+
+  if (!transcriptFull && wordsList.length > 0) {
+    transcriptFull = wordsList.map((w) => w.word).join(' ');
+  }
+
+  const errors = issues.filter((i) => i.severity === 'error');
+  const isValid = errors.length === 0;
+
+  return {
+    isValid,
+    issues,
+    errorCount: errors.length,
+    warningCount: issues.filter((i) => i.severity === 'warning').length,
+    normalizedData: isValid ? { transcript_full: transcriptFull, words: wordsList } : null,
+    summaryText: isValid
+      ? `Valid Word Transcript (${wordsList.length} Kata)`
+      : `Transcript Validation Failed: ${errors.map((e) => e.message).join('; ')}`,
+  };
+}
+
+
+
