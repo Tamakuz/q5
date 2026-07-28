@@ -85,14 +85,17 @@ const SpensiaVoiceOverStep: React.FC = () => {
   const loadTranscriptionPromptFromFile = async () => {
     try {
       if (api?.readFromProject) {
-        const loadedPrompt = await api.readFromProject('dashboard/prompts/spensia/audio-transcription-prompt.md');
+        let loadedPrompt = await api.readFromProject('dashboard/prompts/spensia/audio-mapping-prompt.md');
+        if (!loadedPrompt || !loadedPrompt.trim()) {
+          loadedPrompt = await api.readFromProject('dashboard/prompts/spensia/audio-transcription-prompt.md');
+        }
         if (loadedPrompt && loadedPrompt.trim().length > 0) {
           setTranscriptionPrompt(loadedPrompt);
           return loadedPrompt;
         }
       }
     } catch (err) {
-      console.error('Error reading audio-transcription-prompt.md:', err);
+      console.error('Error reading audio-mapping-prompt.md:', err);
     }
     return '';
   };
@@ -214,6 +217,20 @@ const SpensiaVoiceOverStep: React.FC = () => {
                 };
               }
             } catch {}
+          }
+
+          if (!savedMergedVo) {
+            const partWithAudio = initialParts.find((p) => p.audioUrl || p.audioPath);
+            if (partWithAudio) {
+              savedMergedVo = {
+                audioUrl: partWithAudio.audioUrl,
+                audioPath: partWithAudio.audioPath,
+                filename: partWithAudio.filename || 'segment_1.wav',
+                duration: partWithAudio.duration,
+                rawTranscriptJson: partWithAudio.rawTranscriptJson,
+                transcript: partWithAudio.transcript,
+              };
+            }
           }
 
           if (savedMergedVo) {
@@ -526,8 +543,14 @@ const SpensiaVoiceOverStep: React.FC = () => {
         }
 
         setPipelineStage('completed');
-        setPipelineStatusText('Transkrip Gemini Sukses & Terkoneksi');
-        showToast(`✨ Transkrip Gemini Berhasil Diproses (${report.normalizedData.words.length} Kata Aligned)!`);
+        setPipelineStatusText('Audio Mapping Gemini Sukses & Terkoneksi');
+        const segCount = report.normalizedData.segments?.length || 0;
+        const wordCount = report.normalizedData.words?.length || 0;
+        showToast(
+          segCount > 0
+            ? `✨ Audio Mapping Gemini Berhasil Diproses (${segCount} Segmen Aligned)!`
+            : `✨ Transkrip Gemini Berhasil Diproses (${wordCount} Kata Aligned)!`
+        );
       } else {
         const pId = Number(targetKey);
         setParts((prev) => {
@@ -663,7 +686,7 @@ const SpensiaVoiceOverStep: React.FC = () => {
         <div className="bg-gray-900/90 p-5 rounded-3xl border border-emerald-800/40 shadow-xl space-y-3 animate-in slide-in-from-top-4 duration-200">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
-              <span>📝</span> Template Master Prompt Gemini (`audio-transcription-prompt.md`)
+              <span>📝</span> Template Master Prompt Gemini (`audio-mapping-prompt.md`)
             </h3>
             <button
               onClick={() => handleCopyText(transcriptionPrompt, 'Template Prompt Gemini')}
@@ -951,10 +974,10 @@ const SpensiaVoiceOverStep: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-3">
               <div>
                 <label className="text-xs font-extrabold text-teal-300 flex items-center gap-2">
-                  <span>📥</span> Input Hasil Transkrip JSON dari Gemini (Word-Level Timestamps):
+                  <span>📥</span> Input Hasil Audio Mapping JSON dari Gemini (Segments Timestamps):
                 </label>
                 <p className="text-[11px] text-gray-400 mt-0.5">
-                  Paste output JSON yang dihasilkan Gemini di Google AI Studio di sini.
+                  Paste output JSON (field <code className="text-teal-300 font-mono">segments</code>) yang dihasilkan Gemini di Google AI Studio di sini.
                 </p>
               </div>
 
@@ -972,13 +995,15 @@ const SpensiaVoiceOverStep: React.FC = () => {
               onChange={(e) => setPastedJsonMap({ ...pastedJsonMap, merged: e.target.value })}
               rows={6}
               className="w-full bg-gray-900 border border-gray-800 rounded-xl p-4 text-xs text-gray-200 font-mono leading-relaxed focus:outline-none focus:border-teal-500 shadow-inner"
-              placeholder='Paste teks JSON hasil Gemini di sini (contoh: { "transcript_full": "...", "chunks": [...] })...'
+              placeholder='Paste teks JSON hasil Gemini di sini (contoh: { "segments": [ { "segment_id": 1, "quote": "...", "start_sec": 0.0, "end_sec": 5.5, "duration_sec": 5.5 } ] })...'
             />
 
             <div className="flex justify-end items-center gap-3">
               {mergedVo?.transcript && (
                 <span className="text-xs font-mono text-emerald-400 font-bold">
-                  ✓ Valid Transcript ({mergedVo.transcript.words.length} Kata Aligned)
+                  {mergedVo.transcript.segments?.length
+                    ? `✓ Valid Timeline Mapping (${mergedVo.transcript.segments.length} Segmen Aligned)`
+                    : `✓ Valid Transcript (${mergedVo.transcript.words.length} Kata Aligned)`}
                 </span>
               )}
               <button
@@ -986,7 +1011,7 @@ const SpensiaVoiceOverStep: React.FC = () => {
                 className="px-6 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-extrabold transition-all shadow-lg flex items-center gap-2"
               >
                 <span>✨</span>
-                <span>Proses & Validasi Transkrip Gemini</span>
+                <span>Proses & Validasi Audio Mapping</span>
               </button>
             </div>
           </div>

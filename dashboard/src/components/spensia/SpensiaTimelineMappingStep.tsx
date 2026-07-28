@@ -44,12 +44,63 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(0);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 4000);
   };
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    }
+  };
+
+  const handleTogglePlayPause = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        audioRef.current.play();
+        setIsPlaying(true);
+      }
+    }
+  };
+
+  const formatTime = (sec: number): string => {
+    if (!sec || isNaN(sec)) return '00:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  // Find active clip based on current audio playback time
+  const activeClip = timelineData?.video_clips?.find((clip, idx, arr) => {
+    const isLast = idx === arr.length - 1;
+    return currentTime >= clip.start_sec && (currentTime < clip.end_sec || (isLast && currentTime <= clip.end_sec + 1.0));
+  });
+
+  // Auto scroll active segment into view when playback progresses
+  useEffect(() => {
+    if (activeClip && isPlaying) {
+      const el = document.getElementById(`segment-row-${activeClip.segment_id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [activeClip?.segment_id, isPlaying]);
 
   // Helper to construct full prompt for Gemini with Naskah/Script & Breakdown Segments attached
   const getGeminiPromptWithScript = (): string => {
@@ -97,7 +148,10 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
       try {
         if (api?.readFromProject) {
           // 1. Load prompt template
-          const loadedPrompt = await api.readFromProject('dashboard/prompts/spensia/audio-transcription-prompt.md');
+          let loadedPrompt = await api.readFromProject('dashboard/prompts/spensia/audio-mapping-prompt.md');
+          if (!loadedPrompt || !loadedPrompt.trim()) {
+            loadedPrompt = await api.readFromProject('dashboard/prompts/spensia/audio-transcription-prompt.md');
+          }
           if (loadedPrompt) setTranscriptionPrompt(loadedPrompt);
 
           // 2. Load script
@@ -114,16 +168,30 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
             } catch {}
           }
 
-          // 4. Load audio final URL if available
+          // 4. Load audio final URL from vo_2parts_state.json or fallback to input/spensia/audio/
           const savedVo2Json = await api.readFromProject('input/spensia/vo_2parts_state.json');
+          let foundAudioUrl: string | null = null;
+
           if (savedVo2Json) {
             try {
               const parsedVo = JSON.parse(savedVo2Json);
-              if (parsedVo.mergedVo?.audioUrl) {
-                setAudioUrl(parsedVo.mergedVo.audioUrl);
+              if (parsedVo.mergedVo?.audioUrl || parsedVo.mergedVo?.audioPath) {
+                foundAudioUrl = parsedVo.mergedVo.audioUrl || `media://content-auto/${encodeURIComponent(parsedVo.mergedVo.audioPath)}`;
+              } else if (parsedVo.parts && Array.isArray(parsedVo.parts)) {
+                const partWithAudio = parsedVo.parts.find((p: any) => p.audioUrl || p.audioPath);
+                if (partWithAudio) {
+                  foundAudioUrl = partWithAudio.audioUrl || `media://content-auto/${encodeURIComponent(partWithAudio.audioPath)}`;
+                }
               }
             } catch {}
           }
+
+          if (!foundAudioUrl) {
+            const fallbackPath = '/home/jovan/project/content-auto/input/spensia/audio/segment_1.wav';
+            foundAudioUrl = `media://content-auto/${encodeURIComponent(fallbackPath)}`;
+          }
+
+          setAudioUrl(foundAudioUrl);
 
           // 5. Load existing timeline mapping JSON if available
           await loadTimelineData();
@@ -172,8 +240,14 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
         throw new Error(res.error);
       }
 
-      setTimelineData(res);
-      showToast(`✨ Timeline Mapping Berhasil Dibuat (${res.video_clips?.length || 0} Segmen, Total ${res.total_duration_sec?.toFixed(1) || 0}s)!`);
+      if (res?.timeline) {
+        setTimelineData(res.timeline);
+        showToast(
+          `✨ Timeline Mapping Berhasil Dibuat (${res.timeline.video_clips?.length || 0} Segmen, Total ${
+            res.timeline.total_duration_sec?.toFixed(1) || 0
+          }s)!`
+        );
+      }
     } catch (err: any) {
       showToast(`❌ Gagal generate timeline mapping: ${err?.message || err}`);
     } finally {
@@ -201,6 +275,7 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
         await api.saveToProject('input/spensia/transcripts/merged_transcript.json', JSON.stringify(report.normalizedData, null, 2));
       }
 
+      showToast(`✨ Validasi Berhasil! ${report.summaryText}`);
       // Re-trigger timeline generation with updated mapping JSON
       await handleGenerateTimeline();
     } catch (err: any) {
@@ -208,11 +283,44 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
     }
   };
 
+  const processDirectUpload = async (file: File) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const bufferArray = Array.from(new Uint8Array(arrayBuffer));
+
+    let res: any = null;
+    if (api?.uploadSpensiaVoAudio) {
+      res = await api.uploadSpensiaVoAudio(undefined, (file as any).path || file.name, bufferArray);
+    } else {
+      const objectUrl = URL.createObjectURL(file);
+      res = { filename: file.name, url: objectUrl };
+    }
+
+    setAudioUrl(res.url);
+    showToast(`🎙️ Audio VO (${res.filename || file.name}) berhasil di-upload!`);
+  };
+
+  const handleUploadAudioFile = async () => {
+    try {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'audio/*,.mp3,.wav,.m4a,.aac,.ogg';
+      input.onchange = async (e: any) => {
+        const selectedFile = e.target.files?.[0];
+        if (selectedFile) await processDirectUpload(selectedFile);
+      };
+      input.click();
+    } catch (err: any) {
+      showToast(`❌ Gagal upload audio: ${err?.message || err}`);
+    }
+  };
+
   const handleSeekAudio = (sec: number) => {
     if (audioRef.current) {
       audioRef.current.currentTime = sec;
       audioRef.current.play();
-      showToast(`▶️ Play Audio pada ${sec.toFixed(2)}s`);
+      setIsPlaying(true);
+      setCurrentTime(sec);
+      showToast(`▶️ Play Audio pada segmen ${sec.toFixed(2)}s`);
     } else {
       showToast(`▶️ Timestamp Segmen: ${sec.toFixed(2)}s`);
     }
@@ -220,6 +328,20 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16 animate-in fade-in duration-300">
+      {/* Hidden native audio element for precise time tracking */}
+      {audioUrl && (
+        <audio
+          ref={audioRef}
+          src={audioUrl}
+          onTimeUpdate={handleTimeUpdate}
+          onLoadedMetadata={handleLoadedMetadata}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onEnded={() => setIsPlaying(false)}
+          className="hidden"
+        />
+      )}
+
       {/* Toast Notification */}
       {toast && (
         <div className="fixed top-5 right-5 z-50 bg-teal-600 text-white px-4 py-3 rounded-2xl shadow-2xl font-semibold text-xs flex items-center gap-2 border border-teal-400/30 animate-bounce">
@@ -285,62 +407,6 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
         </div>
       </div>
 
-      {/* Audio Player Card if available */}
-      {audioUrl && (
-        <div className="p-4 bg-gray-900/80 border border-teal-800/60 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-teal-950 text-teal-400 rounded-xl flex items-center justify-center text-base border border-teal-800 shrink-0">
-              🎵
-            </div>
-            <div>
-              <h5 className="text-xs font-bold text-white">Audio Final Ready</h5>
-              <span className="text-[11px] font-mono text-teal-400">Dipakai untuk pengujian preview sync timeline segmen</span>
-            </div>
-          </div>
-          <audio ref={audioRef} src={audioUrl} controls className="w-full sm:w-80 h-9 rounded-xl focus:outline-none" />
-        </div>
-      )}
-
-      {/* Gemini Alignment JSON Manual Paste Section */}
-      <div className="p-6 bg-gray-900/90 border border-teal-800/60 rounded-3xl space-y-4 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-3">
-          <div>
-            <h3 className="text-xs font-extrabold text-teal-300 uppercase tracking-wider flex items-center gap-2">
-              <span>📥</span> Import / Paste Output JSON Gemini Alignment (`segments` & `words`)
-            </h3>
-            <p className="text-[11px] text-gray-400 mt-0.5">
-              Jika Anda telah me-run Gemini di Google AI Studio, paste teks JSON di sini untuk meng-update timestamp desimal segmen adegan secara presisi.
-            </p>
-          </div>
-
-          <button
-            onClick={handleCopyGeminiPrompt}
-            className="px-3 py-1.5 bg-teal-950 hover:bg-teal-900 text-teal-300 border border-teal-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0"
-          >
-            <span>📋</span>
-            <span>Copy Prompt</span>
-          </button>
-        </div>
-
-        <textarea
-          value={pastedJson}
-          onChange={(e) => setPastedJson(e.target.value)}
-          rows={5}
-          className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-4 text-xs font-mono text-gray-200 leading-relaxed focus:outline-none focus:border-teal-500 shadow-inner"
-          placeholder='Paste JSON Gemini di sini (contoh: { "segments": [ { "segment_id": 1, "start_sec": 0, "end_sec": 6.45 } ], "words": [...] })...'
-        />
-
-        <div className="flex justify-end items-center gap-3">
-          <button
-            onClick={handleProcessPastedJson}
-            className="px-5 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-extrabold shadow-lg flex items-center gap-2"
-          >
-            <span>✨</span>
-            <span>Simpan & Terapkan Mapping JSON</span>
-          </button>
-        </div>
-      </div>
-
       {/* Timeline Segments Visual Mapping Inspector */}
       <div className="bg-gray-900/90 p-6 rounded-3xl border border-teal-800/60 shadow-2xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-4">
@@ -353,23 +419,113 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
             </p>
           </div>
 
-          {timelineData && (
-            <div className="flex items-center gap-2 text-xs font-mono font-bold">
-              <span className="px-3 py-1 bg-teal-950 text-teal-300 border border-teal-800 rounded-xl">
-                {timelineData.video_clips?.length || 0} Segmen
-              </span>
-              <span className="px-3 py-1 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded-xl">
-                Total: {timelineData.total_duration_sec?.toFixed(1) || 0}s
-              </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleUploadAudioFile}
+              className="px-3 py-1.5 bg-gray-950 hover:bg-gray-800 text-teal-300 border border-teal-800/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0"
+              title="Upload atau ganti file audio Voice Over"
+            >
+              <span>🎙️</span>
+              <span>{audioUrl ? 'Ganti Audio VO' : 'Upload Audio VO'}</span>
+            </button>
+
+            {timelineData && (
+              <div className="flex items-center gap-2 text-xs font-mono font-bold">
+                <span className="px-3 py-1 bg-teal-950 text-teal-300 border border-teal-800 rounded-xl">
+                  {timelineData.video_clips?.length || 0} Segmen
+                </span>
+                <span className="px-3 py-1 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded-xl">
+                  Total: {timelineData.total_duration_sec?.toFixed(1) || 0}s
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Embedded Modern Audio Player Bar (ALWAYS VISIBLE ABOVE TABLE) */}
+        <div className="p-4 bg-gradient-to-r from-gray-950 via-teal-950/40 to-gray-950 border border-teal-700/60 rounded-2xl space-y-3 shadow-xl">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <button
+                onClick={handleTogglePlayPause}
+                className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white rounded-xl flex items-center justify-center text-base font-black shadow-lg border border-emerald-300/30 transition-all shrink-0"
+                title={isPlaying ? 'Pause Audio' : 'Play Audio'}
+              >
+                {isPlaying ? '⏸️' : '▶️'}
+              </button>
+
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <h5 className="text-xs font-extrabold text-white">Audio VO Player Sync</h5>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold">
+                    {formatTime(currentTime)} / {formatTime(duration || timelineData?.total_duration_sec || 0)}
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-400">
+                  {isPlaying
+                    ? '▶️ Audio sedang diputar — segmen aktif di-highlight warna hijau di bawah.'
+                    : '⏸️ Klik tombol Play di atas atau tombol ▶️ Play di baris tabel segmen untuk memutar.'}
+                </p>
+              </div>
             </div>
-          )}
+
+            {/* Native Browser Audio Controls Widget + Active Segment Pill */}
+            <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap w-full sm:w-auto justify-end">
+              {audioUrl && (
+                <audio
+                  controls
+                  src={audioUrl}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onEnded={() => setIsPlaying(false)}
+                  onTimeUpdate={handleTimeUpdate}
+                  className="h-8 w-48 sm:w-60 rounded-lg opacity-90 focus:outline-none"
+                />
+              )}
+
+              {/* Active Segment Info Pill (ONLY SHOWN WHEN PLAYING) */}
+              {isPlaying && activeClip ? (
+                <div className="px-3 py-1.5 bg-emerald-950 border border-emerald-400/60 rounded-xl flex items-center gap-2 shadow-md">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                  <div className="text-[10px] font-mono text-emerald-300 font-extrabold uppercase tracking-wider">
+                    🎯 AKTIF: <span className="text-white">#{activeClip.segment_id}</span> ({activeClip.start_sec.toFixed(1)}s ➔ {activeClip.end_sec.toFixed(1)}s)
+                  </div>
+                </div>
+              ) : (
+                <div className="px-3 py-1.5 bg-gray-950 border border-gray-800 rounded-xl text-[10px] font-mono text-gray-500">
+                  ⏸️ Audio Paused (Klik Play untuk Aktif)
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Interactive Timeline Progress Slider */}
+          <div className="flex items-center gap-3 pt-1">
+            <span className="text-[10px] font-mono font-bold text-gray-400 shrink-0">{currentTime.toFixed(1)}s</span>
+            <input
+              type="range"
+              min={0}
+              max={duration || timelineData?.total_duration_sec || 100}
+              step={0.05}
+              value={currentTime}
+              onChange={(e) => {
+                const newSec = parseFloat(e.target.value);
+                if (audioRef.current) audioRef.current.currentTime = newSec;
+                setCurrentTime(newSec);
+              }}
+              className="w-full h-2 bg-gray-950 rounded-lg appearance-none cursor-pointer accent-emerald-400 border border-gray-800"
+            />
+            <span className="text-[10px] font-mono font-bold text-gray-400 shrink-0">
+              {(duration || timelineData?.total_duration_sec || 0).toFixed(1)}s
+            </span>
+          </div>
         </div>
 
         {timelineData && timelineData.video_clips && timelineData.video_clips.length > 0 ? (
           <div className="space-y-3">
-            <div className="overflow-x-auto border border-gray-800 rounded-2xl shadow-inner">
+            <div className="overflow-x-auto border border-gray-800 rounded-2xl shadow-inner max-h-[600px] overflow-y-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-gray-950 text-gray-400 font-mono text-[11px] uppercase tracking-wider border-b border-gray-800">
+                <thead className="bg-gray-950 text-gray-400 font-mono text-[11px] uppercase tracking-wider border-b border-gray-800 sticky top-0 z-20">
                   <tr>
                     <th className="py-3 px-4">Segmen</th>
                     <th className="py-3 px-4">Gambar Adegan</th>
@@ -380,35 +536,66 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800/70 font-mono text-gray-300 bg-gray-900/50">
-                  {timelineData.video_clips.map((clip) => (
-                    <tr key={clip.clip_id} className="hover:bg-gray-800/60 transition-colors">
-                      <td className="py-3 px-4 font-extrabold text-teal-400">#{clip.segment_id}</td>
-                      <td className="py-3 px-4">
-                        {clip.image_url ? (
-                          <div className="w-16 h-10 rounded-lg overflow-hidden border border-gray-700 bg-black shrink-0 relative group">
-                            <img src={clip.image_url} alt={`Segmen #${clip.segment_id}`} className="w-full h-full object-cover" />
+                  {timelineData.video_clips.map((clip) => {
+                    const isActive = isPlaying && activeClip ? clip.clip_id === activeClip.clip_id : false;
+                    return (
+                      <tr
+                        key={clip.clip_id}
+                        id={`segment-row-${clip.segment_id}`}
+                        className={`transition-all duration-300 ${
+                          isActive
+                            ? 'bg-gradient-to-r from-emerald-950 via-teal-950/80 to-gray-900 border-l-4 border-l-emerald-400 shadow-xl shadow-emerald-950/40 text-white font-medium'
+                            : 'hover:bg-gray-800/60 text-gray-300'
+                        }`}
+                      >
+                        <td className="py-3 px-4 font-extrabold">
+                          <div className="flex flex-col gap-1">
+                            <span className={`text-sm ${isActive ? 'text-emerald-300 font-black' : 'text-teal-400'}`}>
+                              #{clip.segment_id}
+                            </span>
+                            {isActive && (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-400 text-black text-[9px] font-black uppercase tracking-wider animate-pulse inline-flex items-center gap-1 shadow-md w-max">
+                                <span className="w-1.5 h-1.5 rounded-full bg-black animate-ping" />
+                                NOW PLAYING
+                              </span>
+                            )}
                           </div>
-                        ) : (
-                          <span className="text-[10px] text-gray-500 italic">No image</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-emerald-300 font-bold">
-                        {clip.start_sec.toFixed(2)}s ➔ {clip.end_sec.toFixed(2)}s
-                      </td>
-                      <td className="py-3 px-4 text-amber-300 font-extrabold">{clip.duration_sec.toFixed(2)}s</td>
-                      <td className="py-3 px-4 font-sans text-gray-300 max-w-sm truncate" title={clip.quote}>
-                        {clip.quote}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => handleSeekAudio(clip.start_sec)}
-                          className="px-3 py-1.5 bg-teal-950 hover:bg-teal-900 text-teal-300 rounded-xl text-[11px] font-bold border border-teal-800 transition-all flex items-center gap-1 ml-auto"
-                        >
-                          ▶️ Play {clip.start_sec.toFixed(1)}s
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="py-3 px-4">
+                          {clip.image_url ? (
+                            <div className={`w-16 h-10 rounded-lg overflow-hidden border bg-black shrink-0 relative transition-all ${
+                              isActive ? 'border-emerald-400 ring-2 ring-emerald-500/40 shadow-lg scale-105' : 'border-gray-700'
+                            }`}>
+                              <img src={clip.image_url} alt={`Segmen #${clip.segment_id}`} className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-gray-500 italic">No image</span>
+                          )}
+                        </td>
+                        <td className={`py-3 px-4 font-bold ${isActive ? 'text-emerald-200 text-sm' : 'text-emerald-300'}`}>
+                          {clip.start_sec.toFixed(2)}s ➔ {clip.end_sec.toFixed(2)}s
+                        </td>
+                        <td className={`py-3 px-4 font-extrabold ${isActive ? 'text-amber-200 text-sm' : 'text-amber-300'}`}>
+                          {clip.duration_sec.toFixed(2)}s
+                        </td>
+                        <td className={`py-3 px-4 font-sans max-w-sm truncate ${isActive ? 'text-white font-semibold' : 'text-gray-300'}`} title={clip.quote}>
+                          {clip.quote}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={() => handleSeekAudio(clip.start_sec)}
+                            className={`px-3 py-1.5 rounded-xl text-[11px] font-extrabold border transition-all flex items-center gap-1 ml-auto ${
+                              isActive
+                                ? 'bg-emerald-500 hover:bg-emerald-400 text-black border-emerald-300 shadow-lg shadow-emerald-950/80 animate-pulse'
+                                : 'bg-teal-950 hover:bg-teal-900 text-teal-300 border-teal-800'
+                            }`}
+                          >
+                            {isActive ? '🔊 Playing...' : `▶️ Play ${clip.start_sec.toFixed(1)}s`}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

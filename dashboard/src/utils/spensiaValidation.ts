@@ -791,6 +791,8 @@ export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptV
   let transcriptFull = fullTexts.join(' ').trim();
   if (!transcriptFull && wordsList.length > 0) {
     transcriptFull = wordsList.map((w) => w.word).join(' ');
+  } else if (!transcriptFull && segmentsList.length > 0) {
+    transcriptFull = segmentsList.map((s) => s.quote).join(' ');
   }
 
   if (wordsList.length === 0 && segmentsList.length === 0 && !transcriptFull) {
@@ -819,7 +821,9 @@ export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptV
         }
       : null,
     summaryText: isValid
-      ? `Valid Transcript (${chunksList.length} Chunks / ${wordsList.length} Kata)`
+      ? segmentsList.length > 0
+        ? `Valid Audio Mapping (${segmentsList.length} Segmen Adegan)`
+        : `Valid Transcript (${chunksList.length} Chunks / ${wordsList.length} Kata)`
       : `Transcript Validation Failed: ${errors.map((e) => e.message).join('; ')}`,
   };
 }
