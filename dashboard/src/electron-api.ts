@@ -279,6 +279,85 @@ export interface ElectronAPI {
   onSpensiaImageProgress: (callback: (data: { current: number; total: number; segmentId: number; saved?: any; error?: string; status: string }) => void) => () => void;
   onSpensiaImageChunkStart: (callback: (data: { segmentIds: number[] }) => void) => () => void;
   uploadSpensiaVoAudio: (segmentId?: number, sourcePath?: string, bufferArray?: ArrayBuffer | number[]) => Promise<{ segmentId?: number; filename: string; filePath: string; url: string }>;
+  mergeSpensiaVoAudio: (audioPaths: string[]) => Promise<{ filename: string; filePath: string; url: string; duration: number }>;
+  runWhisperxTranscribe: (audioPath: string, model?: string, language?: string, device?: string, computeType?: string) => Promise<{ success: boolean; transcriptData?: any }>;
+  onWhisperxProgress: (callback: (data: { audioPath?: string; logText: string }) => void) => () => void;
+
+  // Spensia Render Engine
+  generateSpensiaTimeline: () => Promise<{ timeline?: SpensiaTimelineStructure; saved?: boolean; error?: string }>;
+  renderSpensiaVideo: (config: SpensiaRenderConfig, timeline: SpensiaTimelineStructure, outputPath?: string) => Promise<SpensiaRenderResult>;
+  renderSpensiaPreviewFrame: (config: SpensiaRenderConfig, imagePath: string) => Promise<{ filePath?: string; url?: string; error?: string }>;
+}
+
+export interface WatermarkTextConfig {
+  enabled: boolean;
+  text: string;
+  fontFamily: string;
+  fontSize: number;
+  colorHex: string;
+  opacity: number;
+  position: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+  offsetX: number;
+  offsetY: number;
+}
+
+export interface CaptionConfig {
+  enabled: boolean;
+  fontName: string;
+  fontSize: number;
+  activeColorHex: string;
+  inactiveColorHex: string;
+  outlineColorHex: string;
+  outlineWidth: number;
+  shadowDistance: number;
+  positionY: number;
+  positionX: number;
+  alignment: number;
+  displayMode: 'single-word' | 'phrase';
+  timeOffsetSec: number;
+}
+
+export interface BgmConfig {
+  enabled: boolean;
+  path: string;
+  volume: number;
+  fadeInSec: number;
+  fadeOutSec: number;
+}
+
+export interface VignetteConfig {
+  enabled: boolean;
+  intensity: number;
+  colorHex: string;
+}
+
+export interface SpensiaRenderConfig {
+  watermark: WatermarkTextConfig;
+  caption: CaptionConfig;
+  bgm: BgmConfig;
+  vignette: VignetteConfig;
+  resolution: { width: number; height: number };
+  fps: number;
+  outputQuality: 'fast' | 'balanced' | 'high';
+}
+
+export interface SpensiaRenderResult {
+  outputPath?: string;
+  mediaUrl?: string;
+  fileName?: string;
+  error?: string;
+}
+
+export interface SpensiaTimelineStructure {
+  title: string;
+  fps: number;
+  resolution: { width: number; height: number; aspect_ratio: string };
+  total_duration_sec: number;
+  total_frames: number;
+  audio_tracks: Array<{ track: string; part_id: number; filePath?: string; url?: string; start_sec: number; end_sec: number; duration_sec: number }>;
+  video_clips: Array<{ clip_id: number; segment_id: number; part_id: number; quote: string; image_path?: string; image_url?: string; start_sec: number; end_sec: number; duration_sec: number; start_frame: number; end_frame: number; duration_frames: number; transition: string }>;
+  captions: Array<{ part_id: number; word: string; start_sec: number; end_sec: number }>;
+  generated_at: string;
 }
 
 declare global {

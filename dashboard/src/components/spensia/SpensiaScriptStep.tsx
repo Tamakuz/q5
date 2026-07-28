@@ -102,11 +102,19 @@ const SpensiaScriptStep: React.FC = () => {
 
   const getComputedPrompt = (promptTplStr?: string) => {
     const tpl = promptTplStr || masterPrompt;
+    const words = targetWords || 1500;
+    const minWords = Math.max(300, Math.round(words * 0.90));
+    const maxWords = Math.round(words * 1.10);
+    const perSectionWords = Math.max(80, Math.round((words - 250) / 5));
+
     return tpl
       .replace(/{judul}/g, videoTitle || '[Judul Video]')
       .replace(/{ringkasan}/g, topicSummary || '[Ringkasan Topik]')
       .replace(/{durasi}/g, selectedDuration)
-      .replace(/{word_count}/g, String(targetWords));
+      .replace(/{word_count}/g, String(words))
+      .replace(/{min_words}/g, String(minWords))
+      .replace(/{max_words}/g, String(maxWords))
+      .replace(/{per_section_words}/g, String(perSectionWords));
   };
 
   // 🤖 Auto Generate Script Handler via AI with Realtime SSE Streaming
@@ -143,7 +151,7 @@ const SpensiaScriptStep: React.FC = () => {
       const rawContent = res?.rawText || JSON.stringify(res);
       setPastedOutput(rawContent);
 
-      const report = validateSpensiaScript(rawContent);
+      const report = validateSpensiaScript(rawContent, targetWords);
       setValidationReport(report);
 
       if (report.normalizedData) {

@@ -293,20 +293,48 @@ async function generateImage({ prompt, model = DEFAULT_IMAGE_MODEL, size = '1280
     output_format: 'png',
   };
 
-  const response = await fetch(`${NINEROUTER_BASE_URL}/images/generations`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${NINEROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-    body: JSON.stringify(reqBody),
-  });
+  let response;
+  let rawText;
+  let lastErr;
 
-  const rawText = await response.text();
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      response = await fetch(`${NINEROUTER_BASE_URL}/images/generations`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${NINEROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(reqBody),
+      });
 
-  if (!response.ok) {
-    throw new Error(`9router Image API Error (${response.status}): ${rawText}`);
+      rawText = await response.text();
+
+      if (response.status >= 500 || response.status === 429) {
+        lastErr = new Error(`9router Image API Error (${response.status}): ${rawText}`);
+        if (attempt < 3) {
+          await new Promise((r) => setTimeout(r, 1500 * attempt));
+          continue;
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(`9router Image API Error (${response.status}): ${rawText}`);
+      }
+
+      break;
+    } catch (err) {
+      lastErr = err;
+      if (err.message && err.message.includes('9router Image API Error (4') && !err.message.includes('(429)')) {
+        throw err;
+      }
+      if (attempt < 3) {
+        await new Promise((r) => setTimeout(r, 1500 * attempt));
+      } else {
+        throw lastErr;
+      }
+    }
   }
 
   let json = null;

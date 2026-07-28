@@ -245,7 +245,7 @@ export function validateSpensiaTopics(rawInput: any): SpensiaTopicsValidationRep
 /**
  * Perform strict JSON validation and normalization for Spensia Script Generator output
  */
-export function validateSpensiaScript(rawInput: any): SpensiaScriptValidationReport {
+export function validateSpensiaScript(rawInput: any, targetWordCount?: number): SpensiaScriptValidationReport {
   const issues: SpensiaValidationIssue[] = [];
   let data: any = rawInput;
 
@@ -318,6 +318,24 @@ export function validateSpensiaScript(rawInput: any): SpensiaScriptValidationRep
       field: 'full_script',
       message: `Naskah relatif pendek (${words} kata).`,
     });
+  } else if (targetWordCount && targetWordCount > 0) {
+    const maxAllowed = Math.round(targetWordCount * 1.15);
+    const minAllowed = Math.round(targetWordCount * 0.85);
+    if (words > maxAllowed) {
+      issues.push({
+        id: 'OVERLONG_SCRIPT_WARNING',
+        severity: 'warning',
+        field: 'full_script',
+        message: `Naskah (${words} kata) melebihi target pilihan (${targetWordCount} kata). Batas maksimal ideal: ${maxAllowed} kata.`,
+      });
+    } else if (words < minAllowed) {
+      issues.push({
+        id: 'UNDERSIZED_SCRIPT_WARNING',
+        severity: 'warning',
+        field: 'full_script',
+        message: `Naskah (${words} kata) kurang dari target pilihan (${targetWordCount} kata). Batas minimal ideal: ${minAllowed} kata.`,
+      });
+    }
   }
 
   const normalized: SpensiaScriptData = {
@@ -573,8 +591,26 @@ export interface SpensiaWordTimestamp {
   end: number;
 }
 
+export interface SpensiaChunkTimestamp {
+  chunk_id: number;
+  text: string;
+  start: number;
+  end: number;
+  words: SpensiaWordTimestamp[];
+}
+
+export interface SpensiaSegmentTimestamp {
+  segment_id: number;
+  quote: string;
+  start_sec: number;
+  end_sec: number;
+  duration_sec: number;
+}
+
 export interface SpensiaTranscriptData {
   transcript_full: string;
+  segments?: SpensiaSegmentTimestamp[];
+  chunks?: SpensiaChunkTimestamp[];
   words: SpensiaWordTimestamp[];
 }
 
@@ -588,14 +624,14 @@ export interface SpensiaTranscriptValidationReport {
 }
 
 /**
- * Validate and normalize Word-Level Audio Transcript output from AI
+ * Validate and normalize Hierarchical Chunk-Level & Word-Level Audio Transcript output from AI
  */
 export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptValidationReport {
   const issues: SpensiaValidationIssue[] = [];
   const wordsList: SpensiaWordTimestamp[] = [];
-  let transcriptFull = '';
-
-  let textContent = typeof rawInput === 'string' ? rawInput.trim() : '';
+  const chunksList: SpensiaChunkTimestamp[] = [];
+  const segmentsList: SpensiaSegmentTimestamp[] = [];
+  const fullTexts: string[] = [];
 
   const parseSec = (val: any, defaultVal: number = 0): number => {
     if (typeof val === 'number') return isNaN(val) ? defaultVal : val;
@@ -607,10 +643,96 @@ export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptV
     return defaultVal;
   };
 
-  if (typeof rawInput === 'object' && rawInput !== null) {
-    transcriptFull = String(rawInput.transcript_full || rawInput.text || '').trim();
-    const wList = Array.isArray(rawInput.words) ? rawInput.words : null;
-    if (wList) {
+  // Helper to extract and parse all valid JSON objects/arrays from input (even if multiple blocks exist)
+  const extractDataObjects = (input: any): any[] => {
+    if (typeof input !== 'string') {
+      return Array.isArray(input) ? input : [input];
+    }
+
+    const objects: any[] = [];
+    let cleaned = input.trim();
+
+    // Remove markdown code fences if present
+    cleaned = cleaned.replace(/```(?:json)?\s*/gi, '').replace(/```\s*/g, '').trim();
+
+    // 1. Try parsing whole string as single JSON
+    try {
+      const parsed = JSON.parse(cleaned);
+      if (Array.isArray(parsed)) return parsed;
+      return [parsed];
+    } catch {}
+
+    // 2. Fallback: Extract all JSON object blocks { ... } using regex / bracket matching
+    const jsonMatches = cleaned.match(/\{[\s\S]*?\}(?=\s*\{|\s*$)/g) || [];
+    for (const match of jsonMatches) {
+      try {
+        const obj = JSON.parse(match.trim());
+        objects.push(obj);
+      } catch {}
+    }
+
+    if (objects.length > 0) return objects;
+
+    // 3. Fallback: Plain text fallback
+    return [{ transcript_full: cleaned }];
+  };
+
+  const dataObjects = extractDataObjects(rawInput);
+
+  dataObjects.forEach((dataObj) => {
+    if (!dataObj || typeof dataObj !== 'object') return;
+
+    if (dataObj.transcript_full) {
+      fullTexts.push(String(dataObj.transcript_full).trim());
+    }
+
+    // 1. Process Chunks if present
+    const cList = Array.isArray(dataObj.chunks)
+      ? dataObj.chunks
+      : Array.isArray(dataObj.phrases)
+      ? dataObj.phrases
+      : null;
+
+    if (cList && cList.length > 0) {
+      cList.forEach((c: any) => {
+        if (!c || typeof c !== 'object') return;
+        const chunkWords: SpensiaWordTimestamp[] = [];
+        const rawChunkWords = Array.isArray(c.words) ? c.words : [];
+
+        rawChunkWords.forEach((w: any) => {
+          if (typeof w.word === 'string' && w.word.trim()) {
+            const sSec = parseSec(w.start, 0);
+            const eSec = parseSec(w.end, sSec + 0.3);
+            const wordObj: SpensiaWordTimestamp = {
+              word: w.word.trim(),
+              start: sSec,
+              end: eSec > sSec ? eSec : sSec + 0.3,
+            };
+            chunkWords.push(wordObj);
+            wordsList.push(wordObj);
+          }
+        });
+
+        const chunkStart = parseSec(c.start, chunkWords.length > 0 ? chunkWords[0].start : 0);
+        const chunkEnd = parseSec(
+          c.end,
+          chunkWords.length > 0 ? chunkWords[chunkWords.length - 1].end : chunkStart + 1.0
+        );
+        const chunkText = String(c.text || chunkWords.map((w) => w.word).join(' ')).trim();
+
+        chunksList.push({
+          chunk_id: chunksList.length + 1,
+          text: chunkText,
+          start: chunkStart,
+          end: chunkEnd > chunkStart ? chunkEnd : chunkStart + 0.5,
+          words: chunkWords,
+        });
+      });
+    }
+
+    // 2. Process standalone words if top-level "words" array exists
+    const wList = Array.isArray(dataObj.words) ? dataObj.words : null;
+    if (wList && cList === null) {
       wList.forEach((w: any) => {
         if (typeof w.word === 'string' && w.word.trim()) {
           const sSec = parseSec(w.start, 0);
@@ -623,45 +745,61 @@ export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptV
         }
       });
     }
-  } else if (textContent) {
-    if (textContent.startsWith('```')) {
-      textContent = textContent.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
-    }
+    // 3. Process Segments if top-level "segments" array exists
+    const segs = Array.isArray(dataObj.segments) ? dataObj.segments : null;
+    if (segs && segs.length > 0) {
+      segs.forEach((s: any, idx: number) => {
+        if (!s || typeof s !== 'object') return;
+        const segId = Number(s.segment_id || s.id) || idx + 1;
+        const sStart = parseSec(s.start_sec !== undefined ? s.start_sec : s.start, 0);
+        const sEnd = parseSec(s.end_sec !== undefined ? s.end_sec : s.end, sStart + 3.0);
+        const quoteStr = String(s.quote || s.text || s.segment_quote || `Segmen #${segId}`).trim();
 
-    try {
-      const parsed = JSON.parse(textContent);
-      transcriptFull = String(parsed.transcript_full || parsed.text || '').trim();
-      const wList = Array.isArray(parsed.words) ? parsed.words : null;
-      if (wList) {
-        wList.forEach((w: any) => {
-          if (typeof w.word === 'string' && w.word.trim()) {
-            const sSec = parseSec(w.start, 0);
-            const eSec = parseSec(w.end, sSec + 0.3);
-            wordsList.push({
-              word: w.word.trim(),
-              start: sSec,
-              end: eSec > sSec ? eSec : sSec + 0.3,
-            });
-          }
+        segmentsList.push({
+          segment_id: segId,
+          quote: quoteStr,
+          start_sec: sStart,
+          end_sec: sEnd > sStart ? sEnd : sStart + 3.0,
+          duration_sec: Math.max(0.1, Number(((sEnd > sStart ? sEnd : sStart + 3.0) - sStart).toFixed(2))),
         });
-      }
-    } catch {
-      // Fallback parser if plain text
-      transcriptFull = textContent;
+      });
+    }
+  });
+
+  // Re-index chunk_id sequentially
+  chunksList.forEach((c, idx) => {
+    c.chunk_id = idx + 1;
+  });
+
+  // Fallback: If chunks are empty but words exist, auto-generate 3-word chunks
+  if (chunksList.length === 0 && wordsList.length > 0) {
+    const CHUNK_SIZE = 3;
+    for (let i = 0; i < wordsList.length; i += CHUNK_SIZE) {
+      const group = wordsList.slice(i, i + CHUNK_SIZE);
+      const cStart = group[0].start;
+      const cEnd = group[group.length - 1].end;
+      chunksList.push({
+        chunk_id: chunksList.length + 1,
+        text: group.map((w) => w.word).join(' '),
+        start: cStart,
+        end: cEnd,
+        words: group,
+      });
     }
   }
 
-  if (wordsList.length === 0 && !transcriptFull) {
+  let transcriptFull = fullTexts.join(' ').trim();
+  if (!transcriptFull && wordsList.length > 0) {
+    transcriptFull = wordsList.map((w) => w.word).join(' ');
+  }
+
+  if (wordsList.length === 0 && segmentsList.length === 0 && !transcriptFull) {
     issues.push({
       id: 'EMPTY_TRANSCRIPT',
       severity: 'error',
       field: 'words',
-      message: 'Tidak ada kata transkrip audio yang berhasil di-parse.',
+      message: 'Tidak ada kata atau segmen transkrip audio yang berhasil di-parse.',
     });
-  }
-
-  if (!transcriptFull && wordsList.length > 0) {
-    transcriptFull = wordsList.map((w) => w.word).join(' ');
   }
 
   const errors = issues.filter((i) => i.severity === 'error');
@@ -672,9 +810,16 @@ export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptV
     issues,
     errorCount: errors.length,
     warningCount: issues.filter((i) => i.severity === 'warning').length,
-    normalizedData: isValid ? { transcript_full: transcriptFull, words: wordsList } : null,
+    normalizedData: isValid
+      ? {
+          transcript_full: transcriptFull,
+          segments: segmentsList.length > 0 ? segmentsList : undefined,
+          chunks: chunksList,
+          words: wordsList,
+        }
+      : null,
     summaryText: isValid
-      ? `Valid Word Transcript (${wordsList.length} Kata)`
+      ? `Valid Transcript (${chunksList.length} Chunks / ${wordsList.length} Kata)`
       : `Transcript Validation Failed: ${errors.map((e) => e.message).join('; ')}`,
   };
 }

@@ -142,6 +142,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   uploadSpensiaVoAudio: (segmentId, sourcePath, bufferArray) =>
     ipcRenderer.invoke('upload-spensia-vo-audio', { segmentId, sourcePath, bufferArray }),
+  mergeSpensiaVoAudio: (audioPaths) =>
+    ipcRenderer.invoke('merge-spensia-vo-audio', { audioPaths }),
+  runWhisperxTranscribe: (audioPath, model = 'small', language = 'id', device, computeType) =>
+    ipcRenderer.invoke('run-whisperx-transcribe', { audioPath, model, language, device, computeType }),
+  onWhisperxProgress: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('whisperx-progress', handler);
+    return () => ipcRenderer.removeListener('whisperx-progress', handler);
+  },
   saveToProject: (subPath, data) => ipcRenderer.invoke('save-to-project', { subPath, data }),
   readFromProject: (subPath) => ipcRenderer.invoke('read-from-project', subPath),
+
+  // Spensia Render Engine
+  generateSpensiaTimeline: () => ipcRenderer.invoke('generate-spensia-timeline'),
+  renderSpensiaVideo: (config, timeline, outputPath) =>
+    ipcRenderer.invoke('render-spensia-video', { config, timeline, outputPath }),
+  renderSpensiaPreviewFrame: (config, imagePath) =>
+    ipcRenderer.invoke('render-spensia-preview-frame', { config, imagePath }),
 });

@@ -1,0 +1,108 @@
+// dashboard/src/utils/spensiaRenderConfig.ts
+import { z } from 'zod';
+
+// ─── Watermark Text Configuration ─────────────────────
+
+export const WatermarkTextConfigSchema = z.object({
+    enabled: z.boolean().default(true),
+    text: z.string().default('Spensia'),
+    fontFamily: z.string().default('Montserrat'),
+    fontSize: z.number().min(8).max(120).default(42),
+    colorHex: z.string().default('#FFFFFF'),
+    opacity: z.number().min(0).max(1).default(0.8),
+    position: z.enum([
+        'top-left',
+        'top-center',
+        'top-right',
+        'bottom-left',
+        'bottom-center',
+        'bottom-right',
+    ]).default('bottom-center'),
+    offsetX: z.number().default(0),
+    offsetY: z.number().default(80),
+});
+
+export type WatermarkTextConfig = z.infer<typeof WatermarkTextConfigSchema>;
+
+// ─── Caption Configuration ────────────────────────────
+
+export const CaptionConfigSchema = z.object({
+    enabled: z.boolean().default(true),
+    fontName: z.string().default('Montserrat'),
+    fontSize: z.number().default(48),
+    activeColorHex: z.string().default('#FDE047'),
+    inactiveColorHex: z.string().default('#FFFFFF'),
+    outlineColorHex: z.string().default('#000000'),
+    outlineWidth: z.number().default(3),
+    shadowDistance: z.number().default(2),
+    positionY: z.number().default(160),
+    positionX: z.number().default(40),
+    alignment: z.number().min(1).max(9).default(2),
+    displayMode: z.enum(['single-word', 'phrase']).default('single-word'),
+    timeOffsetSec: z.number().default(0.0),
+});
+
+export type CaptionConfig = z.infer<typeof CaptionConfigSchema>;
+
+// ─── BGM Configuration ────────────────────────────────
+
+export const BgmConfigSchema = z.object({
+    enabled: z.boolean().default(true),
+    path: z.string().default('assets/Edge Of Unknown.mp3'),
+    volume: z.number().min(0).max(1).default(0.15),
+    fadeInSec: z.number().min(0).default(1.0),
+    fadeOutSec: z.number().min(0).default(2.0),
+});
+
+export type BgmConfig = z.infer<typeof BgmConfigSchema>;
+
+// ─── Vignette Configuration ───────────────────────────
+
+export const VignetteConfigSchema = z.object({
+    enabled: z.boolean().default(true),
+    intensity: z.number().min(0).max(1).default(0.35),
+    colorHex: z.string().default('#000000'),
+});
+
+export type VignetteConfig = z.infer<typeof VignetteConfigSchema>;
+
+// ─── Aggregate Spensia Render Config ──────────────────
+
+export const SpensiaRenderConfigSchema = z.object({
+    watermark: WatermarkTextConfigSchema.default({}),
+    caption: CaptionConfigSchema.default({}),
+    bgm: BgmConfigSchema.default({}),
+    vignette: VignetteConfigSchema.default({}),
+    resolution: z.object({
+        width: z.number().default(1920),
+        height: z.number().default(1080),
+    }).default({}),
+    fps: z.number().default(30),
+    outputQuality: z.enum(['fast', 'balanced', 'high']).default('balanced'),
+});
+
+export type SpensiaRenderConfig = z.infer<typeof SpensiaRenderConfigSchema>;
+
+// ─── Default Config ───────────────────────────────────
+
+export function getDefaultSpensiaRenderConfig(): SpensiaRenderConfig {
+    return SpensiaRenderConfigSchema.parse({});
+}
+
+// ─── Config Validation Helper ─────────────────────────
+
+export function validateSpensiaRenderConfig(raw: unknown): {
+    isValid: boolean;
+    config: SpensiaRenderConfig | null;
+    errors: string[];
+} {
+    const result = SpensiaRenderConfigSchema.safeParse(raw);
+    if (result.success) {
+        return { isValid: true, config: result.data, errors: [] };
+    }
+    return {
+        isValid: false,
+        config: null,
+        errors: result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+    };
+}

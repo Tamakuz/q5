@@ -6,3 +6,8 @@ input/
 .remotion-cache/
 playwright/user_data/
 *.log
+
+# WhisperX
+whisperx/venv/
+whisperx/__pycache__/
+*.pyc

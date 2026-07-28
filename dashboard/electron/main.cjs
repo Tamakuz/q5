@@ -268,8 +268,8 @@ function getOrGenerateContentId(mode = 'shortform') {
   const mappingFile = isSpensia
     ? path.join(PROJECT_ROOT, 'input', 'spensia', 'spensia_mapping.json')
     : isLongform
-    ? path.join(PROJECT_ROOT, 'input', 'longform_mapping.json')
-    : path.join(PROJECT_ROOT, 'input', 'mapping.json');
+      ? path.join(PROJECT_ROOT, 'input', 'longform_mapping.json')
+      : path.join(PROJECT_ROOT, 'input', 'mapping.json');
 
   const dir = path.dirname(mappingFile);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -352,7 +352,7 @@ ipcMain.handle('upload-source', async (_event, { filePath, start, end }) => {
     ];
 
     const ffmpeg = spawn(ffmpegPath, args);
-    ffmpeg.stderr.on('data', (_d) => {});
+    ffmpeg.stderr.on('data', (_d) => { });
 
     ffmpeg.on('close', (code) => {
       if (code !== 0) return reject(new Error(`FFmpeg exited with code ${code}`));
@@ -504,7 +504,7 @@ ipcMain.handle('split-alurfilm-master', async (_event, opts) => {
     try {
       const meta = await getVideoMetaHelper(masterPath);
       if (meta && meta.duration) endTime = meta.duration;
-    } catch {}
+    } catch { }
   }
 
   const chunks = await splitAlurfilmVideoHelper(masterPath, startTime, endTime);
@@ -682,7 +682,7 @@ ipcMain.handle('get-alurfilm-prompt', async (_event, { chunkPart, totalChunks = 
 
 ipcMain.handle('save-alurfilm-analysis', async (_event, { chunkPart, jsonText }) => {
   const contentId = getOrGenerateContentId('longform');
-  
+
   let resultData = null;
   if (typeof jsonText === 'string') {
     let raw = jsonText.trim();
@@ -752,7 +752,7 @@ ipcMain.handle('upload-alurfilm-audio', async (_event, { part, filePath }) => {
   // Remove existing audio files for this part if any
   const existingFiles = fs.readdirSync(ALURFILM_DIR).filter(f => f.startsWith(`${contentId}_audio_part_${partStr}`));
   for (const f of existingFiles) {
-    try { fs.unlinkSync(path.join(ALURFILM_DIR, f)); } catch {}
+    try { fs.unlinkSync(path.join(ALURFILM_DIR, f)); } catch { }
   }
 
   fs.copyFileSync(filePath, destPath);
@@ -800,7 +800,7 @@ ipcMain.handle('delete-alurfilm-audio', async (_event, { part }) => {
   const partStr = String(part).padStart(2, '0');
   const existingFiles = fs.readdirSync(ALURFILM_DIR).filter(f => f.startsWith(`${contentId}_audio_part_${partStr}`));
   for (const f of existingFiles) {
-    try { fs.unlinkSync(path.join(ALURFILM_DIR, f)); } catch {}
+    try { fs.unlinkSync(path.join(ALURFILM_DIR, f)); } catch { }
   }
 
   return true;
@@ -837,7 +837,7 @@ ipcMain.handle('get-alurfilm-transcript-prompt', async (_event, { chunkPart, tot
           const minStr = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
           audioDurationText = `${meta.duration.toFixed(1)} Detik (${minStr})`;
         }
-      } catch {}
+      } catch { }
     }
   }
 
@@ -936,7 +936,7 @@ ipcMain.handle('get-alurfilm-mapping-prompt', async (_event, { chunkPart, totalC
           duration: Number(((typeof t.end_seconds === 'number' ? t.end_seconds : 0) - (typeof t.start_seconds === 'number' ? t.start_seconds : 0)).toFixed(2))
         }));
       }
-    } catch {}
+    } catch { }
   }
 
   const chunkVideoName = `${contentId}_chunk_${partStr}.mp4`;
@@ -1033,7 +1033,7 @@ ipcMain.handle('list-alurfilm-renders', async (_event, modeContentId) => {
               elapsed: 'Done'
             };
           }
-        } catch {}
+        } catch { }
       }
     }
   }
@@ -1221,7 +1221,7 @@ ipcMain.handle('generate-spensia-topics', async (event, { promptText, model }) =
     onChunk: (chunk, fullText) => {
       try {
         event.sender.send('spensia-topics-chunk', { chunk, fullText });
-      } catch (err) {}
+      } catch (err) { }
     },
   });
 });
@@ -1233,7 +1233,7 @@ ipcMain.handle('generate-spensia-script', async (event, { promptText, model }) =
     onChunk: (chunk, fullText) => {
       try {
         event.sender.send('spensia-script-chunk', { chunk, fullText });
-      } catch (err) {}
+      } catch (err) { }
     },
   });
 });
@@ -1245,7 +1245,7 @@ ipcMain.handle('generate-spensia-breakdown', async (event, { promptText, model }
     onChunk: (chunk, fullText) => {
       try {
         event.sender.send('spensia-breakdown-chunk', { chunk, fullText });
-      } catch (err) {}
+      } catch (err) { }
     },
   });
 });
@@ -1257,7 +1257,7 @@ ipcMain.handle('generate-spensia-image-prompts', async (event, { promptText, mod
     onChunk: (chunk, fullText) => {
       try {
         event.sender.send('spensia-image-prompts-chunk', { chunk, fullText });
-      } catch (err) {}
+      } catch (err) { }
     },
   });
 });
@@ -1266,15 +1266,40 @@ const SPENSIA_IMAGES_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'images')
 if (!fs.existsSync(SPENSIA_IMAGES_DIR)) fs.mkdirSync(SPENSIA_IMAGES_DIR, { recursive: true });
 
 async function saveSpensiaImageFile(segmentId, res) {
+  // CRITICAL: Ensure folder exists before writing to prevent ENOENT and wasted tokens!
+  await fs.promises.mkdir(SPENSIA_IMAGES_DIR, { recursive: true });
+
   const destPath = path.join(SPENSIA_IMAGES_DIR, `segment_${segmentId}.png`);
   if (res.b64_json) {
     const buffer = Buffer.from(res.b64_json, 'base64');
     await fs.promises.writeFile(destPath, buffer);
   } else if (res.url) {
-    const imgRes = await fetch(res.url);
-    if (!imgRes.ok) throw new Error(`Failed to download generated image from URL.`);
-    const arrayBuffer = await imgRes.arrayBuffer();
-    await fs.promises.writeFile(destPath, Buffer.from(arrayBuffer));
+    let imgRes;
+    let lastErr;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        imgRes = await fetch(res.url);
+        if (imgRes.ok) break;
+        lastErr = new Error(`HTTP ${imgRes.status} ${imgRes.statusText}`);
+      } catch (e) {
+        lastErr = e;
+      }
+      if (attempt < 3) await new Promise((r) => setTimeout(r, 1000 * attempt));
+    }
+
+    if (imgRes && imgRes.ok) {
+      const arrayBuffer = await imgRes.arrayBuffer();
+      await fs.promises.writeFile(destPath, Buffer.from(arrayBuffer));
+    } else {
+      console.warn(`[saveSpensiaImageFile] Failed to download image to local disk (${res.url}):`, lastErr?.message);
+      // Fallback: Return remote URL so generated image is NOT lost after spending tokens
+      return {
+        segmentId,
+        filePath: destPath,
+        url: res.url,
+        originalUrl: res.url,
+      };
+    }
   }
   return {
     segmentId,
@@ -1302,7 +1327,7 @@ ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, si
       event.sender.send('spensia-image-chunk-start', {
         segmentIds: chunk.map((c) => c.segment_id),
       });
-    } catch {}
+    } catch { }
 
     const chunkPromises = chunk.map(async (item) => {
       try {
@@ -1321,7 +1346,7 @@ ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, si
             saved,
             status: 'success',
           });
-        } catch {}
+        } catch { }
         return resultObj;
       } catch (err) {
         completedCount++;
@@ -1336,7 +1361,7 @@ ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, si
             error: err.message,
             status: 'error',
           });
-        } catch {}
+        } catch { }
         return resultObj;
       }
     });
@@ -1355,6 +1380,8 @@ ipcMain.handle('upload-spensia-vo-audio', async (_event, { segmentId, sourcePath
   const filename = segmentId !== undefined ? `segment_${segmentId}${ext}` : `full_narration${ext}`;
   const destPath = path.join(SPENSIA_AUDIO_DIR, filename);
 
+  await fs.promises.mkdir(SPENSIA_AUDIO_DIR, { recursive: true });
+
   if (bufferArray) {
     const buffer = Buffer.from(bufferArray);
     await fs.promises.writeFile(destPath, buffer);
@@ -1370,6 +1397,189 @@ ipcMain.handle('upload-spensia-vo-audio', async (_event, { segmentId, sourcePath
     filePath: destPath,
     url: mediaUrl(destPath),
   };
+});
+
+function getAudioDurationHelper(filePath) {
+  return new Promise((resolve) => {
+    if (!fs.existsSync(filePath)) return resolve(0);
+    const args = ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', filePath];
+    const child = spawn(ffprobePath, args);
+    let out = '';
+    child.stdout.on('data', (d) => { out += d.toString(); });
+    child.on('close', () => {
+      const dur = parseFloat(out.trim());
+      resolve(isNaN(dur) ? 0 : dur);
+    });
+    child.on('error', () => resolve(0));
+  });
+}
+
+ipcMain.handle('merge-spensia-vo-audio', async (_event, { audioPaths }) => {
+  if (!Array.isArray(audioPaths) || audioPaths.length === 0) {
+    throw new Error('Daftar file audio tidak boleh kosong.');
+  }
+
+  const validPaths = audioPaths.filter((p) => p && fs.existsSync(p));
+  if (validPaths.length === 0) {
+    throw new Error('Tidak ada file audio valid yang ditemukan untuk digabungkan.');
+  }
+
+  const destPath = path.join(SPENSIA_AUDIO_DIR, 'merged_narration.mp3');
+
+  if (validPaths.length === 1) {
+    await fs.promises.copyFile(validPaths[0], destPath);
+    const duration = await getAudioDurationHelper(destPath);
+    return {
+      filename: 'merged_narration.mp3',
+      filePath: destPath,
+      url: mediaUrl(destPath),
+      duration,
+    };
+  }
+
+  const listFilePath = path.join(TMP_DIR, `spensia_vo_concat_${Date.now()}.txt`);
+  const fileContent = validPaths.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join('\n');
+  await fs.promises.writeFile(listFilePath, fileContent, 'utf-8');
+
+  const allMp3 = validPaths.every((p) => p.toLowerCase().endsWith('.mp3'));
+  let streamCopySuccess = false;
+
+  if (allMp3) {
+    try {
+      const concatArgs = [
+        '-y',
+        '-f', 'concat',
+        '-safe', '0',
+        '-i', listFilePath,
+        '-c', 'copy',
+        destPath,
+      ];
+
+      await new Promise((resolve, reject) => {
+        const child = spawn(ffmpegPath, concatArgs, { cwd: PROJECT_ROOT });
+        let stderr = '';
+        child.stderr.on('data', (d) => { stderr += d.toString(); });
+        child.on('close', (code) => {
+          if (code === 0 && fs.existsSync(destPath) && fs.statSync(destPath).size > 0) {
+            resolve();
+          } else {
+            reject(new Error(`Concat stream copy failed (code ${code}): ${stderr}`));
+          }
+        });
+        child.on('error', reject);
+      });
+      streamCopySuccess = true;
+    } catch (err) {
+      console.warn(`[Merge VO] Stream copy failed (${err.message}), using filter re-encoding...`);
+    }
+  }
+
+  if (!streamCopySuccess) {
+    const filterArgs = ['-y'];
+    validPaths.forEach((p) => {
+      filterArgs.push('-i', p);
+    });
+    const inputCount = validPaths.length;
+    const filterStr = `${validPaths.map((_, i) => `[${i}:a]`).join('')}concat=n=${inputCount}:v=0:a=1[aout]`;
+    filterArgs.push('-filter_complex', filterStr, '-map', '[aout]', '-c:a', 'libmp3lame', '-b:a', '192k', destPath);
+
+    await new Promise((resolve, reject) => {
+      const child = spawn(ffmpegPath, filterArgs, { cwd: PROJECT_ROOT });
+      let stderr = '';
+      child.stderr.on('data', (d) => { stderr += d.toString(); });
+      child.on('close', (code) => {
+        if (code === 0 && fs.existsSync(destPath) && fs.statSync(destPath).size > 0) {
+          resolve();
+        } else {
+          reject(new Error(`Concat filter encoding failed (code ${code}): ${stderr}`));
+        }
+      });
+      child.on('error', reject);
+    });
+  }
+
+  if (fs.existsSync(listFilePath)) {
+    try { fs.unlinkSync(listFilePath); } catch (_) {}
+  }
+
+  const duration = await getAudioDurationHelper(destPath);
+
+  return {
+    filename: 'merged_narration.mp3',
+    filePath: destPath,
+    url: mediaUrl(destPath),
+    duration,
+  };
+});
+
+
+ipcMain.handle('run-whisperx-transcribe', async (event, { audioPath, model = 'small', language = 'id', device = 'auto', computeType }) => {
+  const whisperxDir = path.join(PROJECT_ROOT, 'whisperx');
+  const pythonVenvPath = path.join(whisperxDir, 'venv', 'bin', 'python');
+  const pythonBin = fs.existsSync(pythonVenvPath) ? pythonVenvPath : 'python3';
+  const scriptPath = path.join(whisperxDir, 'transcribe_cli.py');
+
+  if (!fs.existsSync(scriptPath)) {
+    throw new Error(`WhisperX script tidak ditemukan di: ${scriptPath}`);
+  }
+  if (!audioPath || !fs.existsSync(audioPath)) {
+    throw new Error(`File audio tidak ditemukan di: ${audioPath}`);
+  }
+
+  const { spawn } = require('child_process');
+
+  return new Promise((resolve, reject) => {
+    const args = [
+      scriptPath,
+      '--audio', audioPath,
+      '--model', model,
+      '--language', language,
+      '--device', device || 'auto'
+    ];
+    if (computeType) {
+      args.push('--compute_type', computeType);
+    }
+
+    console.log(`[WhisperX] Running command: ${pythonBin} ${args.join(' ')}`);
+
+    const child = spawn(pythonBin, args, { cwd: PROJECT_ROOT });
+    let stdoutData = '';
+    let stderrData = '';
+
+    child.stdout.on('data', (data) => {
+      stdoutData += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      const text = data.toString();
+      stderrData += text;
+      console.log(`[WhisperX log] ${text}`);
+      if (event && event.sender && !event.sender.isDestroyed()) {
+        event.sender.send('whisperx-progress', { audioPath, logText: text.trim() });
+      }
+    });
+
+    child.on('close', (code) => {
+      if (code !== 0) {
+        return reject(new Error(`WhisperX gagal (code ${code}): ${stderrData || stdoutData}`));
+      }
+
+      try {
+        const jsonMatch = stdoutData.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          throw new Error('Tidak ditemukan JSON valid pada output WhisperX.');
+        }
+        const parsedJson = JSON.parse(jsonMatch[0]);
+        resolve({ success: true, transcriptData: parsedJson });
+      } catch (err) {
+        reject(new Error(`Parse output JSON gagal: ${err.message}`));
+      }
+    });
+
+    child.on('error', (err) => {
+      reject(new Error(`Gagal memanggil Python WhisperX engine: ${err.message}`));
+    });
+  });
 });
 
 
@@ -1738,7 +1948,7 @@ ipcMain.handle('concat-alurfilm-final-video', async (_event, { parts, bgmPath, b
     let stderr = '';
     child.stderr.on('data', (d) => { stderr += d.toString(); });
     child.on('close', (code) => {
-      try { fs.unlinkSync(listFile); } catch {}
+      try { fs.unlinkSync(listFile); } catch { }
       if (code === 0) {
         resolve({
           filePath: finalOutputPath,
@@ -2047,3 +2257,801 @@ ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
     return { success: false, error: err.message };
   }
 });
+
+// ══════════════════════════════════════════════════════
+// Spensia Render Engine IPC Handlers (9:16 1080×1920)
+// ══════════════════════════════════════════════════════
+
+ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputPath }) => {
+  const resolvedOutput = outputPath
+    ? path.isAbsolute(outputPath) ? outputPath : path.join(PROJECT_ROOT, outputPath)
+    : path.join(SPENSIA_OUTPUT_DIR, `spensia_final_${Date.now()}.mp4`);
+
+  const outDir = path.dirname(resolvedOutput);
+  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+
+  const tmpDir = path.join(TMP_DIR, `spensia-render-${Date.now()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  try {
+    const w = config?.resolution?.width || 1920;
+    const h = config?.resolution?.height || 1080;
+    const fps = config?.fps || 30;
+    const totalDur = timeline?.total_duration_sec || 60;
+
+    const send = (stage, progress, message) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('render-progress', { stage, progress, message });
+      }
+    };
+
+    send('init', 0, 'Initializing Spensia 9:16 Render Engine...');
+
+    // ── Validate clips exist ──
+    const clips = timeline?.video_clips || [];
+    if (clips.length === 0) {
+      return { error: 'No video clips in timeline.' };
+    }
+
+    for (const clip of clips) {
+      if (clip.image_path && !fs.existsSync(clip.image_path)) {
+        return { error: `Image not found: ${clip.image_path}` };
+      }
+    }
+
+    // ── Step 1: Create individual image video clips ──
+    send('clips', 5, `Creating ${clips.length} image clips...`);
+    const clipFiles = [];
+
+    for (let i = 0; i < clips.length; i++) {
+      const clip = clips[i];
+      const clipFile = path.join(tmpDir, `clip_${String(i).padStart(4, '0')}.ts`);
+      clipFiles.push(clipFile);
+
+      const imgPath = clip.image_path || '';
+      const dur = clip.duration_sec || 3.0;
+      const fadeDur = Math.min(0.3, dur / 3).toFixed(2);
+
+      await new Promise((resolve, reject) => {
+        const args = [
+          '-y', '-loop', '1', '-r', String(fps),
+          '-i', imgPath,
+          '-vf', `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},fade=t=in:d=${fadeDur},fade=t=out:st=${(dur - parseFloat(fadeDur)).toFixed(2)}:d=${fadeDur},format=yuv420p`,
+          '-t', String(dur),
+          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18',
+          '-pix_fmt', 'yuv420p', '-an',
+          clipFile,
+        ];
+        const ff = spawn(ffmpegPath, args, { cwd: PROJECT_ROOT });
+        ff.stderr.on('data', () => { });
+        ff.on('close', (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`FFmpeg clip ${i} exit ${code}`));
+        });
+        ff.on('error', reject);
+      });
+
+      const pct = 5 + Math.round((i + 1) / clips.length * 35);
+      send('clips', pct, `Image clip ${i + 1}/${clips.length} — ${dur.toFixed(1)}s`);
+    }
+
+    // ── Step 2: Concat clips ──
+    send('concat', 40, 'Concatenating clips...');
+    const listFile = path.join(tmpDir, 'concat_list.txt');
+    fs.writeFileSync(listFile, clipFiles.map((f) => `file '${f}'`).join('\n'), 'utf-8');
+
+    const concatFile = path.join(tmpDir, 'concat_raw.ts');
+    await new Promise((resolve, reject) => {
+      const args = ['-y', '-f', 'concat', '-safe', '0', '-i', listFile, '-c', 'copy', concatFile];
+      const ff = spawn(ffmpegPath, args, { cwd: PROJECT_ROOT });
+      ff.stderr.on('data', () => { });
+      ff.on('close', (code) => code === 0 ? resolve() : reject(new Error(`Concat exit ${code}`)));
+      ff.on('error', reject);
+    });
+
+    send('overlay', 50, 'Applying overlays & audio mixing...');
+
+    // ── Step 3: Final render with all overlays ──
+    const finalArgs = ['-y', '-i', concatFile];
+    let sidx = 1;
+
+    // Add VO audio tracks
+    const audioTracks = timeline?.audio_tracks || [];
+    audioTracks.forEach((t) => {
+      if (t.filePath && fs.existsSync(t.filePath)) {
+        finalArgs.push('-i', t.filePath);
+      }
+    });
+
+    // Add BGM
+    const bgmCfg = config?.bgm || {};
+    let bgmPathResolved = null;
+    if (bgmCfg.enabled !== false && bgmCfg.path) {
+      const resolved = path.isAbsolute(bgmCfg.path) ? bgmCfg.path : path.join(PROJECT_ROOT, bgmCfg.path);
+      if (fs.existsSync(resolved)) {
+        finalArgs.push('-i', resolved);
+        bgmPathResolved = resolved;
+      }
+    }
+
+    // Generate ASS subtitles inline (use ass= filter, not -i + overlay)
+    let assFilePath = null;
+    const capCfg = config?.caption || {};
+    if (capCfg.enabled !== false && (timeline?.captions || []).length > 0) {
+      assFilePath = path.join(tmpDir, 'subtitles.ass');
+      fs.writeFileSync(assFilePath, buildAssSubtitleFile(timeline.captions, capCfg, w, h), 'utf-8');
+    }
+
+    // Build filter complex
+    const fparts = [];
+    let vMap = '0:v';
+    let aMap = null;
+
+    // Video chain: scale + vignette + watermark + ASS subtitle
+    let vChain = `[0:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`;
+
+    // Vignette
+    const vigCfg = config?.vignette || {};
+    if (vigCfg.enabled !== false) {
+      vChain += `,vignette=PI/4:max_eval=0:eval=frame`;
+    }
+
+    // ASS subtitles (via ass= filter, correct approach)
+    if (assFilePath) {
+      const escapedAss = assFilePath.replace(/\\/g, '/').replace(/:/g, '\\:');
+      vChain += `,ass='${escapedAss}'`;
+    }
+
+    // Watermark text
+    const wmCfg = config?.watermark || {};
+    if (wmCfg.enabled !== false && wmCfg.text) {
+      const escaped = wmCfg.text.replace(/'/g, "'\\\\\\''");
+      const a = Math.round((wmCfg.opacity || 0.8) * 255).toString(16).padStart(2, '0');
+      const cHex = (wmCfg.colorHex || '#FFFFFF').replace('#', '');
+      const fc = `0x${a}${cHex}`;
+      const pos = wmCfg.position || 'bottom-center';
+      const ox = wmCfg.offsetX || 0;
+      const oy = wmCfg.offsetY || 80;
+      const fs = wmCfg.fontSize || 42;
+
+      let xExpr, yExpr;
+      const margin = 40 + (ox >= 0 ? ox : 0);
+      const botMargin = 40 + (oy >= 0 ? oy : 0);
+
+      if (pos === 'top-left') { xExpr = `${margin}`; yExpr = `${margin}`; }
+      else if (pos === 'top-center') { xExpr = `(w-text_w)/2+${ox}`; yExpr = `${margin}`; }
+      else if (pos === 'top-right') { xExpr = `w-text_w-${margin}`; yExpr = `${margin}`; }
+      else if (pos === 'bottom-left') { xExpr = `${margin}`; yExpr = `h-text_h-${botMargin}`; }
+      else if (pos === 'bottom-center') { xExpr = `(w-text_w)/2+${ox}`; yExpr = `h-text_h-${botMargin}`; }
+      else if (pos === 'bottom-right') { xExpr = `w-text_w-${margin}`; yExpr = `h-text_h-${botMargin}`; }
+      else { xExpr = `(w-text_w)/2`; yExpr = `h-text_h-${botMargin}`; }
+
+      // Auto-detect font
+      let fontFile = '';
+      const fontCandidates = [
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/usr/share/fonts/truetype/msttcorefonts/Arial.ttf',
+        '/usr/share/fonts/TTF/DejaVuSans.ttf',
+        '/System/Library/Fonts/Helvetica.ttc',
+      ];
+      for (const fp of fontCandidates) {
+        if (fs.existsSync(fp)) { fontFile = `:fontfile='${fp}'`; break; }
+      }
+
+      vChain += `,drawtext=text='${escaped}':fontsize=${fs}:fontcolor=${fc}:x=${xExpr}:y=${yExpr}:shadowcolor=black@0.4:shadowx=2:shadowy=2${fontFile}`;
+    }
+
+    vChain += `,format=yuv420p[vout]`;
+    fparts.push(vChain);
+    vMap = '[vout]';
+
+    // Audio mixing (VO tracks + BGM)
+    const validAudioTracks = audioTracks.filter((t) => t.filePath && fs.existsSync(t.filePath));
+    const voCount = validAudioTracks.length;
+    if (voCount > 0 || bgmPathResolved) {
+      const voLabels = [];
+      let streamIdx = 1;
+
+      // Add VO audio tracks with per-track delay based on start_sec
+      for (let ai = 0; ai < audioTracks.length; ai++) {
+        const t = audioTracks[ai];
+        if (t.filePath && fs.existsSync(t.filePath)) {
+          const delayMs = Math.round((t.start_sec || 0) * 1000);
+          const label = `vo${ai}`;
+          fparts.push(`[${streamIdx}:a]adelay=${delayMs}|${delayMs}[${label}]`);
+          voLabels.push(`[${label}]`);
+          streamIdx++;
+        }
+      }
+
+      if (bgmPathResolved) {
+        // BGM stream index = 1 + valid VO count (VO streams come after [0:v])
+        const bgmIdx = 1 + voCount;
+        const bgmVol = bgmCfg.volume || 0.15;
+        const fadeIn = bgmCfg.fadeInSec || 1.0;
+        const fadeOut = bgmCfg.fadeOutSec || 2.0;
+        const fos = Math.max(0, totalDur - fadeOut);
+
+        if (voLabels.length > 0) {
+          fparts.push(`${voLabels.join('')}amix=inputs=${voLabels.length}:duration=longest:dropout_transition=0.5[vomix]`);
+          fparts.push(`[vomix]volume=1.0[vonorm]`);
+          fparts.push(`[${bgmIdx}:a]volume=${bgmVol},afade=t=in:d=${fadeIn},afade=t=out:st=${fos.toFixed(1)}:d=${fadeOut},aloop=loop=-1:size=2e+09[bgmproc]`);
+          fparts.push(`[vonorm][bgmproc]amix=inputs=2:duration=first:dropout_transition=2[aout]`);
+        } else {
+          fparts.push(`[${bgmIdx}:a]volume=${bgmVol},afade=t=in:d=${fadeIn},afade=t=out:st=${fos.toFixed(1)}:d=${fadeOut},aloop=loop=-1:size=2e+09[aout]`);
+        }
+      } else if (voLabels.length > 1) {
+        fparts.push(`${voLabels.join('')}amix=inputs=${voLabels.length}:duration=longest:dropout_transition=0.5[aout]`);
+      } else if (voLabels.length === 1) {
+        fparts.push(`${voLabels[0]}volume=1.0[aout]`);
+      }
+
+      aMap = '[aout]';
+    }
+
+    finalArgs.push('-filter_complex', fparts.join(';'));
+    finalArgs.push('-map', vMap);
+    if (aMap) finalArgs.push('-map', aMap);
+
+    // Quality settings
+    const q = config?.outputQuality || 'balanced';
+    const qMap = { fast: ['-preset', 'ultrafast', '-crf', '22'], balanced: ['-preset', 'fast', '-crf', '18'], high: ['-preset', 'medium', '-crf', '16'] };
+    finalArgs.push('-c:v', 'libx264', ...qMap[q] || qMap.balanced, '-pix_fmt', 'yuv420p');
+
+    if (aMap) finalArgs.push('-c:a', 'aac', '-b:a', '192k');
+    finalArgs.push('-movflags', '+faststart', '-t', String(totalDur), resolvedOutput);
+
+    send('final', 55, 'Encoding final video...');
+
+    await new Promise((resolve, reject) => {
+      let stderr = '';
+      const child = spawn(ffmpegPath, finalArgs, { cwd: PROJECT_ROOT });
+
+      child.stderr.on('data', (d) => {
+        const text = d.toString();
+        stderr += text;
+        const tm = text.match(/time=(\d+):(\d+):(\d+)\.(\d+)/);
+        if (tm) {
+          const sec = parseInt(tm[1]) * 3600 + parseInt(tm[2]) * 60 + parseInt(tm[3]);
+          const fpct = Math.min(99, Math.round((sec / totalDur) * 100));
+          send('final', 55 + Math.round(fpct * 0.45), `Encoding: ${sec}s / ${totalDur.toFixed(0)}s`);
+        }
+      });
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          send('done', 100, 'Render complete!');
+          resolve();
+        } else {
+          const last = stderr.trim().split('\n').filter(Boolean).slice(-10).join('\n');
+          reject(new Error(`FFmpeg exit ${code}: ${last}`));
+        }
+      });
+
+      child.on('error', (err) => reject(err));
+    });
+
+    // Cleanup
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { }
+
+    return {
+      outputPath: resolvedOutput,
+      mediaUrl: mediaUrl(resolvedOutput),
+      fileName: path.basename(resolvedOutput),
+    };
+
+  } catch (err) {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { }
+    send('error', 0, `❌ Spensia Render Error: ${err.message}`);
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('render-spensia-preview-frame', async (_event, { config, imagePath }) => {
+  if (!imagePath || !fs.existsSync(imagePath)) {
+    return { error: 'Preview image not found.' };
+  }
+
+  const w = config?.resolution?.width || 1920;
+  const h = config?.resolution?.height || 1080;
+  const previewPath = path.join(TMP_DIR, `spensia_preview_${Date.now()}.png`);
+
+  try {
+    let vf = `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`;
+
+    // Vignette
+    const vigCfg = config?.vignette || {};
+    if (vigCfg.enabled !== false) {
+      vf += `,vignette=PI/4:max_eval=0:eval=frame`;
+    }
+
+    // Watermark
+    const wmCfg = config?.watermark || {};
+    if (wmCfg.enabled !== false && wmCfg.text) {
+      const escaped = wmCfg.text.replace(/'/g, "'\\\\\\''");
+      const a = Math.round((wmCfg.opacity || 0.8) * 255).toString(16).padStart(2, '0');
+      const cHex = (wmCfg.colorHex || '#FFFFFF').replace('#', '');
+      const fc = `0x${a}${cHex}`;
+      const pos = wmCfg.position || 'bottom-center';
+      const ox = wmCfg.offsetX || 0;
+      const oy = wmCfg.offsetY || 120;
+      const fs = wmCfg.fontSize || 42;
+      const margin = 40 + (ox >= 0 ? ox : 0);
+      const botMargin = 40 + (oy >= 0 ? oy : 0);
+
+      let xExpr, yExpr;
+      if (pos === 'top-left') { xExpr = `${margin}`; yExpr = `${margin}`; }
+      else if (pos === 'top-center') { xExpr = `(w-text_w)/2+${ox}`; yExpr = `${margin}`; }
+      else if (pos === 'top-right') { xExpr = `w-text_w-${margin}`; yExpr = `${margin}`; }
+      else if (pos === 'bottom-left') { xExpr = `${margin}`; yExpr = `h-text_h-${botMargin}`; }
+      else if (pos === 'bottom-center') { xExpr = `(w-text_w)/2+${ox}`; yExpr = `h-text_h-${botMargin}`; }
+      else if (pos === 'bottom-right') { xExpr = `w-text_w-${margin}`; yExpr = `h-text_h-${botMargin}`; }
+      else { xExpr = `(w-text_w)/2`; yExpr = `h-text_h-${botMargin}`; }
+
+      let fontFile = '';
+      const fontCandidates = [
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/usr/share/fonts/truetype/msttcorefonts/Arial.ttf',
+        '/usr/share/fonts/TTF/DejaVuSans.ttf',
+        '/System/Library/Fonts/Helvetica.ttc',
+      ];
+      for (const fp of fontCandidates) {
+        if (fs.existsSync(fp)) { fontFile = `:fontfile='${fp}'`; break; }
+      }
+
+      vf += `,drawtext=text='${escaped}':fontsize=${fs}:fontcolor=${fc}:x=${xExpr}:y=${yExpr}:shadowcolor=black@0.4:shadowx=2:shadowy=2${fontFile}`;
+    }
+
+    vf += `,format=yuv420p`;
+
+    await new Promise((resolve, reject) => {
+      const args = ['-y', '-i', imagePath, '-vf', vf, '-vframes', '1', '-c:v', 'png', previewPath];
+      const ff = spawn(ffmpegPath, args, { cwd: PROJECT_ROOT });
+      ff.stderr.on('data', () => { });
+      ff.on('close', (code) => code === 0 ? resolve() : reject(new Error(`Preview render exit ${code}`)));
+      ff.on('error', reject);
+    });
+
+    return { filePath: previewPath, url: mediaUrl(previewPath) };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+// ─── ASS Subtitle file builder for Spensia Render ─────
+
+function hexToAssColor(hexStr, alphaHex = '00') {
+  let clean = hexStr.replace('#', '').trim();
+  if (clean.length === 3) clean = clean.split('').map((c) => c + c).join('');
+  if (clean.length !== 6) clean = 'FFFFFF';
+  const rr = clean.substring(0, 2);
+  const gg = clean.substring(2, 4);
+  const bb = clean.substring(4, 6);
+  return `&H${alphaHex}${bb}${gg}${rr}&`;
+}
+
+function assTime(sec) {
+  const safe = Math.max(0, sec);
+  const ms = Math.floor(safe * 1000);
+  const hh = Math.floor(ms / 3600000);
+  const mm = Math.floor((ms % 3600000) / 60000);
+  const ss = Math.floor((ms % 60000) / 1000);
+  const cs = Math.floor((ms % 1000) / 10);
+  const p = (n, l) => String(n).padStart(l || 2, '0');
+  return `${hh}:${p(mm)}:${p(ss)}.${p(cs)}`;
+}
+
+function cleanPunct(word) {
+  if (!word) return '';
+  return word.replace(/[.,:;!?\-"""''`()[\]{}]/g, '').trim();
+}
+
+function buildAssSubtitleFile(captions, capCfg, width, height) {
+  const fn = capCfg.fontName || 'Montserrat';
+  const fs = capCfg.fontSize || 48;
+  const activeColor = hexToAssColor(capCfg.activeColorHex || '#FDE047');
+  const inactiveColor = hexToAssColor(capCfg.inactiveColorHex || '#FFFFFF');
+  const outlineColor = hexToAssColor(capCfg.outlineColorHex || '#000000');
+  const ow = capCfg.outlineWidth || 3;
+  const sd = capCfg.shadowDistance || 2;
+  const posY = capCfg.positionY || 160;
+  const posX = capCfg.positionX || 40;
+  const align = capCfg.alignment || 2;
+  const displayMode = capCfg.displayMode || 'single-word';
+
+  const lines = [];
+  lines.push('[Script Info]');
+  lines.push('Title: Spensia CapCut Word-Level Sync Subtitles');
+  lines.push('ScriptType: v4.00+');
+  lines.push('WrapStyle: 2');
+  lines.push('ScaledBorderAndShadow: yes');
+  lines.push(`PlayResX: ${width}`);
+  lines.push(`PlayResY: ${height}`);
+  lines.push('');
+  lines.push('[V4+ Styles]');
+  lines.push('Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding');
+  lines.push(`Style: Default,${fn},${fs},${activeColor},${inactiveColor},${outlineColor},&H80000000,-1,0,0,0,100,100,1,0,1,${ow},${sd},${align},${posX},${posX},${posY},1`);
+  lines.push('');
+  lines.push('[Events]');
+  lines.push('Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text');
+
+  if (!captions || captions.length === 0) return lines.join('\n');
+
+  const clean = captions
+    .map((c) => ({ ...c, word: cleanPunct(c.word) }))
+    .filter((c) => c.word);
+  const sorted = [...clean].sort((a, b) => a.start_sec - b.start_sec);
+
+  if (displayMode === 'single-word') {
+    sorted.forEach((w, idx) => {
+      const nextW = sorted[idx + 1];
+      const startSec = Math.max(0, w.start_sec);
+      let endSec = w.end_sec;
+      if (nextW) {
+        const ns = Math.max(0, nextW.start_sec);
+        if (ns > startSec && ns <= endSec + 0.2) endSec = ns;
+      }
+      if (endSec <= startSec) endSec = startSec + 0.25;
+      const wordText = `{\\c${activeColor}\\fscx115\\fscy115\\b1}${w.word}`;
+      lines.push(`Dialogue: 0,${assTime(startSec)},${assTime(endSec)},Default,,0,0,0,,${wordText}`);
+    });
+  } else {
+    // phrase mode: 3 words per group
+    const MAX = 3;
+    const groups = [];
+    for (let i = 0; i < sorted.length; i += MAX) groups.push(sorted.slice(i, i + MAX));
+    groups.forEach((group, gIdx) => {
+      const nextGroup = groups[gIdx + 1];
+      group.forEach((tw, idx) => {
+        const ws = Math.max(0, tw.start_sec);
+        let we = tw.end_sec;
+        if (idx < group.length - 1) we = Math.max(ws + 0.15, group[idx + 1].start_sec);
+        else if (nextGroup && nextGroup.length > 0) we = Math.max(ws + 0.15, nextGroup[0].start_sec);
+        else we = ws + 0.5;
+        if (we <= ws) we = ws + 0.25;
+        const phrase = group.map((w) => w === tw
+          ? `{\\c${activeColor}\\fscx112\\fscy112\\b1}${w.word}{\\r}`
+          : w.word).join(' ');
+        lines.push(`Dialogue: 0,${assTime(ws)},${assTime(we)},Default,,0,0,0,,${phrase}`);
+      });
+    });
+  }
+
+  return lines.join('\n');
+}
+
+// ══════════════════════════════════════════════════════
+// Spensia Timeline Generator (from existing data files)
+// ══════════════════════════════════════════════════════
+
+ipcMain.handle('generate-spensia-timeline', async () => {
+  try {
+    const spensiaDir = path.join(PROJECT_ROOT, 'input', 'spensia');
+    const imagesDir = path.join(spensiaDir, 'images');
+    const transcriptsDir = path.join(spensiaDir, 'transcripts');
+    const audioDir = path.join(spensiaDir, 'audio');
+
+    // 1. Read breakdown segments
+    let segments = [];
+    const breakdownPath = path.join(spensiaDir, 'breakdown.json');
+    if (fs.existsSync(breakdownPath)) {
+      try {
+        const raw = JSON.parse(fs.readFileSync(breakdownPath, 'utf-8'));
+        segments = Array.isArray(raw) ? raw : (raw.segments || raw.breakdown || []);
+      } catch { }
+    }
+    if (segments.length === 0) {
+      return { error: 'No breakdown data found. Jalankan step Scene Splitter dulu.' };
+    }
+
+    // 2. Read images (scan image dir for segment_N.png files)
+    const images = [];
+    if (fs.existsSync(imagesDir)) {
+      const files = fs.readdirSync(imagesDir).filter(f => /^segment_\d+\.(png|jpg|jpeg|webp)$/i.test(f));
+      for (const f of files) {
+        const m = f.match(/segment_(\d+)/);
+        if (m) {
+          const segId = parseInt(m[1], 10);
+          const filePath = path.join(imagesDir, f);
+          images.push({ segment_id: segId, filePath, url: mediaUrl(filePath) });
+        }
+      }
+    }
+
+    // 3. Read audio files
+    let singleAudio = null;
+    let part1Audio = null;
+    let part2Audio = null;
+    if (fs.existsSync(audioDir)) {
+      const audioFiles = fs.readdirSync(audioDir).filter(f => /\.(mp3|wav|m4a|ogg|flac|aac)$/i.test(f));
+      for (const f of audioFiles) {
+        const fp = path.join(audioDir, f);
+        let dur = 30;
+        try {
+          const probeOut = require('child_process').execSync(
+            `"${ffmpegPath.replace('ffmpeg', 'ffprobe')}" -v error -show_entries format=duration -of csv=p=0 "${fp}"`,
+            { encoding: 'utf-8', timeout: 5000 }
+          );
+          dur = parseFloat(probeOut) || 30;
+        } catch { }
+
+        if (f.includes('merged') || f.includes('full') || f.includes('single')) {
+          singleAudio = { filePath: fp, url: mediaUrl(fp), duration: dur };
+        } else if (f.includes('part_1') || f.includes('part1') || f.includes('segment_1')) {
+          part1Audio = { filePath: fp, url: mediaUrl(fp), duration: dur };
+        } else if (f.includes('part_2') || f.includes('part2') || f.includes('segment_2')) {
+          part2Audio = { filePath: fp, url: mediaUrl(fp), duration: dur };
+        }
+      }
+      if (!singleAudio && audioFiles.length === 1) {
+        const fp = path.join(audioDir, audioFiles[0]);
+        let dur = 30;
+        try {
+          const probeOut = require('child_process').execSync(
+            `"${ffmpegPath.replace('ffmpeg', 'ffprobe')}" -v error -show_entries format=duration -of csv=p=0 "${fp}"`,
+            { encoding: 'utf-8', timeout: 5000 }
+          );
+          dur = parseFloat(probeOut) || 30;
+        } catch { }
+        singleAudio = { filePath: fp, url: mediaUrl(fp), duration: dur };
+      }
+    }
+
+    // 4. Read transcripts & mapping files
+    let mergedTranscript = null;
+    let part1Transcript = null;
+    let part2Transcript = null;
+
+    const spensiaMappingPath = path.join(spensiaDir, 'spensia_mapping.json');
+    if (fs.existsSync(spensiaMappingPath)) {
+      try {
+        const rawMap = JSON.parse(fs.readFileSync(spensiaMappingPath, 'utf-8'));
+        const words = rawMap.words || [];
+        const segs = rawMap.segments || [];
+        mergedTranscript = {
+          words,
+          segments: segs,
+          transcript_full: rawMap.transcript_full || '',
+        };
+      } catch { }
+    }
+
+    if (fs.existsSync(transcriptsDir)) {
+      const tFiles = fs.readdirSync(transcriptsDir).filter(f => f.endsWith('.json'));
+      for (const tf of tFiles) {
+        try {
+          const raw = JSON.parse(fs.readFileSync(path.join(transcriptsDir, tf), 'utf-8'));
+          const words = raw.words || raw.transcript || [];
+          const segs = raw.segments || [];
+          if (tf.includes('merged') || tf === 'transcript.json' || tf.includes('full')) {
+            mergedTranscript = {
+              words: words.length > 0 ? words : (mergedTranscript?.words || []),
+              segments: segs.length > 0 ? segs : (mergedTranscript?.segments || []),
+              transcript_full: raw.transcript_full || raw.text || mergedTranscript?.transcript_full || '',
+            };
+          } else if (tf.includes('part_1') || tf.includes('part1')) {
+            part1Transcript = { words, segments: segs, transcript_full: raw.transcript_full || raw.text || '' };
+          } else if (tf.includes('part_2') || tf.includes('part2')) {
+            part2Transcript = { words, segments: segs, transcript_full: raw.transcript_full || raw.text || '' };
+          }
+        } catch { }
+      }
+      if (!mergedTranscript && tFiles.length === 1) {
+        try {
+          const raw = JSON.parse(fs.readFileSync(path.join(transcriptsDir, tFiles[0]), 'utf-8'));
+          const words = raw.words || raw.transcript || [];
+          const segs = raw.segments || [];
+          mergedTranscript = { words, segments: segs, transcript_full: raw.transcript_full || raw.text || '' };
+        } catch { }
+      }
+    }
+
+    // 5. Build timeline
+    const fps = 30;
+    const width = 1920;
+    const height = 1080;
+
+    // Helper: clean punctuation for word matching
+    const cleanWordForMatch = (str) => {
+      if (!str) return '';
+      return str.toLowerCase().replace(/[.,:;!?\-"“”'’`()[\]{}]/g, '').trim();
+    };
+
+    // Video clips — word-level & segment-level sync with transcript timestamps
+    const videoClips = [];
+    let clipId = 1;
+
+    const buildClips = (segs, partId, partStartOffset, partDuration, transcriptObj) => {
+      if (segs.length === 0) return;
+
+      const totalChars = segs.reduce((acc, s) => acc + ((s.text || s.quote || '').length || 10), 0);
+
+      let currentOffset = partStartOffset;
+      let wordSearchIdx = 0;
+      const transcriptWords = Array.isArray(transcriptObj) ? transcriptObj : transcriptObj?.words || [];
+      const transcriptSegments = Array.isArray(transcriptObj?.segments) ? transcriptObj.segments : [];
+
+      segs.forEach((seg, idx) => {
+        const img = images.find(i => i.segment_id === (seg.segment_id || seg.id));
+        let segStartSec = -1;
+        let segEndSec = -1;
+
+        // Mode 0: Explicit Segment-Level Timestamp from Gemini JSON mapping
+        if (transcriptSegments && transcriptSegments.length > 0) {
+          const segId = seg.segment_id || seg.id || idx + 1;
+          const matchSeg = transcriptSegments.find((ts) => Number(ts.segment_id || ts.id) === Number(segId));
+          if (matchSeg && typeof matchSeg.start_sec === 'number' && typeof matchSeg.end_sec === 'number' && matchSeg.end_sec > matchSeg.start_sec) {
+            segStartSec = partStartOffset + matchSeg.start_sec;
+            segEndSec = partStartOffset + matchSeg.end_sec;
+          }
+        }
+
+        // Mode A: Sequential transcript word-level timestamp matching
+        if (segStartSec < 0 && transcriptWords && transcriptWords.length > 0 && wordSearchIdx < transcriptWords.length) {
+          const rawWords = (seg.text || seg.quote || '').split(/\s+/).map(cleanWordForMatch).filter(Boolean);
+          if (rawWords.length > 0) {
+            const firstWord = rawWords[0];
+            const lastWord = rawWords[rawWords.length - 1];
+
+            // Find first word occurrence after wordSearchIdx
+            let matchStartIdx = -1;
+            for (let i = wordSearchIdx; i < transcriptWords.length; i++) {
+              const tw = cleanWordForMatch(transcriptWords[i].word || transcriptWords[i].text || '');
+              if (tw && (tw.includes(firstWord) || firstWord.includes(tw))) {
+                matchStartIdx = i;
+                break;
+              }
+            }
+
+            // Find last word occurrence after matchStartIdx
+            let matchEndIdx = -1;
+            const searchFrom = matchStartIdx >= 0 ? matchStartIdx : wordSearchIdx;
+            for (let i = Math.min(transcriptWords.length - 1, searchFrom + rawWords.length + 5); i >= searchFrom; i--) {
+              const tw = cleanWordForMatch(transcriptWords[i].word || transcriptWords[i].text || '');
+              if (tw && (tw.includes(lastWord) || lastWord.includes(tw))) {
+                matchEndIdx = i;
+                break;
+              }
+            }
+
+            if (matchStartIdx >= 0) {
+              const parseN = (v) => (typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.]/g, '')));
+              const startVal = parseN(transcriptWords[matchStartIdx].start);
+              const endVal = matchEndIdx >= 0
+                ? parseN(transcriptWords[matchEndIdx].end)
+                : parseN(transcriptWords[matchStartIdx].end) + 2.0;
+
+              if (!isNaN(startVal) && !isNaN(endVal) && endVal > startVal) {
+                segStartSec = partStartOffset + startVal;
+                segEndSec = partStartOffset + endVal;
+                wordSearchIdx = (matchEndIdx >= 0 ? matchEndIdx : matchStartIdx) + 1;
+              }
+            }
+          }
+        }
+
+        let segDurationSec = 0;
+        if (segStartSec >= 0 && segEndSec > segStartSec) {
+          segDurationSec = segEndSec - segStartSec;
+          currentOffset = segStartSec;
+        } else {
+          // Mode B: Proportional duration by character length fallback
+          const textLen = (seg.text || seg.quote || '').length || 10;
+          const ratio = textLen / Math.max(1, totalChars);
+          segDurationSec = ratio * partDuration;
+        }
+
+        // Ensure last clip in part fills remaining part duration exactly
+        if (idx === segs.length - 1) {
+          segDurationSec = Math.max(1.0, partStartOffset + partDuration - currentOffset);
+        } else {
+          segDurationSec = Math.max(1.0, segDurationSec);
+        }
+
+        const startSec = currentOffset;
+        const endSec = startSec + segDurationSec;
+        currentOffset = endSec;
+
+        const startFrame = Math.round(startSec * fps);
+        const endFrame = Math.round(endSec * fps);
+
+        videoClips.push({
+          clip_id: clipId++,
+          segment_id: seg.segment_id || seg.id || idx + 1,
+          part_id: partId,
+          quote: seg.text || seg.quote || '',
+          image_path: img?.filePath || '',
+          image_url: img?.url || '',
+          start_sec: Number(startSec.toFixed(2)),
+          end_sec: Number(endSec.toFixed(2)),
+          duration_sec: Number(segDurationSec.toFixed(2)),
+          start_frame: startFrame,
+          end_frame: endFrame,
+          duration_frames: endFrame - startFrame,
+          transition: 'crossfade',
+        });
+      });
+    };
+
+    const captions = [];
+    const addCaptions = (transcript, partId, timeOffset) => {
+      const words = Array.isArray(transcript) ? transcript : transcript?.words;
+      if (!words) return;
+      words.forEach((w) => {
+        const word = (w.word || w.text || '').replace(/[.,:;!?\-"""''`()[\]{}]/g, '').trim();
+        if (!word) return;
+        captions.push({
+          part_id: partId,
+          word,
+          start_sec: (w.start || 0) + timeOffset,
+          end_sec: (w.end || (w.start + 0.5) || 0) + timeOffset,
+        });
+      });
+    };
+
+    const audioTracks = [];
+    const isSingleAudio = Boolean(singleAudio) || (!part2Audio && (part1Audio || singleAudio));
+    let totalDur = 0;
+
+    if (isSingleAudio) {
+      const activeAudio = singleAudio || part1Audio;
+      totalDur = activeAudio?.duration || (segments.length * 4);
+      if (activeAudio) {
+        audioTracks.push({
+          track: 'A1',
+          part_id: 1,
+          filePath: activeAudio.filePath,
+          url: activeAudio.url,
+          start_sec: 0,
+          end_sec: totalDur,
+          duration_sec: totalDur,
+        });
+      }
+
+      const activeTranscript = mergedTranscript || part1Transcript;
+      buildClips(segments, 1, 0, totalDur, activeTranscript);
+      addCaptions(activeTranscript, 1, 0);
+    } else {
+      const mid = Math.ceil(segments.length / 2);
+      const p1Segs = segments.slice(0, mid);
+      const p2Segs = segments.slice(mid);
+
+      const p1Dur = part1Audio?.duration || (p1Segs.length * 4);
+      const p2Dur = part2Audio?.duration || (p2Segs.length * 4);
+      totalDur = p1Dur + p2Dur;
+
+      if (part1Audio) {
+        audioTracks.push({ track: 'A1', part_id: 1, filePath: part1Audio.filePath, url: part1Audio.url, start_sec: 0, end_sec: p1Dur, duration_sec: p1Dur });
+      }
+      if (part2Audio) {
+        audioTracks.push({ track: 'A2', part_id: 2, filePath: part2Audio.filePath, url: part2Audio.url, start_sec: p1Dur, end_sec: totalDur, duration_sec: p2Dur });
+      }
+
+      buildClips(p1Segs, 1, 0, p1Dur, part1Transcript);
+      buildClips(p2Segs, 2, p1Dur, p2Dur, part2Transcript);
+      addCaptions(part1Transcript, 1, 0);
+      addCaptions(part2Transcript, 2, p1Dur);
+    }
+
+    const timeline = {
+      title: 'Spensia Timeline',
+      fps,
+      resolution: { width, height, aspect_ratio: '16:9' },
+      total_duration_sec: Math.round(totalDur * 100) / 100,
+      total_frames: Math.round(totalDur * fps),
+      audio_tracks: audioTracks,
+      video_clips: videoClips,
+      captions,
+      generated_at: new Date().toISOString(),
+    };
+
+    // Save to project
+    const timelinePath = path.join(spensiaDir, 'spensia_timeline.json');
+    fs.writeFileSync(timelinePath, JSON.stringify(timeline, null, 2), 'utf-8');
+
+    return { timeline, saved: true };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+

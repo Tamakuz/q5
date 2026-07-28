@@ -55,6 +55,8 @@ export interface GenerateTimelineParams {
   resolutionHeight?: number;
   segments: Array<{ segment_id: number; text: string; image_prompt?: string }>;
   images: Array<{ segment_id: number; filePath?: string; url?: string }>;
+  mergedAudio?: { filePath?: string; url?: string; duration?: number };
+  mergedTranscript?: { transcript_full?: string; words?: Array<{ word: string; start: number; end: number }> };
   part1Audio?: { filePath?: string; url?: string; duration?: number };
   part2Audio?: { filePath?: string; url?: string; duration?: number };
   part1Transcript?: { transcript_full?: string; words?: Array<{ word: string; start: number; end: number }> };
@@ -77,40 +79,49 @@ export function generateSpensiaTimeline(params: GenerateTimelineParams): Spensia
   const width = params.resolutionWidth || 1920;
   const height = params.resolutionHeight || 1080;
 
+  const hasMerged = Boolean(params.mergedAudio?.filePath || params.mergedTranscript?.words?.length);
+
   const p1Dur = params.part1Audio?.duration || 60;
   const p2Dur = params.part2Audio?.duration || 60;
-  const totalDurationSec = p1Dur + p2Dur;
+  const totalDurationSec = hasMerged && params.mergedAudio?.duration
+    ? params.mergedAudio.duration
+    : p1Dur + p2Dur;
 
   // 1. Audio Tracks Assembly
-  const audioTracks: TimelineAudioTrack[] = [
-    {
-      track: 'A1',
-      part_id: 1,
-      filePath: params.part1Audio?.filePath,
-      url: params.part1Audio?.url,
-      start_sec: 0,
-      end_sec: p1Dur,
-      duration_sec: p1Dur,
-    },
-    {
-      track: 'A2',
-      part_id: 2,
-      filePath: params.part2Audio?.filePath,
-      url: params.part2Audio?.url,
-      start_sec: p1Dur,
-      end_sec: totalDurationSec,
-      duration_sec: p2Dur,
-    },
-  ];
+  const audioTracks: TimelineAudioTrack[] = hasMerged && params.mergedAudio?.filePath
+    ? [
+        {
+          track: 'A1',
+          part_id: 1,
+          filePath: params.mergedAudio.filePath,
+          url: params.mergedAudio.url,
+          start_sec: 0,
+          end_sec: totalDurationSec,
+          duration_sec: totalDurationSec,
+        },
+      ]
+    : [
+        {
+          track: 'A1',
+          part_id: 1,
+          filePath: params.part1Audio?.filePath,
+          url: params.part1Audio?.url,
+          start_sec: 0,
+          end_sec: p1Dur,
+          duration_sec: p1Dur,
+        },
+        {
+          track: 'A2',
+          part_id: 2,
+          filePath: params.part2Audio?.filePath,
+          url: params.part2Audio?.url,
+          start_sec: p1Dur,
+          end_sec: totalDurationSec,
+          duration_sec: p2Dur,
+        },
+      ];
 
-  // 2. Divide Segments into Part 1 vs Part 2
-  const totalSegments = params.segments.length;
-  const midIndex = Math.ceil(totalSegments / 2);
-
-  const part1Segments = params.segments.slice(0, midIndex);
-  const part2Segments = params.segments.slice(midIndex);
-
-  // Helper to build video clips for a specific part using sequential transcript matching
+  // Helper to build video clips for a specific segment set using sequential transcript matching
   const buildClipsForPart = (
     segList: typeof params.segments,
     partId: number,
@@ -184,7 +195,7 @@ export function generateSpensiaTimeline(params: GenerateTimelineParams): Spensia
         segDurationSec = ratio * partDurationSec;
       }
 
-      // Ensure last clip in part fills remaining part duration exactly
+      // Ensure last clip fills remaining duration exactly
       if (idx === segList.length - 1) {
         segDurationSec = Math.max(1.0, partStartOffsetSec + partDurationSec - currentOffsetSec);
       } else {
@@ -218,10 +229,20 @@ export function generateSpensiaTimeline(params: GenerateTimelineParams): Spensia
     return clips;
   };
 
-  const p1Clips = buildClipsForPart(part1Segments, 1, 0, p1Dur, params.part1Transcript?.words);
-  const p2Clips = buildClipsForPart(part2Segments, 2, p1Dur, p2Dur, params.part2Transcript?.words);
+  let videoClips: TimelineVideoClip[] = [];
 
-  const videoClips = [...p1Clips, ...p2Clips];
+  if (hasMerged && params.mergedTranscript?.words?.length) {
+    videoClips = buildClipsForPart(params.segments, 1, 0, totalDurationSec, params.mergedTranscript.words);
+  } else {
+    const totalSegments = params.segments.length;
+    const midIndex = Math.ceil(totalSegments / 2);
+    const part1Segments = params.segments.slice(0, midIndex);
+    const part2Segments = params.segments.slice(midIndex);
+
+    const p1Clips = buildClipsForPart(part1Segments, 1, 0, p1Dur, params.part1Transcript?.words);
+    const p2Clips = buildClipsForPart(part2Segments, 2, p1Dur, p2Dur, params.part2Transcript?.words);
+    videoClips = [...p1Clips, ...p2Clips];
+  }
 
   // 3. Captions List
   const captions: TimelineCaptionItem[] = [];
@@ -231,8 +252,12 @@ export function generateSpensiaTimeline(params: GenerateTimelineParams): Spensia
     return NaN;
   };
 
-  if (params.part1Transcript?.words) {
-    params.part1Transcript.words.forEach((w) => {
+  const activeWords = hasMerged && params.mergedTranscript?.words?.length
+    ? params.mergedTranscript.words
+    : null;
+
+  if (activeWords) {
+    activeWords.forEach((w) => {
       const s = parseNum(w.start);
       const e = parseNum(w.end);
       if (!isNaN(s)) {
@@ -244,25 +269,40 @@ export function generateSpensiaTimeline(params: GenerateTimelineParams): Spensia
         });
       }
     });
-  }
+  } else {
+    if (params.part1Transcript?.words) {
+      params.part1Transcript.words.forEach((w) => {
+        const s = parseNum(w.start);
+        const e = parseNum(w.end);
+        if (!isNaN(s)) {
+          captions.push({
+            part_id: 1,
+            word: w.word,
+            start_sec: Number(s.toFixed(2)),
+            end_sec: Number((!isNaN(e) && e > s ? e : s + 0.3).toFixed(2)),
+          });
+        }
+      });
+    }
 
-  if (params.part2Transcript?.words) {
-    params.part2Transcript.words.forEach((w) => {
-      const s = parseNum(w.start);
-      const e = parseNum(w.end);
-      if (!isNaN(s)) {
-        captions.push({
-          part_id: 2,
-          word: w.word,
-          start_sec: Number((p1Dur + s).toFixed(2)),
-          end_sec: Number((p1Dur + (!isNaN(e) && e > s ? e : s + 0.3)).toFixed(2)),
-        });
-      }
-    });
+    if (params.part2Transcript?.words) {
+      params.part2Transcript.words.forEach((w) => {
+        const s = parseNum(w.start);
+        const e = parseNum(w.end);
+        if (!isNaN(s)) {
+          captions.push({
+            part_id: 2,
+            word: w.word,
+            start_sec: Number((p1Dur + s).toFixed(2)),
+            end_sec: Number((p1Dur + (!isNaN(e) && e > s ? e : s + 0.3)).toFixed(2)),
+          });
+        }
+      });
+    }
   }
 
   return {
-    title: 'Spensia_Timeline_Data',
+    title: 'Spensia Longform Video',
     fps,
     resolution: {
       width,
