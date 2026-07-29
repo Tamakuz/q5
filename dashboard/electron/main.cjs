@@ -5,6 +5,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const os = require('os');
 const aiClient = require('./aiClient.cjs');
+const { loadPrompt } = require('./prompts/promptLoader.cjs');
 
 // ─── FFmpeg / FFprobe paths ──────────────────────────
 const ffmpegBin = require('@ffmpeg-installer/ffmpeg');
@@ -1371,6 +1372,289 @@ ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, si
   }
 
   return results;
+});
+
+// ─── Spensia Thumbnail Studio ─────────────────────────
+
+const SPENSIA_THUMBNAILS_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails');
+if (!fs.existsSync(SPENSIA_THUMBNAILS_DIR)) fs.mkdirSync(SPENSIA_THUMBNAILS_DIR, { recursive: true });
+
+ipcMain.handle('generate-spensia-thumbnail-prompts', async (event, { scriptContent, topicTitle, selectedTitle, model }) => {
+  let contextText = scriptContent || '';
+  if (!contextText) {
+    const scriptPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'full_script.txt');
+    if (fs.existsSync(scriptPath)) {
+      contextText = fs.readFileSync(scriptPath, 'utf-8');
+    }
+  }
+
+  const systemPrompt = loadPrompt('thumbnail_prompts_system.txt');
+
+  const targetTitle = selectedTitle || topicTitle || 'Fakta Spensia';
+  const prompt = `JUDUL UTAMA VIDEO TERPILIH (CRITICAL RELEVANCE TARGET):\n"${targetTitle}"\n\nNaskah / Detail Konten Video:\n${contextText || 'Fakta unik dan kontraintuitif tentang kehidupan purba vs modern.'}\n\nIMPORTANT INSTRUCTION: All 3 thumbnail concepts and text overlay hooks MUST be directly relevant to, match, and complement the selected video title "${targetTitle}".`;
+
+  const rawJson = await aiClient.streamChatCompletion({
+    systemPrompt,
+    prompt,
+    model: model || 'cx/gpt-5.5',
+    jsonMode: true,
+    temperature: 0.8,
+    onChunk: (chunk, fullText) => {
+      try {
+        event.sender.send('spensia-thumbnail-prompts-chunk', { chunk, fullText });
+      } catch {}
+    },
+  });
+
+  const parsed = JSON.parse(rawJson);
+  const savePath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail_prompts.json');
+  fs.writeFileSync(savePath, JSON.stringify(parsed, null, 2), 'utf-8');
+
+  return parsed;
+});
+
+ipcMain.handle('generate-spensia-thumbnail-images', async (event, { concepts, model, size = '1280x720' }) => {
+  if (!Array.isArray(concepts) || concepts.length === 0) {
+    throw new Error('Concepts list is empty.');
+  }
+
+  // ── Bersihkan hasil generate sebelumnya ──
+  // Hapus semua file PNG di folder thumbnails/
+  if (fs.existsSync(SPENSIA_THUMBNAILS_DIR)) {
+    const existingFiles = fs.readdirSync(SPENSIA_THUMBNAILS_DIR);
+    for (const file of existingFiles) {
+      const filePath = path.join(SPENSIA_THUMBNAILS_DIR, file);
+      try { fs.unlinkSync(filePath); } catch {}
+    }
+  }
+  // Hapus file JSON hasil render sebelumnya
+  const prevFiles = [
+    path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails_rendered.json'),
+    path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail_selected.json'),
+    path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail.png'),
+  ];
+  for (const fp of prevFiles) {
+    if (fs.existsSync(fp)) {
+      try { fs.unlinkSync(fp); } catch {}
+    }
+  }
+
+  const results = [];
+  const total = concepts.length;
+
+  for (let i = 0; i < concepts.length; i++) {
+    const concept = concepts[i];
+    const conceptId = concept.id || (i + 1);
+    const promptText = concept.prompt;
+    const destPath = path.join(SPENSIA_THUMBNAILS_DIR, `thumbnail_${conceptId}.png`);
+
+    try {
+      event.sender.send('spensia-thumbnail-image-progress', {
+        current: i + 1,
+        total,
+        conceptId,
+        title: concept.title,
+        message: `🎨 Generating Thumbnail ${i + 1}/${total} ("${concept.title}")...`,
+        status: 'generating',
+      });
+
+      const res = await aiClient.generateImage({
+        prompt: promptText,
+        model: model || 'cx/gpt-5.5-image',
+        size: size || '1280x720',
+      });
+
+      let localUrl = null;
+      if (res.b64_json) {
+        fs.writeFileSync(destPath, Buffer.from(res.b64_json, 'base64'));
+        localUrl = mediaUrl(destPath);
+      } else if (res.url) {
+        try {
+          const imgRes = await fetch(res.url);
+          if (imgRes.ok) {
+            const ab = await imgRes.arrayBuffer();
+            fs.writeFileSync(destPath, Buffer.from(ab));
+            localUrl = mediaUrl(destPath);
+          } else {
+            localUrl = res.url;
+          }
+        } catch {
+          localUrl = res.url;
+        }
+      }
+
+      const item = {
+        id: conceptId,
+        title: concept.title,
+        text_overlay: concept.text_overlay,
+        badge_text: concept.badge_text,
+        viral_score: concept.viral_score,
+        viral_reason: concept.viral_reason,
+        prompt: concept.prompt,
+        filePath: destPath,
+        url: localUrl,
+        generatedAt: new Date().toISOString(),
+      };
+      results.push(item);
+
+      event.sender.send('spensia-thumbnail-image-progress', {
+        current: i + 1,
+        total,
+        conceptId,
+        title: concept.title,
+        item,
+        message: `✓ Thumbnail ${i + 1}/${total} ("${concept.title}") selesai di-render!`,
+        status: 'success',
+      });
+    } catch (err) {
+      const errItem = {
+        id: conceptId,
+        title: concept.title,
+        text_overlay: concept.text_overlay,
+        badge_text: concept.badge_text,
+        viral_score: concept.viral_score,
+        viral_reason: concept.viral_reason,
+        prompt: concept.prompt,
+        error: err.message,
+      };
+      results.push(errItem);
+
+      event.sender.send('spensia-thumbnail-image-progress', {
+        current: i + 1,
+        total,
+        conceptId,
+        title: concept.title,
+        error: err.message,
+        message: `❌ Thumbnail ${i + 1}/${total} error: ${err.message}`,
+        status: 'error',
+      });
+    }
+  }
+
+  const savePath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails_rendered.json');
+  fs.writeFileSync(savePath, JSON.stringify(results, null, 2), 'utf-8');
+
+  return results;
+});
+
+ipcMain.handle('get-spensia-thumbnails', async () => {
+  const savePath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails_rendered.json');
+  const promptsPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail_prompts.json');
+
+  let concepts = [];
+  if (fs.existsSync(promptsPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(promptsPath, 'utf-8'));
+      concepts = data.concepts || [];
+    } catch {}
+  }
+
+  let rendered = [];
+  if (fs.existsSync(savePath)) {
+    try {
+      rendered = JSON.parse(fs.readFileSync(savePath, 'utf-8'));
+      rendered = rendered.map((r) => {
+        if (r.filePath && fs.existsSync(r.filePath)) {
+          return { ...r, url: mediaUrl(r.filePath) };
+        }
+        return r;
+      });
+    } catch {}
+  }
+
+  let selected = null;
+  const selPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail_selected.json');
+  if (fs.existsSync(selPath)) {
+    try {
+      selected = JSON.parse(fs.readFileSync(selPath, 'utf-8'));
+    } catch {}
+  }
+
+  return { concepts, rendered, selected };
+});
+
+ipcMain.handle('save-spensia-thumbnail-selection', async (_event, { selectedId, concept }) => {
+  const selPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail_selected.json');
+  const data = { selectedId, concept, updatedAt: new Date().toISOString() };
+  fs.writeFileSync(selPath, JSON.stringify(data, null, 2), 'utf-8');
+
+  // Copy selected thumbnail as main thumbnail.png
+  if (concept?.filePath && fs.existsSync(concept.filePath)) {
+    const mainThumbPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail.png');
+    try { fs.copyFileSync(concept.filePath, mainThumbPath); } catch {}
+  }
+
+  return data;
+});
+
+// ─── Spensia Upload Materials Generator (SEO Titles, Description, Tags) ───
+
+ipcMain.handle('generate-spensia-upload-metadata', async (event, { scriptContent, topicTitle, model }) => {
+  let contextText = scriptContent || '';
+  if (!contextText) {
+    const scriptPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'full_script.txt');
+    if (fs.existsSync(scriptPath)) {
+      contextText = fs.readFileSync(scriptPath, 'utf-8');
+    }
+  }
+
+  let chaptersText = '';
+  const mappingPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'spensia_mapping.json');
+  if (fs.existsSync(mappingPath)) {
+    try {
+      const mapping = JSON.parse(fs.readFileSync(mappingPath, 'utf-8'));
+      const timeline = mapping.timeline || [];
+      if (timeline.length > 0) {
+        let accSec = 0;
+        const chapterLines = [];
+        chapterLines.push('00:00 Intro & Fakta Utama');
+        for (let i = 0; i < timeline.length; i++) {
+          const seg = timeline[i];
+          accSec += (seg.duration_sec || 5);
+          if (i === Math.floor(timeline.length * 0.25) || i === Math.floor(timeline.length * 0.5) || i === Math.floor(timeline.length * 0.75)) {
+            const mm = String(Math.floor(accSec / 60)).padStart(2, '0');
+            const ss = String(Math.floor(accSec % 60)).padStart(2, '0');
+            const label = seg.quote ? (seg.quote.slice(0, 30) + '...') : `Segmen #${seg.segment_id || (i + 1)}`;
+            chapterLines.push(`${mm}:${ss} ${label}`);
+          }
+        }
+        chaptersText = chapterLines.join('\n');
+      }
+    } catch {}
+  }
+
+  const systemPrompt = loadPrompt('upload_metadata_system.txt');
+
+  const prompt = `Judul Topik / Konten: "${topicTitle || 'Fakta Spensia'}"\n\nNaskah / Detail Konten:\n${contextText || 'Fakta unik dan kontraintuitif tentang kehidupan purba vs modern.'}\n\n${chaptersText ? `Catatan Timestamps Rencana:\n${chaptersText}` : ''}`;
+
+  const rawJson = await aiClient.streamChatCompletion({
+    systemPrompt,
+    prompt,
+    model: model || 'cx/gpt-5.5',
+    jsonMode: true,
+    temperature: 0.7,
+    onChunk: (chunk, fullText) => {
+      try {
+        event.sender.send('spensia-upload-metadata-chunk', { chunk, fullText });
+      } catch {}
+    },
+  });
+
+  const parsed = JSON.parse(rawJson);
+  const savePath = path.join(PROJECT_ROOT, 'input', 'spensia', 'upload_metadata.json');
+  fs.writeFileSync(savePath, JSON.stringify(parsed, null, 2), 'utf-8');
+
+  return parsed;
+});
+
+ipcMain.handle('get-spensia-upload-metadata', async () => {
+  const savePath = path.join(PROJECT_ROOT, 'input', 'spensia', 'upload_metadata.json');
+  if (fs.existsSync(savePath)) {
+    try {
+      return JSON.parse(fs.readFileSync(savePath, 'utf-8'));
+    } catch {}
+  }
+  return null;
 });
 
 const SPENSIA_AUDIO_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'audio');

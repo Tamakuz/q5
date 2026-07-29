@@ -1,7 +1,7 @@
 // dashboard/src/components/common/Sidebar.tsx
 import React from 'react';
 
-export type StepId = 'source' | 'analyze' | 'audio' | 'transcript' | 'mapping' | 'render' | 'upload' | 'publish';
+export type StepId = 'source' | 'analyze' | 'audio' | 'transcript' | 'mapping' | 'render' | 'upload' | 'publish' | 'thumbnail';
 export type ContentMode = 'shortform' | 'longform' | 'spensia';
 
 interface Step {
@@ -38,6 +38,7 @@ const SPENSIA_STEPS: Step[] = [
   { id: 'publish', icon: '🎙️', label: '6. Voice Over Generator', subText: 'Prompt TTS & Upload Audio Spensia' },
   { id: 'transcript', icon: '🎯', label: '7. Timeline & Mapping Studio', subText: 'Build timeline mapping & JSON sync' },
   { id: 'upload', icon: '🎬', label: '8. Render Studio (16:9)', subText: 'Watermark, caption, BGM & export' },
+  { id: 'thumbnail', icon: '🚀', label: '9. Publish Hub & Thumbnail', subText: 'AI SEO Title, Tags, Description & 3x Thumbnail' },
 ];
 
 interface SidebarProps {

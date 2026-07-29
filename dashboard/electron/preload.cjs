@@ -154,11 +154,40 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveToProject: (subPath, data) => ipcRenderer.invoke('save-to-project', { subPath, data }),
   readFromProject: (subPath) => ipcRenderer.invoke('read-from-project', subPath),
 
-  // Spensia Render Engine
+  // Spensia Render Engine & Thumbnail Studio
   generateSpensiaTimeline: () => ipcRenderer.invoke('generate-spensia-timeline'),
   getSpensiaRenderResult: () => ipcRenderer.invoke('get-spensia-render-result'),
   renderSpensiaVideo: (config, timeline, outputPath) =>
     ipcRenderer.invoke('render-spensia-video', { config, timeline, outputPath }),
   renderSpensiaPreviewFrame: (config, imagePath) =>
     ipcRenderer.invoke('render-spensia-preview-frame', { config, imagePath }),
+
+  // Thumbnail Studio
+  generateSpensiaThumbnailPrompts: (scriptContent, topicTitle, selectedTitle, model) =>
+    ipcRenderer.invoke('generate-spensia-thumbnail-prompts', { scriptContent, topicTitle, selectedTitle, model }),
+  onSpensiaThumbnailPromptsChunk: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('spensia-thumbnail-prompts-chunk', handler);
+    return () => ipcRenderer.removeListener('spensia-thumbnail-prompts-chunk', handler);
+  },
+  generateSpensiaThumbnailImages: (concepts, model, size) =>
+    ipcRenderer.invoke('generate-spensia-thumbnail-images', { concepts, model, size }),
+  onSpensiaThumbnailImageProgress: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('spensia-thumbnail-image-progress', handler);
+    return () => ipcRenderer.removeListener('spensia-thumbnail-image-progress', handler);
+  },
+  getSpensiaThumbnails: () => ipcRenderer.invoke('get-spensia-thumbnails'),
+  saveSpensiaThumbnailSelection: (selectedId, concept) =>
+    ipcRenderer.invoke('save-spensia-thumbnail-selection', { selectedId, concept }),
+
+  // Publish Hub SEO & Upload Metadata
+  generateSpensiaUploadMetadata: (scriptContent, topicTitle, model) =>
+    ipcRenderer.invoke('generate-spensia-upload-metadata', { scriptContent, topicTitle, model }),
+  onSpensiaUploadMetadataChunk: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('spensia-upload-metadata-chunk', handler);
+    return () => ipcRenderer.removeListener('spensia-upload-metadata-chunk', handler);
+  },
+  getSpensiaUploadMetadata: () => ipcRenderer.invoke('get-spensia-upload-metadata'),
 });

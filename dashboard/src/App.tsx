@@ -30,6 +30,7 @@ import SpensiaImageGeneratorStep from './components/spensia/SpensiaImageGenerato
 import SpensiaVoiceOverStep from './components/spensia/SpensiaVoiceOverStep';
 import SpensiaTimelineMappingStep from './components/spensia/SpensiaTimelineMappingStep';
 import SpensiaRenderStep from './components/spensia/SpensiaRenderStep';
+import SpensiaThumbnailStep from './components/spensia/SpensiaThumbnailStep';
 
 type Status = 'ready' | 'rendering' | 'error';
 
@@ -113,6 +114,8 @@ const App: React.FC = () => {
               <SpensiaTimelineMappingStep key="spensia-timeline-mapping" onStepChange={setActiveStep} />
             ) : activeStep === 'upload' ? (
               <SpensiaRenderStep key="spensia-render-studio" />
+            ) : activeStep === 'thumbnail' ? (
+              <SpensiaThumbnailStep key="spensia-thumbnail-studio" />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
                 <div className="w-20 h-20 bg-emerald-600/10 text-emerald-400 rounded-3xl flex items-center justify-center text-4xl border border-emerald-500/20 shadow-xl shadow-emerald-950/40">

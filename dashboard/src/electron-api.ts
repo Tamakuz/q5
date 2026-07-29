@@ -283,11 +283,23 @@ export interface ElectronAPI {
   runWhisperxTranscribe: (audioPath: string, model?: string, language?: string, device?: string, computeType?: string) => Promise<{ success: boolean; transcriptData?: any }>;
   onWhisperxProgress: (callback: (data: { audioPath?: string; logText: string }) => void) => () => void;
 
-  // Spensia Render Engine
+  // Spensia Render Engine & Thumbnail Studio
   generateSpensiaTimeline: () => Promise<{ timeline?: SpensiaTimelineStructure; saved?: boolean; error?: string }>;
   getSpensiaRenderResult?: () => Promise<SpensiaRenderResult | null>;
   renderSpensiaVideo: (config: SpensiaRenderConfig, timeline: SpensiaTimelineStructure, outputPath?: string) => Promise<SpensiaRenderResult>;
   renderSpensiaPreviewFrame: (config: SpensiaRenderConfig, imagePath: string) => Promise<{ filePath?: string; url?: string; error?: string }>;
+
+  // Thumbnail Studio & Publish Hub SEO
+  generateSpensiaThumbnailPrompts?: (scriptContent?: string, topicTitle?: string, selectedTitle?: string, model?: string) => Promise<{ concepts: SpensiaThumbnailConcept[] }>;
+  onSpensiaThumbnailPromptsChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  generateSpensiaThumbnailImages?: (concepts: SpensiaThumbnailConcept[], model?: string, size?: string) => Promise<SpensiaThumbnailConcept[]>;
+  onSpensiaThumbnailImageProgress?: (callback: (data: { current: number; total: number; conceptId: number; title: string; item?: SpensiaThumbnailConcept; error?: string; message: string; status: string }) => void) => () => void;
+  getSpensiaThumbnails?: () => Promise<SpensiaThumbnailResult>;
+  saveSpensiaThumbnailSelection?: (selectedId: number, concept: SpensiaThumbnailConcept) => Promise<any>;
+
+  generateSpensiaUploadMetadata?: (scriptContent?: string, topicTitle?: string, model?: string) => Promise<SpensiaUploadMetadata>;
+  onSpensiaUploadMetadataChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  getSpensiaUploadMetadata?: () => Promise<SpensiaUploadMetadata | null>;
 }
 
 export interface WatermarkTextConfig {
@@ -359,6 +371,39 @@ export interface SpensiaTimelineStructure {
   video_clips: Array<{ clip_id: number; segment_id: number; part_id: number; quote: string; image_path?: string; image_url?: string; start_sec: number; end_sec: number; duration_sec: number; start_frame: number; end_frame: number; duration_frames: number; transition: string }>;
   captions: Array<{ part_id: number; word: string; start_sec: number; end_sec: number }>;
   generated_at: string;
+}
+
+export interface SpensiaThumbnailConcept {
+  id: number;
+  title: string;
+  text_overlay: string;
+  badge_text?: string;
+  viral_score: number;
+  viral_reason: string;
+  prompt: string;
+  filePath?: string;
+  url?: string;
+  error?: string;
+}
+
+export interface SpensiaThumbnailResult {
+  concepts: SpensiaThumbnailConcept[];
+  rendered: SpensiaThumbnailConcept[];
+  selected?: { selectedId: number; concept: SpensiaThumbnailConcept } | null;
+}
+
+export interface SpensiaUploadTitleItem {
+  title: string;
+  ctr_score?: number;
+  ctr_reason?: string;
+}
+
+export interface SpensiaUploadMetadata {
+  titles: (string | SpensiaUploadTitleItem)[];
+  recommended_title?: string;
+  description: string;
+  tags: string[];
+  hashtags: string[];
 }
 
 declare global {
