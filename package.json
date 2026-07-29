@@ -16,7 +16,12 @@
     "aistudio:attach": "npx tsx playwright/actions/attach-file.ts",
     "aistudio:drive": "npx tsx playwright/actions/attach-drive-file.ts",
     "aistudio:submit": "npx tsx playwright/actions/submit-and-extract.ts",
-    "aistudio:pipeline": "npx tsx playwright/pipelines/analysis-pipeline.ts"
+    "aistudio:pipeline": "npx tsx playwright/pipelines/analysis-pipeline.ts",
+    "playwright:init": "npx tsx playwright/cli.ts init-user-data",
+    "playwright:check": "npx tsx playwright/cli.ts check-session",
+    "playwright:create": "npx tsx playwright/cli.ts create-project",
+    "playwright:generate": "npx tsx playwright/cli.ts generate-images",
+    "playwright:cli": "npx tsx playwright/cli.ts"
   },
   "dependencies": {
     "@remotion/bundler": "^4.0.0",
