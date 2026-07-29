@@ -156,6 +156,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Spensia Render Engine
   generateSpensiaTimeline: () => ipcRenderer.invoke('generate-spensia-timeline'),
+  getSpensiaRenderResult: () => ipcRenderer.invoke('get-spensia-render-result'),
   renderSpensiaVideo: (config, timeline, outputPath) =>
     ipcRenderer.invoke('render-spensia-video', { config, timeline, outputPath }),
   renderSpensiaPreviewFrame: (config, imagePath) =>

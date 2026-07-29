@@ -2263,7 +2263,58 @@ ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
 // Spensia Render Engine IPC Handlers (16:9 1920×1080)
 // ══════════════════════════════════════════════════════
 
+ipcMain.handle('get-spensia-render-result', async () => {
+  const infoPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'last_render.json');
+  if (fs.existsSync(infoPath)) {
+    try {
+      const info = JSON.parse(fs.readFileSync(infoPath, 'utf-8'));
+      if (info?.outputPath && fs.existsSync(info.outputPath)) {
+        return {
+          outputPath: info.outputPath,
+          mediaUrl: mediaUrl(info.outputPath),
+          fileName: info.fileName || path.basename(info.outputPath),
+          renderedAt: info.renderedAt,
+        };
+      }
+    } catch {}
+  }
+
+  if (fs.existsSync(SPENSIA_OUTPUT_DIR)) {
+    try {
+      const files = fs.readdirSync(SPENSIA_OUTPUT_DIR).filter((f) => f.endsWith('.mp4'));
+      if (files.length > 0) {
+        const newest = files
+          .map((f) => {
+            const fp = path.join(SPENSIA_OUTPUT_DIR, f);
+            return { fp, f, mtime: fs.statSync(fp).mtimeMs };
+          })
+          .sort((a, b) => b.mtime - a.mtime)[0];
+
+        if (newest && fs.existsSync(newest.fp)) {
+          return {
+            outputPath: newest.fp,
+            mediaUrl: mediaUrl(newest.fp),
+            fileName: newest.f,
+          };
+        }
+      }
+    } catch {}
+  }
+
+  return null;
+});
+
 ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputPath }) => {
+  // ── Clean up previous output MP4 files in SPENSIA_OUTPUT_DIR ──
+  if (fs.existsSync(SPENSIA_OUTPUT_DIR)) {
+    try {
+      const oldFiles = fs.readdirSync(SPENSIA_OUTPUT_DIR).filter((f) => f.endsWith('.mp4'));
+      for (const f of oldFiles) {
+        try { fs.unlinkSync(path.join(SPENSIA_OUTPUT_DIR, f)); } catch {}
+      }
+    } catch {}
+  }
+
   const resolvedOutput = outputPath
     ? path.isAbsolute(outputPath) ? outputPath : path.join(PROJECT_ROOT, outputPath)
     : path.join(SPENSIA_OUTPUT_DIR, `spensia_final_${Date.now()}.mp4`);
@@ -2616,11 +2667,18 @@ ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputP
     // Cleanup temp dir
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { }
 
-    return {
+    const resultObj = {
       outputPath: resolvedOutput,
       mediaUrl: mediaUrl(resolvedOutput),
       fileName: path.basename(resolvedOutput),
+      renderedAt: new Date().toISOString(),
     };
+
+    try {
+      fs.writeFileSync(path.join(PROJECT_ROOT, 'input', 'spensia', 'last_render.json'), JSON.stringify(resultObj, null, 2), 'utf-8');
+    } catch {}
+
+    return resultObj;
 
   } catch (err) {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { }

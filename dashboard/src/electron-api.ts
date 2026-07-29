@@ -285,6 +285,7 @@ export interface ElectronAPI {
 
   // Spensia Render Engine
   generateSpensiaTimeline: () => Promise<{ timeline?: SpensiaTimelineStructure; saved?: boolean; error?: string }>;
+  getSpensiaRenderResult?: () => Promise<SpensiaRenderResult | null>;
   renderSpensiaVideo: (config: SpensiaRenderConfig, timeline: SpensiaTimelineStructure, outputPath?: string) => Promise<SpensiaRenderResult>;
   renderSpensiaPreviewFrame: (config: SpensiaRenderConfig, imagePath: string) => Promise<{ filePath?: string; url?: string; error?: string }>;
 }

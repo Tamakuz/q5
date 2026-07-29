@@ -307,6 +307,18 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                             } catch {}
                         }
                     }
+                    // Auto-detect existing render result on startup
+                    if (api?.getSpensiaRenderResult) {
+                        const existing = await api.getSpensiaRenderResult();
+                        if (existing && existing.mediaUrl) {
+                            setRenderResult(existing);
+                            setRenderProgress({
+                                stage: 'done',
+                                progress: 1.0,
+                                message: `🎉 Video Spensia 1080p Sebelumnya (${existing.fileName}) Siap Diputar!`
+                            });
+                        }
+                    }
                 }
             } catch (err) {
                 console.error('Error initializing Spensia Render Step:', err);
