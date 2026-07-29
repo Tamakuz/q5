@@ -11,12 +11,26 @@ const MODEL_OPTIONS = [
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
 ];
 
+export interface BatchTopicItem {
+  id: number;
+  title: string;
+  summary: string;
+  hasBreakdown?: boolean;
+}
+
 const SpensiaBreakdownStep: React.FC = () => {
   const [fullScript, setFullScript] = useState<string>('');
   const [videoTitle, setVideoTitle] = useState<string>('');
   const [selectedModel, setSelectedModel] = useState<string>('cx/gpt-5.5');
   const [masterPrompt, setMasterPrompt] = useState<string>('');
   const [showPromptEditor, setShowPromptEditor] = useState<boolean>(false);
+
+  const [batchTopics, setBatchTopics] = useState<BatchTopicItem[]>([]);
+  const [activeTopicId, setActiveTopicId] = useState<number | null>(null);
+  const [isBatchGenerating, setIsBatchGenerating] = useState<boolean>(false);
+  const [batchCurrentIndex, setBatchCurrentIndex] = useState<number>(0);
+  const [batchTotalCount, setBatchTotalCount] = useState<number>(0);
+  const [generatingTopicId, setGeneratingTopicId] = useState<number | null>(null);
 
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [pastedOutput, setPastedOutput] = useState<string>('');
@@ -52,29 +66,50 @@ const SpensiaBreakdownStep: React.FC = () => {
       await loadPromptFromFile();
       try {
         if (api?.readFromProject) {
-          // 1. Load full script from Step 2
-          const scriptText = await api.readFromProject('input/spensia/full_script.txt');
-          if (scriptText) setFullScript(scriptText);
+          // 1. Load selected topics from Step 1
+          const savedTopicsJson = await api.readFromProject('input/spensia/topics.json');
+          let selectedId: number | null = null;
+          let loadedTopics: BatchTopicItem[] = [];
 
-          const scriptJsonStr = await api.readFromProject('input/spensia/script.json');
-          if (scriptJsonStr) {
-            try {
-              const parsedScript = JSON.parse(scriptJsonStr);
-              if (parsedScript.video_title) setVideoTitle(parsedScript.video_title);
-              if (!scriptText && parsedScript.full_script) setFullScript(parsedScript.full_script);
-            } catch {}
-          }
-
-          // 2. Load existing breakdown if present
-          const breakdownJson = await api.readFromProject('input/spensia/breakdown.json');
-          if (breakdownJson) {
-            setPastedOutput(breakdownJson);
-            const report = validateSpensiaBreakdown(breakdownJson);
-            setValidationReport(report);
-            if (report.normalizedData) {
-              setSegments(report.normalizedData.segments);
+          if (savedTopicsJson) {
+            const topicState = JSON.parse(savedTopicsJson);
+            if (Array.isArray(topicState.selectedTopics) && topicState.selectedTopics.length > 0) {
+              loadedTopics = topicState.selectedTopics.map((t: any) => ({
+                id: t.id,
+                title: t.title,
+                summary: t.summary,
+              }));
+              selectedId = topicState.selectedTopicId || loadedTopics[0]?.id || null;
+            } else if (Array.isArray(topicState.topics) && topicState.selectedTopicId) {
+              const matched = topicState.topics.find((t: any) => t.id === topicState.selectedTopicId);
+              if (matched) {
+                loadedTopics = [{ id: matched.id, title: matched.title, summary: matched.summary }];
+                selectedId = matched.id;
+              }
             }
           }
+
+          // Check per-topic breakdown files to update hasBreakdown badges
+          const checkedTopics = await Promise.all(
+            loadedTopics.map(async (top) => {
+              try {
+                const specificBreakdown = await api.readFromProject(`input/spensia/breakdowns/breakdown_topic_${top.id}.json`);
+                return { ...top, hasBreakdown: Boolean(specificBreakdown && specificBreakdown.trim()) };
+              } catch {
+                return top;
+              }
+            })
+          );
+
+          setBatchTopics(checkedTopics);
+          if (selectedId !== null) {
+            setActiveTopicId(selectedId);
+            const activeTop = checkedTopics.find((t) => t.id === selectedId) || checkedTopics[0];
+            if (activeTop) setVideoTitle(activeTop.title);
+          }
+
+          // 2. Load script & breakdown for active topic
+          await loadTopicData(selectedId, checkedTopics);
         }
       } catch (err) {
         console.error('Error initializing Spensia Breakdown Step:', err);
@@ -82,11 +117,81 @@ const SpensiaBreakdownStep: React.FC = () => {
     })();
   }, []);
 
-  const getComputedPrompt = (promptTplStr?: string) => {
+  const loadTopicData = async (topicId: number | null, topicList?: BatchTopicItem[]) => {
+    if (!api?.readFromProject) return;
+
+    // Load full script for this topic
+    let scriptText = '';
+    if (topicId) {
+      scriptText = (await api.readFromProject(`input/spensia/scripts/full_script_topic_${topicId}.txt`)) || '';
+      if (!scriptText) {
+        const jsonScript = await api.readFromProject(`input/spensia/scripts/script_topic_${topicId}.json`);
+        if (jsonScript) {
+          try {
+            const parsed = JSON.parse(jsonScript);
+            if (parsed.full_script) scriptText = parsed.full_script;
+            if (parsed.video_title) setVideoTitle(parsed.video_title);
+          } catch {}
+        }
+      }
+    }
+    if (!scriptText) {
+      scriptText = (await api.readFromProject('input/spensia/full_script.txt')) || '';
+    }
+    if (!scriptText) {
+      const scriptJsonStr = await api.readFromProject('input/spensia/script.json');
+      if (scriptJsonStr) {
+        try {
+          const parsedScript = JSON.parse(scriptJsonStr);
+          if (parsedScript.video_title) setVideoTitle(parsedScript.video_title);
+          if (parsedScript.full_script) scriptText = parsedScript.full_script;
+        } catch {}
+      }
+    }
+    setFullScript(scriptText || '');
+
+    // Load breakdown for this topic
+    const breakdownFile = topicId
+      ? `input/spensia/breakdowns/breakdown_topic_${topicId}.json`
+      : 'input/spensia/breakdown.json';
+
+    let breakdownJson = await api.readFromProject(breakdownFile);
+    if (!breakdownJson && topicId) {
+      breakdownJson = await api.readFromProject('input/spensia/breakdown.json');
+    }
+
+    if (breakdownJson) {
+      setPastedOutput(breakdownJson);
+      const report = validateSpensiaBreakdown(breakdownJson);
+      setValidationReport(report);
+      if (report.normalizedData) {
+        setSegments(report.normalizedData.segments);
+        return;
+      }
+    }
+
+    setPastedOutput('');
+    setSegments([]);
+    setValidationReport(null);
+  };
+
+  const handleSwitchTopic = async (topic: BatchTopicItem) => {
+    setActiveTopicId(topic.id);
+    setVideoTitle(topic.title);
+
+    if (isBatchGenerating || isGenerating) {
+      return;
+    }
+
+    await loadTopicData(topic.id);
+  };
+
+  const getComputedPrompt = (promptTplStr?: string, customScript?: string) => {
     const tpl = promptTplStr || masterPrompt;
+    const targetScript = customScript || fullScript;
     return tpl
-      .replace(/{tempel naskah lengkap dari Step 2 di sini}/g, fullScript || '[Naskah Lengkap]')
-      .replace(/{naskah_lengkap}/g, fullScript || '[Naskah Lengkap]');
+      .replace(/{tempel naskah lengkap dari Step 2 di sini}/g, targetScript || '[Naskah Lengkap]')
+      .replace(/{naskah_lengkap}/g, targetScript || '[Naskah Lengkap]');
   };
 
   // ✂️ Auto Generate Scene Breakdown via AI (SSE Streaming)
@@ -97,6 +202,9 @@ const SpensiaBreakdownStep: React.FC = () => {
     }
 
     setIsGenerating(true);
+    setGeneratingTopicId(activeTopicId);
+    setBatchCurrentIndex(1);
+    setBatchTotalCount(1);
     setPastedOutput('');
     let unsubscribeStream: (() => void) | null = null;
 
@@ -137,6 +245,7 @@ const SpensiaBreakdownStep: React.FC = () => {
     } finally {
       if (unsubscribeStream) unsubscribeStream();
       setIsGenerating(false);
+      setGeneratingTopicId(null);
     }
   };
 
@@ -188,14 +297,99 @@ const SpensiaBreakdownStep: React.FC = () => {
     }
   };
 
-  const saveBreakdownState = async (segList: SpensiaSegmentItem[], rawStr: string) => {
+  const saveBreakdownState = async (segList: SpensiaSegmentItem[], rawStr: string, topicId?: number) => {
     try {
+      const targetId = topicId || activeTopicId;
       if (api?.saveToProject) {
         await api.saveToProject('input/spensia/breakdown.json', rawStr);
         await api.saveToProject('input/spensia/segments.json', JSON.stringify({ total_segments: segList.length, segments: segList }, null, 2));
+
+        if (targetId) {
+          await api.saveToProject(`input/spensia/breakdowns/breakdown_topic_${targetId}.json`, rawStr);
+          await api.saveToProject(`input/spensia/breakdowns/segments_topic_${targetId}.json`, JSON.stringify({ total_segments: segList.length, segments: segList }, null, 2));
+        }
+      }
+      if (targetId) {
+        setBatchTopics((prev) =>
+          prev.map((t) => (t.id === targetId ? { ...t, hasBreakdown: true } : t))
+        );
       }
     } catch (err) {
       console.error('Error saving breakdown state:', err);
+    }
+  };
+
+  const handleBatchGenerateAll = async () => {
+    if (batchTopics.length === 0) return;
+    setIsBatchGenerating(true);
+    setBatchTotalCount(batchTopics.length);
+    showToast(`🚀 Memulai Batch Scene Splitter untuk ${batchTopics.length} Topik...`);
+
+    let unsubscribeStream: (() => void) | null = null;
+    try {
+      if (api?.onSpensiaBreakdownChunk) {
+        unsubscribeStream = api.onSpensiaBreakdownChunk(({ fullText }) => {
+          setPastedOutput(fullText);
+        });
+      }
+
+      let idx = 0;
+      for (const topic of batchTopics) {
+        idx++;
+        setBatchCurrentIndex(idx);
+        setGeneratingTopicId(topic.id);
+        setActiveTopicId(topic.id);
+        setVideoTitle(topic.title);
+        setPastedOutput('');
+
+        // Load script for this topic
+        let scriptText = '';
+        if (api?.readFromProject) {
+          scriptText = (await api.readFromProject(`input/spensia/scripts/full_script_topic_${topic.id}.txt`)) || '';
+          if (!scriptText) {
+            const jsonScript = await api.readFromProject(`input/spensia/scripts/script_topic_${topic.id}.json`);
+            if (jsonScript) {
+              try {
+                const parsed = JSON.parse(jsonScript);
+                if (parsed.full_script) scriptText = parsed.full_script;
+              } catch {}
+            }
+          }
+        }
+        if (!scriptText) scriptText = fullScript;
+        setFullScript(scriptText);
+
+        if (!scriptText.trim()) {
+          showToast(`⚠️ Naskah Topik #${topic.id} belum ada! Lewati...`);
+          continue;
+        }
+
+        try {
+          let currentPrompt = masterPrompt || (await loadPromptFromFile());
+          const computed = getComputedPrompt(currentPrompt, scriptText);
+
+          if (api?.generateSpensiaBreakdown) {
+            const res = await api.generateSpensiaBreakdown(computed, selectedModel);
+            const rawContent = res?.rawText || JSON.stringify(res);
+            const report = validateSpensiaBreakdown(rawContent);
+
+            if (report.normalizedData && report.normalizedData.segments.length > 0) {
+              await saveBreakdownState(report.normalizedData.segments, rawContent, topic.id);
+              setSegments(report.normalizedData.segments);
+              setPastedOutput(rawContent);
+              showToast(`✓ Breakdown Topik #${topic.id} Selesai (${report.normalizedData.segments.length} Segmen)!`);
+            }
+          }
+        } catch (err: any) {
+          console.error(`Gagal breakdown topik #${topic.id}:`, err);
+        }
+      }
+
+      showToast(`✨ Seluruh (${batchTopics.length}) Breakdown Batch Berhasil Di-generate!`);
+    } finally {
+      if (unsubscribeStream) unsubscribeStream();
+      setIsBatchGenerating(false);
+      setGeneratingTopicId(null);
     }
   };
 
@@ -295,7 +489,7 @@ const SpensiaBreakdownStep: React.FC = () => {
 
             <button
               onClick={handleAutoGenerate}
-              disabled={isGenerating}
+              disabled={isGenerating || isBatchGenerating}
               className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2"
             >
               {isGenerating ? (
@@ -313,6 +507,168 @@ const SpensiaBreakdownStep: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Batch Queue Topic Tabs Selector */}
+      {batchTopics.length > 0 && (
+        <div className="bg-gray-900/90 p-4 rounded-3xl border border-blue-800/40 shadow-xl space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-md bg-blue-950 text-blue-300 border border-blue-800 font-bold font-mono text-[10px] uppercase">
+                🚀 Batch Queue ({batchTopics.length} Topik)
+              </span>
+              <h3 className="text-xs font-bold text-white">
+                Pilih Topik untuk Breakdown Adegan Visual:
+              </h3>
+            </div>
+
+            {batchTopics.length > 1 && (
+              <button
+                onClick={handleBatchGenerateAll}
+                disabled={isGenerating || isBatchGenerating}
+                className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-900/40 transition-all flex items-center gap-1.5 shrink-0"
+              >
+                {isBatchGenerating ? (
+                  <>
+                    <span className="animate-spin text-sm">⏳</span>
+                    <span>Generating Batch...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>⚡</span>
+                    <span>Auto Generate Semua Breakdown Batch</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-800">
+            {batchTopics.map((t) => {
+              const isActive = activeTopicId === t.id;
+              const isGeneratingThis = generatingTopicId === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => handleSwitchTopic(t)}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${
+                    isGeneratingThis
+                      ? 'bg-blue-950/90 border-blue-400 text-blue-200 shadow-lg shadow-blue-950/60 ring-2 ring-blue-500/50 animate-pulse'
+                      : isActive
+                      ? 'bg-blue-950/80 border-blue-500 text-blue-200 shadow-md ring-1 ring-blue-500/40'
+                      : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-blue-300 shrink-0">
+                    #{t.id}
+                  </span>
+                  <span className="truncate">"{t.title}"</span>
+                  <span
+                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                      isGeneratingThis
+                        ? 'bg-blue-900 text-blue-200 border border-blue-500 animate-pulse'
+                        : t.hasBreakdown
+                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                        : 'bg-gray-900 text-amber-400 border border-gray-800'
+                    }`}
+                  >
+                    {isGeneratingThis ? '⚡ Splitting...' : t.hasBreakdown ? '✓ Ready' : '⏳ Belum'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Realtime Process Monitor Panel */}
+      {(isGenerating || isBatchGenerating) && (
+        <div className="bg-gray-900/95 p-5 rounded-3xl border border-blue-500/60 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500" />
+              </span>
+              <h3 className="text-xs font-bold text-white tracking-wide uppercase flex items-center gap-2">
+                <span>⚡</span> Realtime Breakdown Monitor
+              </h3>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-blue-950 text-blue-300 border border-blue-800 font-bold">
+                Model: {selectedModel}
+              </span>
+            </div>
+
+            {batchTotalCount > 0 && (
+              <span className="text-xs font-mono font-bold text-blue-300 flex items-center gap-1.5">
+                <span>📊</span> Progress: Topik {batchCurrentIndex} dari {batchTotalCount} ({Math.round((batchCurrentIndex / batchTotalCount) * 100)}% Selesai)
+              </span>
+            )}
+          </div>
+
+          {/* Progress Bar */}
+          {batchTotalCount > 0 && (
+            <div className="w-full bg-gray-950 rounded-full h-2.5 overflow-hidden border border-gray-800 p-0.5">
+              <div
+                className="bg-gradient-to-r from-blue-500 via-cyan-500 to-emerald-400 h-full rounded-full transition-all duration-300 shadow-md shadow-blue-500/50"
+                style={{ width: `${Math.max(5, Math.round((batchCurrentIndex / batchTotalCount) * 100))}%` }}
+              />
+            </div>
+          )}
+
+          {/* Live Queue Cards Grid */}
+          {batchTopics.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {batchTopics.map((t) => {
+                const isGeneratingThis = generatingTopicId === t.id;
+                return (
+                  <div
+                    key={t.id}
+                    className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 transition-all ${
+                      isGeneratingThis
+                        ? 'bg-blue-950/80 border-blue-400 text-white shadow-lg shadow-blue-950/50 ring-1 ring-blue-400/50 animate-pulse'
+                        : t.hasBreakdown
+                        ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-300'
+                        : 'bg-gray-950 border-gray-800 text-gray-400'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 shrink-0">
+                        #{t.id}
+                      </span>
+                      <span className="truncate font-semibold">{t.title}</span>
+                    </div>
+                    <span className="text-[10px] font-bold shrink-0">
+                      {isGeneratingThis ? '⚡ Splitting...' : t.hasBreakdown ? '✓ Ready' : '⏳ Waiting'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Live Streaming Preview */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-gray-400 flex items-center gap-1">
+                <span>📝</span> Live Breakdown JSON Stream:
+              </span>
+              <span className="text-blue-300 font-bold bg-blue-950 px-2.5 py-1 rounded-lg border border-blue-800">
+                {segments.length} Segmen Terurai
+              </span>
+            </div>
+
+            <div className="bg-gray-950 border border-gray-800 rounded-2xl p-4 font-mono text-xs text-gray-300 max-h-48 overflow-y-auto leading-relaxed whitespace-pre-wrap selection:bg-blue-900 selection:text-white border-blue-900/40">
+              {pastedOutput ? (
+                <>
+                  {pastedOutput}
+                  <span className="inline-block w-2 h-4 bg-blue-400 ml-1 animate-ping" />
+                </>
+              ) : (
+                <span className="text-gray-600 italic">⏳ Menunggu respon pertama dari API AI stream...</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Collapsible Master Prompt Editor */}
       {showPromptEditor && (

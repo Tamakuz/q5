@@ -155,6 +155,10 @@ const SpensiaScriptStep: React.FC = () => {
     setVideoTitle(topic.title);
     setTopicSummary(topic.summary);
 
+    if (isBatchGenerating || isGenerating) {
+      return;
+    }
+
     try {
       if (api?.readFromProject) {
         let specificScript = await api.readFromProject(`input/spensia/scripts/script_topic_${topic.id}.json`);
@@ -495,12 +499,15 @@ const SpensiaScriptStep: React.FC = () => {
           <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-800">
             {batchTopics.map((t) => {
               const isActive = activeTopicId === t.id;
+              const isGeneratingThis = generatingTopicId === t.id;
               return (
                 <button
                   key={t.id}
                   onClick={() => handleSwitchTopic(t)}
                   className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${
-                    isActive
+                    isGeneratingThis
+                      ? 'bg-purple-950/90 border-purple-400 text-purple-200 shadow-lg shadow-purple-950/60 ring-2 ring-purple-500/50 animate-pulse'
+                      : isActive
                       ? 'bg-purple-950/80 border-purple-500 text-purple-200 shadow-md ring-1 ring-purple-500/40'
                       : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
                   }`}
@@ -511,12 +518,14 @@ const SpensiaScriptStep: React.FC = () => {
                   <span className="truncate">"{t.title}"</span>
                   <span
                     className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                      t.hasScript
+                      isGeneratingThis
+                        ? 'bg-purple-900 text-purple-200 border border-purple-500 animate-pulse'
+                        : t.hasScript
                         ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
                         : 'bg-gray-900 text-amber-400 border border-gray-800'
                     }`}
                   >
-                    {t.hasScript ? '✓ Ready' : '⏳ Belum'}
+                    {isGeneratingThis ? '⚡ Generating...' : t.hasScript ? '✓ Ready' : '⏳ Belum'}
                   </span>
                 </button>
               );

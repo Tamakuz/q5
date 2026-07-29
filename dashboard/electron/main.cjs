@@ -1267,11 +1267,14 @@ ipcMain.handle('generate-spensia-image-prompts', async (event, { promptText, mod
 const SPENSIA_IMAGES_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'images');
 if (!fs.existsSync(SPENSIA_IMAGES_DIR)) fs.mkdirSync(SPENSIA_IMAGES_DIR, { recursive: true });
 
-async function saveSpensiaImageFile(segmentId, res) {
+async function saveSpensiaImageFile(segmentId, res, topicId) {
   // CRITICAL: Ensure folder exists before writing to prevent ENOENT and wasted tokens!
-  await fs.promises.mkdir(SPENSIA_IMAGES_DIR, { recursive: true });
+  const targetDir = topicId
+    ? path.join(PROJECT_ROOT, 'input', 'spensia', 'images', `topic_${topicId}`)
+    : SPENSIA_IMAGES_DIR;
+  await fs.promises.mkdir(targetDir, { recursive: true });
 
-  const destPath = path.join(SPENSIA_IMAGES_DIR, `segment_${segmentId}.png`);
+  const destPath = path.join(targetDir, `segment_${segmentId}.png`);
   if (res.b64_json) {
     const buffer = Buffer.from(res.b64_json, 'base64');
     await fs.promises.writeFile(destPath, buffer);
@@ -1297,6 +1300,7 @@ async function saveSpensiaImageFile(segmentId, res) {
       // Fallback: Return remote URL so generated image is NOT lost after spending tokens
       return {
         segmentId,
+        topicId: topicId || null,
         filePath: destPath,
         url: res.url,
         originalUrl: res.url,
@@ -1305,18 +1309,19 @@ async function saveSpensiaImageFile(segmentId, res) {
   }
   return {
     segmentId,
+    topicId: topicId || null,
     filePath: destPath,
     url: mediaUrl(destPath),
     originalUrl: res.url || null,
   };
 }
 
-ipcMain.handle('generate-spensia-single-image', async (_event, { segmentId, prompt, model, size, quality, image_detail }) => {
+ipcMain.handle('generate-spensia-single-image', async (_event, { segmentId, prompt, model, size, quality, image_detail, topicId }) => {
   const res = await aiClient.generateImage({ prompt, model, size, quality, image_detail });
-  return saveSpensiaImageFile(segmentId, res);
+  return saveSpensiaImageFile(segmentId, res, topicId);
 });
 
-ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, size, quality, image_detail, concurrency = 5 }) => {
+ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, size, quality, image_detail, concurrency = 5, topicId }) => {
   const results = [];
   const total = items.length;
   let completedCount = 0;
@@ -1328,16 +1333,17 @@ ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, si
     try {
       event.sender.send('spensia-image-chunk-start', {
         segmentIds: chunk.map((c) => c.segment_id),
+        topicId: topicId || null,
       });
     } catch { }
 
     const chunkPromises = chunk.map(async (item) => {
       try {
         const res = await aiClient.generateImage({ prompt: item.prompt, model, size, quality, image_detail });
-        const saved = await saveSpensiaImageFile(item.segment_id, res);
+        const saved = await saveSpensiaImageFile(item.segment_id, res, topicId);
         completedCount++;
 
-        const resultObj = { ...saved, status: 'success' };
+        const resultObj = { ...saved, status: 'success', topicId: topicId || null };
         results.push(resultObj);
 
         try {
@@ -1345,6 +1351,7 @@ ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, si
             current: completedCount,
             total,
             segmentId: item.segment_id,
+            topicId: topicId || null,
             saved,
             status: 'success',
           });
@@ -1352,7 +1359,7 @@ ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, si
         return resultObj;
       } catch (err) {
         completedCount++;
-        const resultObj = { segmentId: item.segment_id, error: err.message, status: 'error' };
+        const resultObj = { segmentId: item.segment_id, topicId: topicId || null, error: err.message, status: 'error' };
         results.push(resultObj);
 
         try {
@@ -1360,6 +1367,7 @@ ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, si
             current: completedCount,
             total,
             segmentId: item.segment_id,
+            topicId: topicId || null,
             error: err.message,
             status: 'error',
           });

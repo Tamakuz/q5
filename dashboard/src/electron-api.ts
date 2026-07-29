@@ -274,10 +274,10 @@ export interface ElectronAPI {
   onSpensiaScriptChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
   onSpensiaBreakdownChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
   onSpensiaImagePromptsChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
-  generateSpensiaSingleImage: (segmentId: number, prompt: string, model?: string, size?: string, quality?: string, imageDetail?: string) => Promise<{ segmentId: number; filePath: string; url: string; originalUrl?: string }>;
-  generateSpensiaBatchImages: (items: Array<{ segment_id: number; prompt: string }>, model?: string, size?: string, quality?: string, imageDetail?: string, concurrency?: number) => Promise<Array<any>>;
-  onSpensiaImageProgress: (callback: (data: { current: number; total: number; segmentId: number; saved?: any; error?: string; status: string }) => void) => () => void;
-  onSpensiaImageChunkStart: (callback: (data: { segmentIds: number[] }) => void) => () => void;
+  generateSpensiaSingleImage: (segmentId: number, prompt: string, model?: string, size?: string, quality?: string, imageDetail?: string, topicId?: number) => Promise<{ segmentId: number; topicId?: number; filePath: string; url: string; originalUrl?: string }>;
+  generateSpensiaBatchImages: (items: Array<{ segment_id: number; prompt: string }>, model?: string, size?: string, quality?: string, imageDetail?: string, concurrency?: number, topicId?: number) => Promise<Array<any>>;
+  onSpensiaImageProgress: (callback: (data: { current: number; total: number; segmentId: number; topicId?: number; saved?: any; error?: string; status: string }) => void) => () => void;
+  onSpensiaImageChunkStart: (callback: (data: { segmentIds: number[]; topicId?: number }) => void) => () => void;
   uploadSpensiaVoAudio: (segmentId?: number, sourcePath?: string, bufferArray?: ArrayBuffer | number[]) => Promise<{ segmentId?: number; filename: string; filePath: string; url: string }>;
   mergeSpensiaVoAudio: (audioPaths: string[]) => Promise<{ filename: string; filePath: string; url: string; duration: number }>;
   runWhisperxTranscribe: (audioPath: string, model?: string, language?: string, device?: string, computeType?: string) => Promise<{ success: boolean; transcriptData?: any }>;

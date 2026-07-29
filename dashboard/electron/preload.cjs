@@ -126,10 +126,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('spensia-image-prompts-chunk', handler);
     return () => ipcRenderer.removeListener('spensia-image-prompts-chunk', handler);
   },
-  generateSpensiaSingleImage: (segmentId, prompt, model, size, quality, imageDetail) =>
-    ipcRenderer.invoke('generate-spensia-single-image', { segmentId, prompt, model, size, quality, image_detail: imageDetail }),
-  generateSpensiaBatchImages: (items, model, size, quality, imageDetail, concurrency = 5) =>
-    ipcRenderer.invoke('generate-spensia-batch-images', { items, model, size, quality, image_detail: imageDetail, concurrency }),
+  generateSpensiaSingleImage: (segmentId, prompt, model, size, quality, imageDetail, topicId) =>
+    ipcRenderer.invoke('generate-spensia-single-image', { segmentId, prompt, model, size, quality, image_detail: imageDetail, topicId }),
+  generateSpensiaBatchImages: (items, model, size, quality, imageDetail, concurrency = 5, topicId) =>
+    ipcRenderer.invoke('generate-spensia-batch-images', { items, model, size, quality, image_detail: imageDetail, concurrency, topicId }),
   onSpensiaImageProgress: (callback) => {
     const handler = (_e, data) => callback(data);
     ipcRenderer.on('spensia-image-progress', handler);

@@ -11,12 +11,27 @@ const MODEL_OPTIONS = [
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
 ];
 
+export interface BatchTopicItem {
+  id: number;
+  title: string;
+  summary: string;
+  hasPrompts?: boolean;
+}
+
 const SpensiaImagePromptStep: React.FC = () => {
   const [segmentsListStr, setSegmentsListStr] = useState<string>('');
   const [segmentsCount, setSegmentsCount] = useState<number>(0);
+  const [videoTitle, setVideoTitle] = useState<string>('');
   const [selectedModel, setSelectedModel] = useState<string>('cx/gpt-5.5');
   const [masterPrompt, setMasterPrompt] = useState<string>('');
   const [showPromptEditor, setShowPromptEditor] = useState<boolean>(false);
+
+  const [batchTopics, setBatchTopics] = useState<BatchTopicItem[]>([]);
+  const [activeTopicId, setActiveTopicId] = useState<number | null>(null);
+  const [isBatchGenerating, setIsBatchGenerating] = useState<boolean>(false);
+  const [batchCurrentIndex, setBatchCurrentIndex] = useState<number>(0);
+  const [batchTotalCount, setBatchTotalCount] = useState<number>(0);
+  const [generatingTopicId, setGeneratingTopicId] = useState<number | null>(null);
 
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [pastedOutput, setPastedOutput] = useState<string>('');
@@ -52,32 +67,50 @@ const SpensiaImagePromptStep: React.FC = () => {
       await loadPromptFromFile();
       try {
         if (api?.readFromProject) {
-          // 1. Load segments from Step 3
-          const segmentsJsonStr = await api.readFromProject('input/spensia/segments.json');
-          if (segmentsJsonStr) {
-            try {
-              const parsed = JSON.parse(segmentsJsonStr);
-              if (Array.isArray(parsed.segments)) {
-                setSegmentsCount(parsed.segments.length);
-                const formatted = parsed.segments.map((s: any) => `Segmen ${s.segment_id}: "${s.text}"`).join('\n\n');
-                setSegmentsListStr(formatted);
-              }
-            } catch {}
-          } else {
-            const breakdownJsonStr = await api.readFromProject('input/spensia/breakdown.json');
-            if (breakdownJsonStr) setSegmentsListStr(breakdownJsonStr);
-          }
+          // 1. Load selected topics from Step 1
+          const savedTopicsJson = await api.readFromProject('input/spensia/topics.json');
+          let selectedId: number | null = null;
+          let loadedTopics: BatchTopicItem[] = [];
 
-          // 2. Load existing image prompts state if present
-          const existingPromptsJson = await api.readFromProject('input/spensia/image_prompts.json');
-          if (existingPromptsJson) {
-            setPastedOutput(existingPromptsJson);
-            const report = validateSpensiaImagePrompts(existingPromptsJson);
-            setValidationReport(report);
-            if (report.normalizedData) {
-              setImagePrompts(report.normalizedData.image_prompts);
+          if (savedTopicsJson) {
+            const topicState = JSON.parse(savedTopicsJson);
+            if (Array.isArray(topicState.selectedTopics) && topicState.selectedTopics.length > 0) {
+              loadedTopics = topicState.selectedTopics.map((t: any) => ({
+                id: t.id,
+                title: t.title,
+                summary: t.summary,
+              }));
+              selectedId = topicState.selectedTopicId || loadedTopics[0]?.id || null;
+            } else if (Array.isArray(topicState.topics) && topicState.selectedTopicId) {
+              const matched = topicState.topics.find((t: any) => t.id === topicState.selectedTopicId);
+              if (matched) {
+                loadedTopics = [{ id: matched.id, title: matched.title, summary: matched.summary }];
+                selectedId = matched.id;
+              }
             }
           }
+
+          // Check per-topic prompt files to update hasPrompts badges
+          const checkedTopics = await Promise.all(
+            loadedTopics.map(async (top) => {
+              try {
+                const specificPrompts = await api.readFromProject(`input/spensia/prompts/image_prompts_topic_${top.id}.json`);
+                return { ...top, hasPrompts: Boolean(specificPrompts && specificPrompts.trim()) };
+              } catch {
+                return top;
+              }
+            })
+          );
+
+          setBatchTopics(checkedTopics);
+          if (selectedId !== null) {
+            setActiveTopicId(selectedId);
+            const activeTop = checkedTopics.find((t) => t.id === selectedId) || checkedTopics[0];
+            if (activeTop) setVideoTitle(activeTop.title);
+          }
+
+          // 2. Load segments & prompts for active topic
+          await loadTopicData(selectedId, checkedTopics);
         }
       } catch (err) {
         console.error('Error initializing Spensia Image Prompt Step:', err);
@@ -85,11 +118,89 @@ const SpensiaImagePromptStep: React.FC = () => {
     })();
   }, []);
 
-  const getComputedPrompt = (promptTplStr?: string) => {
+  const loadTopicData = async (topicId: number | null, topicList?: BatchTopicItem[]) => {
+    if (!api?.readFromProject) return;
+
+    // Load segments for this topic
+    let segmentsText = '';
+    let count = 0;
+    if (topicId) {
+      const segFileStr = (await api.readFromProject(`input/spensia/breakdowns/segments_topic_${topicId}.json`)) || '';
+      if (segFileStr) {
+        try {
+          const parsed = JSON.parse(segFileStr);
+          if (Array.isArray(parsed.segments)) {
+            count = parsed.segments.length;
+            segmentsText = parsed.segments.map((s: any) => `Segmen ${s.segment_id}: "${s.text}"`).join('\n\n');
+          }
+        } catch {}
+      }
+      if (!segmentsText) {
+        segmentsText = (await api.readFromProject(`input/spensia/breakdowns/breakdown_topic_${topicId}.json`)) || '';
+      }
+    }
+
+    if (!segmentsText) {
+      const segmentsJsonStr = (await api.readFromProject('input/spensia/segments.json')) || '';
+      if (segmentsJsonStr) {
+        try {
+          const parsed = JSON.parse(segmentsJsonStr);
+          if (Array.isArray(parsed.segments)) {
+            count = parsed.segments.length;
+            segmentsText = parsed.segments.map((s: any) => `Segmen ${s.segment_id}: "${s.text}"`).join('\n\n');
+          }
+        } catch {}
+      }
+    }
+    if (!segmentsText) {
+      segmentsText = (await api.readFromProject('input/spensia/breakdown.json')) || '';
+    }
+
+    setSegmentsCount(count);
+    setSegmentsListStr(segmentsText || '');
+
+    // Load image prompts for this topic
+    const promptFile = topicId
+      ? `input/spensia/prompts/image_prompts_topic_${topicId}.json`
+      : 'input/spensia/image_prompts.json';
+
+    let promptsJson = (await api.readFromProject(promptFile)) || '';
+    if (!promptsJson && topicId) {
+      promptsJson = (await api.readFromProject('input/spensia/image_prompts.json')) || '';
+    }
+
+    if (promptsJson) {
+      setPastedOutput(promptsJson);
+      const report = validateSpensiaImagePrompts(promptsJson);
+      setValidationReport(report);
+      if (report.normalizedData) {
+        setImagePrompts(report.normalizedData.image_prompts);
+        return;
+      }
+    }
+
+    setPastedOutput('');
+    setImagePrompts([]);
+    setValidationReport(null);
+  };
+
+  const handleSwitchTopic = async (topic: BatchTopicItem) => {
+    setActiveTopicId(topic.id);
+    setVideoTitle(topic.title);
+
+    if (isBatchGenerating || isGenerating) {
+      return;
+    }
+
+    await loadTopicData(topic.id);
+  };
+
+  const getComputedPrompt = (promptTplStr?: string, customSegmentsStr?: string) => {
     const tpl = promptTplStr || masterPrompt;
+    const targetSegments = customSegmentsStr || segmentsListStr;
     return tpl
-      .replace(/{tempel list segmen dari Step 3 di sini}/g, segmentsListStr || '[List Segmen]')
-      .replace(/{list_segmen}/g, segmentsListStr || '[List Segmen]');
+      .replace(/{tempel list segmen dari Step 3 di sini}/g, targetSegments || '[List Segmen]')
+      .replace(/{list_segmen}/g, targetSegments || '[List Segmen]');
   };
 
   // 🎨 Auto Generate Image Prompts via AI (Realtime SSE Streaming)
@@ -100,6 +211,9 @@ const SpensiaImagePromptStep: React.FC = () => {
     }
 
     setIsGenerating(true);
+    setGeneratingTopicId(activeTopicId);
+    setBatchCurrentIndex(1);
+    setBatchTotalCount(1);
     setPastedOutput('');
     let unsubscribeStream: (() => void) | null = null;
 
@@ -141,6 +255,7 @@ const SpensiaImagePromptStep: React.FC = () => {
     } finally {
       if (unsubscribeStream) unsubscribeStream();
       setIsGenerating(false);
+      setGeneratingTopicId(null);
     }
   };
 
@@ -192,15 +307,102 @@ const SpensiaImagePromptStep: React.FC = () => {
     }
   };
 
-  const savePromptsState = async (prompts: SpensiaImagePromptItem[], rawStr: string) => {
+  const savePromptsState = async (prompts: SpensiaImagePromptItem[], rawStr: string, topicId?: number) => {
     try {
+      const targetId = topicId || activeTopicId;
       if (api?.saveToProject) {
         await api.saveToProject('input/spensia/image_prompts.json', rawStr);
         const formattedTxt = prompts.map((p) => `Segmen ${p.segment_id}: "${p.segment_quote}"\nPrompt:\n${p.prompt}`).join('\n\n---\n\n');
         await api.saveToProject('input/spensia/prompts.txt', formattedTxt);
+
+        if (targetId) {
+          await api.saveToProject(`input/spensia/prompts/image_prompts_topic_${targetId}.json`, rawStr);
+          await api.saveToProject(`input/spensia/prompts/prompts_topic_${targetId}.txt`, formattedTxt);
+        }
+      }
+      if (targetId) {
+        setBatchTopics((prev) =>
+          prev.map((t) => (t.id === targetId ? { ...t, hasPrompts: true } : t))
+        );
       }
     } catch (err) {
       console.error('Error saving image prompts state:', err);
+    }
+  };
+
+  const handleBatchGenerateAll = async () => {
+    if (batchTopics.length === 0) return;
+    setIsBatchGenerating(true);
+    setBatchTotalCount(batchTopics.length);
+    showToast(`🚀 Memulai Batch Image Prompt Generator untuk ${batchTopics.length} Topik...`);
+
+    let unsubscribeStream: (() => void) | null = null;
+    try {
+      if (api?.onSpensiaImagePromptsChunk) {
+        unsubscribeStream = api.onSpensiaImagePromptsChunk(({ fullText }) => {
+          setPastedOutput(fullText);
+        });
+      }
+
+      let idx = 0;
+      for (const topic of batchTopics) {
+        idx++;
+        setBatchCurrentIndex(idx);
+        setGeneratingTopicId(topic.id);
+        setActiveTopicId(topic.id);
+        setVideoTitle(topic.title);
+        setPastedOutput('');
+
+        // Load segments for this topic
+        let segmentsText = '';
+        if (api?.readFromProject) {
+          const segFileStr = (await api.readFromProject(`input/spensia/breakdowns/segments_topic_${topic.id}.json`)) || '';
+          if (segFileStr) {
+            try {
+              const parsed = JSON.parse(segFileStr);
+              if (Array.isArray(parsed.segments)) {
+                segmentsText = parsed.segments.map((s: any) => `Segmen ${s.segment_id}: "${s.text}"`).join('\n\n');
+              }
+            } catch {}
+          }
+          if (!segmentsText) {
+            segmentsText = (await api.readFromProject(`input/spensia/breakdowns/breakdown_topic_${topic.id}.json`)) || '';
+          }
+        }
+        if (!segmentsText) segmentsText = segmentsListStr;
+        setSegmentsListStr(segmentsText);
+
+        if (!segmentsText.trim()) {
+          showToast(`⚠️ Breakdown segmen Topik #${topic.id} belum ada! Lewati...`);
+          continue;
+        }
+
+        try {
+          let currentPrompt = masterPrompt || (await loadPromptFromFile());
+          const computed = getComputedPrompt(currentPrompt, segmentsText);
+
+          if (api?.generateSpensiaImagePrompts) {
+            const res = await api.generateSpensiaImagePrompts(computed, selectedModel);
+            const rawContent = res?.rawText || JSON.stringify(res);
+            const report = validateSpensiaImagePrompts(rawContent);
+
+            if (report.normalizedData && report.normalizedData.image_prompts.length > 0) {
+              await savePromptsState(report.normalizedData.image_prompts, rawContent, topic.id);
+              setImagePrompts(report.normalizedData.image_prompts);
+              setPastedOutput(rawContent);
+              showToast(`✓ Image Prompts Topik #${topic.id} Selesai (${report.normalizedData.image_prompts.length} Prompt)!`);
+            }
+          }
+        } catch (err: any) {
+          console.error(`Gagal image prompts topik #${topic.id}:`, err);
+        }
+      }
+
+      showToast(`✨ Seluruh (${batchTopics.length}) Image Prompts Batch Berhasil Di-generate!`);
+    } finally {
+      if (unsubscribeStream) unsubscribeStream();
+      setIsBatchGenerating(false);
+      setGeneratingTopicId(null);
     }
   };
 
@@ -275,7 +477,7 @@ const SpensiaImagePromptStep: React.FC = () => {
 
             <button
               onClick={handleAutoGenerate}
-              disabled={isGenerating}
+              disabled={isGenerating || isBatchGenerating}
               className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-600/30 transition-all flex items-center gap-2"
             >
               {isGenerating ? (
@@ -293,6 +495,168 @@ const SpensiaImagePromptStep: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Batch Queue Topic Tabs Selector */}
+      {batchTopics.length > 0 && (
+        <div className="bg-gray-900/90 p-4 rounded-3xl border border-amber-800/40 shadow-xl space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-md bg-amber-950 text-amber-300 border border-amber-800 font-bold font-mono text-[10px] uppercase">
+                🚀 Batch Queue ({batchTopics.length} Topik)
+              </span>
+              <h3 className="text-xs font-bold text-white">
+                Pilih Topik untuk Prompt Gambar Visual:
+              </h3>
+            </div>
+
+            {batchTopics.length > 1 && (
+              <button
+                onClick={handleBatchGenerateAll}
+                disabled={isGenerating || isBatchGenerating}
+                className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-900/40 transition-all flex items-center gap-1.5 shrink-0"
+              >
+                {isBatchGenerating ? (
+                  <>
+                    <span className="animate-spin text-sm">⏳</span>
+                    <span>Generating Batch...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>⚡</span>
+                    <span>Auto Generate Semua Image Prompt Batch</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-800">
+            {batchTopics.map((t) => {
+              const isActive = activeTopicId === t.id;
+              const isGeneratingThis = generatingTopicId === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => handleSwitchTopic(t)}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${
+                    isGeneratingThis
+                      ? 'bg-amber-950/90 border-amber-400 text-amber-200 shadow-lg shadow-amber-950/60 ring-2 ring-amber-500/50 animate-pulse'
+                      : isActive
+                      ? 'bg-amber-950/80 border-amber-500 text-amber-200 shadow-md ring-1 ring-amber-500/40'
+                      : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-amber-300 shrink-0">
+                    #{t.id}
+                  </span>
+                  <span className="truncate">"{t.title}"</span>
+                  <span
+                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                      isGeneratingThis
+                        ? 'bg-amber-900 text-amber-200 border border-amber-500 animate-pulse'
+                        : t.hasPrompts
+                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                        : 'bg-gray-900 text-amber-400 border border-gray-800'
+                    }`}
+                  >
+                    {isGeneratingThis ? '⚡ Generating...' : t.hasPrompts ? '✓ Ready' : '⏳ Belum'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Realtime Process Monitor Panel */}
+      {(isGenerating || isBatchGenerating) && (
+        <div className="bg-gray-900/95 p-5 rounded-3xl border border-amber-500/60 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500" />
+              </span>
+              <h3 className="text-xs font-bold text-white tracking-wide uppercase flex items-center gap-2">
+                <span>⚡</span> Realtime Image Prompt Monitor
+              </h3>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-amber-950 text-amber-300 border border-amber-800 font-bold">
+                Model: {selectedModel}
+              </span>
+            </div>
+
+            {batchTotalCount > 0 && (
+              <span className="text-xs font-mono font-bold text-amber-300 flex items-center gap-1.5">
+                <span>📊</span> Progress: Topik {batchCurrentIndex} dari {batchTotalCount} ({Math.round((batchCurrentIndex / batchTotalCount) * 100)}% Selesai)
+              </span>
+            )}
+          </div>
+
+          {/* Progress Bar */}
+          {batchTotalCount > 0 && (
+            <div className="w-full bg-gray-950 rounded-full h-2.5 overflow-hidden border border-gray-800 p-0.5">
+              <div
+                className="bg-gradient-to-r from-amber-500 via-orange-500 to-emerald-400 h-full rounded-full transition-all duration-300 shadow-md shadow-amber-500/50"
+                style={{ width: `${Math.max(5, Math.round((batchCurrentIndex / batchTotalCount) * 100))}%` }}
+              />
+            </div>
+          )}
+
+          {/* Live Queue Cards Grid */}
+          {batchTopics.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {batchTopics.map((t) => {
+                const isGeneratingThis = generatingTopicId === t.id;
+                return (
+                  <div
+                    key={t.id}
+                    className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 transition-all ${
+                      isGeneratingThis
+                        ? 'bg-amber-950/80 border-amber-400 text-white shadow-lg shadow-amber-950/50 ring-1 ring-amber-400/50 animate-pulse'
+                        : t.hasPrompts
+                        ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-300'
+                        : 'bg-gray-950 border-gray-800 text-gray-400'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 shrink-0">
+                        #{t.id}
+                      </span>
+                      <span className="truncate font-semibold">{t.title}</span>
+                    </div>
+                    <span className="text-[10px] font-bold shrink-0">
+                      {isGeneratingThis ? '⚡ Generating...' : t.hasPrompts ? '✓ Ready' : '⏳ Waiting'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Live Streaming Preview */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-gray-400 flex items-center gap-1">
+                <span>📝</span> Live Image Prompts JSON Stream:
+              </span>
+              <span className="text-amber-300 font-bold bg-amber-950 px-2.5 py-1 rounded-lg border border-amber-800">
+                {imagePrompts.length} Prompt Gambar
+              </span>
+            </div>
+
+            <div className="bg-gray-950 border border-gray-800 rounded-2xl p-4 font-mono text-xs text-gray-300 max-h-48 overflow-y-auto leading-relaxed whitespace-pre-wrap selection:bg-amber-900 selection:text-white border-amber-900/40">
+              {pastedOutput ? (
+                <>
+                  {pastedOutput}
+                  <span className="inline-block w-2 h-4 bg-amber-400 ml-1 animate-ping" />
+                </>
+              ) : (
+                <span className="text-gray-600 italic">⏳ Menunggu respon pertama dari API AI stream...</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Collapsible Master Prompt Editor */}
       {showPromptEditor && (
