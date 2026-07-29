@@ -27,7 +27,7 @@ export type WatermarkTextConfig = z.infer<typeof WatermarkTextConfigSchema>;
 // ─── Caption Configuration ────────────────────────────
 
 export const CaptionConfigSchema = z.object({
-    enabled: z.boolean().default(true),
+    enabled: z.boolean().default(false),
     fontName: z.string().default('Montserrat'),
     fontSize: z.number().default(48),
     activeColorHex: z.string().default('#FDE047'),
@@ -60,7 +60,7 @@ export type BgmConfig = z.infer<typeof BgmConfigSchema>;
 
 export const VignetteConfigSchema = z.object({
     enabled: z.boolean().default(true),
-    intensity: z.number().min(0).max(1).default(0.35),
+    intensity: z.number().min(0).max(1).default(0.75),
     colorHex: z.string().default('#000000'),
 });
 

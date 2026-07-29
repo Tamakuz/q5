@@ -3,13 +3,14 @@ const { app, BrowserWindow, ipcMain, dialog, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const os = require('os');
 const aiClient = require('./aiClient.cjs');
 
 // ─── FFmpeg / FFprobe paths ──────────────────────────
 const ffmpegBin = require('@ffmpeg-installer/ffmpeg');
 const ffprobeBin = require('@ffprobe-installer/ffprobe');
-const ffmpegPath = ffmpegBin.path;
-const ffprobePath = ffprobeBin.path;
+const ffmpegPath = fs.existsSync('/usr/bin/ffmpeg') ? '/usr/bin/ffmpeg' : ffmpegBin.path;
+const ffprobePath = fs.existsSync('/usr/bin/ffprobe') ? '/usr/bin/ffprobe' : ffprobeBin.path;
 
 // ─── Paths ────────────────────────────────────────────
 
@@ -2259,7 +2260,7 @@ ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
 });
 
 // ══════════════════════════════════════════════════════
-// Spensia Render Engine IPC Handlers (9:16 1080×1920)
+// Spensia Render Engine IPC Handlers (16:9 1920×1080)
 // ══════════════════════════════════════════════════════
 
 ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputPath }) => {
@@ -2273,108 +2274,184 @@ ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputP
   const tmpDir = path.join(TMP_DIR, `spensia-render-${Date.now()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
 
+  const send = (stage, progress, message) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('render-progress', { stage, progress, message });
+    }
+  };
+
   try {
     const w = config?.resolution?.width || 1920;
     const h = config?.resolution?.height || 1080;
     const fps = config?.fps || 30;
-    const totalDur = timeline?.total_duration_sec || 60;
 
-    const send = (stage, progress, message) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('render-progress', { stage, progress, message });
-      }
-    };
+    send('init', 0, 'Initializing Spensia Render Engine...');
 
-    send('init', 0, 'Initializing Spensia 9:16 Render Engine...');
-
-    // ── Validate clips exist ──
+    // ── Validate clips ──
     const clips = timeline?.video_clips || [];
     if (clips.length === 0) {
+      send('error', 0, 'No video clips in timeline.');
       return { error: 'No video clips in timeline.' };
     }
 
-    for (const clip of clips) {
-      if (clip.image_path && !fs.existsSync(clip.image_path)) {
-        return { error: `Image not found: ${clip.image_path}` };
-      }
+    const audioTracks = timeline?.audio_tracks || [];
+    const validAudioTracks = audioTracks.filter((t) => t.filePath && fs.existsSync(t.filePath));
+
+    // ── Load spensia_mapping.json for exact segment durations ──
+    let mappingSegments = [];
+    const mappingPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'spensia_mapping.json');
+    if (fs.existsSync(mappingPath)) {
+      try {
+        const raw = JSON.parse(fs.readFileSync(mappingPath, 'utf-8'));
+        mappingSegments = raw.segments || [];
+      } catch {}
     }
 
-    // ── Step 1: Create individual image video clips ──
-    send('clips', 5, `Creating ${clips.length} image clips...`);
-    const clipFiles = [];
+    // Calculate exact duration for every single visual segment clip
+    const clipDurations = clips.map((clip, i) => {
+      const matched = mappingSegments.find((s) => s.segment_id === clip.segment_id) || mappingSegments[i];
+      if (matched && typeof matched.duration_sec === 'number' && matched.duration_sec > 0) {
+        return matched.duration_sec;
+      }
+      if (typeof clip.duration_sec === 'number' && clip.duration_sec > 0) {
+        return clip.duration_sec;
+      }
+      if (typeof clip.end_sec === 'number' && typeof clip.start_sec === 'number' && clip.end_sec > clip.start_sec) {
+        return clip.end_sec - clip.start_sec;
+      }
+      return 3.0;
+    });
 
-    for (let i = 0; i < clips.length; i++) {
-      const clip = clips[i];
-      const clipFile = path.join(tmpDir, `clip_${String(i).padStart(4, '0')}.ts`);
-      clipFiles.push(clipFile);
+    // ── Helper to probe real audio duration from disk using ffprobe ──
+    const { execSync } = require('child_process');
+    const getAudioDurSec = (fp) => {
+      try {
+        const out = execSync(`"${ffprobePath}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${fp}"`, { encoding: 'utf-8' });
+        const d = parseFloat(out.trim());
+        return isNaN(d) ? 0 : d;
+      } catch { return 0; }
+    };
 
-      const imgPath = clip.image_path || '';
-      const dur = clip.duration_sec || 3.0;
-      const fadeDur = Math.min(0.3, dur / 3).toFixed(2);
+    let audioMaxDur = 0;
+    for (const a of validAudioTracks) {
+      const realDur = getAudioDurSec(a.filePath);
+      const trackDur = realDur > 0 ? realDur : (a.duration_sec || (a.end_sec - a.start_sec) || 0);
+      const end = (a.start_sec || 0) + trackDur;
+      if (end > audioMaxDur) audioMaxDur = end;
+    }
 
-      await new Promise((resolve, reject) => {
+    // Calculate total visual sum
+    let visualSum = clipDurations.reduce((a, b) => a + b, 0);
+
+    // If audio is slightly longer than visual sum, extend the last clip to match audio
+    if (audioMaxDur > visualSum && clips.length > 0) {
+      const extra = audioMaxDur - visualSum;
+      clipDurations[clipDurations.length - 1] += extra;
+      visualSum += extra;
+    }
+
+    const totalDur = Math.max(visualSum, audioMaxDur, 1);
+
+    send('clips', 0.05, `🖼️ Memulai pre-rendering ${clips.length} segmen gambar dengan zoom-in presisi (${totalDur.toFixed(1)}s)...`);
+
+    // ── PASS 1: Pre-render individual image segment clips to MPEG-TS with per-clip ZOOM-IN ──
+    const cpuCores = os.cpus().length || 4;
+    const CONCURRENCY = Math.min(Math.max(1, Math.floor(cpuCores / 2)), 3); // Max 3 parallel FFmpeg workers
+    const clipFiles = new Array(clips.length);
+    let completedClips = 0;
+
+    for (let batch = 0; batch < clips.length; batch += CONCURRENCY) {
+      const batchEnd = Math.min(batch + CONCURRENCY, clips.length);
+      const batchClips = clips.slice(batch, batchEnd);
+
+      const tasks = batchClips.map((clip, bi) => {
+        const i = batch + bi;
+        const outFile = path.join(tmpDir, `seg_${String(i).padStart(4, '0')}.ts`);
+        clipFiles[i] = outFile;
+
+        const dur = clipDurations[i];
+        let imgPath = clip.image_path || '';
+        if (!imgPath || !fs.existsSync(imgPath)) {
+          const found = clips.find((c) => c.image_path && fs.existsSync(c.image_path));
+          if (found) imgPath = found.image_path;
+        }
+
+        if (!imgPath || !fs.existsSync(imgPath)) {
+          throw new Error(`Klip #${i + 1} (segment_id: ${clip.segment_id}) tidak memiliki file gambar valid.`);
+        }
+
+        const clipFrames = Math.max(1, Math.round(dur * fps));
+        // Per-segment Zoom-In effect from 1.00x to 1.08x for the EXACT duration of this image
+        const vf = `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},zoompan=z='1+0.08*(on/${clipFrames})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${w}x${h}:fps=${fps},format=yuv420p`;
+
         const args = [
-          '-y', '-loop', '1', '-r', String(fps),
+          '-y',
+          '-loop', '1',
+          '-r', String(fps),
+          '-t', String(dur.toFixed(3)),
           '-i', imgPath,
-          '-vf', `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},fade=t=in:d=${fadeDur},fade=t=out:st=${(dur - parseFloat(fadeDur)).toFixed(2)}:d=${fadeDur},format=yuv420p`,
-          '-t', String(dur),
-          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18',
-          '-pix_fmt', 'yuv420p', '-an',
-          clipFile,
+          '-vf', vf,
+          '-c:v', 'libx264',
+          '-preset', 'ultrafast',
+          '-crf', '18',
+          '-threads', '2',
+          '-an',
+          '-pix_fmt', 'yuv420p',
+          outFile
         ];
-        const ff = spawn(ffmpegPath, args, { cwd: PROJECT_ROOT });
-        ff.stderr.on('data', () => { });
-        ff.on('close', (code) => {
-          if (code === 0) resolve();
-          else reject(new Error(`FFmpeg clip ${i} exit ${code}`));
+
+        return new Promise((resolve, reject) => {
+          const child = spawn(ffmpegPath, args, { cwd: PROJECT_ROOT });
+          let stderr = '';
+          child.stderr.on('data', (d) => { stderr += d.toString(); });
+          child.on('close', (code) => {
+            if (code === 0) {
+              completedClips++;
+              const pct = 0.05 + ((completedClips / clips.length) * 0.60); // 5% -> 65%
+              send('clips', pct, `🖼️ Segmen ${completedClips}/${clips.length} (${dur.toFixed(1)}s zoom-in) — ${path.basename(imgPath)}`);
+              resolve();
+            } else {
+              reject(new Error(`FFmpeg segment #${i + 1} exit ${code}: ${stderr.slice(-200)}`));
+            }
+          });
+          child.on('error', reject);
         });
-        ff.on('error', reject);
       });
 
-      const pct = 5 + Math.round((i + 1) / clips.length * 35);
-      send('clips', pct, `Image clip ${i + 1}/${clips.length} — ${dur.toFixed(1)}s`);
+      await Promise.all(tasks);
     }
 
-    // ── Step 2: Concat clips ──
-    send('concat', 40, 'Concatenating clips...');
+    // Write concat file list
     const listFile = path.join(tmpDir, 'concat_list.txt');
     fs.writeFileSync(listFile, clipFiles.map((f) => `file '${f}'`).join('\n'), 'utf-8');
 
-    const concatFile = path.join(tmpDir, 'concat_raw.ts');
-    await new Promise((resolve, reject) => {
-      const args = ['-y', '-f', 'concat', '-safe', '0', '-i', listFile, '-c', 'copy', concatFile];
-      const ff = spawn(ffmpegPath, args, { cwd: PROJECT_ROOT });
-      ff.stderr.on('data', () => { });
-      ff.on('close', (code) => code === 0 ? resolve() : reject(new Error(`Concat exit ${code}`)));
-      ff.on('error', reject);
+    send('overlay', 0.67, '🔗 Menggabungkan segmen visual & mempersiapkan audio VO + BGM...');
+
+    // ── PASS 2: Concat & Final Overlay Pass ──
+    const finalArgs = ['-y', '-f', 'concat', '-safe', '0', '-i', listFile];
+    let streamIdx = 1;
+
+    // Add VO Audio inputs
+    const voCount = validAudioTracks.length;
+    const voStartIdx = streamIdx;
+
+    validAudioTracks.forEach((t) => {
+      finalArgs.push('-i', t.filePath);
+      streamIdx++;
     });
 
-    send('overlay', 50, 'Applying overlays & audio mixing...');
-
-    // ── Step 3: Final render with all overlays ──
-    const finalArgs = ['-y', '-i', concatFile];
-    let sidx = 1;
-
-    // Add VO audio tracks
-    const audioTracks = timeline?.audio_tracks || [];
-    audioTracks.forEach((t) => {
-      if (t.filePath && fs.existsSync(t.filePath)) {
-        finalArgs.push('-i', t.filePath);
-      }
-    });
-
-    // Add BGM
+    // Add BGM input if enabled
     const bgmCfg = config?.bgm || {};
-    let bgmPathResolved = null;
+    let bgmInputIdx = null;
     if (bgmCfg.enabled !== false && bgmCfg.path) {
       const resolved = path.isAbsolute(bgmCfg.path) ? bgmCfg.path : path.join(PROJECT_ROOT, bgmCfg.path);
       if (fs.existsSync(resolved)) {
         finalArgs.push('-i', resolved);
-        bgmPathResolved = resolved;
+        bgmInputIdx = streamIdx++;
       }
     }
 
-    // Generate ASS subtitles inline (use ass= filter, not -i + overlay)
+    // Generate ASS subtitles file if enabled
     let assFilePath = null;
     const capCfg = config?.caption || {};
     if (capCfg.enabled !== false && (timeline?.captions || []).length > 0) {
@@ -2382,51 +2459,47 @@ ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputP
       fs.writeFileSync(assFilePath, buildAssSubtitleFile(timeline.captions, capCfg, w, h), 'utf-8');
     }
 
-    // Build filter complex
-    const fparts = [];
-    let vMap = '0:v';
-    let aMap = null;
-
-    // Video chain: scale + vignette + watermark + ASS subtitle
-    let vChain = `[0:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`;
+    // Build video filter chain on [0:v]
+    const filterParts = [];
+    const vFilters = [];
 
     // Vignette
     const vigCfg = config?.vignette || {};
     if (vigCfg.enabled !== false) {
-      vChain += `,vignette=PI/4:max_eval=0:eval=frame`;
+      const intensity = typeof vigCfg.intensity === 'number' ? vigCfg.intensity : 0.75;
+      const angleRad = (Math.PI / 10) + (intensity * (Math.PI / 6));
+      vFilters.push(`vignette=${angleRad.toFixed(3)}`);
     }
 
-    // ASS subtitles (via ass= filter, correct approach)
+    // ASS Subtitles
     if (assFilePath) {
       const escapedAss = assFilePath.replace(/\\/g, '/').replace(/:/g, '\\:');
-      vChain += `,ass='${escapedAss}'`;
+      vFilters.push(`ass='${escapedAss}'`);
     }
 
     // Watermark text
     const wmCfg = config?.watermark || {};
     if (wmCfg.enabled !== false && wmCfg.text) {
       const escaped = wmCfg.text.replace(/'/g, "'\\\\\\''");
-      const a = Math.round((wmCfg.opacity || 0.8) * 255).toString(16).padStart(2, '0');
-      const cHex = (wmCfg.colorHex || '#FFFFFF').replace('#', '');
-      const fc = `0x${a}${cHex}`;
-      const pos = wmCfg.position || 'bottom-center';
-      const ox = wmCfg.offsetX || 0;
-      const oy = wmCfg.offsetY || 80;
-      const fs = wmCfg.fontSize || 42;
+      const cHex = wmCfg.colorHex || '#FFFFFF';
+      const opacity = typeof wmCfg.opacity === 'number' ? wmCfg.opacity : 0.8;
+      const fc = `${cHex}@${opacity}`;
+      const pos = wmCfg.position || 'top-left';
+      const ox = typeof wmCfg.offsetX === 'number' ? wmCfg.offsetX : 0;
+      const oy = typeof wmCfg.offsetY === 'number' ? wmCfg.offsetY : 0;
+      const fontSize = wmCfg.fontSize || 52;
 
       let xExpr, yExpr;
-      const margin = 40 + (ox >= 0 ? ox : 0);
-      const botMargin = 40 + (oy >= 0 ? oy : 0);
+      const margin = 40;
 
-      if (pos === 'top-left') { xExpr = `${margin}`; yExpr = `${margin}`; }
-      else if (pos === 'top-center') { xExpr = `(w-text_w)/2+${ox}`; yExpr = `${margin}`; }
-      else if (pos === 'top-right') { xExpr = `w-text_w-${margin}`; yExpr = `${margin}`; }
-      else if (pos === 'bottom-left') { xExpr = `${margin}`; yExpr = `h-text_h-${botMargin}`; }
-      else if (pos === 'bottom-center') { xExpr = `(w-text_w)/2+${ox}`; yExpr = `h-text_h-${botMargin}`; }
-      else if (pos === 'bottom-right') { xExpr = `w-text_w-${margin}`; yExpr = `h-text_h-${botMargin}`; }
-      else { xExpr = `(w-text_w)/2`; yExpr = `h-text_h-${botMargin}`; }
+      if (pos === 'top-left') { xExpr = `${margin + ox}`; yExpr = `${margin + oy}`; }
+      else if (pos === 'top-center') { xExpr = `(w-text_w)/2+${ox}`; yExpr = `${margin + oy}`; }
+      else if (pos === 'top-right') { xExpr = `w-text_w-${margin - ox}`; yExpr = `${margin + oy}`; }
+      else if (pos === 'bottom-left') { xExpr = `${margin + ox}`; yExpr = `h-text_h-${margin + oy}`; }
+      else if (pos === 'bottom-center') { xExpr = `(w-text_w)/2+${ox}`; yExpr = `h-text_h-${margin + oy}`; }
+      else if (pos === 'bottom-right') { xExpr = `w-text_w-${margin - ox}`; yExpr = `h-text_h-${margin + oy}`; }
+      else { xExpr = `(w-text_w)/2+${ox}`; yExpr = `h-text_h-${margin + oy}`; }
 
-      // Auto-detect font
       let fontFile = '';
       const fontCandidates = [
         '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
@@ -2438,70 +2511,78 @@ ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputP
         if (fs.existsSync(fp)) { fontFile = `:fontfile='${fp}'`; break; }
       }
 
-      vChain += `,drawtext=text='${escaped}':fontsize=${fs}:fontcolor=${fc}:x=${xExpr}:y=${yExpr}:shadowcolor=black@0.4:shadowx=2:shadowy=2${fontFile}`;
+      vFilters.push(`drawtext=text='${escaped}':fontsize=${fontSize}:fontcolor=${fc}:x=${xExpr}:y=${yExpr}:shadowcolor=black@0.6:shadowx=2:shadowy=2${fontFile}`);
     }
 
-    vChain += `,format=yuv420p[vout]`;
-    fparts.push(vChain);
-    vMap = '[vout]';
+    if (vFilters.length > 0) {
+      filterParts.push(`[0:v]${vFilters.join(',')}[vout]`);
+    }
 
     // Audio mixing (VO tracks + BGM)
-    const validAudioTracks = audioTracks.filter((t) => t.filePath && fs.existsSync(t.filePath));
-    const voCount = validAudioTracks.length;
-    if (voCount > 0 || bgmPathResolved) {
+    let aMap = null;
+    if (voCount > 0 || bgmInputIdx !== null) {
       const voLabels = [];
-      let streamIdx = 1;
+      let currentAudioStreamIdx = voStartIdx;
 
-      // Add VO audio tracks with per-track delay based on start_sec
-      for (let ai = 0; ai < audioTracks.length; ai++) {
-        const t = audioTracks[ai];
-        if (t.filePath && fs.existsSync(t.filePath)) {
-          const delayMs = Math.round((t.start_sec || 0) * 1000);
-          const label = `vo${ai}`;
-          fparts.push(`[${streamIdx}:a]adelay=${delayMs}|${delayMs}[${label}]`);
-          voLabels.push(`[${label}]`);
-          streamIdx++;
-        }
+      for (let ai = 0; ai < validAudioTracks.length; ai++) {
+        const t = validAudioTracks[ai];
+        const delayMs = Math.round((t.start_sec || 0) * 1000);
+        const label = `vo${ai}`;
+        filterParts.push(`[${currentAudioStreamIdx}:a]adelay=${delayMs}|${delayMs}[${label}]`);
+        voLabels.push(`[${label}]`);
+        currentAudioStreamIdx++;
       }
 
-      if (bgmPathResolved) {
-        // BGM stream index = 1 + valid VO count (VO streams come after [0:v])
-        const bgmIdx = 1 + voCount;
+      if (bgmInputIdx !== null) {
+        const bgmIdx = bgmInputIdx;
         const bgmVol = bgmCfg.volume || 0.15;
         const fadeIn = bgmCfg.fadeInSec || 1.0;
         const fadeOut = bgmCfg.fadeOutSec || 2.0;
         const fos = Math.max(0, totalDur - fadeOut);
 
-        if (voLabels.length > 0) {
-          fparts.push(`${voLabels.join('')}amix=inputs=${voLabels.length}:duration=longest:dropout_transition=0.5[vomix]`);
-          fparts.push(`[vomix]volume=1.0[vonorm]`);
-          fparts.push(`[${bgmIdx}:a]volume=${bgmVol},afade=t=in:d=${fadeIn},afade=t=out:st=${fos.toFixed(1)}:d=${fadeOut},aloop=loop=-1:size=2e+09[bgmproc]`);
-          fparts.push(`[vonorm][bgmproc]amix=inputs=2:duration=first:dropout_transition=2[aout]`);
+        if (voLabels.length > 1) {
+          filterParts.push(`${voLabels.join('')}amix=inputs=${voLabels.length}:duration=longest:dropout_transition=0.5[vomix]`);
+          filterParts.push(`[vomix]volume=1.0[vonorm]`);
+          filterParts.push(`[${bgmIdx}:a]aloop=loop=-1:size=2e+09,volume=${bgmVol},afade=t=in:d=${fadeIn},afade=t=out:st=${fos.toFixed(1)}:d=${fadeOut}[bgmproc]`);
+          filterParts.push(`[vonorm][bgmproc]amix=inputs=2:duration=first:dropout_transition=2[aout]`);
+        } else if (voLabels.length === 1) {
+          filterParts.push(`${voLabels[0]}volume=1.0[vonorm]`);
+          filterParts.push(`[${bgmIdx}:a]aloop=loop=-1:size=2e+09,volume=${bgmVol},afade=t=in:d=${fadeIn},afade=t=out:st=${fos.toFixed(1)}:d=${fadeOut}[bgmproc]`);
+          filterParts.push(`[vonorm][bgmproc]amix=inputs=2:duration=first:dropout_transition=2[aout]`);
         } else {
-          fparts.push(`[${bgmIdx}:a]volume=${bgmVol},afade=t=in:d=${fadeIn},afade=t=out:st=${fos.toFixed(1)}:d=${fadeOut},aloop=loop=-1:size=2e+09[aout]`);
+          filterParts.push(`[${bgmIdx}:a]aloop=loop=-1:size=2e+09,volume=${bgmVol},afade=t=in:d=${fadeIn},afade=t=out:st=${fos.toFixed(1)}:d=${fadeOut}[bgmproc]`);
         }
       } else if (voLabels.length > 1) {
-        fparts.push(`${voLabels.join('')}amix=inputs=${voLabels.length}:duration=longest:dropout_transition=0.5[aout]`);
+        filterParts.push(`${voLabels.join('')}amix=inputs=${voLabels.length}:duration=longest:dropout_transition=0.5[aout]`);
       } else if (voLabels.length === 1) {
-        fparts.push(`${voLabels[0]}volume=1.0[aout]`);
+        filterParts.push(`${voLabels[0]}volume=1.0[aout]`);
       }
 
       aMap = '[aout]';
     }
 
-    finalArgs.push('-filter_complex', fparts.join(';'));
-    finalArgs.push('-map', vMap);
+    if (filterParts.length > 0) {
+      finalArgs.push('-filter_complex', filterParts.join(';'));
+    }
+
+    if (vFilters.length > 0) {
+      finalArgs.push('-map', '[vout]');
+    } else {
+      finalArgs.push('-map', '0:v');
+    }
+
     if (aMap) finalArgs.push('-map', aMap);
 
     // Quality settings
     const q = config?.outputQuality || 'balanced';
-    const qMap = { fast: ['-preset', 'ultrafast', '-crf', '22'], balanced: ['-preset', 'fast', '-crf', '18'], high: ['-preset', 'medium', '-crf', '16'] };
-    finalArgs.push('-c:v', 'libx264', ...qMap[q] || qMap.balanced, '-pix_fmt', 'yuv420p');
+    const qMap = { fast: ['-preset', 'ultrafast', '-crf', '22'], balanced: ['-preset', 'ultrafast', '-crf', '18'], high: ['-preset', 'fast', '-crf', '16'] };
+    const encThreads = Math.min(4, Math.max(2, Math.floor(cpuCores / 2)));
+    finalArgs.push('-c:v', 'libx264', ...qMap[q] || qMap.balanced, '-threads', String(encThreads), '-pix_fmt', 'yuv420p');
 
     if (aMap) finalArgs.push('-c:a', 'aac', '-b:a', '192k');
-    finalArgs.push('-movflags', '+faststart', '-t', String(totalDur), resolvedOutput);
+    finalArgs.push('-movflags', '+faststart', '-t', String(totalDur.toFixed(2)), resolvedOutput);
 
-    send('final', 55, 'Encoding final video...');
+    send('final', 0.75, `⚡ Memulai encoding ekspor MP4 1080p (${totalDur.toFixed(1)}s)...`);
 
     await new Promise((resolve, reject) => {
       let stderr = '';
@@ -2513,14 +2594,15 @@ ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputP
         const tm = text.match(/time=(\d+):(\d+):(\d+)\.(\d+)/);
         if (tm) {
           const sec = parseInt(tm[1]) * 3600 + parseInt(tm[2]) * 60 + parseInt(tm[3]);
-          const fpct = Math.min(99, Math.round((sec / totalDur) * 100));
-          send('final', 55 + Math.round(fpct * 0.45), `Encoding: ${sec}s / ${totalDur.toFixed(0)}s`);
+          const fpct = Math.min(1.0, sec / totalDur);
+          const mappedPct = Math.min(0.99, 0.75 + (fpct * 0.24)); // 75% -> 99%
+          send('final', mappedPct, `⚡ Encoding MP4 1080p: ${sec}s / ${totalDur.toFixed(0)}s (${Math.round(fpct * 100)}%)...`);
         }
       });
 
       child.on('close', (code) => {
         if (code === 0) {
-          send('done', 100, 'Render complete!');
+          send('done', 1.0, '🎉 Render Video 1080p Selesai dituntaskan!');
           resolve();
         } else {
           const last = stderr.trim().split('\n').filter(Boolean).slice(-10).join('\n');
@@ -2531,7 +2613,7 @@ ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputP
       child.on('error', (err) => reject(err));
     });
 
-    // Cleanup
+    // Cleanup temp dir
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { }
 
     return {
@@ -2559,34 +2641,35 @@ ipcMain.handle('render-spensia-preview-frame', async (_event, { config, imagePat
   try {
     let vf = `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`;
 
-    // Vignette
+    // Vignette (matching PreviewCanvas.tsx)
     const vigCfg = config?.vignette || {};
     if (vigCfg.enabled !== false) {
-      vf += `,vignette=PI/4:max_eval=0:eval=frame`;
+      const intensity = typeof vigCfg.intensity === 'number' ? vigCfg.intensity : 0.75;
+      const angleRad = (Math.PI / 10) + (intensity * (Math.PI / 6));
+      vf += `,vignette=${angleRad.toFixed(3)}`;
     }
 
-    // Watermark
+    // Watermark (matching render_config.json & PreviewCanvas.tsx)
     const wmCfg = config?.watermark || {};
     if (wmCfg.enabled !== false && wmCfg.text) {
       const escaped = wmCfg.text.replace(/'/g, "'\\\\\\''");
-      const a = Math.round((wmCfg.opacity || 0.8) * 255).toString(16).padStart(2, '0');
-      const cHex = (wmCfg.colorHex || '#FFFFFF').replace('#', '');
-      const fc = `0x${a}${cHex}`;
-      const pos = wmCfg.position || 'bottom-center';
-      const ox = wmCfg.offsetX || 0;
-      const oy = wmCfg.offsetY || 120;
-      const fs = wmCfg.fontSize || 42;
-      const margin = 40 + (ox >= 0 ? ox : 0);
-      const botMargin = 40 + (oy >= 0 ? oy : 0);
+      const cHex = wmCfg.colorHex || '#FFFFFF';
+      const opacity = typeof wmCfg.opacity === 'number' ? wmCfg.opacity : 0.8;
+      const fc = `${cHex}@${opacity}`;
+      const pos = wmCfg.position || 'top-left';
+      const ox = typeof wmCfg.offsetX === 'number' ? wmCfg.offsetX : 0;
+      const oy = typeof wmCfg.offsetY || 0;
+      const fontSize = wmCfg.fontSize || 52;
+      const margin = 40;
 
       let xExpr, yExpr;
-      if (pos === 'top-left') { xExpr = `${margin}`; yExpr = `${margin}`; }
-      else if (pos === 'top-center') { xExpr = `(w-text_w)/2+${ox}`; yExpr = `${margin}`; }
-      else if (pos === 'top-right') { xExpr = `w-text_w-${margin}`; yExpr = `${margin}`; }
-      else if (pos === 'bottom-left') { xExpr = `${margin}`; yExpr = `h-text_h-${botMargin}`; }
-      else if (pos === 'bottom-center') { xExpr = `(w-text_w)/2+${ox}`; yExpr = `h-text_h-${botMargin}`; }
-      else if (pos === 'bottom-right') { xExpr = `w-text_w-${margin}`; yExpr = `h-text_h-${botMargin}`; }
-      else { xExpr = `(w-text_w)/2`; yExpr = `h-text_h-${botMargin}`; }
+      if (pos === 'top-left') { xExpr = `${margin + ox}`; yExpr = `${margin + oy}`; }
+      else if (pos === 'top-center') { xExpr = `(w-text_w)/2+${ox}`; yExpr = `${margin + oy}`; }
+      else if (pos === 'top-right') { xExpr = `w-text_w-${margin - ox}`; yExpr = `${margin + oy}`; }
+      else if (pos === 'bottom-left') { xExpr = `${margin + ox}`; yExpr = `h-text_h-${margin + oy}`; }
+      else if (pos === 'bottom-center') { xExpr = `(w-text_w)/2+${ox}`; yExpr = `h-text_h-${margin + oy}`; }
+      else if (pos === 'bottom-right') { xExpr = `w-text_w-${margin - ox}`; yExpr = `h-text_h-${margin + oy}`; }
+      else { xExpr = `(w-text_w)/2+${ox}`; yExpr = `h-text_h-${margin + oy}`; }
 
       let fontFile = '';
       const fontCandidates = [
@@ -2599,7 +2682,7 @@ ipcMain.handle('render-spensia-preview-frame', async (_event, { config, imagePat
         if (fs.existsSync(fp)) { fontFile = `:fontfile='${fp}'`; break; }
       }
 
-      vf += `,drawtext=text='${escaped}':fontsize=${fs}:fontcolor=${fc}:x=${xExpr}:y=${yExpr}:shadowcolor=black@0.4:shadowx=2:shadowy=2${fontFile}`;
+      vf += `,drawtext=text='${escaped}':fontsize=${fontSize}:fontcolor=${fc}:x=${xExpr}:y=${yExpr}:shadowcolor=black@0.6:shadowx=2:shadowy=2${fontFile}`;
     }
 
     vf += `,format=yuv420p`;
