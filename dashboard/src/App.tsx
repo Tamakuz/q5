@@ -54,6 +54,8 @@ const App: React.FC = () => {
   const [status] = useState<Status>('ready');
   const [longformId, setLongformId] = useState<string | null>(null);
 
+  const [spensiaResetKey, setSpensiaResetKey] = useState<number>(0);
+
   // Global Media Preview Drawer state
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
 
@@ -72,6 +74,16 @@ const App: React.FC = () => {
 
   const handleResetProject = async () => {
     setActiveStep('source');
+    if (contentMode === 'spensia') {
+      setSpensiaResetKey((prev) => prev + 1);
+      try {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.toLowerCase().includes('spensia')) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch {}
+    }
     try {
       if (window.electronAPI?.getContentId) {
         const id = await window.electronAPI.getContentId(contentMode);
@@ -99,23 +111,23 @@ const App: React.FC = () => {
         <main className="flex-1 p-6 overflow-auto bg-gradient-to-br from-gray-950 via-gray-950 to-gray-900">
           {contentMode === 'spensia' ? (
             activeStep === 'source' ? (
-              <SpensiaTopicsStep key="spensia-topics" />
+              <SpensiaTopicsStep key={`spensia-topics-${spensiaResetKey}`} />
             ) : activeStep === 'analyze' ? (
-              <SpensiaScriptStep key="spensia-script" />
+              <SpensiaScriptStep key={`spensia-script-${spensiaResetKey}`} />
             ) : activeStep === 'audio' ? (
-              <SpensiaBreakdownStep key="spensia-breakdown" />
+              <SpensiaBreakdownStep key={`spensia-breakdown-${spensiaResetKey}`} />
             ) : activeStep === 'mapping' ? (
-              <SpensiaImagePromptStep key="spensia-image-prompts" />
+              <SpensiaImagePromptStep key={`spensia-image-prompts-${spensiaResetKey}`} />
             ) : activeStep === 'render' ? (
-              <SpensiaImageGeneratorStep key="spensia-image-generator" />
+              <SpensiaImageGeneratorStep key={`spensia-image-generator-${spensiaResetKey}`} />
             ) : activeStep === 'publish' ? (
-              <SpensiaVoiceOverStep key="spensia-voice-over" />
+              <SpensiaVoiceOverStep key={`spensia-voice-over-${spensiaResetKey}`} />
             ) : activeStep === 'transcript' ? (
-              <SpensiaTimelineMappingStep key="spensia-timeline-mapping" onStepChange={setActiveStep} />
+              <SpensiaTimelineMappingStep key={`spensia-timeline-mapping-${spensiaResetKey}`} onStepChange={setActiveStep} />
             ) : activeStep === 'upload' ? (
-              <SpensiaRenderStep key="spensia-render-studio" />
+              <SpensiaRenderStep key={`spensia-render-studio-${spensiaResetKey}`} />
             ) : activeStep === 'thumbnail' ? (
-              <SpensiaThumbnailStep key="spensia-thumbnail-studio" />
+              <SpensiaThumbnailStep key={`spensia-thumbnail-studio-${spensiaResetKey}`} />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
                 <div className="w-20 h-20 bg-emerald-600/10 text-emerald-400 rounded-3xl flex items-center justify-center text-4xl border border-emerald-500/20 shadow-xl shadow-emerald-950/40">

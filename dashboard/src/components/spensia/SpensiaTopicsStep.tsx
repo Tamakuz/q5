@@ -8,6 +8,8 @@ export interface TopicItem {
   id: number;
   title: string;
   summary: string;
+  angles?: string[];
+  selected_angle_index?: number;
   viral_score?: number;
   viral_reason?: string;
   selected?: boolean;
@@ -40,6 +42,7 @@ const SpensiaTopicsStep: React.FC = () => {
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [selectedTopicId, setSelectedTopicId] = useState<number | null>(null);
+  const [selectedTopicIds, setSelectedTopicIds] = useState<number[]>([]);
   const [validationReport, setValidationReport] = useState<SpensiaTopicsValidationReport | null>(null);
 
   const showToast = (msg: string) => {
@@ -77,7 +80,13 @@ const SpensiaTopicsStep: React.FC = () => {
               setValidationReport(report);
             }
             if (data.theme) setTopicTheme(data.theme);
-            if (data.selectedTopicId) setSelectedTopicId(data.selectedTopicId);
+            if (Array.isArray(data.selectedTopicIds)) {
+              setSelectedTopicIds(data.selectedTopicIds);
+              setSelectedTopicId(data.selectedTopicIds[0] || null);
+            } else if (data.selectedTopicId) {
+              setSelectedTopicIds([data.selectedTopicId]);
+              setSelectedTopicId(data.selectedTopicId);
+            }
           }
         }
       } catch (err) {
@@ -88,9 +97,10 @@ const SpensiaTopicsStep: React.FC = () => {
 
   const getComputedPrompt = (promptTextStr?: string) => {
     const tpl = promptTextStr || masterPrompt;
+    const themeValue = topicTheme.trim() ? topicTheme.trim() : 'Semua Niche Spensia Channel (Sejarah, Psikologi, Sains, Fakta Purba vs Modern)';
     return tpl
-      .replace(/{topik_umum}/g, topicTheme || '[Topik Umum]')
-      .replace(/{topik umum, misal: "sejarah kekayaan", "psikologi manusia", "evolusi manusia purba"}/g, topicTheme || '[Topik Umum]')
+      .replace(/{topik_umum}/g, themeValue)
+      .replace(/{topik umum, misal: "sejarah kekayaan", "psikologi manusia", "evolusi manusia purba"}/g, themeValue)
       .replace(/{jumlah}/g, String(itemCount));
   };
 
@@ -129,8 +139,8 @@ const SpensiaTopicsStep: React.FC = () => {
 
       if (report.normalizedData && report.normalizedData.topics.length > 0) {
         setTopics(report.normalizedData.topics);
-        saveTopicsState(report.normalizedData.topics, topicTheme, selectedTopicId);
-        showToast(`✨ Strict JSON Valid: ${report.normalizedData.topics.length} ide topik berhasil di-generate!`);
+        saveTopicsState(report.normalizedData.topics, topicTheme, selectedTopicIds);
+        showToast(`✨ Strict JSON Valid: ${report.normalizedData.topics.length} konsep topik (dengan 3 opsi judul) berhasil di-generate!`);
       } else {
         showToast(`⚠️ Validasi JSON Gagal: ${report.summaryText}`);
       }
@@ -184,19 +194,31 @@ const SpensiaTopicsStep: React.FC = () => {
 
     if (report.normalizedData && report.normalizedData.topics.length > 0) {
       setTopics(report.normalizedData.topics);
-      saveTopicsState(report.normalizedData.topics, topicTheme, selectedTopicId);
+      saveTopicsState(report.normalizedData.topics, topicTheme, selectedTopicIds);
       showToast(`✅ Validasi Strict JSON Berhasil (${report.normalizedData.topics.length} topik)!`);
     } else {
       showToast(`⚠️ Validasi Gagal: ${report.summaryText}`);
     }
   };
 
-  const saveTopicsState = async (topicsList: TopicItem[], themeStr: string, activeId: number | null) => {
+  const saveTopicsState = async (topicsList: TopicItem[], themeStr: string, activeIds: number[]) => {
     try {
       if (api?.saveToProject) {
+        const selectedTopicsList = topicsList.filter((t) => activeIds.includes(t.id));
         await api.saveToProject(
           'input/spensia/topics.json',
-          JSON.stringify({ topics: topicsList, theme: themeStr, selectedTopicId: activeId, updatedAt: new Date().toISOString() }, null, 2)
+          JSON.stringify(
+            {
+              topics: topicsList,
+              theme: themeStr,
+              selectedTopicId: activeIds[0] || null,
+              selectedTopicIds: activeIds,
+              selectedTopics: selectedTopicsList,
+              updatedAt: new Date().toISOString()
+            },
+            null,
+            2
+          )
         );
       }
     } catch (err) {
@@ -204,13 +226,54 @@ const SpensiaTopicsStep: React.FC = () => {
     }
   };
 
-  const handleSelectTopic = (id: number) => {
-    const nextId = selectedTopicId === id ? null : id;
-    setSelectedTopicId(nextId);
-    saveTopicsState(topics, topicTheme, nextId);
-    if (nextId !== null) {
-      showToast(`🎯 Topik #${id} dipilih untuk naskah Spensia!`);
+  const handleSelectAngle = (topicId: number, angleIdx: number, angleText: string) => {
+    const updatedTopics = topics.map((t) => {
+      if (t.id === topicId) {
+        return { ...t, title: angleText, selected_angle_index: angleIdx };
+      }
+      return t;
+    });
+    setTopics(updatedTopics);
+    saveTopicsState(updatedTopics, topicTheme, selectedTopicIds);
+    showToast(`🎯 Opsi Judul Angle #${angleIdx + 1} dipilih untuk Topik #${topicId}!`);
+  };
+
+  const handleToggleTopic = (id: number) => {
+    let nextIds: number[];
+    if (selectedTopicIds.includes(id)) {
+      nextIds = selectedTopicIds.filter((tid) => tid !== id);
+    } else {
+      nextIds = [...selectedTopicIds, id];
     }
+    setSelectedTopicIds(nextIds);
+    setSelectedTopicId(nextIds[0] || null);
+    saveTopicsState(topics, topicTheme, nextIds);
+  };
+
+  const handleSelectTop3 = () => {
+    if (topics.length === 0) return;
+    const sorted = [...topics].sort((a, b) => (b.viral_score || 0) - (a.viral_score || 0));
+    const top3Ids = sorted.slice(0, 3).map((t) => t.id);
+    setSelectedTopicIds(top3Ids);
+    setSelectedTopicId(top3Ids[0] || null);
+    saveTopicsState(topics, topicTheme, top3Ids);
+    showToast(`⚡ ${top3Ids.length} topik dengan Viral Score tertinggi otomatis dipilih ke Batch Queue!`);
+  };
+
+  const handleSelectAll = () => {
+    if (topics.length === 0) return;
+    const allIds = topics.map((t) => t.id);
+    setSelectedTopicIds(allIds);
+    setSelectedTopicId(allIds[0] || null);
+    saveTopicsState(topics, topicTheme, allIds);
+    showToast(`✨ Semua (${allIds.length}) topik berhasil dimasukkan ke Batch Queue!`);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedTopicIds([]);
+    setSelectedTopicId(null);
+    saveTopicsState(topics, topicTheme, []);
+    showToast('🧹 Pilihan Batch Queue dibersihkan.');
   };
 
   const handleCopySingleTopic = async (topic: TopicItem) => {
@@ -330,6 +393,21 @@ const SpensiaTopicsStep: React.FC = () => {
             Parameter Input
           </h2>
 
+          {/* Channel Niche DNA Profile Card */}
+          <div className="p-3.5 bg-emerald-950/40 border border-emerald-800/60 rounded-2xl space-y-1.5 shadow-md">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-bold flex items-center gap-1.5">
+                <span>📺</span> Channel DNA (Spensia Profile)
+              </span>
+              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-900/80 text-emerald-300 font-bold">
+                Auto Mode
+              </span>
+            </div>
+            <p className="text-[11px] text-gray-300 leading-relaxed">
+              AI akan otomatis me-generate ide provokatif terbaik dari niche channel: <strong className="text-emerald-300">Sejarah Kuno, Misteri Psikologi, Evolusi & Sains Purba vs Modern</strong>.
+            </p>
+          </div>
+
           {/* AI Model Selector */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-300 block">
@@ -348,16 +426,26 @@ const SpensiaTopicsStep: React.FC = () => {
             </select>
           </div>
 
-          {/* Topik Umum / Tema Input */}
+          {/* Optional Theme Filter */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-gray-300 block">
-              Topik Umum / Tema:
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-gray-300 block">
+                Filter Tema Spesifik <span className="text-[10px] text-gray-500 font-normal">(Opsional)</span>:
+              </label>
+              {topicTheme && (
+                <button
+                  onClick={() => setTopicTheme('')}
+                  className="text-[10px] text-gray-500 hover:text-gray-300 underline"
+                >
+                  Reset Auto
+                </button>
+              )}
+            </div>
             <input
               type="text"
               value={topicTheme}
               onChange={(e) => setTopicTheme(e.target.value)}
-              placeholder='Contoh: "sejarah kekayaan", "psikologi manusia"'
+              placeholder='Kosongkan untuk AI memilih bebas seluruh niche Spensia...'
               className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition-all font-semibold"
             />
 
@@ -509,16 +597,50 @@ const SpensiaTopicsStep: React.FC = () => {
             </div>
           </div>
 
-          {/* Generated Topic Cards Display */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between px-1">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                Daftar Ide Topik ({topics.length})
-              </h3>
-              {selectedTopicId && (
-                <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
-                  <span>🎯</span> Topik #{selectedTopicId} Terpilih
-                </span>
+          {/* Generated Topic Cards Display & Batch Queue controls */}
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1 bg-gray-900/40 p-3 rounded-2xl border border-gray-800">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider">
+                  Daftar Ide Topik ({topics.length})
+                </h3>
+                {selectedTopicIds.length > 0 && (
+                  <span className="text-xs text-emerald-400 bg-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-800 font-bold flex items-center gap-1">
+                    <span>🚀</span> Batch Queue: {selectedTopicIds.length} Terpilih
+                  </span>
+                )}
+              </div>
+
+              {/* Batch Quick Action Controls */}
+              {topics.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={handleSelectTop3}
+                    title="Otomatis pilih 3 ide topik dengan skor viral tertinggi"
+                    className="px-2.5 py-1 bg-emerald-950/90 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/80 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 shadow-sm"
+                  >
+                    <span>⚡</span>
+                    <span>Pilih Top 3 (High Potential)</span>
+                  </button>
+
+                  <button
+                    onClick={handleSelectAll}
+                    className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 rounded-xl text-xs font-semibold transition-all flex items-center gap-1"
+                  >
+                    <span>🔘</span>
+                    <span>Pilih Semua</span>
+                  </button>
+
+                  {selectedTopicIds.length > 0 && (
+                    <button
+                      onClick={handleClearSelection}
+                      className="px-2.5 py-1 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/50 rounded-xl text-xs font-semibold transition-all flex items-center gap-1"
+                    >
+                      <span>🧹</span>
+                      <span>Clear</span>
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
@@ -537,60 +659,113 @@ const SpensiaTopicsStep: React.FC = () => {
             ) : (
               <div className="space-y-3">
                 {topics.map((topic) => {
-                  const isSelected = selectedTopicId === topic.id;
+                  const isSelected = selectedTopicIds.includes(topic.id);
                   return (
                     <div
                       key={topic.id}
-                      className={`p-4 rounded-2xl border transition-all duration-200 relative group ${
+                      onClick={() => handleToggleTopic(topic.id)}
+                      className={`p-4 rounded-2xl border transition-all duration-200 relative group cursor-pointer ${
                         isSelected
                           ? 'bg-emerald-950/40 border-emerald-500/80 shadow-lg shadow-emerald-950/40 ring-1 ring-emerald-500/50'
                           : 'bg-gray-900/90 border-gray-800 hover:border-gray-700'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-2 flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="w-6 h-6 rounded-lg bg-gray-950 border border-gray-800 text-emerald-400 text-xs font-mono font-bold flex items-center justify-center shrink-0">
-                              #{topic.id}
-                            </span>
-                            <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors leading-snug">
-                              "{topic.title}"
-                            </h4>
-
-                            {/* Viral Rating Score Badge */}
-                            {topic.viral_score && (
-                              <span
-                                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border shadow-sm flex items-center gap-1 ${
-                                  topic.viral_score >= 92
-                                    ? 'bg-emerald-950/90 text-emerald-300 border-emerald-700/80 shadow-emerald-950/40'
-                                    : topic.viral_score >= 85
-                                    ? 'bg-amber-950/90 text-amber-300 border-amber-700/80'
-                                    : 'bg-gray-800 text-gray-300 border-gray-700'
-                                }`}
-                              >
-                                <span>🔥</span>
-                                <span>{topic.viral_score}/100 Potential</span>
-                              </span>
-                            )}
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          {/* Checkbox Icon */}
+                          <div className="pt-0.5 shrink-0">
+                            <div
+                              className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
+                                isSelected
+                                  ? 'bg-emerald-500 border-emerald-400 text-gray-950 font-bold'
+                                  : 'bg-gray-950 border-gray-700 group-hover:border-emerald-500/50'
+                              }`}
+                            >
+                              {isSelected && <span className="text-xs">✓</span>}
+                            </div>
                           </div>
 
-                          {topic.summary && (
-                            <p className="text-xs text-gray-400 leading-relaxed pl-8">
-                              <strong className="text-gray-500 font-mono">Ringkasan:</strong> {topic.summary}
-                            </p>
-                          )}
-
-                          {topic.viral_reason && (
-                            <div className="pl-8 pt-0.5">
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-950 border border-gray-800 text-[11px] text-emerald-400/90">
-                                <span>💡</span>
-                                <span><strong className="text-gray-400">Viral Reason:</strong> {topic.viral_reason}</span>
+                          <div className="space-y-2.5 flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="w-6 h-6 rounded-lg bg-gray-950 border border-gray-800 text-emerald-400 text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                                #{topic.id}
                               </span>
+                              <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors leading-snug">
+                                "{topic.title}"
+                              </h4>
+
+                              {/* Viral Rating Score Badge */}
+                              {topic.viral_score && (
+                                <span
+                                  className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border shadow-sm flex items-center gap-1 ${
+                                    topic.viral_score >= 92
+                                      ? 'bg-emerald-950/90 text-emerald-300 border-emerald-700/80 shadow-emerald-950/40'
+                                      : topic.viral_score >= 85
+                                      ? 'bg-amber-950/90 text-amber-300 border-amber-700/80'
+                                      : 'bg-gray-800 text-gray-300 border-gray-700'
+                                  }`}
+                                >
+                                  <span>🔥</span>
+                                  <span>{topic.viral_score}/100 Potential</span>
+                                </span>
+                              )}
                             </div>
-                          )}
+
+                            {/* 3 Opsi Judul / Angles Selector */}
+                            {topic.angles && topic.angles.length > 0 && (
+                              <div className="pl-8 space-y-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
+                                <span className="text-[10px] text-gray-500 font-mono font-bold block uppercase tracking-wider">
+                                  3 Opsi Sudut Pandang Judul (Angles):
+                                </span>
+                                <div className="space-y-1.5">
+                                  {topic.angles.map((angleText, aIdx) => {
+                                    const isAngleActive =
+                                      (topic.selected_angle_index ?? 0) === aIdx || topic.title === angleText;
+                                    return (
+                                      <button
+                                        key={aIdx}
+                                        onClick={() => handleSelectAngle(topic.id, aIdx, angleText)}
+                                        className={`w-full text-left p-2 rounded-xl text-xs transition-all border flex items-start gap-2 ${
+                                          isAngleActive
+                                            ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-200 font-semibold shadow-sm ring-1 ring-emerald-500/30'
+                                            : 'bg-gray-950/90 border-gray-800 text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+                                        }`}
+                                      >
+                                        <span
+                                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 mt-0.5 ${
+                                            isAngleActive
+                                              ? 'bg-emerald-500 text-gray-950'
+                                              : 'bg-gray-800 text-gray-400'
+                                          }`}
+                                        >
+                                          {isAngleActive ? '✓ ' : ''}Angle {aIdx === 0 ? 'A' : aIdx === 1 ? 'B' : 'C'}
+                                        </span>
+                                        <span className="leading-snug">"{angleText}"</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {topic.summary && (
+                              <p className="text-xs text-gray-400 leading-relaxed pl-8">
+                                <strong className="text-gray-500 font-mono">Ringkasan Faktual:</strong> {topic.summary}
+                              </p>
+                            )}
+
+                            {topic.viral_reason && (
+                              <div className="pl-8 pt-0.5">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-950 border border-gray-800 text-[11px] text-emerald-400/90">
+                                  <span>💡</span>
+                                  <span><strong className="text-gray-400">Viral Reason:</strong> {topic.viral_reason}</span>
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+                        <div className="flex items-center gap-1.5 shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => handleCopySingleTopic(topic)}
                             title="Salin ide topik ini"
@@ -600,15 +775,15 @@ const SpensiaTopicsStep: React.FC = () => {
                           </button>
 
                           <button
-                            onClick={() => handleSelectTopic(topic.id)}
-                            title={isSelected ? 'Batalkan pilihan' : 'Pilih topik ini untuk naskah Spensia'}
+                            onClick={() => handleToggleTopic(topic.id)}
+                            title={isSelected ? 'Keluarkan dari Batch' : 'Tambahkan ke Batch Queue'}
                             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1 ${
                               isSelected
                                 ? 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-600/30'
                                 : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
                             }`}
                           >
-                            <span>{isSelected ? '✓ Terpilih' : '🎯 Pilih'}</span>
+                            <span>{isSelected ? '✓ Terpilih di Batch' : '+ Pilih Batch'}</span>
                           </button>
                         </div>
                       </div>
@@ -618,6 +793,61 @@ const SpensiaTopicsStep: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* Sticky Batch Queue Control Bar */}
+          {selectedTopicIds.length > 0 && (
+            <div className="p-4 bg-gradient-to-r from-emerald-950 via-gray-900 to-gray-950 rounded-2xl border border-emerald-500/50 shadow-2xl space-y-3 animate-in slide-in-from-bottom-4 duration-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-500 text-gray-950 font-bold font-mono text-[10px] uppercase">
+                      Batch Queue Ready
+                    </span>
+                    <h4 className="text-xs font-bold text-white">
+                      {selectedTopicIds.length} Ide Topik Siap Diproses dalam Batch
+                    </h4>
+                  </div>
+                  <p className="text-[11px] text-gray-400">
+                    Semua topik terpilih tersimpan di <code className="text-emerald-300 font-mono">input/spensia/topics.json</code>.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={handleClearSelection}
+                    className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-semibold transition-all"
+                  >
+                    Kosongkan Batch
+                  </button>
+                </div>
+              </div>
+
+              {/* Selected Topics Chips */}
+              <div className="flex flex-wrap gap-2 pt-1 border-t border-emerald-900/60">
+                {topics
+                  .filter((t) => selectedTopicIds.includes(t.id))
+                  .map((t) => (
+                    <span
+                      key={t.id}
+                      className="px-2.5 py-1 rounded-xl bg-gray-950 border border-emerald-800/80 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+                    >
+                      <span className="text-[10px] text-emerald-400 font-mono font-bold">#{t.id}</span>
+                      <span className="truncate max-w-[200px]">"{t.title}"</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleTopic(t.id);
+                        }}
+                        className="text-gray-500 hover:text-red-400 ml-1 font-bold"
+                        title="Keluarkan topik ini"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

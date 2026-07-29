@@ -2408,34 +2408,57 @@ ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
     const newId = `${prefix}-${dateStr}-${randStr}`;
 
     if (isSpensia) {
-      console.log(`🧹 [Reset Spensia] Clearing spensia workspace and setting new Content ID: ${newId}`);
+      console.log(`🧹 [Reset Spensia] Clearing spensia workspace (inputs, outputs, images, audio, thumbnails, timelines) and setting new Content ID: ${newId}`);
       const spensiaInputDir = path.join(inputDir, 'spensia');
       const spensiaOutputDir = path.join(outputDir, 'spensia');
 
-      if (!fs.existsSync(spensiaInputDir)) fs.mkdirSync(spensiaInputDir, { recursive: true });
-      if (!fs.existsSync(spensiaOutputDir)) fs.mkdirSync(spensiaOutputDir, { recursive: true });
-
-      // Clear input/spensia files
-      const inputFiles = fs.readdirSync(spensiaInputDir);
-      for (const f of inputFiles) {
+      // Clear all items inside input/spensia (sub-folders like audio, images, thumbnails, transcripts, & files)
+      if (fs.existsSync(spensiaInputDir)) {
         try {
-          const fullPath = path.join(spensiaInputDir, f);
-          if (fs.statSync(fullPath).isFile()) fs.unlinkSync(fullPath);
-        } catch { }
+          const items = fs.readdirSync(spensiaInputDir);
+          for (const item of items) {
+            try {
+              fs.rmSync(path.join(spensiaInputDir, item), { recursive: true, force: true });
+            } catch (err) {
+              console.error(`[Reset Spensia] Failed to delete ${item}:`, err);
+            }
+          }
+        } catch (e) {
+          console.error('[Reset Spensia] Error reading input/spensia:', e);
+        }
+      } else {
+        fs.mkdirSync(spensiaInputDir, { recursive: true });
       }
 
-      // Clear output/spensia files
-      const outputFiles = fs.readdirSync(spensiaOutputDir);
-      for (const f of outputFiles) {
+      // Clear all items inside output/spensia
+      if (fs.existsSync(spensiaOutputDir)) {
         try {
-          const fullPath = path.join(spensiaOutputDir, f);
-          if (fs.statSync(fullPath).isFile()) fs.unlinkSync(fullPath);
-        } catch { }
+          const items = fs.readdirSync(spensiaOutputDir);
+          for (const item of items) {
+            try {
+              fs.rmSync(path.join(spensiaOutputDir, item), { recursive: true, force: true });
+            } catch (err) {
+              console.error(`[Reset Spensia] Failed to delete output item ${item}:`, err);
+            }
+          }
+        } catch (e) {
+          console.error('[Reset Spensia] Error reading output/spensia:', e);
+        }
+      } else {
+        fs.mkdirSync(spensiaOutputDir, { recursive: true });
       }
 
       const mappingFile = path.join(spensiaInputDir, 'spensia_mapping.json');
-      let mapping = { settings: { content_id: newId }, timeline: [] };
-      mapping.settings.content_id = newId;
+      let mapping = {
+        settings: {
+          fps: 30,
+          format: "16:9",
+          fg_aspect: "16:9",
+          bgm: "random",
+          content_id: newId
+        },
+        timeline: []
+      };
       fs.writeFileSync(mappingFile, JSON.stringify(mapping, null, 2), 'utf-8');
       fs.writeFileSync(path.join(spensiaInputDir, '.current_content_id'), newId, 'utf-8');
       return { success: true, content_id: newId };

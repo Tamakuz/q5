@@ -19,11 +19,26 @@ const DURATION_PRESETS = [
   { duration: '15 menit', words: 2250, label: '15 Menit (±2250 Kata)' },
 ];
 
+export interface BatchTopicItem {
+  id: number;
+  title: string;
+  summary: string;
+  hasScript?: boolean;
+}
+
 const SpensiaScriptStep: React.FC = () => {
   const [videoTitle, setVideoTitle] = useState<string>('');
   const [topicSummary, setTopicSummary] = useState<string>('');
   const [selectedDuration, setSelectedDuration] = useState<string>('10 menit');
   const [targetWords, setTargetWords] = useState<number>(1500);
+
+  const [batchTopics, setBatchTopics] = useState<BatchTopicItem[]>([]);
+  const [activeTopicId, setActiveTopicId] = useState<number | null>(null);
+  const [isBatchGenerating, setIsBatchGenerating] = useState<boolean>(false);
+
+  const [batchCurrentIndex, setBatchCurrentIndex] = useState<number>(0);
+  const [batchTotalCount, setBatchTotalCount] = useState<number>(0);
+  const [generatingTopicId, setGeneratingTopicId] = useState<number | null>(null);
 
   const [selectedModel, setSelectedModel] = useState<string>('cx/gpt-5.5');
   const [masterPrompt, setMasterPrompt] = useState<string>('');
@@ -57,27 +72,67 @@ const SpensiaScriptStep: React.FC = () => {
     return '';
   };
 
-  // Load initial prompt, topic state, and saved script state on mount
+  // Load initial prompt, batch topics, and saved script state on mount
   useEffect(() => {
     (async () => {
       await loadPromptFromFile();
       try {
         if (api?.readFromProject) {
-          // 1. Load selected topic from Step 1
+          // 1. Load selected topics from Step 1
           const savedTopicsJson = await api.readFromProject('input/spensia/topics.json');
+          let selectedId: number | null = null;
+          let loadedTopics: BatchTopicItem[] = [];
+
           if (savedTopicsJson) {
             const topicState = JSON.parse(savedTopicsJson);
-            if (Array.isArray(topicState.topics) && topicState.selectedTopicId) {
+            if (Array.isArray(topicState.selectedTopics) && topicState.selectedTopics.length > 0) {
+              loadedTopics = topicState.selectedTopics.map((t: any) => ({
+                id: t.id,
+                title: t.title,
+                summary: t.summary,
+              }));
+              selectedId = topicState.selectedTopicId || loadedTopics[0]?.id || null;
+            } else if (Array.isArray(topicState.topics) && topicState.selectedTopicId) {
               const matched = topicState.topics.find((t: any) => t.id === topicState.selectedTopicId);
               if (matched) {
-                setVideoTitle(matched.title || '');
-                setTopicSummary(matched.summary || '');
+                loadedTopics = [{ id: matched.id, title: matched.title, summary: matched.summary }];
+                selectedId = matched.id;
               }
             }
           }
 
-          // 2. Load saved script if exists
-          const savedScriptJson = await api.readFromProject('input/spensia/script.json');
+          // Check per-topic script files to update hasScript badges
+          const checkedTopics = await Promise.all(
+            loadedTopics.map(async (top) => {
+              try {
+                const specificScript = await api.readFromProject(`input/spensia/scripts/script_topic_${top.id}.json`);
+                return { ...top, hasScript: Boolean(specificScript && specificScript.trim()) };
+              } catch {
+                return top;
+              }
+            })
+          );
+
+          setBatchTopics(checkedTopics);
+          if (selectedId !== null) {
+            setActiveTopicId(selectedId);
+            const activeTop = checkedTopics.find((t) => t.id === selectedId) || checkedTopics[0];
+            if (activeTop) {
+              setVideoTitle(activeTop.title);
+              setTopicSummary(activeTop.summary);
+            }
+          }
+
+          // 2. Load saved script for active topic or primary script
+          const activeScriptFile = selectedId
+            ? `input/spensia/scripts/script_topic_${selectedId}.json`
+            : 'input/spensia/script.json';
+
+          let savedScriptJson = await api.readFromProject(activeScriptFile);
+          if (!savedScriptJson && selectedId) {
+            savedScriptJson = await api.readFromProject('input/spensia/script.json');
+          }
+
           if (savedScriptJson) {
             setPastedOutput(savedScriptJson);
             const report = validateSpensiaScript(savedScriptJson);
@@ -95,12 +150,43 @@ const SpensiaScriptStep: React.FC = () => {
     })();
   }, []);
 
+  const handleSwitchTopic = async (topic: BatchTopicItem) => {
+    setActiveTopicId(topic.id);
+    setVideoTitle(topic.title);
+    setTopicSummary(topic.summary);
+
+    try {
+      if (api?.readFromProject) {
+        let specificScript = await api.readFromProject(`input/spensia/scripts/script_topic_${topic.id}.json`);
+        if (!specificScript && batchTopics.length === 1) {
+          specificScript = await api.readFromProject('input/spensia/script.json');
+        }
+
+        if (specificScript) {
+          setPastedOutput(specificScript);
+          const report = validateSpensiaScript(specificScript, targetWords);
+          setValidationReport(report);
+          if (report.normalizedData) {
+            setScriptData(report.normalizedData);
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    setPastedOutput('');
+    setScriptData(null);
+    setValidationReport(null);
+  };
+
   const handleDurationChange = (dur: string, words: number) => {
     setSelectedDuration(dur);
     setTargetWords(words);
   };
 
-  const getComputedPrompt = (promptTplStr?: string) => {
+  const getComputedPrompt = (promptTplStr?: string, customTitle?: string, customSummary?: string) => {
     const tpl = promptTplStr || masterPrompt;
     const words = targetWords || 1500;
     const minWords = Math.max(300, Math.round(words * 0.90));
@@ -108,8 +194,8 @@ const SpensiaScriptStep: React.FC = () => {
     const perSectionWords = Math.max(80, Math.round((words - 250) / 5));
 
     return tpl
-      .replace(/{judul}/g, videoTitle || '[Judul Video]')
-      .replace(/{ringkasan}/g, topicSummary || '[Ringkasan Topik]')
+      .replace(/{judul}/g, customTitle || videoTitle || '[Judul Video]')
+      .replace(/{ringkasan}/g, customSummary || topicSummary || '[Ringkasan Topik]')
       .replace(/{durasi}/g, selectedDuration)
       .replace(/{word_count}/g, String(words))
       .replace(/{min_words}/g, String(minWords))
@@ -125,6 +211,9 @@ const SpensiaScriptStep: React.FC = () => {
     }
 
     setIsGenerating(true);
+    setGeneratingTopicId(activeTopicId);
+    setBatchCurrentIndex(1);
+    setBatchTotalCount(1);
     setPastedOutput('');
     setActiveTab('json'); // Switch to json tab to see live streaming text
     let unsubscribeStream: (() => void) | null = null;
@@ -167,6 +256,7 @@ const SpensiaScriptStep: React.FC = () => {
     } finally {
       if (unsubscribeStream) unsubscribeStream();
       setIsGenerating(false);
+      setGeneratingTopicId(null);
     }
   };
 
@@ -218,14 +308,78 @@ const SpensiaScriptStep: React.FC = () => {
     }
   };
 
-  const saveScriptState = async (data: SpensiaScriptData, rawStr: string) => {
+  const saveScriptState = async (data: SpensiaScriptData, rawStr: string, topicId?: number) => {
     try {
+      const targetId = topicId || activeTopicId;
       if (api?.saveToProject) {
         await api.saveToProject('input/spensia/script.json', rawStr);
         await api.saveToProject('input/spensia/full_script.txt', data.full_script);
+
+        if (targetId) {
+          await api.saveToProject(`input/spensia/scripts/script_topic_${targetId}.json`, rawStr);
+          await api.saveToProject(`input/spensia/scripts/full_script_topic_${targetId}.txt`, data.full_script);
+        }
+      }
+      if (targetId) {
+        setBatchTopics((prev) =>
+          prev.map((t) => (t.id === targetId ? { ...t, hasScript: true } : t))
+        );
       }
     } catch (err) {
       console.error('Error saving script state:', err);
+    }
+  };
+
+  const handleBatchGenerateAll = async () => {
+    if (batchTopics.length === 0) return;
+    setIsBatchGenerating(true);
+    setBatchTotalCount(batchTopics.length);
+    showToast(`🚀 Memulai Batch Script Generator untuk ${batchTopics.length} Topik...`);
+
+    let unsubscribeStream: (() => void) | null = null;
+    try {
+      if (api?.onSpensiaScriptChunk) {
+        unsubscribeStream = api.onSpensiaScriptChunk(({ fullText }) => {
+          setPastedOutput(fullText);
+        });
+      }
+
+      let idx = 0;
+      for (const topic of batchTopics) {
+        idx++;
+        setBatchCurrentIndex(idx);
+        setGeneratingTopicId(topic.id);
+        setActiveTopicId(topic.id);
+        setVideoTitle(topic.title);
+        setTopicSummary(topic.summary);
+        setPastedOutput('');
+
+        try {
+          let currentPrompt = masterPrompt || (await loadPromptFromFile());
+          const computed = getComputedPrompt(currentPrompt, topic.title, topic.summary);
+
+          if (api?.generateSpensiaScript) {
+            const res = await api.generateSpensiaScript(computed, selectedModel);
+            const rawContent = res?.rawText || JSON.stringify(res);
+            const report = validateSpensiaScript(rawContent, targetWords);
+
+            if (report.normalizedData) {
+              await saveScriptState(report.normalizedData, rawContent, topic.id);
+              setScriptData(report.normalizedData);
+              setPastedOutput(rawContent);
+              showToast(`✓ Naskah Topik #${topic.id} Selesai (${report.normalizedData.actual_word_count} Kata)!`);
+            }
+          }
+        } catch (err: any) {
+          console.error(`Gagal batch script topik #${topic.id}:`, err);
+        }
+      }
+
+      showToast(`✨ Seluruh (${batchTopics.length}) Naskah Batch Berhasil Di-generate!`);
+    } finally {
+      if (unsubscribeStream) unsubscribeStream();
+      setIsBatchGenerating(false);
+      setGeneratingTopicId(null);
     }
   };
 
@@ -285,13 +439,13 @@ const SpensiaScriptStep: React.FC = () => {
 
             <button
               onClick={handleAutoGenerate}
-              disabled={isGenerating}
+              disabled={isGenerating || isBatchGenerating}
               className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-600/30 transition-all flex items-center gap-2"
             >
               {isGenerating ? (
                 <>
                   <span className="animate-spin text-sm">⏳</span>
-                  <span>Generating Script...</span>
+                  <span>Generating AI...</span>
                 </>
               ) : (
                 <>
@@ -303,6 +457,163 @@ const SpensiaScriptStep: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Batch Queue Topic Tabs Selector */}
+      {batchTopics.length > 0 && (
+        <div className="bg-gray-900/90 p-4 rounded-3xl border border-purple-800/40 shadow-xl space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-md bg-purple-950 text-purple-300 border border-purple-800 font-bold font-mono text-[10px] uppercase">
+                🚀 Batch Queue ({batchTopics.length} Topik)
+              </span>
+              <h3 className="text-xs font-bold text-white">
+                Pilih Topik untuk Edit / Generate Naskah:
+              </h3>
+            </div>
+
+            {batchTopics.length > 1 && (
+              <button
+                onClick={handleBatchGenerateAll}
+                disabled={isGenerating || isBatchGenerating}
+                className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-900/40 transition-all flex items-center gap-1.5 shrink-0"
+              >
+                {isBatchGenerating ? (
+                  <>
+                    <span className="animate-spin text-sm">⏳</span>
+                    <span>Generating Batch...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>⚡</span>
+                    <span>Auto Generate Semua Naskah Batch</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-800">
+            {batchTopics.map((t) => {
+              const isActive = activeTopicId === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => handleSwitchTopic(t)}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${
+                    isActive
+                      ? 'bg-purple-950/80 border-purple-500 text-purple-200 shadow-md ring-1 ring-purple-500/40'
+                      : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-purple-300 shrink-0">
+                    #{t.id}
+                  </span>
+                  <span className="truncate">"{t.title}"</span>
+                  <span
+                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                      t.hasScript
+                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                        : 'bg-gray-900 text-amber-400 border border-gray-800'
+                    }`}
+                  >
+                    {t.hasScript ? '✓ Ready' : '⏳ Belum'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Realtime Process Monitor Panel */}
+      {(isGenerating || isBatchGenerating) && (
+        <div className="bg-gray-900/95 p-5 rounded-3xl border border-purple-500/60 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500" />
+              </span>
+              <h3 className="text-xs font-bold text-white tracking-wide uppercase flex items-center gap-2">
+                <span>⚡</span> Realtime Process Monitor
+              </h3>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-purple-950 text-purple-300 border border-purple-800 font-bold">
+                Model: {selectedModel}
+              </span>
+            </div>
+
+            {batchTotalCount > 0 && (
+              <span className="text-xs font-mono font-bold text-purple-300 flex items-center gap-1.5">
+                <span>📊</span> Progress: Topik {batchCurrentIndex} dari {batchTotalCount} ({Math.round((batchCurrentIndex / batchTotalCount) * 100)}% Selesai)
+              </span>
+            )}
+          </div>
+
+          {/* Progress Bar */}
+          {batchTotalCount > 0 && (
+            <div className="w-full bg-gray-950 rounded-full h-2.5 overflow-hidden border border-gray-800 p-0.5">
+              <div
+                className="bg-gradient-to-r from-purple-500 via-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-300 shadow-md shadow-purple-500/50"
+                style={{ width: `${Math.max(5, Math.round((batchCurrentIndex / batchTotalCount) * 100))}%` }}
+              />
+            </div>
+          )}
+
+          {/* Live Queue Cards Grid */}
+          {batchTopics.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {batchTopics.map((t) => {
+                const isGeneratingThis = generatingTopicId === t.id;
+                return (
+                  <div
+                    key={t.id}
+                    className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 transition-all ${
+                      isGeneratingThis
+                        ? 'bg-purple-950/80 border-purple-400 text-white shadow-lg shadow-purple-950/50 ring-1 ring-purple-400/50 animate-pulse'
+                        : t.hasScript
+                        ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-300'
+                        : 'bg-gray-950 border-gray-800 text-gray-400'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 shrink-0">
+                        #{t.id}
+                      </span>
+                      <span className="truncate font-semibold">{t.title}</span>
+                    </div>
+                    <span className="text-[10px] font-bold shrink-0">
+                      {isGeneratingThis ? '⚡ Generating...' : t.hasScript ? '✓ Ready' : '⏳ Waiting'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Live Word Count & Streaming Preview */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-gray-400 flex items-center gap-1">
+                <span>📝</span> Streaming Response Live:
+              </span>
+              <span className="text-purple-300 font-bold bg-purple-950 px-2.5 py-1 rounded-lg border border-purple-800">
+                {pastedOutput.trim() ? pastedOutput.trim().split(/\s+/).filter(Boolean).length : 0} / {targetWords} Kata (Target: {selectedDuration})
+              </span>
+            </div>
+
+            <div className="bg-gray-950 border border-gray-800 rounded-2xl p-4 font-mono text-xs text-gray-300 max-h-48 overflow-y-auto leading-relaxed whitespace-pre-wrap selection:bg-purple-900 selection:text-white border-purple-900/40">
+              {pastedOutput ? (
+                <>
+                  {pastedOutput}
+                  <span className="inline-block w-2 h-4 bg-purple-400 ml-1 animate-ping" />
+                </>
+              ) : (
+                <span className="text-gray-600 italic">⏳ Menunggu respon pertama dari API AI stream...</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Collapsible Master Prompt Editor */}
       {showPromptEditor && (

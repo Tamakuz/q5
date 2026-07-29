@@ -4,6 +4,8 @@ export interface SpensiaTopicItem {
   id: number;
   title: string;
   summary: string;
+  angles?: string[];
+  selected_angle_index?: number;
   viral_score?: number;
   viral_reason?: string;
   selected?: boolean;
@@ -180,8 +182,17 @@ export function validateSpensiaTopics(rawInput: any): SpensiaTopicsValidationRep
       return;
     }
 
-    // Title validation
-    const titleVal = item.title || item.judul;
+    // Angles & Title validation / normalization
+    let anglesVal: string[] = [];
+    if (Array.isArray(item.angles) && item.angles.length > 0) {
+      anglesVal = item.angles.map((a: any) => String(a).replace(/^["“']|["”']$/g, '').trim());
+    }
+
+    const titleVal = item.title || item.judul || (anglesVal.length > 0 ? anglesVal[0] : '');
+    if (!anglesVal.length && titleVal) {
+      anglesVal = [String(titleVal).replace(/^["“']|["”']$/g, '').trim()];
+    }
+
     if (typeof titleVal !== 'string' || !titleVal.trim()) {
       issues.push({
         id: 'MISSING_TOPIC_TITLE',
@@ -190,7 +201,7 @@ export function validateSpensiaTopics(rawInput: any): SpensiaTopicsValidationRep
         message: `Topic item #${index + 1} is missing a valid "title" string.`,
       });
     } else {
-      const cleanTitle = titleVal.replace(/^["“']|["”']$/g, '').trim();
+      const cleanTitle = String(titleVal).replace(/^["“']|["”']$/g, '').trim();
       if (!cleanTitle.includes('?')) {
         issues.push({
           id: 'TITLE_NOT_QUESTION',
@@ -221,6 +232,8 @@ export function validateSpensiaTopics(rawInput: any): SpensiaTopicsValidationRep
       id: itemId,
       title: String(titleVal || `Topik #${index + 1}`).replace(/^["“']|["”']$/g, '').trim(),
       summary: String(summaryVal || 'Ringkasan tidak tersedia.').trim(),
+      angles: anglesVal,
+      selected_angle_index: 0,
       viral_score: Math.min(100, Math.max(50, viralScore)),
       viral_reason: typeof viralReason === 'string' ? viralReason.trim() : undefined,
     });
