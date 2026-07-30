@@ -34,7 +34,7 @@ const SPENSIA_STEPS: Step[] = [
   { id: 'analyze', icon: '⚡', label: '2. Script Generator', subText: 'Naskah voiceover Style DNA Spensia' },
   { id: 'audio', icon: '✂️', label: '3. Scene Splitter', subText: 'Breakdown segmen visual adegan' },
   { id: 'mapping', icon: '🎨', label: '4. Image Prompt Generator', subText: 'Visual Style DNA Spensia prompts' },
-  { id: 'render', icon: '🖼️', label: '5. Image Generator', subText: 'Generate ilustrasi adegan 9router' },
+  { id: 'render', icon: '🖼️', label: '5. Image Generator', subText: 'Generate ilustrasi adegan Google Flow' },
   { id: 'publish', icon: '🎙️', label: '6. Voice Over Generator', subText: 'Prompt TTS & Upload Audio Spensia' },
   { id: 'transcript', icon: '🎯', label: '7. Timeline & Mapping Studio', subText: 'Build timeline mapping & JSON sync' },
   { id: 'upload', icon: '🎬', label: '8. Render Studio (16:9)', subText: 'Watermark, caption, BGM & export' },

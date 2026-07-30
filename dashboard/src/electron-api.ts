@@ -278,6 +278,7 @@ export interface ElectronAPI {
   generateSpensiaBatchImages: (items: Array<{ segment_id: number; prompt: string }>, model?: string, size?: string, quality?: string, imageDetail?: string, concurrency?: number, topicId?: number) => Promise<Array<any>>;
   onSpensiaImageProgress: (callback: (data: { current: number; total: number; segmentId: number; topicId?: number; saved?: any; error?: string; status: string }) => void) => () => void;
   onSpensiaImageChunkStart: (callback: (data: { segmentIds: number[]; topicId?: number }) => void) => () => void;
+  onSpensiaImageLog?: (callback: (data: { segmentId: number; workerId?: number; text: string }) => void) => () => void;
   uploadSpensiaVoAudio: (segmentId?: number, sourcePath?: string, bufferArray?: ArrayBuffer | number[]) => Promise<{ segmentId?: number; filename: string; filePath: string; url: string }>;
   mergeSpensiaVoAudio: (audioPaths: string[]) => Promise<{ filename: string; filePath: string; url: string; duration: number }>;
   runWhisperxTranscribe: (audioPath: string, model?: string, language?: string, device?: string, computeType?: string) => Promise<{ success: boolean; transcriptData?: any }>;

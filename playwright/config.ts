@@ -16,7 +16,7 @@ export const config: PlaywrightConfig = {
   flowUrl: process.env.GOOGLE_FLOW_URL || 'https://labs.google/fx/id/tools/flow',
   userDataDir: path.join(PROJECT_ROOT, 'playwright', 'user_data'),
   storageStatePath: path.join(PROJECT_ROOT, 'playwright', 'storage', 'state.json'),
-  defaultTimeout: 60000, // 60 seconds
+  defaultTimeout: 120000, // 120 seconds (2 minutes)
   viewport: { width: 1280, height: 800 },
 };
 

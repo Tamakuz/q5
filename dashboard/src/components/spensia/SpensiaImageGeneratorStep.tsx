@@ -11,21 +11,17 @@ export interface GeneratedImageItem {
   filePath?: string;
   status: 'idle' | 'generating' | 'success' | 'error';
   error?: string;
+  workerId?: number;
+  liveStep?: string;
 }
 
 const IMAGE_MODELS = [
-  { id: 'cx/gpt-5.5-image', name: 'cx/gpt-5.5-image (Default / Recommended)' },
+  { id: 'Nano Banana Pro', name: 'Google Flow — Nano Banana Pro (Gemini Pix 2 - Recommended)' },
   { id: 'imagen-3.0-generate-002', name: 'Google Imagen 3' },
-  { id: 'recraft-v3', name: 'Recraft V3 (Visual Vector 2D)' },
-  { id: 'flux-schnell', name: 'FLUX Schnell' },
-  { id: 'dall-e-3', name: 'OpenAI DALL-E 3' },
 ];
 
 const RESOLUTION_OPTIONS = [
-  { size: '1280x720', label: '1280x720 (720p Landscape — Default Spensia)' },
-  { size: '1024x576', label: '1024x576 (Low HD 16:9 — Super Hemat)' },
-  { size: '1792x1024', label: '1792x1024 (16:9 Full HD Landscape)' },
-  { size: 'auto', label: 'Auto (9router Auto)' },
+  { size: '1280x720', label: '1280x720 (16:9 Landscape — Default Google Flow)' },
 ];
 
 export interface BatchTopicItem {
@@ -38,7 +34,7 @@ export interface BatchTopicItem {
 }
 
 const SpensiaImageGeneratorStep: React.FC = () => {
-  const [selectedModel, setSelectedModel] = useState<string>('cx/gpt-5.5-image');
+  const [selectedModel, setSelectedModel] = useState<string>('Nano Banana Pro');
   const [selectedSize, setSelectedSize] = useState<string>('1280x720');
   const [selectedQuality, setSelectedQuality] = useState<string>('low');
   const [selectedDetail, setSelectedDetail] = useState<string>('low');
@@ -210,18 +206,19 @@ const SpensiaImageGeneratorStep: React.FC = () => {
   useEffect(() => {
     let unsubProgress: (() => void) | null = null;
     let unsubChunk: (() => void) | null = null;
+    let unsubLog: (() => void) | null = null;
 
     if (api?.onSpensiaImageProgress) {
       unsubProgress = api.onSpensiaImageProgress((progress) => {
         setBatchProgress({ current: progress.current, total: progress.total });
         if (!progress.topicId || progress.topicId === activeTopicId) {
-          setItems((prev) =>
-            prev.map((item) => {
+          setItems((prev) => {
+            const nextItems = prev.map((item) => {
               if (item.segment_id === progress.segmentId) {
                 if (progress.status === 'success' && progress.saved) {
                   return {
                     ...item,
-                    status: 'success',
+                    status: 'success' as const,
                     url: progress.saved.url,
                     filePath: progress.saved.filePath,
                     error: undefined,
@@ -229,14 +226,19 @@ const SpensiaImageGeneratorStep: React.FC = () => {
                 } else if (progress.status === 'error') {
                   return {
                     ...item,
-                    status: 'error',
+                    status: 'error' as const,
                     error: progress.error || 'Gagal me-generate gambar',
                   };
                 }
               }
               return item;
-            })
-          );
+            });
+
+            // INSTANT PERSISTENCE: Save JSON file immediately per completed image
+            saveGeneratedState(nextItems, progress.topicId || activeTopicId || undefined);
+
+            return nextItems;
+          });
         }
       });
     }
@@ -256,9 +258,23 @@ const SpensiaImageGeneratorStep: React.FC = () => {
       });
     }
 
+    if (api?.onSpensiaImageLog) {
+      unsubLog = api.onSpensiaImageLog(({ segmentId, workerId, text }) => {
+        setItems((prev) =>
+          prev.map((item) => {
+            if (item.segment_id === segmentId) {
+              return { ...item, liveStep: text, workerId: workerId || item.workerId };
+            }
+            return item;
+          })
+        );
+      });
+    }
+
     return () => {
       if (unsubProgress) unsubProgress();
       if (unsubChunk) unsubChunk();
+      if (unsubLog) unsubLog();
     };
   }, [activeTopicId]);
 
@@ -551,10 +567,10 @@ const SpensiaImageGeneratorStep: React.FC = () => {
               </span>
             </div>
             <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              <span>🖼️</span> Image Generator (9router Image API)
+              <span>🖼️</span> Image Generator (Google Flow Playwright Service)
             </h1>
             <p className="text-xs text-gray-400 max-w-2xl leading-relaxed">
-              Generate ilustrasi adegan 9router (Imagen 3, Recraft V3, FLUX, DALL-E 3) untuk setiap segmen naskah Spensia.
+              Generate ilustrasi adegan Spensia secara otomatis via Google Flow (Nano Banana Pro, x1 count, Mode Agen OFF).
             </p>
           </div>
 
@@ -745,7 +761,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
           {/* Model Selector */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-300 block">
-              Model Gambar AI (9router API):
+              Model Gambar AI (Google Flow Service):
             </label>
             <select
               value={selectedModel}
@@ -973,9 +989,26 @@ const SpensiaImageGeneratorStep: React.FC = () => {
                     {/* Image Preview / Skeleton Area */}
                     <div className="relative min-h-[160px] bg-gray-900/60 rounded-xl border border-gray-800/80 overflow-hidden flex items-center justify-center">
                       {item.status === 'generating' ? (
-                        <div className="flex flex-col items-center justify-center p-8 space-y-2">
-                          <span className="animate-spin text-2xl text-orange-400">⏳</span>
-                          <span className="text-xs text-orange-300 font-mono">Me-generate ilustrasi 9router API...</span>
+                        <div className="flex flex-col items-center justify-center p-6 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <span className="relative flex h-2.5 w-2.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
+                            </span>
+                            <span className="px-2 py-0.5 rounded bg-orange-950/90 border border-orange-800 text-[10px] font-mono text-orange-300 font-bold uppercase tracking-wider shadow-sm">
+                              {item.workerId ? `Worker Slot #${item.workerId}` : 'Worker Active'}
+                            </span>
+                          </div>
+
+                          <div className="w-full max-w-sm bg-black/70 border border-orange-900/50 rounded-xl p-3 text-center space-y-2 shadow-inner">
+                            <div className="flex items-center justify-center gap-2 text-xs font-mono text-orange-200 font-semibold">
+                              <span className="animate-spin text-sm text-orange-400">⏳</span>
+                              <span>{item.liveStep || 'Menghubungkan ke Google Flow Service...'}</span>
+                            </div>
+                            <div className="w-full bg-gray-950 h-1.5 rounded-full overflow-hidden border border-orange-900/30">
+                              <div className="bg-gradient-to-r from-orange-600 via-amber-400 to-orange-600 h-full animate-pulse w-full"></div>
+                            </div>
+                          </div>
                         </div>
                       ) : item.url ? (
                         <img

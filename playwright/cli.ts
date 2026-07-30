@@ -1,35 +1,24 @@
 import { Command } from 'commander';
 import { PlaywrightService } from './service';
-import { config } from './config';
+import { runBatchPersistentQueue } from './runner';
 
 const program = new Command();
 
 program
-  .name('playwright-cli')
-  .description('CLI tool for testing Playwright AI Google Flow pipelines & actions')
-  .version('0.1.0');
+  .name('playwright-flow-cli')
+  .description('CLI tool for Playwright Google Flow Automation')
+  .version('1.0.0');
 
 program
   .command('init-user-data')
-  .description('Initialize Google Labs user data, launch headed browser for login, and persist session')
-  .option('-u, --url <url>', 'Target URL', config.baseUrl)
-  .option('--no-headed', 'Run browser in headless mode')
-  .option('-t, --timeout <ms>', 'Max wait time for login in ms', '120000')
-  .action(async (options) => {
+  .description('Initialize Google user data session by opening browser for login and saving session state')
+  .action(async () => {
     try {
       console.log('Running init-user-data pipeline via CLI...');
-      const result = await PlaywrightService.initUserData({
-        url: options.url,
-        headed: options.headed,
-        maxWaitLoginMs: parseInt(options.timeout, 10),
-      });
-
-      console.log('\n--- Pipeline Execution Summary ---');
+      const result = await PlaywrightService.initUserData();
+      console.log('\n--- Init User Data Result ---');
       console.log(`Success: ${result.success}`);
-      console.log(`Is Logged In: ${result.isLoggedIn}`);
-      console.log(`Message: ${result.message}`);
-      if (result.storageStatePath) console.log(`Storage State: ${result.storageStatePath}`);
-      if (result.userDataDir) console.log(`User Data Dir: ${result.userDataDir}`);
+      if (result.error) console.log(`Error: ${result.error}`);
       process.exit(result.success ? 0 : 1);
     } catch (err) {
       console.error('CLI Command execution error:', err);
@@ -39,42 +28,33 @@ program
 
 program
   .command('check-session')
-  .description('Check auth status with existing saved session/persistent profile')
-  .option('-u, --url <url>', 'Target URL', config.baseUrl)
-  .action(async (options) => {
+  .description('Check Google Labs authentication status using saved session state')
+  .action(async () => {
     try {
-      console.log('Checking auth status with persistent session profile...');
-      const session = await PlaywrightService.actions.launchBrowser({ headed: true });
-      await PlaywrightService.actions.navigateToUrl(session.page, { url: options.url });
-      const status = await PlaywrightService.actions.checkAuthStatus(session.page, session.context);
-      console.log('\nAuth Status Result:', status);
-      await session.context.close();
+      const { context, page } = await PlaywrightService.actions.launchBrowser({ headed: false });
+      const status = await PlaywrightService.actions.checkAuthStatus(page, context);
+      console.log('\n--- Auth Status ---');
+      console.log(JSON.stringify(status, null, 2));
+      await context.close();
+      process.exit(status.isLoggedIn ? 0 : 1);
     } catch (err) {
-      console.error('Check session error:', err);
+      console.error('CLI Command execution error:', err);
       process.exit(1);
     }
   });
 
 program
   .command('create-project')
-  .description('Navigate to Google Flow, create a project, and extract the project UUID')
-  .option('-u, --url <url>', 'Google Flow URL', config.flowUrl)
-  .option('--no-headed', 'Run browser in headless mode')
-  .option('--close', 'Automatically close browser after extracting project UUID')
-  .action(async (options) => {
+  .description('Create a new Google Flow project and return the project UUID and URL')
+  .action(async () => {
     try {
       console.log('Running create-project pipeline via CLI...');
-      const result = await PlaywrightService.createProject({
-        flowUrl: options.url,
-        headed: options.headed,
-        autoClose: options.close,
-      });
-
+      const result = await PlaywrightService.createProject();
       console.log('\n--- Create Project Result ---');
       console.log(`Success:     ${result.success}`);
-      console.log(`Project ID:  ${result.projectId}`);
-      console.log(`Project URL: ${result.projectUrl}`);
-      console.log(`Message:     ${result.message}`);
+      console.log(`Project UUID: ${result.projectId}`);
+      if (result.projectUrl) console.log(`Project URL:  ${result.projectUrl}`);
+      if (result.error) console.log(`Error:        ${result.error}`);
       process.exit(result.success ? 0 : 1);
     } catch (err) {
       console.error('CLI Command execution error:', err);
@@ -91,11 +71,15 @@ program
   .option('-a, --aspect <aspect>', 'Aspect ratio (IMAGE_ASPECT_RATIO_LANDSCAPE|IMAGE_ASPECT_RATIO_SQUARE|IMAGE_ASPECT_RATIO_PORTRAIT)', 'IMAGE_ASPECT_RATIO_LANDSCAPE')
   .option('-b, --bearer <token>', 'Optional Bearer token')
   .option('--pure', 'Run in Pure API mode (NO browser window opened)')
+  .option('--headed', 'Run browser in visible GUI mode', true)
   .option('--no-headed', 'Run browser in headless mode')
   .option('--close', 'Automatically close browser after API call')
+  .option('--json', 'Output result strictly as JSON')
   .action(async (options) => {
     try {
-      console.log(`Running generate-images pipeline via CLI (Pure API: ${Boolean(options.pure)})...`);
+      if (!options.json) {
+        console.log(`Running generate-images pipeline via CLI (Pure API: ${Boolean(options.pure)})...`);
+      }
       let result: any;
       if (options.pure) {
         result = await PlaywrightService.generateImagesPureApi({
@@ -116,13 +100,55 @@ program
         });
       }
 
-      console.log('\n--- Generate Images Result ---');
-      console.log(`Success: ${result.success}`);
-      if (result.error) console.log(`Error:   ${result.error}`);
-      if (result.rawResponse) console.log(`Raw Response:`, JSON.stringify(result.rawResponse, null, 2));
+      if (options.json) {
+        console.log(JSON.stringify(result));
+      } else {
+        console.log('\n--- Generate Images Result ---');
+        console.log(`Success: ${result.success}`);
+        if (result.error) console.log(`Error:   ${result.error}`);
+        if (result.rawResponse) console.log(`Raw Response:`, JSON.stringify(result.rawResponse, null, 2));
+      }
       process.exit(result.success ? 0 : 1);
     } catch (err) {
-      console.error('CLI Command execution error:', err);
+      if (options.json) {
+        console.log(JSON.stringify({ success: false, error: String(err) }));
+      } else {
+        console.error('CLI Command execution error:', err);
+      }
+      process.exit(1);
+    }
+  });
+
+program
+  .command('batch-runner')
+  .description('Run a batch queue of prompts in a single persistent browser tab')
+  .option('-p, --project <id>', 'Google Flow Project UUID', '5aec769c-e1c8-4741-a8db-99546809c8db')
+  .option('-j, --items-json <json>', 'JSON string of items array [{segment_id, prompt}]')
+  .option('--headed', 'Run browser in visible GUI mode', true)
+  .option('--no-headed', 'Run browser in headless mode')
+  .action(async (options) => {
+    try {
+      const items = JSON.parse(options.itemsJson || '[]');
+      await runBatchPersistentQueue({
+        projectId: options.project,
+        items,
+        headed: options.headed,
+        onItemStart: (segmentId) => {
+          console.log(`[ITEM_START] ${segmentId}`);
+        },
+        onItemLog: (segmentId, text) => {
+          console.log(`[ITEM_LOG] ${segmentId} | ${text}`);
+        },
+        onItemSuccess: (segmentId, result) => {
+          console.log(`[ITEM_SUCCESS] ${segmentId} | ${JSON.stringify(result.images[0] || {})}`);
+        },
+        onItemError: (segmentId, error) => {
+          console.log(`[ITEM_ERROR] ${segmentId} | ${error}`);
+        },
+      });
+      process.exit(0);
+    } catch (err) {
+      console.error('Batch runner error:', err);
       process.exit(1);
     }
   });

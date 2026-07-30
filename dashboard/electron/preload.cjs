@@ -140,6 +140,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('spensia-image-chunk-start', handler);
     return () => ipcRenderer.removeListener('spensia-image-chunk-start', handler);
   },
+  onSpensiaImageLog: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('spensia-image-log', handler);
+    return () => ipcRenderer.removeListener('spensia-image-log', handler);
+  },
   uploadSpensiaVoAudio: (segmentId, sourcePath, bufferArray) =>
     ipcRenderer.invoke('upload-spensia-vo-audio', { segmentId, sourcePath, bufferArray }),
   mergeSpensiaVoAudio: (audioPaths) =>

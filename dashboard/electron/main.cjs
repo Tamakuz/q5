@@ -1267,6 +1267,55 @@ ipcMain.handle('generate-spensia-image-prompts', async (event, { promptText, mod
 const SPENSIA_IMAGES_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'images');
 if (!fs.existsSync(SPENSIA_IMAGES_DIR)) fs.mkdirSync(SPENSIA_IMAGES_DIR, { recursive: true });
 
+async function persistSpensiaImageToDisk(segmentId, savedObj, topicId) {
+  try {
+    const jsonPaths = [];
+    if (topicId) {
+      jsonPaths.push(path.join(PROJECT_ROOT, 'input', 'spensia', 'images', `generated_images_topic_${topicId}.json`));
+    }
+    jsonPaths.push(path.join(PROJECT_ROOT, 'input', 'spensia', 'generated_images.json'));
+
+    for (const jsonPath of jsonPaths) {
+      let existingData = { total_images: 0, images: [] };
+      if (fs.existsSync(jsonPath)) {
+        try {
+          const raw = fs.readFileSync(jsonPath, 'utf8');
+          existingData = JSON.parse(raw);
+        } catch (e) { }
+      }
+
+      if (!Array.isArray(existingData.images)) {
+        existingData.images = [];
+      }
+
+      const idx = existingData.images.findIndex((img) => Number(img.segment_id) === Number(segmentId));
+      if (idx >= 0) {
+        existingData.images[idx] = {
+          ...existingData.images[idx],
+          status: 'success',
+          url: savedObj.url,
+          filePath: savedObj.filePath,
+          error: undefined,
+        };
+      } else {
+        existingData.images.push({
+          segment_id: Number(segmentId),
+          status: 'success',
+          url: savedObj.url,
+          filePath: savedObj.filePath,
+        });
+      }
+
+      existingData.total_images = existingData.images.length;
+      await fs.promises.mkdir(path.dirname(jsonPath), { recursive: true });
+      await fs.promises.writeFile(jsonPath, JSON.stringify(existingData, null, 2), 'utf8');
+    }
+    console.log(`[main.cjs] Persisted generated image to JSON on disk for segment #${segmentId} (Topic #${topicId})`);
+  } catch (err) {
+    console.warn(`[main.cjs] Warning persisting image JSON for segment #${segmentId}:`, err.message);
+  }
+}
+
 async function saveSpensiaImageFile(segmentId, res, topicId) {
   // CRITICAL: Ensure folder exists before writing to prevent ENOENT and wasted tokens!
   const targetDir = topicId
@@ -1275,9 +1324,18 @@ async function saveSpensiaImageFile(segmentId, res, topicId) {
   await fs.promises.mkdir(targetDir, { recursive: true });
 
   const destPath = path.join(targetDir, `segment_${segmentId}.png`);
+  let resultObj;
+
   if (res.b64_json) {
     const buffer = Buffer.from(res.b64_json, 'base64');
     await fs.promises.writeFile(destPath, buffer);
+    resultObj = {
+      segmentId,
+      topicId: topicId || null,
+      filePath: destPath,
+      url: mediaUrl(destPath),
+      originalUrl: null,
+    };
   } else if (res.url) {
     let imgRes;
     let lastErr;
@@ -1295,10 +1353,17 @@ async function saveSpensiaImageFile(segmentId, res, topicId) {
     if (imgRes && imgRes.ok) {
       const arrayBuffer = await imgRes.arrayBuffer();
       await fs.promises.writeFile(destPath, Buffer.from(arrayBuffer));
+      resultObj = {
+        segmentId,
+        topicId: topicId || null,
+        filePath: destPath,
+        url: mediaUrl(destPath),
+        originalUrl: res.url || null,
+      };
     } else {
       console.warn(`[saveSpensiaImageFile] Failed to download image to local disk (${res.url}):`, lastErr?.message);
       // Fallback: Return remote URL so generated image is NOT lost after spending tokens
-      return {
+      resultObj = {
         segmentId,
         topicId: topicId || null,
         filePath: destPath,
@@ -1306,78 +1371,225 @@ async function saveSpensiaImageFile(segmentId, res, topicId) {
         originalUrl: res.url,
       };
     }
+  } else {
+    resultObj = {
+      segmentId,
+      topicId: topicId || null,
+      filePath: destPath,
+      url: mediaUrl(destPath),
+      originalUrl: null,
+    };
   }
-  return {
-    segmentId,
-    topicId: topicId || null,
-    filePath: destPath,
-    url: mediaUrl(destPath),
-    originalUrl: res.url || null,
-  };
+
+  await persistSpensiaImageToDisk(segmentId, resultObj, topicId);
+  return resultObj;
 }
 
-ipcMain.handle('generate-spensia-single-image', async (_event, { segmentId, prompt, model, size, quality, image_detail, topicId }) => {
-  const res = await aiClient.generateImage({ prompt, model, size, quality, image_detail });
+/**
+ * Helper: Calls Google Flow Playwright Service to generate an image & returns { url: fifeUrl }
+ */
+async function generateGoogleFlowImageDirect({ prompt, projectId, segmentId, workerId, onLog }) {
+  const targetProject = projectId || process.env.GOOGLE_FLOW_PROJECT_ID || '5aec769c-e1c8-4741-a8db-99546809c8db';
+  const cliPath = path.join(__dirname, '../../playwright/cli.ts');
+  const projectRoot = path.join(__dirname, '../../');
+
+  let lastErr = null;
+  const maxAttempts = 2;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      console.log(`[Google Flow Service] (Attempt ${attempt}/${maxAttempts}) Generating image for prompt: "${(prompt || '').substring(0, 60)}..."`);
+      if (onLog && segmentId) {
+        onLog({ segmentId, workerId, text: attempt > 1 ? `🔄 Attempt #${attempt}: Connecting to Playwright...` : '🚀 Opening Chromium Browser...' });
+      }
+
+      const res = await new Promise((resolve, reject) => {
+        const child = spawn('npx', ['tsx', cliPath, 'generate-images', '-p', targetProject, '-t', prompt, '--headed', '--close', '--json'], {
+          cwd: projectRoot,
+          env: { ...process.env },
+        });
+
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout.on('data', (data) => {
+          const str = data.toString();
+          stdout += str;
+
+          if (onLog && segmentId) {
+            if (str.includes('Launching browser')) {
+              onLog({ segmentId, workerId, text: '🚀 Opening Chromium Browser...' });
+            } else if (str.includes('Navigating to')) {
+              onLog({ segmentId, workerId, text: '🌐 Connecting to Google Flow Project...' });
+            } else if (str.includes('Typing prompt text')) {
+              onLog({ segmentId, workerId, text: '✍️ Typing prompt into Slate.js editor...' });
+            } else if (str.includes('Clicking Submit Arrow Button')) {
+              onLog({ segmentId, workerId, text: '📩 Submitting prompt to Google AI...' });
+            } else if (str.includes('Intercepted 200 OK')) {
+              onLog({ segmentId, workerId, text: '🎉 Intercepted 200 OK Response!' });
+            } else if (str.includes('Successfully extracted')) {
+              onLog({ segmentId, workerId, text: '💾 Downloading Image to Harddisk...' });
+            }
+          }
+        });
+
+        child.stderr.on('data', (data) => {
+          stderr += data.toString();
+        });
+
+        child.on('close', (code) => {
+          if (code !== 0 && !stdout.trim()) {
+            return reject(new Error(`Google Flow process failed (exit code ${code}): ${stderr || 'Unknown error'}`));
+          }
+
+          try {
+            const jsonMatch = stdout.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+              return reject(new Error(`Failed to parse JSON output from Google Flow CLI. Raw output: ${stdout}`));
+            }
+
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (!parsed.success || !parsed.images || parsed.images.length === 0) {
+              return reject(new Error(parsed.error || 'Google Flow returned no generated images.'));
+            }
+
+            const imageUrl = parsed.images[0].url;
+            if (!imageUrl) {
+              return reject(new Error('Google Flow image URL (fifeUrl) is missing in response.'));
+            }
+
+            resolve({ url: imageUrl });
+          } catch (err) {
+            reject(new Error(`Failed parsing Google Flow response: ${err.message}`));
+          }
+        });
+      });
+
+      return res;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[Google Flow Service] Attempt ${attempt}/${maxAttempts} failed: ${err.message}`);
+      if (onLog && segmentId) {
+        onLog({ segmentId, workerId, text: `⚠️ Attempt #${attempt} warning: ${err.message}` });
+      }
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
+  }
+
+  throw lastErr;
+}
+
+ipcMain.handle('generate-spensia-single-image', async (event, { segmentId, prompt, model, size, quality, image_detail, topicId }) => {
+  const res = await generateGoogleFlowImageDirect({
+    prompt,
+    segmentId,
+    workerId: 1,
+    onLog: (logData) => {
+      try {
+        event.sender.send('spensia-image-log', logData);
+      } catch { }
+    },
+  });
   return saveSpensiaImageFile(segmentId, res, topicId);
 });
 
-ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, size, quality, image_detail, concurrency = 5, topicId }) => {
+ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, size, quality, image_detail, topicId }) => {
   const results = [];
   const total = items.length;
   let completedCount = 0;
-  const batchSize = Math.max(1, Math.min(10, Number(concurrency) || 5));
 
-  for (let i = 0; i < items.length; i += batchSize) {
-    const chunk = items.slice(i, i + batchSize);
+  const targetProject = process.env.GOOGLE_FLOW_PROJECT_ID || '5aec769c-e1c8-4741-a8db-99546809c8db';
+  const cliPath = path.join(__dirname, '../../playwright/cli.ts');
+  const projectRoot = path.join(__dirname, '../../');
 
-    try {
-      event.sender.send('spensia-image-chunk-start', {
-        segmentIds: chunk.map((c) => c.segment_id),
-        topicId: topicId || null,
-      });
-    } catch { }
+  console.log(`[main.cjs] Starting SINGLE-BROWSER rapid queue injection for ${total} items in topic ${topicId || 'default'}...`);
 
-    const chunkPromises = chunk.map(async (item) => {
-      try {
-        const res = await aiClient.generateImage({ prompt: item.prompt, model, size, quality, image_detail });
-        const saved = await saveSpensiaImageFile(item.segment_id, res, topicId);
-        completedCount++;
+  await new Promise((resolve) => {
+    const itemsJsonStr = JSON.stringify(items.map((i) => ({ segment_id: i.segment_id, prompt: i.prompt })));
+    const child = spawn('npx', ['tsx', cliPath, 'batch-runner', '-p', targetProject, '-j', itemsJsonStr, '--headed'], {
+      cwd: projectRoot,
+      env: { ...process.env },
+    });
 
-        const resultObj = { ...saved, status: 'success', topicId: topicId || null };
-        results.push(resultObj);
+    let buffer = '';
 
-        try {
-          event.sender.send('spensia-image-progress', {
-            current: completedCount,
-            total,
-            segmentId: item.segment_id,
-            topicId: topicId || null,
-            saved,
-            status: 'success',
-          });
-        } catch { }
-        return resultObj;
-      } catch (err) {
-        completedCount++;
-        const resultObj = { segmentId: item.segment_id, topicId: topicId || null, error: err.message, status: 'error' };
-        results.push(resultObj);
+    child.stdout.on('data', (data) => {
+      const str = data.toString();
+      buffer += str;
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // keep last incomplete line
 
-        try {
-          event.sender.send('spensia-image-progress', {
-            current: completedCount,
-            total,
-            segmentId: item.segment_id,
-            topicId: topicId || null,
-            error: err.message,
-            status: 'error',
-          });
-        } catch { }
-        return resultObj;
+      for (const line of lines) {
+        if (!line.trim()) continue;
+
+        if (line.includes('[ITEM_START]')) {
+          const segId = Number(line.split('[ITEM_START]')[1].trim());
+          try {
+            event.sender.send('spensia-image-chunk-start', {
+              segmentIds: [segId],
+              topicId: topicId || null,
+            });
+          } catch { }
+        } else if (line.includes('[ITEM_LOG]')) {
+          const parts = line.split('[ITEM_LOG]')[1].split('|');
+          const segId = Number(parts[0].trim());
+          const text = parts.slice(1).join('|').trim();
+          try {
+            event.sender.send('spensia-image-log', { segmentId: segId, workerId: 1, text });
+          } catch { }
+        } else if (line.includes('[ITEM_SUCCESS]')) {
+          const parts = line.split('[ITEM_SUCCESS]')[1].split('|');
+          const segId = Number(parts[0].trim());
+          const jsonStr = parts.slice(1).join('|').trim();
+          try {
+            const imgObj = JSON.parse(jsonStr);
+            saveSpensiaImageFile(segId, imgObj, topicId).then((saved) => {
+              completedCount++;
+              const resultObj = { ...saved, status: 'success', topicId: topicId || null };
+              results.push(resultObj);
+              event.sender.send('spensia-image-progress', {
+                current: completedCount,
+                total,
+                segmentId: segId,
+                topicId: topicId || null,
+                saved,
+                status: 'success',
+              });
+            });
+          } catch (e) {
+            console.warn('[main.cjs] Error parsing ITEM_SUCCESS JSON:', e);
+          }
+        } else if (line.includes('[ITEM_ERROR]')) {
+          const parts = line.split('[ITEM_ERROR]')[1].split('|');
+          const segId = Number(parts[0].trim());
+          const errorMsg = parts.slice(1).join('|').trim();
+          completedCount++;
+          const resultObj = { segmentId: segId, topicId: topicId || null, error: errorMsg, status: 'error' };
+          results.push(resultObj);
+          try {
+            event.sender.send('spensia-image-progress', {
+              current: completedCount,
+              total,
+              segmentId: segId,
+              topicId: topicId || null,
+              error: errorMsg,
+              status: 'error',
+            });
+          } catch { }
+        }
       }
     });
 
-    await Promise.all(chunkPromises);
-  }
+    child.stderr.on('data', (data) => {
+      console.warn('[batch-runner stderr]', data.toString());
+    });
+
+    child.on('close', () => {
+      resolve();
+    });
+  });
 
   return results;
 });
@@ -1410,7 +1622,7 @@ ipcMain.handle('generate-spensia-thumbnail-prompts', async (event, { scriptConte
     onChunk: (chunk, fullText) => {
       try {
         event.sender.send('spensia-thumbnail-prompts-chunk', { chunk, fullText });
-      } catch {}
+      } catch { }
     },
   });
 
@@ -1432,7 +1644,7 @@ ipcMain.handle('generate-spensia-thumbnail-images', async (event, { concepts, mo
     const existingFiles = fs.readdirSync(SPENSIA_THUMBNAILS_DIR);
     for (const file of existingFiles) {
       const filePath = path.join(SPENSIA_THUMBNAILS_DIR, file);
-      try { fs.unlinkSync(filePath); } catch {}
+      try { fs.unlinkSync(filePath); } catch { }
     }
   }
   // Hapus file JSON hasil render sebelumnya
@@ -1443,7 +1655,7 @@ ipcMain.handle('generate-spensia-thumbnail-images', async (event, { concepts, mo
   ];
   for (const fp of prevFiles) {
     if (fs.existsSync(fp)) {
-      try { fs.unlinkSync(fp); } catch {}
+      try { fs.unlinkSync(fp); } catch { }
     }
   }
 
@@ -1466,10 +1678,8 @@ ipcMain.handle('generate-spensia-thumbnail-images', async (event, { concepts, mo
         status: 'generating',
       });
 
-      const res = await aiClient.generateImage({
+      const res = await generateGoogleFlowImageDirect({
         prompt: promptText,
-        model: model || 'cx/gpt-5.5-image',
-        size: size || '1280x720',
       });
 
       let localUrl = null;
@@ -1554,7 +1764,7 @@ ipcMain.handle('get-spensia-thumbnails', async () => {
     try {
       const data = JSON.parse(fs.readFileSync(promptsPath, 'utf-8'));
       concepts = data.concepts || [];
-    } catch {}
+    } catch { }
   }
 
   let rendered = [];
@@ -1567,7 +1777,7 @@ ipcMain.handle('get-spensia-thumbnails', async () => {
         }
         return r;
       });
-    } catch {}
+    } catch { }
   }
 
   let selected = null;
@@ -1575,7 +1785,7 @@ ipcMain.handle('get-spensia-thumbnails', async () => {
   if (fs.existsSync(selPath)) {
     try {
       selected = JSON.parse(fs.readFileSync(selPath, 'utf-8'));
-    } catch {}
+    } catch { }
   }
 
   return { concepts, rendered, selected };
@@ -1589,7 +1799,7 @@ ipcMain.handle('save-spensia-thumbnail-selection', async (_event, { selectedId, 
   // Copy selected thumbnail as main thumbnail.png
   if (concept?.filePath && fs.existsSync(concept.filePath)) {
     const mainThumbPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail.png');
-    try { fs.copyFileSync(concept.filePath, mainThumbPath); } catch {}
+    try { fs.copyFileSync(concept.filePath, mainThumbPath); } catch { }
   }
 
   return data;
@@ -1628,7 +1838,7 @@ ipcMain.handle('generate-spensia-upload-metadata', async (event, { scriptContent
         }
         chaptersText = chapterLines.join('\n');
       }
-    } catch {}
+    } catch { }
   }
 
   const systemPrompt = loadPrompt('upload_metadata_system.txt');
@@ -1644,7 +1854,7 @@ ipcMain.handle('generate-spensia-upload-metadata', async (event, { scriptContent
     onChunk: (chunk, fullText) => {
       try {
         event.sender.send('spensia-upload-metadata-chunk', { chunk, fullText });
-      } catch {}
+      } catch { }
     },
   });
 
@@ -1660,7 +1870,7 @@ ipcMain.handle('get-spensia-upload-metadata', async () => {
   if (fs.existsSync(savePath)) {
     try {
       return JSON.parse(fs.readFileSync(savePath, 'utf-8'));
-    } catch {}
+    } catch { }
   }
   return null;
 });
@@ -1668,12 +1878,13 @@ ipcMain.handle('get-spensia-upload-metadata', async () => {
 const SPENSIA_AUDIO_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'audio');
 if (!fs.existsSync(SPENSIA_AUDIO_DIR)) fs.mkdirSync(SPENSIA_AUDIO_DIR, { recursive: true });
 
-ipcMain.handle('upload-spensia-vo-audio', async (_event, { segmentId, sourcePath, bufferArray }) => {
+ipcMain.handle('upload-spensia-vo-audio', async (_event, { segmentId, sourcePath, bufferArray, topicId }) => {
+  const targetAudioDir = topicId ? path.join(PROJECT_ROOT, 'input', 'spensia', 'audio', `topic_${topicId}`) : SPENSIA_AUDIO_DIR;
+  await fs.promises.mkdir(targetAudioDir, { recursive: true });
+
   const ext = sourcePath ? path.extname(sourcePath) || '.mp3' : '.mp3';
   const filename = segmentId !== undefined ? `segment_${segmentId}${ext}` : `full_narration${ext}`;
-  const destPath = path.join(SPENSIA_AUDIO_DIR, filename);
-
-  await fs.promises.mkdir(SPENSIA_AUDIO_DIR, { recursive: true });
+  const destPath = path.join(targetAudioDir, filename);
 
   if (bufferArray) {
     const buffer = Buffer.from(bufferArray);
@@ -1707,7 +1918,7 @@ function getAudioDurationHelper(filePath) {
   });
 }
 
-ipcMain.handle('merge-spensia-vo-audio', async (_event, { audioPaths }) => {
+ipcMain.handle('merge-spensia-vo-audio', async (_event, { audioPaths, topicId }) => {
   if (!Array.isArray(audioPaths) || audioPaths.length === 0) {
     throw new Error('Daftar file audio tidak boleh kosong.');
   }
@@ -1717,7 +1928,10 @@ ipcMain.handle('merge-spensia-vo-audio', async (_event, { audioPaths }) => {
     throw new Error('Tidak ada file audio valid yang ditemukan untuk digabungkan.');
   }
 
-  const destPath = path.join(SPENSIA_AUDIO_DIR, 'merged_narration.mp3');
+  const targetAudioDir = topicId ? path.join(PROJECT_ROOT, 'input', 'spensia', 'audio', `topic_${topicId}`) : SPENSIA_AUDIO_DIR;
+  await fs.promises.mkdir(targetAudioDir, { recursive: true });
+
+  const destPath = path.join(targetAudioDir, 'merged_narration.mp3');
 
   if (validPaths.length === 1) {
     await fs.promises.copyFile(validPaths[0], destPath);
@@ -1792,7 +2006,7 @@ ipcMain.handle('merge-spensia-vo-audio', async (_event, { audioPaths }) => {
   }
 
   if (fs.existsSync(listFilePath)) {
-    try { fs.unlinkSync(listFilePath); } catch (_) {}
+    try { fs.unlinkSync(listFilePath); } catch (_) { }
   }
 
   const duration = await getAudioDurationHelper(destPath);
@@ -2591,7 +2805,7 @@ ipcMain.handle('get-spensia-render-result', async () => {
           renderedAt: info.renderedAt,
         };
       }
-    } catch {}
+    } catch { }
   }
 
   if (fs.existsSync(SPENSIA_OUTPUT_DIR)) {
@@ -2613,7 +2827,7 @@ ipcMain.handle('get-spensia-render-result', async () => {
           };
         }
       }
-    } catch {}
+    } catch { }
   }
 
   return null;
@@ -2625,9 +2839,9 @@ ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputP
     try {
       const oldFiles = fs.readdirSync(SPENSIA_OUTPUT_DIR).filter((f) => f.endsWith('.mp4'));
       for (const f of oldFiles) {
-        try { fs.unlinkSync(path.join(SPENSIA_OUTPUT_DIR, f)); } catch {}
+        try { fs.unlinkSync(path.join(SPENSIA_OUTPUT_DIR, f)); } catch { }
       }
-    } catch {}
+    } catch { }
   }
 
   const resolvedOutput = outputPath
@@ -2670,7 +2884,7 @@ ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputP
       try {
         const raw = JSON.parse(fs.readFileSync(mappingPath, 'utf-8'));
         mappingSegments = raw.segments || [];
-      } catch {}
+      } catch { }
     }
 
     // Calculate exact duration for every single visual segment clip
@@ -2991,7 +3205,7 @@ ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputP
 
     try {
       fs.writeFileSync(path.join(PROJECT_ROOT, 'input', 'spensia', 'last_render.json'), JSON.stringify(resultObj, null, 2), 'utf-8');
-    } catch {}
+    } catch { }
 
     return resultObj;
 

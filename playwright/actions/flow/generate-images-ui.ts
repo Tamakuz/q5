@@ -22,6 +22,31 @@ export interface UiImageResult {
 }
 
 /**
+ * Dismisses any Google Flow onboarding popups, welcome modals, or cookie banners.
+ */
+export async function dismissOverlayModals(page: Page): Promise<void> {
+  try {
+    const modalButtons = [
+      'button:has-text("Got it")',
+      'button:has-text("Mengerti")',
+      'button:has-text("Tutup")',
+      'button:has-text("Dismiss")',
+      'button:has-text("Lanjutkan")',
+      'button:has-text("Accept")',
+    ];
+
+    for (const selector of modalButtons) {
+      const btn = await page.$(selector);
+      if (btn && (await btn.isVisible())) {
+        console.log(`[Playwright Action] Dismissing overlay popup: "${selector}"`);
+        await btn.click();
+        await page.waitForTimeout(400);
+      }
+    }
+  } catch { }
+}
+
+/**
  * Ensures the 'Agen' / 'Agent' button is DEACTIVATED (toggled OFF).
  */
 export async function ensureAgentModeDisabled(page: Page): Promise<void> {
@@ -154,7 +179,7 @@ export async function generateFlowImagesUiAction(
     projectId,
     promptText,
     modelName = 'Nano Banana Pro',
-    timeoutMs = config.defaultTimeout,
+    timeoutMs = 120000,
     ensureSingleImage = true,
   } = options;
 
@@ -198,8 +223,21 @@ export async function generateFlowImagesUiAction(
     }
 
     console.log('[Playwright Action] Waiting for Google Flow prompt input bar to render...');
-    await page.waitForSelector('div[contenteditable="true"], textarea', { timeout: 30000 });
-    await page.waitForTimeout(1500);
+
+    // Dismiss any overlay popups first
+    await dismissOverlayModals(page);
+
+    const inputSelectorCombined = 'div[contenteditable="true"], [contenteditable="true"], div[role="textbox"]';
+
+    try {
+      await page.waitForSelector(inputSelectorCombined, { timeout: 45000, state: 'attached' });
+      await page.waitForSelector(inputSelectorCombined, { timeout: 45000, state: 'visible' });
+    } catch (err) {
+      console.warn('[Playwright Action] First input wait attempt timed out. Retrying overlay dismissal...');
+      await dismissOverlayModals(page);
+      await page.waitForSelector(inputSelectorCombined, { timeout: 20000, state: 'visible' });
+    }
+    await page.waitForTimeout(1000);
 
     // 2. Ensure Agent mode is OFF (deactivated)
     await ensureAgentModeDisabled(page);
@@ -210,9 +248,9 @@ export async function generateFlowImagesUiAction(
     // 4. Locate prompt input element
     const promptSelectors = [
       'div[contenteditable="true"]',
+      '[contenteditable="true"]',
+      'div[role="textbox"]',
       'textarea[placeholder*="Apa yang ingin"]',
-      'textarea',
-      'input[type="text"]',
     ];
 
     let inputElement = null;
@@ -226,7 +264,7 @@ export async function generateFlowImagesUiAction(
     }
 
     if (!inputElement) {
-      throw new Error('Prompt input field could not be found on Google Flow page.');
+      throw new Error('Prompt input field (div[contenteditable="true"]) could not be found on Google Flow page.');
     }
 
     // 5. Clean prompt text (normalize newlines to single spaces to avoid premature Enter triggers during keyboard typing)
