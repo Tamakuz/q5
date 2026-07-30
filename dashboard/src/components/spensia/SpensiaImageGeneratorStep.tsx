@@ -38,7 +38,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
   const [selectedSize, setSelectedSize] = useState<string>('1280x720');
   const [selectedQuality, setSelectedQuality] = useState<string>('low');
   const [selectedDetail, setSelectedDetail] = useState<string>('low');
-  const [concurrency, setConcurrency] = useState<number>(5);
+  const [concurrency, setConcurrency] = useState<number>(1);
 
   const [batchTopics, setBatchTopics] = useState<BatchTopicItem[]>([]);
   const [activeTopicId, setActiveTopicId] = useState<number | null>(null);
@@ -132,14 +132,13 @@ const SpensiaImageGeneratorStep: React.FC = () => {
 
   const loadTopicData = async (topicId: number | null, topicList?: BatchTopicItem[]) => {
     if (!api?.readFromProject) return;
+    const targetId = topicId || 1;
 
     // Load image prompts for this topic
-    const promptFile = topicId
-      ? `input/spensia/prompts/image_prompts_topic_${topicId}.json`
-      : 'input/spensia/image_prompts.json';
+    const promptFile = `input/spensia/prompts/image_prompts_topic_${targetId}.json`;
 
     let promptsJsonStr = (await api.readFromProject(promptFile)) || '';
-    if (!promptsJsonStr && topicId) {
+    if (!promptsJsonStr && targetId === 1) {
       promptsJsonStr = (await api.readFromProject('input/spensia/image_prompts.json')) || '';
     }
 
@@ -151,13 +150,11 @@ const SpensiaImageGeneratorStep: React.FC = () => {
       } catch {}
     }
 
-    // Load generated images state for this topic
-    const genFile = topicId
-      ? `input/spensia/images/generated_images_topic_${topicId}.json`
-      : 'input/spensia/generated_images.json';
+    // Load generated images state strictly for this topic
+    const genFile = `input/spensia/images/generated_images_topic_${targetId}.json`;
 
     let savedGenJson = (await api.readFromProject(genFile)) || '';
-    if (!savedGenJson && topicId) {
+    if (!savedGenJson && targetId === 1) {
       savedGenJson = (await api.readFromProject('input/spensia/generated_images.json')) || '';
     }
 
@@ -167,7 +164,19 @@ const SpensiaImageGeneratorStep: React.FC = () => {
         const parsedGen = JSON.parse(savedGenJson);
         if (Array.isArray(parsedGen.images)) {
           parsedGen.images.forEach((img: any) => {
-            savedGenMap[img.segment_id] = img;
+            if (img && img.segment_id) {
+              const fp = img.filePath || '';
+              // Strict topic isolation check:
+              // For topic N > 1, filePath MUST contain /topic_N/
+              // For topic 1, filePath MUST contain /topic_1/ or NOT contain any /topic_[2-9]/
+              const isForThisTopic = targetId === 1
+                ? (!fp.includes('/topic_') || fp.includes('/topic_1/'))
+                : fp.includes(`/topic_${targetId}/`);
+
+              if (isForThisTopic && (img.url || img.filePath)) {
+                savedGenMap[img.segment_id] = img;
+              }
+            }
           });
         }
       } catch {}
@@ -234,10 +243,33 @@ const SpensiaImageGeneratorStep: React.FC = () => {
               return item;
             });
 
-            // INSTANT PERSISTENCE: Save JSON file immediately per completed image
-            saveGeneratedState(nextItems, progress.topicId || activeTopicId || undefined);
+            // ROLLING CONCURRENCY QUEUE:
+            // When an item finishes, promote the next 'idle' item to 'generating'
+            // so active generating cards match concurrency (e.g. 5)!
+            const currentGeneratingCount = nextItems.filter((i) => i.status === 'generating').length;
+            const targetConcurrency = concurrency || 5;
 
-            return nextItems;
+            let finalItems = nextItems;
+            if (currentGeneratingCount < targetConcurrency) {
+              const nextIdleItem = nextItems.find((i) => i.status === 'idle' && !i.url);
+              if (nextIdleItem) {
+                finalItems = nextItems.map((item) => {
+                  if (item.segment_id === nextIdleItem.segment_id) {
+                    return {
+                      ...item,
+                      status: 'generating' as const,
+                      liveStep: 'Worker Slot Active — Injecting Prompt...',
+                    };
+                  }
+                  return item;
+                });
+              }
+            }
+
+            // INSTANT PERSISTENCE: Save JSON file immediately per completed image
+            saveGeneratedState(finalItems, progress.topicId || activeTopicId || undefined);
+
+            return finalItems;
           });
         }
       });
@@ -280,16 +312,16 @@ const SpensiaImageGeneratorStep: React.FC = () => {
 
   const saveGeneratedState = async (updatedItems: GeneratedImageItem[], topicId?: number) => {
     try {
-      const targetId = topicId || activeTopicId;
+      const targetId = topicId || activeTopicId || 1;
       if (api?.saveToProject) {
         await api.saveToProject(
-          'input/spensia/generated_images.json',
+          `input/spensia/images/generated_images_topic_${targetId}.json`,
           JSON.stringify({ total_images: updatedItems.length, images: updatedItems }, null, 2)
         );
 
-        if (targetId) {
+        if (targetId === 1) {
           await api.saveToProject(
-            `input/spensia/images/generated_images_topic_${targetId}.json`,
+            'input/spensia/generated_images.json',
             JSON.stringify({ total_images: updatedItems.length, images: updatedItems }, null, 2)
           );
         }
@@ -313,7 +345,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
     if (batchTopics.length === 0) return;
     setIsBatchQueueRunning(true);
     setBatchQueueTotal(batchTopics.length);
-    showToast(`🚀 Memulai Batch Image Generator untuk ${batchTopics.length} Topik...`);
+    showToast(`🚀 Memulai Image Generator untuk ${batchTopics.length} Topik...`);
 
     let idx = 0;
     for (const topic of batchTopics) {
@@ -374,6 +406,25 @@ const SpensiaImageGeneratorStep: React.FC = () => {
       try {
         if (api?.generateSpensiaBatchImages) {
           setBatchProgress({ current: 0, total: pendingItems.length });
+
+          // INSTANT UI FEEDBACK: Mark FIRST concurrency items as generating (rolling window)
+          const activeBatchCount = concurrency || 5;
+          const initialBatchItems = pendingItems.slice(0, activeBatchCount);
+          const initialBatchIds = new Set(initialBatchItems.map((i) => i.segment_id));
+
+          setItems((prev) =>
+            prev.map((item) => {
+              if (initialBatchIds.has(item.segment_id)) {
+                return {
+                  ...item,
+                  status: 'generating' as const,
+                  liveStep: 'Menghubungkan ke Google Flow Service...',
+                };
+              }
+              return item;
+            })
+          );
+
           const results = await api.generateSpensiaBatchImages(
             pendingItems.map((i) => ({ segment_id: i.segment_id, prompt: i.prompt })),
             selectedModel,
@@ -468,11 +519,29 @@ const SpensiaImageGeneratorStep: React.FC = () => {
     if (skippedCount > 0) {
       showToast(`⚡ Memulai generasi ${pendingItems.length} gambar pending/failed (Melewati ${skippedCount} gambar yang sudah ada)...`);
     } else {
-      showToast(`🚀 Memulai Batch Image Generation untuk ${pendingItems.length} segmen...`);
+      showToast(`🚀 Memulai Image Generation untuk ${pendingItems.length} segmen...`);
     }
 
     setIsBatchGenerating(true);
     setBatchProgress({ current: 0, total: pendingItems.length });
+
+    // INSTANT UI FEEDBACK: Mark FIRST concurrency items as generating (rolling window)
+    const activeBatchCount = concurrency || 5;
+    const initialBatchItems = pendingItems.slice(0, activeBatchCount);
+    const initialBatchIds = new Set(initialBatchItems.map((i) => i.segment_id));
+
+    setItems((prev) =>
+      prev.map((item) => {
+        if (initialBatchIds.has(item.segment_id)) {
+          return {
+            ...item,
+            status: 'generating' as const,
+            liveStep: 'Menghubungkan ke Google Flow Service...',
+          };
+        }
+        return item;
+      })
+    );
 
     try {
       if (!api?.generateSpensiaBatchImages) {
@@ -503,9 +572,9 @@ const SpensiaImageGeneratorStep: React.FC = () => {
         return updated;
       });
 
-      showToast(`✨ Batch Image Generation Selesai (${pendingItems.length} gambar diproses)!`);
+      showToast(`✨ Image Generation Selesai (${pendingItems.length} gambar diproses)!`);
     } catch (err: any) {
-      showToast(`❌ Batch Image Generation Gagal: ${err?.message || err}`);
+      showToast(`❌ Image Generation Gagal: ${err?.message || err}`);
     } finally {
       setIsBatchGenerating(false);
       setBatchProgress(null);
@@ -607,7 +676,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded-md bg-orange-950 text-orange-300 border border-orange-800 font-bold font-mono text-[10px] uppercase">
-                🚀 Batch Queue ({batchTopics.length} Topik)
+                🚀 Antrean Topik ({batchTopics.length} Topik)
               </span>
               <h3 className="text-xs font-bold text-white">
                 Pilih Topik untuk Generasi Ilustrasi Gambar:
@@ -628,7 +697,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
                 ) : (
                   <>
                     <span>⚡</span>
-                    <span>Auto Generate Semua Gambar Batch Queue</span>
+                    <span>Auto Generate Semua Gambar</span>
                   </>
                 )}
               </button>
@@ -794,22 +863,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
             </select>
           </div>
 
-          {/* Concurrency Selector */}
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-gray-300 block">
-              Kecepatan Batch (Parallel Generation):
-            </label>
-            <select
-              value={concurrency}
-              onChange={(e) => setConcurrency(Number(e.target.value))}
-              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-orange-400 focus:outline-none focus:border-orange-500 font-mono font-semibold"
-            >
-              <option value={3}>3 Gambar Paralel</option>
-              <option value={5}>5 Gambar Paralel (Default / Cepat)</option>
-              <option value={8}>8 Gambar Paralel (Super Cepat)</option>
-              <option value={10}>10 Gambar Paralel (Maksimal)</option>
-            </select>
-          </div>
+          {/* Concurrency Selector hidden as generation is sequential */}
 
           {/* Quality & Cost Saving Controls */}
           <div className="grid grid-cols-2 gap-3">
@@ -875,12 +929,12 @@ const SpensiaImageGeneratorStep: React.FC = () => {
             {isBatchGenerating ? (
               <>
                 <span className="animate-spin text-sm">⏳</span>
-                <span>Generating Batch...</span>
+                <span>Generating Images...</span>
               </>
             ) : (
               <>
                 <span>🖼️</span>
-                <span>Generate All Segments (Batch)</span>
+                <span>Generate All Segments (Sequential)</span>
               </>
             )}
           </button>

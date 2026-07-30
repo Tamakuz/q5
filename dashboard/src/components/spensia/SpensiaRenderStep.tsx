@@ -1,5 +1,5 @@
 // dashboard/src/components/spensia/SpensiaRenderStep.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type {
     SpensiaRenderConfig,
     SpensiaTimelineStructure,
@@ -9,7 +9,7 @@ import type {
     VignetteConfig,
     RenderProgress,
 } from '../../electron-api';
-import { getDefaultSpensiaRenderConfig } from '../../utils/spensiaRenderConfig';
+import { getDefaultSpensiaRenderConfig, VoiceOverConfig } from '../../utils/spensiaRenderConfig';
 
 const api = window.electronAPI;
 
@@ -146,28 +146,59 @@ const SliderRow: React.FC<{
     onChange: (v: number) => void;
     suffix?: string;
     description?: string;
-}> = ({ label, value, min, max, step, onChange, suffix = '', description }) => (
-    <div className="space-y-1.5">
-        <div className="flex justify-between items-center text-xs">
-            <div>
-                <span className="text-gray-300 font-medium">{label}</span>
-                {description && <span className="text-[10px] text-gray-500 ml-1.5">({description})</span>}
+    leftHint?: string;
+    rightHint?: string;
+}> = ({ label, value, min, max, step, onChange, suffix = '', description, leftHint, rightHint }) => {
+    const [localVal, setLocalVal] = useState<number>(value);
+
+    useEffect(() => {
+        setLocalVal(value);
+    }, [value]);
+
+    const handleValueChange = (newVal: number) => {
+        const clamped = Math.min(max, Math.max(min, isNaN(newVal) ? min : newVal));
+        setLocalVal(clamped);
+        onChange(clamped);
+    };
+
+    return (
+        <div className="space-y-2 bg-gray-950/60 p-3.5 rounded-2xl border border-gray-800/80 shadow-inner">
+            <div className="flex justify-between items-center text-xs gap-2">
+                <div className="flex-1 min-w-0">
+                    <span className="text-gray-200 font-bold tracking-tight">{label}</span>
+                    {description && <p className="text-[10px] text-gray-400 mt-0.5 leading-snug">{description}</p>}
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                    <input
+                        type="number"
+                        min={min}
+                        max={max}
+                        step={step}
+                        value={Number(localVal.toFixed(step < 0.1 ? 2 : 0))}
+                        onChange={(e) => handleValueChange(parseFloat(e.target.value))}
+                        className="w-16 bg-gray-900 border border-rose-800/60 text-rose-300 font-mono font-bold text-xs text-center rounded-xl py-1 px-1.5 focus:border-rose-500 focus:outline-none shadow-inner"
+                    />
+                    {suffix && <span className="text-[11px] font-mono text-gray-400 font-bold">{suffix}</span>}
+                </div>
             </div>
-            <span className="text-rose-400 font-mono font-bold text-xs bg-gray-950 px-2 py-0.5 rounded-lg border border-gray-800">
-                {typeof value === 'number' ? value.toFixed(step < 0.1 ? 2 : 0) : value}{suffix}
-            </span>
+
+            <input
+                type="range"
+                min={min}
+                max={max}
+                step={step}
+                value={localVal}
+                onChange={(e) => handleValueChange(parseFloat(e.target.value))}
+                className="w-full h-2.5 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-rose-500 border border-gray-800 shadow-inner"
+            />
+
+            <div className="flex justify-between items-center text-[10px] font-semibold text-gray-400 pt-0.5">
+                <span>◀ {leftHint || `Kiri: Kecil/Meredup (${min}${suffix})`}</span>
+                <span>{rightHint || `Kanan: Besar/Memperkeras (${max}${suffix})`} ▶</span>
+            </div>
         </div>
-        <input
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={value}
-            onChange={(e) => onChange(parseFloat(e.target.value))}
-            className="w-full h-2 bg-gray-950 rounded-lg appearance-none cursor-pointer accent-rose-500 border border-gray-800"
-        />
-    </div>
-);
+    );
+};
 
 const ColorInput: React.FC<{ label: string; value: string; onChange: (v: string) => void }> = ({ label, value, onChange }) => (
     <div className="flex items-center justify-between">
@@ -233,7 +264,19 @@ const NumberInput: React.FC<{
 
 // ─── Main SpensiaRenderStep Component ─────────────────────
 
+export interface BatchTopicItem {
+    id: number;
+    title: string;
+    summary?: string;
+    hasRendered?: boolean;
+    isCurrentlyRendering?: boolean;
+}
+
 const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () => {
+    const [batchTopics, setBatchTopics] = useState<BatchTopicItem[]>([]);
+    const [activeTopicId, setActiveTopicId] = useState<number | null>(null);
+    const [videoTitle, setVideoTitle] = useState<string>('');
+
     const [config, setConfig] = useState<SpensiaRenderConfig>(() => {
         const def = getDefaultSpensiaRenderConfig();
         return {
@@ -252,10 +295,82 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
     const [renderResult, setRenderResult] = useState<SpensiaRenderResult | null>(null);
     const [renderError, setRenderError] = useState<string | null>(null);
     const [toast, setToast] = useState<string | null>(null);
+    const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
 
     const showToast = (msg: string) => {
         setToast(msg);
         setTimeout(() => setToast(null), 4000);
+    };
+
+    // Load per-topic data (timeline, preview image, existing render result)
+    const loadTopicRenderData = async (topicId: number) => {
+        if (!api?.readFromProject) return null;
+
+        let parsedT: SpensiaTimelineStructure | null = null;
+
+        // 1. Load timeline data for this topic
+        let timelineJson = await api.readFromProject(`input/spensia/timelines/timeline_topic_${topicId}.json`);
+        if (!timelineJson) {
+            timelineJson = await api.readFromProject(`input/spensia/spensia_timeline_topic_${topicId}.json`);
+        }
+        if (!timelineJson && topicId === 1) {
+            timelineJson = await api.readFromProject('input/spensia/spensia_timeline.json');
+        }
+
+        if (timelineJson) {
+            try {
+                parsedT = JSON.parse(timelineJson);
+                setTimeline(parsedT);
+
+                // Load sample preview image from first clip
+                const firstClip = parsedT?.video_clips?.[0];
+                if (firstClip?.image_url) {
+                    setSampleImageUrl(firstClip.image_url);
+                } else if (firstClip?.image_path) {
+                    setSampleImageUrl(`media://content-auto/${encodeURIComponent(firstClip.image_path)}`);
+                }
+            } catch {}
+        } else {
+            setTimeline(null);
+            setSampleImageUrl(null);
+        }
+
+        // Fallback sample image check if timeline was missing preview
+        if (!sampleImageUrl) {
+            let genImgJson = await api.readFromProject(`input/spensia/images/generated_images_topic_${topicId}.json`);
+            if (!genImgJson && topicId === 1) {
+                genImgJson = await api.readFromProject('input/spensia/generated_images.json');
+            }
+            if (genImgJson) {
+                try {
+                    const parsedG = JSON.parse(genImgJson);
+                    const firstItem = Array.isArray(parsedG) ? parsedG[0] : parsedG.images?.[0];
+                    if (firstItem?.url) {
+                        setSampleImageUrl(firstItem.url);
+                    } else if (firstItem?.filePath) {
+                        setSampleImageUrl(`media://content-auto/${encodeURIComponent(firstItem.filePath)}`);
+                    }
+                } catch {}
+            }
+        }
+
+        // 2. Check existing render result for topic
+        if (api?.getSpensiaRenderResult) {
+            const existing = await api.getSpensiaRenderResult(topicId);
+            if (existing && existing.mediaUrl) {
+                setRenderResult(existing);
+                setRenderProgress({
+                    stage: 'done',
+                    progress: 1.0,
+                    message: `🎉 Video Spensia Topik #${topicId} (${existing.fileName}) Siap Diputar!`,
+                });
+            } else {
+                setRenderResult(null);
+                setRenderProgress(null);
+            }
+        }
+
+        return parsedT;
     };
 
     // Load initial data on mount
@@ -277,48 +392,48 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                         } catch {}
                     }
 
-                    // Load timeline data
-                    const timelineJson = await api.readFromProject('input/spensia/spensia_timeline.json');
-                    if (timelineJson) {
-                        try {
-                            const parsedT = JSON.parse(timelineJson);
-                            setTimeline(parsedT);
+                    // Load topics from Step 1
+                    const savedTopicsJson = await api.readFromProject('input/spensia/topics.json');
+                    let selectedId: number | null = null;
+                    let loadedTopics: BatchTopicItem[] = [];
 
-                            // Load sample preview image from first clip
-                            const firstClip = parsedT.video_clips?.[0];
-                            if (firstClip?.image_url) {
-                                setSampleImageUrl(firstClip.image_url);
-                            } else if (firstClip?.image_path) {
-                                setSampleImageUrl(`media://content-auto/${encodeURIComponent(firstClip.image_path)}`);
+                    if (savedTopicsJson) {
+                        const topicState = JSON.parse(savedTopicsJson);
+                        if (Array.isArray(topicState.selectedTopics) && topicState.selectedTopics.length > 0) {
+                            loadedTopics = topicState.selectedTopics.map((t: any) => ({
+                                id: t.id,
+                                title: t.title,
+                                summary: t.summary,
+                            }));
+                            selectedId = topicState.selectedTopicId || loadedTopics[0]?.id || null;
+                        } else if (Array.isArray(topicState.topics) && topicState.selectedTopicId) {
+                            const matched = topicState.topics.find((t: any) => t.id === topicState.selectedTopicId);
+                            if (matched) {
+                                loadedTopics = [{ id: matched.id, title: matched.title, summary: matched.summary }];
+                                selectedId = matched.id;
                             }
-                        } catch {}
-                    } else {
-                        // Fallback sample image check
-                        const genImgJson = await api.readFromProject('input/spensia/generated_images.json');
-                        if (genImgJson) {
+                        }
+                    }
+
+                    // Check per-topic rendered MP4 files
+                    const checkedTopics = await Promise.all(
+                        loadedTopics.map(async (top) => {
                             try {
-                                const parsedG = JSON.parse(genImgJson);
-                                const firstItem = Array.isArray(parsedG) ? parsedG[0] : parsedG.images?.[0];
-                                if (firstItem?.url) {
-                                    setSampleImageUrl(firstItem.url);
-                                } else if (firstItem?.filePath) {
-                                    setSampleImageUrl(`media://content-auto/${encodeURIComponent(firstItem.filePath)}`);
-                                }
-                            } catch {}
-                        }
-                    }
-                    // Auto-detect existing render result on startup
-                    if (api?.getSpensiaRenderResult) {
-                        const existing = await api.getSpensiaRenderResult();
-                        if (existing && existing.mediaUrl) {
-                            setRenderResult(existing);
-                            setRenderProgress({
-                                stage: 'done',
-                                progress: 1.0,
-                                message: `🎉 Video Spensia 1080p Sebelumnya (${existing.fileName}) Siap Diputar!`
-                            });
-                        }
-                    }
+                                const renderRes = api?.getSpensiaRenderResult ? await api.getSpensiaRenderResult(top.id) : null;
+                                return { ...top, hasRendered: Boolean(renderRes && renderRes.mediaUrl) };
+                            } catch {
+                                return top;
+                            }
+                        })
+                    );
+
+                    setBatchTopics(checkedTopics);
+                    const targetId = selectedId || checkedTopics[0]?.id || 1;
+                    setActiveTopicId(targetId);
+                    const activeTop = checkedTopics.find((t) => t.id === targetId) || checkedTopics[0];
+                    if (activeTop) setVideoTitle(activeTop.title);
+
+                    await loadTopicRenderData(targetId);
                 }
             } catch (err) {
                 console.error('Error initializing Spensia Render Step:', err);
@@ -340,46 +455,63 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
         };
     }, []);
 
-    // Helper updaters
+    const handleSwitchTopic = async (topic: BatchTopicItem) => {
+        setActiveTopicId(topic.id);
+        setVideoTitle(topic.title);
+        await loadTopicRenderData(topic.id);
+    };
+
+    const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    const saveConfigDebounced = useCallback((cfg: SpensiaRenderConfig) => {
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => {
+            if (api?.saveToProject) {
+                api.saveToProject('input/spensia/render_config.json', JSON.stringify(cfg, null, 2));
+            }
+        }, 400);
+    }, []);
+
+    // Helper updaters (instant UI state + debounced IPC save)
     const updateConfig = useCallback(<K extends keyof SpensiaRenderConfig>(key: K, value: SpensiaRenderConfig[K]) => {
         setConfig((prev) => {
             const updated = { ...prev, [key]: value };
-            if (api?.saveToProject) {
-                api.saveToProject('input/spensia/render_config.json', JSON.stringify(updated, null, 2));
-            }
+            saveConfigDebounced(updated);
             return updated;
         });
-    }, []);
+    }, [saveConfigDebounced]);
+
+    const updateVoiceOver = useCallback((patch: Partial<VoiceOverConfig>) => {
+        setConfig((prev) => {
+            const updated = { ...prev, voiceOver: { ...(prev.voiceOver || { enabled: true, volume: 1.0 }), ...patch } };
+            saveConfigDebounced(updated as any);
+            return updated;
+        });
+    }, [saveConfigDebounced]);
 
     const updateWatermark = useCallback((patch: Partial<WatermarkTextConfig>) => {
         setConfig((prev) => {
             const updated = { ...prev, watermark: { ...prev.watermark, ...patch } };
-            if (api?.saveToProject) {
-                api.saveToProject('input/spensia/render_config.json', JSON.stringify(updated, null, 2));
-            }
+            saveConfigDebounced(updated);
             return updated;
         });
-    }, []);
+    }, [saveConfigDebounced]);
 
     const updateBgm = useCallback((patch: Partial<BgmConfig>) => {
         setConfig((prev) => {
             const updated = { ...prev, bgm: { ...prev.bgm, ...patch } };
-            if (api?.saveToProject) {
-                api.saveToProject('input/spensia/render_config.json', JSON.stringify(updated, null, 2));
-            }
+            saveConfigDebounced(updated);
             return updated;
         });
-    }, []);
+    }, [saveConfigDebounced]);
 
     const updateVignette = useCallback((patch: Partial<VignetteConfig>) => {
         setConfig((prev) => {
             const updated = { ...prev, vignette: { ...prev.vignette, ...patch } };
-            if (api?.saveToProject) {
-                api.saveToProject('input/spensia/render_config.json', JSON.stringify(updated, null, 2));
-            }
+            saveConfigDebounced(updated);
             return updated;
         });
-    }, []);
+    }, [saveConfigDebounced]);
 
     const handleSaveConfig = async () => {
         try {
@@ -400,13 +532,16 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
         showToast('🔄 Konfigurasi dikembalikan ke default.');
     };
 
-    // Render Execution
+    // Single Topic Render Execution
     const handleStartRender = async () => {
         if (rendering) return;
         setRendering(true);
         setRenderResult(null);
         setRenderError(null);
-        setRenderProgress({ progress: 0.05, stage: 'init', message: 'Mempersiapkan render engine FFmpeg...' });
+        setRenderProgress({ progress: 0.05, stage: 'init', message: `Mempersiapkan render engine FFmpeg untuk Topik #${activeTopicId || 1}...` });
+        setBatchTopics((prev) =>
+            prev.map((t) => (t.id === (activeTopicId || 1) ? { ...t, isCurrentlyRendering: true } : t))
+        );
 
         try {
             if (!api?.renderSpensiaVideo) {
@@ -419,22 +554,108 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                 caption: { ...config.caption, enabled: false },
             };
 
-            showToast('🎬 Memulai proses render Spensia video 16:9...');
-            const res = await api.renderSpensiaVideo(activeConfig, timeline as any);
+            showToast(`🎬 Memulai proses render Spensia Video Topik #${activeTopicId || 1}...`);
+            const res = await api.renderSpensiaVideo(activeConfig, timeline as any, undefined, activeTopicId || undefined);
 
             if ('error' in res && res.error) {
                 setRenderError(res.error);
                 showToast(`❌ Render Gagal: ${res.error}`);
             } else {
                 setRenderResult(res as SpensiaRenderResult);
-                showToast('✨ Render Video Spensia 1080p Berhasil Selesai!');
+                setBatchTopics((prev) =>
+                    prev.map((t) => (t.id === (activeTopicId || 1) ? { ...t, hasRendered: true } : t))
+                );
+                showToast(`✨ Render Video Topik #${activeTopicId || 1} Berhasil Selesai!`);
             }
         } catch (err: any) {
             const msg = err?.message || String(err);
             setRenderError(msg);
             showToast(`❌ Render Error: ${msg}`);
         } finally {
+            setBatchTopics((prev) =>
+                prev.map((t) => (t.id === (activeTopicId || 1) ? { ...t, isCurrentlyRendering: false } : t))
+            );
             setRendering(false);
+        }
+    };
+
+    // Bulk Render Execution for ALL Topics
+    const handleRenderAllTopics = async () => {
+        if (rendering) return;
+        if (batchTopics.length === 0) {
+            await handleStartRender();
+            return;
+        }
+
+        setRendering(true);
+        setRenderError(null);
+        setBulkProgress({ current: 1, total: batchTopics.length });
+        showToast(`🚀 Memulai Bulk Render untuk ${batchTopics.length} Topik...`);
+
+        let successCount = 0;
+        try {
+            if (!api?.renderSpensiaVideo) {
+                throw new Error('API renderSpensiaVideo tidak tersedia.');
+            }
+
+            const activeConfig = {
+                ...config,
+                caption: { ...config.caption, enabled: false },
+            };
+
+            let index = 0;
+            for (const topic of batchTopics) {
+                setBulkProgress({ current: index + 1, total: batchTopics.length });
+                setBatchTopics((prev) =>
+                    prev.map((t) => (t.id === topic.id ? { ...t, isCurrentlyRendering: true } : { ...t, isCurrentlyRendering: false }))
+                );
+                
+                // Visual update: Switch current active tab to currently rendering topic
+                setActiveTopicId(topic.id);
+                setVideoTitle(topic.title);
+                setRenderResult(null);
+
+                showToast(`🎬 Memproses Render Topik #${topic.id} ("${topic.title}")...`);
+                const topicTl = await loadTopicRenderData(topic.id);
+                if (!topicTl) {
+                    showToast(`⚠️ Timeline Topik #${topic.id} belum ada, melewati topik ini...`);
+                    setBatchTopics((prev) =>
+                        prev.map((t) => (t.id === topic.id ? { ...t, isCurrentlyRendering: false } : t))
+                    );
+                    index++;
+                    continue;
+                }
+
+                const res = await api.renderSpensiaVideo(activeConfig, topicTl as any, undefined, topic.id);
+                
+                const isSuccess = !('error' in res) || !res.error;
+                if (isSuccess) {
+                    successCount++;
+                    setRenderResult(res as SpensiaRenderResult);
+                } else {
+                    setRenderError((res as any).error || 'Gagal me-render video');
+                }
+
+                setBatchTopics((prev) =>
+                    prev.map((t) => (t.id === topic.id ? { ...t, isCurrentlyRendering: false, hasRendered: isSuccess } : t))
+                );
+                index++;
+            }
+
+            showToast(`🎉 Bulk Render Selesai! ${successCount} / ${batchTopics.length} video topik berhasil dirender!`);
+        } catch (err: any) {
+            const msg = err?.message || String(err);
+            setRenderError(msg);
+            showToast(`❌ Bulk Render Error: ${msg}`);
+        } finally {
+            setBulkProgress(null);
+            setBatchTopics((prev) =>
+                prev.map((t) => ({ ...t, isCurrentlyRendering: false }))
+            );
+            setRendering(false);
+            if (activeTopicId) {
+                await loadTopicRenderData(activeTopicId);
+            }
         }
     };
 
@@ -476,6 +697,27 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                     </div>
 
                     <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+                        {batchTopics.length > 1 && (
+                            <button
+                                onClick={handleRenderAllTopics}
+                                disabled={rendering}
+                                className="px-4 py-3 bg-gradient-to-r from-amber-500 via-rose-600 to-purple-600 hover:from-amber-400 hover:to-purple-500 text-white rounded-2xl text-xs font-black shadow-xl shadow-amber-950/80 border border-amber-300/40 transition-all flex items-center gap-2 disabled:opacity-50"
+                                title="Render seluruh video topik sekaligus secara otomatis"
+                            >
+                                {rendering ? (
+                                    <>
+                                        <span className="animate-spin">⏳</span>
+                                        <span>Proses Bulk Render...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span>🚀</span>
+                                        <span>Render All Topics ({batchTopics.length})</span>
+                                    </>
+                                )}
+                            </button>
+                        )}
+
                         <button
                             onClick={handleStartRender}
                             disabled={rendering}
@@ -489,7 +731,7 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                             ) : (
                                 <>
                                     <span>🎬</span>
-                                    <span>Render Video Spensia (16:9 1080p)</span>
+                                    <span>Render Topic #{activeTopicId || 1}</span>
                                 </>
                             )}
                         </button>
@@ -511,6 +753,42 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                         </button>
                     </div>
                 </div>
+
+                {/* Top Topic Selector Bar */}
+                {batchTopics.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-4 mt-4 border-t border-rose-900/40 relative z-10">
+                        {batchTopics.map((t) => {
+                            const isActive = activeTopicId === t.id;
+                            return (
+                                <button
+                                    key={t.id}
+                                    onClick={() => handleSwitchTopic(t)}
+                                    className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${
+                                        isActive
+                                            ? 'bg-rose-950/90 border-rose-500 text-rose-200 shadow-md ring-1 ring-rose-500/40'
+                                            : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
+                                    }`}
+                                >
+                                    <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-rose-300 shrink-0">
+                                        #{t.id}
+                                    </span>
+                                    <span className="truncate">"{t.title}"</span>
+                                    <span
+                                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                            t.isCurrentlyRendering
+                                                ? 'bg-rose-900 text-rose-200 border border-rose-500 animate-pulse'
+                                                : t.hasRendered
+                                                ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                                                : 'bg-gray-900 text-gray-500 border border-gray-800'
+                                        }`}
+                                    >
+                                        {t.isCurrentlyRendering ? '🔄 Rendering...' : t.hasRendered ? '✓ Rendered' : '⏳ Ready'}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
             {/* Main Studio Grid */}
@@ -555,6 +833,11 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                                             <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500" />
                                         </span>
                                         {currentStageText}
+                                        {bulkProgress && (
+                                            <span className="text-[10px] bg-amber-950 text-amber-300 border border-amber-800 px-2 py-0.5 rounded-full font-mono animate-pulse">
+                                                Batch: {bulkProgress.current} / {bulkProgress.total}
+                                            </span>
+                                        )}
                                     </span>
                                     <span className="text-xs font-mono font-black text-rose-300 bg-rose-950/80 px-3 py-1 rounded-xl border border-rose-700/60 shadow-inner">
                                         {pctValue}%
@@ -622,12 +905,14 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                         {config.vignette.enabled && (
                             <>
                                 <SliderRow
-                                    label="Tingkat Kegelapan (Intensity)"
-                                    description="Semakin besar nilainya, semakin gelap bayangan di sudut frame"
+                                    label="Tingkat Kegelapan Vignette (Intensity)"
+                                    description="Geser kanan untuk bayangan pekat gelap cinematic, geser kiri untuk bayangan samar terang"
                                     value={config.vignette.intensity}
                                     min={0}
                                     max={1}
                                     step={0.05}
+                                    leftHint="Meredup/Terang (0.0)"
+                                    rightHint="Pekat Gelap (1.0)"
                                     onChange={(v) => updateVignette({ intensity: v })}
                                 />
                                 <div className="flex items-center gap-2 pt-1">
@@ -686,22 +971,115 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                                     onChange={(v) => updateWatermark({ position: v as WatermarkTextConfig['position'] })}
                                 />
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <SliderRow label="Ukuran Font" value={config.watermark.fontSize} min={8} max={120} step={1} onChange={(v) => updateWatermark({ fontSize: v })} suffix="px" />
-                                    <SliderRow label="Transparansi (Opacity)" value={config.watermark.opacity} min={0} max={1} step={0.05} onChange={(v) => updateWatermark({ opacity: v })} />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <SliderRow
+                                        label="Ukuran Font"
+                                        value={config.watermark.fontSize}
+                                        min={8}
+                                        max={120}
+                                        step={1}
+                                        leftHint="Kecil (8px)"
+                                        rightHint="Besar (120px)"
+                                        onChange={(v) => updateWatermark({ fontSize: v })}
+                                        suffix="px"
+                                    />
+                                    <SliderRow
+                                        label="Transparansi (Opacity)"
+                                        value={config.watermark.opacity}
+                                        min={0}
+                                        max={1}
+                                        step={0.05}
+                                        leftHint="Transparansi (0.0)"
+                                        rightHint="Jelas/Solid (1.0)"
+                                        onChange={(v) => updateWatermark({ opacity: v })}
+                                    />
                                 </div>
 
                                 <ColorInput label="Warna Teks Watermark" value={config.watermark.colorHex} onChange={(v) => updateWatermark({ colorHex: v })} />
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <SliderRow label="Geser Horisontal (Offset X)" value={config.watermark.offsetX} min={-200} max={200} step={1} onChange={(v) => updateWatermark({ offsetX: v })} suffix="px" />
-                                    <SliderRow label="Geser Vertikal (Offset Y)" value={config.watermark.offsetY} min={-200} max={200} step={1} onChange={(v) => updateWatermark({ offsetY: v })} suffix="px" />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <SliderRow
+                                        label="Geser Horisontal (Offset X)"
+                                        value={config.watermark.offsetX}
+                                        min={-200}
+                                        max={200}
+                                        step={1}
+                                        leftHint="Geser Kiri (-200px)"
+                                        rightHint="Geser Kanan (+200px)"
+                                        onChange={(v) => updateWatermark({ offsetX: v })}
+                                        suffix="px"
+                                    />
+                                    <SliderRow
+                                        label="Geser Vertikal (Offset Y)"
+                                        value={config.watermark.offsetY}
+                                        min={-200}
+                                        max={200}
+                                        step={1}
+                                        leftHint="Geser Atas (-200px)"
+                                        rightHint="Geser Bawah (+200px)"
+                                        onChange={(v) => updateWatermark({ offsetY: v })}
+                                        suffix="px"
+                                    />
                                 </div>
                             </>
                         )}
                     </ConfigSection>
 
-                    {/* ─── 3. Background Music (BGM) ─── */}
+                    {/* ─── 3. Voice Over (VO) Audio Narasi ─── */}
+                    <ConfigSection title="🎙️ Voice Over (VO) Audio Narasi" icon="🎙️" subtitle="Kontrol volume narasi suara manusia/TTS">
+                        <ToggleRow
+                            label="Aktifkan Audio Voice Over (Narasi)"
+                            description="Menggabungkan audio narasi pengisi suara ke dalam video"
+                            enabled={config.voiceOver?.enabled ?? true}
+                            onChange={(v) => updateVoiceOver({ enabled: v })}
+                        />
+
+                        {(config.voiceOver?.enabled ?? true) && (
+                            <>
+                                <SliderRow
+                                    label="Volume Voice Over (Narasi Suara)"
+                                    description="Mengatur kekerasan suara narator (Default: 1.0 / 100%. Geser kanan untuk memperkeras hingga 200%)"
+                                    value={config.voiceOver?.volume ?? 1.0}
+                                    min={0}
+                                    max={2}
+                                    step={0.05}
+                                    leftHint="🔈 Meredup / Senyap (0.0)"
+                                    rightHint="🔊 Memperkeras Narasi (2.0) ▶"
+                                    onChange={(v) => updateVoiceOver({ volume: v })}
+                                />
+
+                                <div className="flex items-center gap-2 pt-1 flex-wrap">
+                                    <span className="text-xs text-gray-400 font-medium">Preset Volume VO:</span>
+                                    <button
+                                        onClick={() => updateVoiceOver({ volume: 0.50 })}
+                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.voiceOver?.volume === 0.50 ? 'bg-rose-600 text-white border-rose-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                    >
+                                        Pelan (50%)
+                                    </button>
+                                    <button
+                                        onClick={() => updateVoiceOver({ volume: 1.0 })}
+                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${(config.voiceOver?.volume ?? 1.0) === 1.0 ? 'bg-rose-600 text-white border-rose-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                    >
+                                        🎙️ Normal (100%)
+                                    </button>
+                                    <button
+                                        onClick={() => updateVoiceOver({ volume: 1.50 })}
+                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.voiceOver?.volume === 1.50 ? 'bg-rose-600 text-white border-rose-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                    >
+                                        ⚡ Boosted (150%)
+                                    </button>
+                                    <button
+                                        onClick={() => updateVoiceOver({ volume: 2.0 })}
+                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.voiceOver?.volume === 2.0 ? 'bg-rose-600 text-white border-rose-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                    >
+                                        📢 Extra Loud (200%)
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </ConfigSection>
+
+                    {/* ─── 4. Background Music (BGM) ─── */}
                     <ConfigSection title="🎵 Background Music (BGM)" icon="🎵" subtitle="Audio latar musik Spensia">
                         <ToggleRow
                             label="Aktifkan Musik Latar (BGM)"
@@ -727,12 +1105,14 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                                 </div>
 
                                 <SliderRow
-                                    label="Volume Musik Latar"
-                                    description="Direkomendasikan 10% - 20% agar tidak menutupi suara voiceover"
+                                    label="Volume Musik Latar (BGM Audio)"
+                                    description="Geser kanan untuk memperkeras BGM, geser kiri untuk meredupkan/memperkecil BGM (Rekomendasi: 10% - 20%)"
                                     value={config.bgm.volume}
                                     min={0}
                                     max={1}
                                     step={0.05}
+                                    leftHint="🔈 Meredup / Senyap (0.0)"
+                                    rightHint="🔊 Memperkeras Musik (1.0) ▶"
                                     onChange={(v) => updateBgm({ volume: v })}
                                 />
 

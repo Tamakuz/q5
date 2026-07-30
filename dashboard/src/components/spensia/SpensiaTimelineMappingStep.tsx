@@ -33,7 +33,18 @@ export interface FullTimelineData {
   segments?: SpensiaSegmentTimestamp[];
 }
 
+export interface BatchTopicItem {
+  id: number;
+  title: string;
+  summary?: string;
+  hasTimeline?: boolean;
+}
+
 const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({ onStepChange }) => {
+  const [batchTopics, setBatchTopics] = useState<BatchTopicItem[]>([]);
+  const [activeTopicId, setActiveTopicId] = useState<number | null>(null);
+  const [videoTitle, setVideoTitle] = useState<string>('');
+
   const [timelineData, setTimelineData] = useState<FullTimelineData | null>(null);
   const [breakdownSegments, setBreakdownSegments] = useState<any[]>([]);
   const [fullScript, setFullScript] = useState<string>('');
@@ -142,6 +153,105 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
     showToast('📋 Prompt Alignment Gemini (Lengkap Naskah & Segmen) berhasil disalin!');
   };
 
+  // Load Timeline Data for specific topic
+  const loadTopicTimelineData = async (topicId: number) => {
+    if (!api?.readFromProject) return;
+
+    // 1. Load script
+    let loadedScript = await api.readFromProject(`input/spensia/scripts/full_script_topic_${topicId}.txt`);
+    if (!loadedScript) loadedScript = await api.readFromProject(`input/spensia/full_script_topic_${topicId}.txt`);
+    if (!loadedScript && topicId === 1) loadedScript = await api.readFromProject('input/spensia/full_script.txt');
+    if (loadedScript) setFullScript(loadedScript);
+    else setFullScript('');
+
+    // 2. Load breakdown
+    let bJson = await api.readFromProject(`input/spensia/breakdowns/breakdown_topic_${topicId}.json`);
+    if (!bJson) bJson = await api.readFromProject(`input/spensia/breakdown_topic_${topicId}.json`);
+    if (!bJson && topicId === 1) bJson = await api.readFromProject('input/spensia/breakdown.json');
+    if (bJson) {
+      try {
+        const parsedB = JSON.parse(bJson);
+        const segs = Array.isArray(parsedB) ? parsedB : (parsedB.segments || parsedB.breakdown || []);
+        if (Array.isArray(segs)) setBreakdownSegments(segs);
+      } catch {}
+    } else {
+      setBreakdownSegments([]);
+    }
+
+    // 3. Load audio final URL for this topic
+    let foundAudioUrl: string | null = null;
+    let savedVo2Json = await api.readFromProject(`input/spensia/mappings/vo_2parts_state_topic_${topicId}.json`);
+    if (!savedVo2Json) {
+      savedVo2Json = await api.readFromProject(`input/spensia/vo_2parts_state_topic_${topicId}.json`);
+    }
+    if (!savedVo2Json && topicId === 1) {
+      savedVo2Json = await api.readFromProject('input/spensia/mappings/vo_2parts_state.json');
+      if (!savedVo2Json) {
+        savedVo2Json = await api.readFromProject('input/spensia/vo_2parts_state.json');
+      }
+    }
+
+    if (savedVo2Json) {
+      try {
+        const parsedVo = JSON.parse(savedVo2Json);
+        if (parsedVo.mergedVo?.audioUrl || parsedVo.mergedVo?.audioPath) {
+          foundAudioUrl = parsedVo.mergedVo.audioUrl || `media://content-auto/${encodeURIComponent(parsedVo.mergedVo.audioPath)}`;
+        } else if (parsedVo.parts && Array.isArray(parsedVo.parts)) {
+          const partWithAudio = parsedVo.parts.find((p: any) => p.audioUrl || p.audioPath);
+          if (partWithAudio) {
+            foundAudioUrl = partWithAudio.audioUrl || `media://content-auto/${encodeURIComponent(partWithAudio.audioPath)}`;
+          }
+        }
+      } catch {}
+    }
+
+    if (!foundAudioUrl) {
+      const topicAudioPath = `/home/jovan/project/content-auto/input/spensia/audio/topic_${topicId}/full_narration_topic_${topicId}.wav`;
+      foundAudioUrl = `media://content-auto/${encodeURIComponent(topicAudioPath)}`;
+    }
+
+    setAudioUrl(foundAudioUrl);
+
+    // 4. Load timeline JSON from timelines/ folder or spensia_timeline_topic_${topicId}.json
+    let timelineJson = await api.readFromProject(`input/spensia/timelines/timeline_topic_${topicId}.json`);
+    if (!timelineJson) {
+      timelineJson = await api.readFromProject(`input/spensia/spensia_timeline_topic_${topicId}.json`);
+    }
+    if (!timelineJson && topicId === 1) {
+      timelineJson = await api.readFromProject('input/spensia/spensia_timeline.json');
+    }
+
+    if (timelineJson) {
+      try {
+        const parsed = JSON.parse(timelineJson);
+        if (parsed && Array.isArray(parsed.video_clips)) {
+          setTimelineData(parsed);
+          return;
+        }
+      } catch {}
+    } else {
+      setTimelineData(null);
+    }
+
+    // Fallback: load spensia_mapping_topic_${topicId}.json
+    let mappingJson = await api.readFromProject(`input/spensia/mappings/spensia_mapping_topic_${topicId}.json`);
+    if (!mappingJson) {
+      mappingJson = await api.readFromProject(`input/spensia/spensia_mapping_topic_${topicId}.json`);
+    }
+    if (!mappingJson && topicId === 1) {
+      mappingJson = await api.readFromProject('input/spensia/mappings/spensia_mapping.json');
+      if (!mappingJson) {
+        mappingJson = await api.readFromProject('input/spensia/spensia_mapping.json');
+      }
+    }
+
+    if (mappingJson) {
+      setPastedJson(mappingJson);
+    } else {
+      setPastedJson('');
+    }
+  };
+
   // Initial data load on mount
   useEffect(() => {
     (async () => {
@@ -154,47 +264,54 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
           }
           if (loadedPrompt) setTranscriptionPrompt(loadedPrompt);
 
-          // 2. Load script
-          const loadedScript = await api.readFromProject('input/spensia/full_script.txt');
-          if (loadedScript) setFullScript(loadedScript);
+          // 2. Load topics from Step 1
+          const savedTopicsJson = await api.readFromProject('input/spensia/topics.json');
+          let selectedId: number | null = null;
+          let loadedTopics: BatchTopicItem[] = [];
 
-          // 3. Load breakdown
-          const bJson = await api.readFromProject('input/spensia/breakdown.json');
-          if (bJson) {
-            try {
-              const parsedB = JSON.parse(bJson);
-              const segs = Array.isArray(parsedB) ? parsedB : (parsedB.segments || parsedB.breakdown || []);
-              if (Array.isArray(segs)) setBreakdownSegments(segs);
-            } catch {}
-          }
-
-          // 4. Load audio final URL from vo_2parts_state.json or fallback to input/spensia/audio/
-          const savedVo2Json = await api.readFromProject('input/spensia/vo_2parts_state.json');
-          let foundAudioUrl: string | null = null;
-
-          if (savedVo2Json) {
-            try {
-              const parsedVo = JSON.parse(savedVo2Json);
-              if (parsedVo.mergedVo?.audioUrl || parsedVo.mergedVo?.audioPath) {
-                foundAudioUrl = parsedVo.mergedVo.audioUrl || `media://content-auto/${encodeURIComponent(parsedVo.mergedVo.audioPath)}`;
-              } else if (parsedVo.parts && Array.isArray(parsedVo.parts)) {
-                const partWithAudio = parsedVo.parts.find((p: any) => p.audioUrl || p.audioPath);
-                if (partWithAudio) {
-                  foundAudioUrl = partWithAudio.audioUrl || `media://content-auto/${encodeURIComponent(partWithAudio.audioPath)}`;
-                }
+          if (savedTopicsJson) {
+            const topicState = JSON.parse(savedTopicsJson);
+            if (Array.isArray(topicState.selectedTopics) && topicState.selectedTopics.length > 0) {
+              loadedTopics = topicState.selectedTopics.map((t: any) => ({
+                id: t.id,
+                title: t.title,
+                summary: t.summary,
+              }));
+              selectedId = topicState.selectedTopicId || loadedTopics[0]?.id || null;
+            } else if (Array.isArray(topicState.topics) && topicState.selectedTopicId) {
+              const matched = topicState.topics.find((t: any) => t.id === topicState.selectedTopicId);
+              if (matched) {
+                loadedTopics = [{ id: matched.id, title: matched.title, summary: matched.summary }];
+                selectedId = matched.id;
               }
-            } catch {}
+            }
           }
 
-          if (!foundAudioUrl) {
-            const fallbackPath = '/home/jovan/project/content-auto/input/spensia/audio/segment_1.wav';
-            foundAudioUrl = `media://content-auto/${encodeURIComponent(fallbackPath)}`;
-          }
+          // Check per-topic timeline files in timelines/ folder
+          const checkedTopics = await Promise.all(
+            loadedTopics.map(async (top) => {
+              try {
+                let specificTl = await api.readFromProject(`input/spensia/timelines/timeline_topic_${top.id}.json`);
+                if (!specificTl) {
+                  specificTl = await api.readFromProject(`input/spensia/spensia_timeline_topic_${top.id}.json`);
+                }
+                if (!specificTl && top.id === 1) {
+                  specificTl = await api.readFromProject('input/spensia/spensia_timeline.json');
+                }
+                return { ...top, hasTimeline: Boolean(specificTl && specificTl.trim()) };
+              } catch {
+                return top;
+              }
+            })
+          );
 
-          setAudioUrl(foundAudioUrl);
+          setBatchTopics(checkedTopics);
+          const targetId = selectedId || checkedTopics[0]?.id || 1;
+          setActiveTopicId(targetId);
+          const activeTop = checkedTopics.find((t) => t.id === targetId) || checkedTopics[0];
+          if (activeTop) setVideoTitle(activeTop.title);
 
-          // 5. Load existing timeline mapping JSON if available
-          await loadTimelineData();
+          await loadTopicTimelineData(targetId);
         }
       } catch (err) {
         console.error('Error initializing Spensia Timeline Mapping Step:', err);
@@ -202,54 +319,80 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
     })();
   }, []);
 
-  const loadTimelineData = async () => {
-    try {
-      if (!api?.readFromProject) return;
-      const timelineJson = await api.readFromProject('input/spensia/spensia_timeline.json');
-      if (timelineJson) {
-        try {
-          const parsed = JSON.parse(timelineJson);
-          if (parsed && Array.isArray(parsed.video_clips)) {
-            setTimelineData(parsed);
-            return;
-          }
-        } catch {}
-      }
-
-      // Fallback: load spensia_mapping.json
-      const mappingJson = await api.readFromProject('input/spensia/spensia_mapping.json');
-      if (mappingJson) {
-        setPastedJson(mappingJson);
-      }
-    } catch (err) {
-      console.error('Error loading timeline mapping data:', err);
-    }
+  const handleSwitchTopic = async (topic: BatchTopicItem) => {
+    setActiveTopicId(topic.id);
+    setVideoTitle(topic.title);
+    await loadTopicTimelineData(topic.id);
   };
 
   // Generate Timeline Mapping via Backend Main IPC
   const handleGenerateTimeline = async () => {
     setIsGeneratingTimeline(true);
-    showToast('⚙️ Membangun Timeline Mapping JSON dari data segmen & audio...');
+    showToast(`⚙️ Membangun Timeline Mapping JSON untuk Topik #${activeTopicId || 1}...`);
     try {
       if (!api?.generateSpensiaTimeline) {
         throw new Error('API generateSpensiaTimeline tidak tersedia pada environment ini.');
       }
 
-      const res = await api.generateSpensiaTimeline();
+      const res = await api.generateSpensiaTimeline(activeTopicId || undefined);
       if (res?.error) {
         throw new Error(res.error);
       }
 
       if (res?.timeline) {
         setTimelineData(res.timeline);
+        setBatchTopics((prev) =>
+          prev.map((t) => (t.id === (activeTopicId || 1) ? { ...t, hasTimeline: true } : t))
+        );
         showToast(
-          `✨ Timeline Mapping Berhasil Dibuat (${res.timeline.video_clips?.length || 0} Segmen, Total ${
+          `✨ Timeline Mapping Topik #${activeTopicId || 1} Berhasil Dibuat (${res.timeline.video_clips?.length || 0} Segmen, Total ${
             res.timeline.total_duration_sec?.toFixed(1) || 0
           }s)!`
         );
       }
     } catch (err: any) {
       showToast(`❌ Gagal generate timeline mapping: ${err?.message || err}`);
+    } finally {
+      setIsGeneratingTimeline(false);
+    }
+  };
+
+  // Generate Timeline Mapping for ALL Topics in Bulk
+  const handleGenerateAllTimelines = async () => {
+    if (batchTopics.length === 0) {
+      await handleGenerateTimeline();
+      return;
+    }
+
+    setIsGeneratingTimeline(true);
+    showToast(`🚀 Memulai Bulk Generate Timeline Mapping untuk ${batchTopics.length} Topik...`);
+
+    let successCount = 0;
+    try {
+      if (!api?.generateSpensiaTimeline) {
+        throw new Error('API generateSpensiaTimeline tidak tersedia pada environment ini.');
+      }
+
+      for (const topic of batchTopics) {
+        showToast(`⚙️ Memproses Timeline Mapping Topik #${topic.id} ("${topic.title}")...`);
+        const res = await api.generateSpensiaTimeline(topic.id);
+        if (res?.timeline) {
+          successCount++;
+          setBatchTopics((prev) =>
+            prev.map((t) => (t.id === topic.id ? { ...t, hasTimeline: true } : t))
+          );
+          if (topic.id === (activeTopicId || 1)) {
+            setTimelineData(res.timeline);
+          }
+        }
+      }
+
+      showToast(`🎉 Bulk Timeline Selesai! ${successCount} / ${batchTopics.length} topik berhasil di-generate!`);
+      if (activeTopicId) {
+        await loadTopicTimelineData(activeTopicId);
+      }
+    } catch (err: any) {
+      showToast(`❌ Error Bulk Generate Timeline: ${err?.message || err}`);
     } finally {
       setIsGeneratingTimeline(false);
     }
@@ -271,8 +414,14 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
 
     try {
       if (api?.saveToProject) {
-        await api.saveToProject('input/spensia/spensia_mapping.json', JSON.stringify(report.normalizedData, null, 2));
-        await api.saveToProject('input/spensia/transcripts/merged_transcript.json', JSON.stringify(report.normalizedData, null, 2));
+        const topId = activeTopicId || 1;
+        await api.saveToProject(`input/spensia/mappings/spensia_mapping_topic_${topId}.json`, JSON.stringify(report.normalizedData, null, 2));
+        await api.saveToProject(`input/spensia/transcripts/merged_transcript_topic_${topId}.json`, JSON.stringify(report.normalizedData, null, 2));
+
+        if (topId === 1) {
+          await api.saveToProject('input/spensia/mappings/spensia_mapping.json', JSON.stringify(report.normalizedData, null, 2));
+          await api.saveToProject('input/spensia/transcripts/merged_transcript.json', JSON.stringify(report.normalizedData, null, 2));
+        }
       }
 
       showToast(`✨ Validasi Berhasil! ${report.summaryText}`);
@@ -368,6 +517,27 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+            {batchTopics.length > 1 && (
+              <button
+                onClick={handleGenerateAllTimelines}
+                disabled={isGeneratingTimeline}
+                className="px-4 py-2.5 bg-gradient-to-r from-amber-500 via-emerald-600 to-teal-500 hover:from-amber-400 hover:to-teal-400 text-white rounded-xl text-xs font-black shadow-lg shadow-amber-950/60 border border-amber-300/30 transition-all flex items-center gap-2 disabled:opacity-50"
+                title="Generate timeline mapping untuk seluruh topik sekaligus"
+              >
+                {isGeneratingTimeline ? (
+                  <>
+                    <span className="animate-spin">⏳</span>
+                    <span>Proses Bulk Timeline...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🚀</span>
+                    <span>Generate Timeline All Topics ({batchTopics.length})</span>
+                  </>
+                )}
+              </button>
+            )}
+
             <button
               onClick={handleGenerateTimeline}
               disabled={isGeneratingTimeline}
@@ -381,7 +551,7 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
               ) : (
                 <>
                   <span>⚡</span>
-                  <span>Generate Timeline Mapping</span>
+                  <span>Generate Timeline Topic #{activeTopicId || 1}</span>
                 </>
               )}
             </button>
@@ -405,6 +575,40 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
             )}
           </div>
         </div>
+
+        {/* Top Topic Selector Bar */}
+        {batchTopics.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-4 mt-4 border-t border-teal-900/40 relative z-10">
+            {batchTopics.map((t) => {
+              const isActive = activeTopicId === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => handleSwitchTopic(t)}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${
+                    isActive
+                      ? 'bg-teal-950/90 border-teal-500 text-teal-200 shadow-md ring-1 ring-teal-500/40'
+                      : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-teal-300 shrink-0">
+                    #{t.id}
+                  </span>
+                  <span className="truncate">"{t.title}"</span>
+                  <span
+                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                      t.hasTimeline
+                        ? 'bg-teal-950 text-teal-400 border border-teal-800'
+                        : 'bg-gray-900 text-gray-500 border border-gray-800'
+                    }`}
+                  >
+                    {t.hasTimeline ? '✓ Timeline Ready' : '⏳ Pending'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Timeline Segments Visual Mapping Inspector */}

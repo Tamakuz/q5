@@ -279,15 +279,15 @@ export interface ElectronAPI {
   onSpensiaImageProgress: (callback: (data: { current: number; total: number; segmentId: number; topicId?: number; saved?: any; error?: string; status: string }) => void) => () => void;
   onSpensiaImageChunkStart: (callback: (data: { segmentIds: number[]; topicId?: number }) => void) => () => void;
   onSpensiaImageLog?: (callback: (data: { segmentId: number; workerId?: number; text: string }) => void) => () => void;
-  uploadSpensiaVoAudio: (segmentId?: number, sourcePath?: string, bufferArray?: ArrayBuffer | number[]) => Promise<{ segmentId?: number; filename: string; filePath: string; url: string }>;
-  mergeSpensiaVoAudio: (audioPaths: string[]) => Promise<{ filename: string; filePath: string; url: string; duration: number }>;
+  uploadSpensiaVoAudio: (segmentId?: number, sourcePath?: string, bufferArray?: ArrayBuffer | number[], topicId?: number) => Promise<{ segmentId?: number; filename: string; filePath: string; url: string }>;
+  mergeSpensiaVoAudio: (audioPaths: string[], topicId?: number) => Promise<{ filename: string; filePath: string; url: string; duration: number }>;
   runWhisperxTranscribe: (audioPath: string, model?: string, language?: string, device?: string, computeType?: string) => Promise<{ success: boolean; transcriptData?: any }>;
   onWhisperxProgress: (callback: (data: { audioPath?: string; logText: string }) => void) => () => void;
 
   // Spensia Render Engine & Thumbnail Studio
-  generateSpensiaTimeline: () => Promise<{ timeline?: SpensiaTimelineStructure; saved?: boolean; error?: string }>;
-  getSpensiaRenderResult?: () => Promise<SpensiaRenderResult | null>;
-  renderSpensiaVideo: (config: SpensiaRenderConfig, timeline: SpensiaTimelineStructure, outputPath?: string) => Promise<SpensiaRenderResult>;
+  generateSpensiaTimeline: (topicId?: number) => Promise<{ timeline?: SpensiaTimelineStructure; saved?: boolean; error?: string }>;
+  getSpensiaRenderResult?: (topicId?: number) => Promise<SpensiaRenderResult | null>;
+  renderSpensiaVideo: (config: SpensiaRenderConfig, timeline: SpensiaTimelineStructure, outputPath?: string, topicId?: number) => Promise<SpensiaRenderResult>;
   renderSpensiaPreviewFrame: (config: SpensiaRenderConfig, imagePath: string) => Promise<{ filePath?: string; url?: string; error?: string }>;
 
   // Thumbnail Studio & Publish Hub SEO
@@ -345,7 +345,13 @@ export interface VignetteConfig {
   colorHex: string;
 }
 
+export interface VoiceOverConfig {
+  enabled: boolean;
+  volume: number;
+}
+
 export interface SpensiaRenderConfig {
+  voiceOver?: VoiceOverConfig;
   watermark: WatermarkTextConfig;
   caption: CaptionConfig;
   bgm: BgmConfig;

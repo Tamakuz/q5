@@ -44,6 +44,15 @@ export const CaptionConfigSchema = z.object({
 
 export type CaptionConfig = z.infer<typeof CaptionConfigSchema>;
 
+// ─── Voice Over (VO) Configuration ───────────────────
+
+export const VoiceOverConfigSchema = z.object({
+    enabled: z.boolean().default(true),
+    volume: z.number().min(0).max(2).default(1.0),
+});
+
+export type VoiceOverConfig = z.infer<typeof VoiceOverConfigSchema>;
+
 // ─── BGM Configuration ────────────────────────────────
 
 export const BgmConfigSchema = z.object({
@@ -69,6 +78,7 @@ export type VignetteConfig = z.infer<typeof VignetteConfigSchema>;
 // ─── Aggregate Spensia Render Config ──────────────────
 
 export const SpensiaRenderConfigSchema = z.object({
+    voiceOver: VoiceOverConfigSchema.default({}),
     watermark: WatermarkTextConfigSchema.default({}),
     caption: CaptionConfigSchema.default({}),
     bgm: BgmConfigSchema.default({}),

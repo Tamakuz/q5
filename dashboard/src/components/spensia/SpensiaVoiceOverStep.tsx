@@ -41,7 +41,18 @@ const PART_CONFIGS = [
   { id: 2, title: 'Part 2: Babak Kedua (Isi Lanjutan & Closing)', subtitle: 'Lanjutan naskah — Detail realita sejarah, refleksi filosofis & penutup' },
 ];
 
+export interface BatchTopicItem {
+  id: number;
+  title: string;
+  summary?: string;
+  hasVo?: boolean;
+}
+
 const SpensiaVoiceOverStep: React.FC = () => {
+  const [batchTopics, setBatchTopics] = useState<BatchTopicItem[]>([]);
+  const [activeTopicId, setActiveTopicId] = useState<number | null>(null);
+  const [videoTitle, setVideoTitle] = useState<string>('');
+
   const [sceneContext, setSceneContext] = useState<string>(DEFAULT_SCENE_CONTEXT);
   const [sampleContext, setSampleContext] = useState<string>(DEFAULT_SAMPLE_CONTEXT);
   const [fullScript, setFullScript] = useState<string>('');
@@ -111,6 +122,17 @@ const SpensiaVoiceOverStep: React.FC = () => {
       promptResult += `\n\nNASKAH ASLI (SCRIPT REFERENCE):\n${scriptToUse}`;
     }
 
+    const audioDur = mergedVo?.duration || 0;
+    const durFormatted = audioDur > 0 ? `${Math.floor(audioDur / 60)} menit ${Math.floor(audioDur % 60)} detik` : 'Unknown';
+    const durSecStr = audioDur > 0 ? audioDur.toFixed(2) : 'Unknown';
+
+    if (promptResult.includes('{{AUDIO_DURATION_SEC}}')) {
+      promptResult = promptResult.replace(/\{\{AUDIO_DURATION_SEC\}\}/g, durSecStr);
+    }
+    if (promptResult.includes('{{AUDIO_DURATION_FORMATTED}}')) {
+      promptResult = promptResult.replace(/\{\{AUDIO_DURATION_FORMATTED\}\}/g, durFormatted);
+    }
+
     let formattedBreakdown = '';
     if (breakdownSegments && breakdownSegments.length > 0) {
       formattedBreakdown = breakdownSegments
@@ -140,119 +162,192 @@ const SpensiaVoiceOverStep: React.FC = () => {
     return [p1, p2];
   };
 
+  // Load Topic Voice Over Data
+  const loadTopicVoData = async (topicId: number) => {
+    if (!api?.readFromProject) return;
+
+    // 0. Load breakdown segments for this topic
+    try {
+      let bJson = await api.readFromProject(`input/spensia/breakdowns/breakdown_topic_${topicId}.json`);
+      if (!bJson) bJson = await api.readFromProject(`input/spensia/breakdown_topic_${topicId}.json`);
+      if (!bJson) bJson = await api.readFromProject('input/spensia/breakdown.json');
+
+      if (bJson) {
+        const parsedB = JSON.parse(bJson);
+        const segs = Array.isArray(parsedB) ? parsedB : (parsedB.segments || parsedB.breakdown || []);
+        if (Array.isArray(segs)) setBreakdownSegments(segs);
+      }
+    } catch {}
+
+    // 1. Load full script for this topic
+    let loadedScript = await api.readFromProject(`input/spensia/scripts/full_script_topic_${topicId}.txt`);
+    if (!loadedScript) {
+      loadedScript = await api.readFromProject(`input/spensia/full_script_topic_${topicId}.txt`);
+    }
+    if (!loadedScript) {
+      loadedScript = await api.readFromProject('input/spensia/full_script.txt');
+    }
+    const scriptStr = loadedScript && loadedScript.trim() ? loadedScript : '';
+    setFullScript(scriptStr);
+
+    const splitTextParts = splitScriptInto2Parts(scriptStr);
+
+    // 2. Load existing 2-part VO state & Merged VO state for this topic
+    let savedVo2Json = await api.readFromProject(`input/spensia/mappings/vo_2parts_state_topic_${topicId}.json`);
+    if (!savedVo2Json) {
+      savedVo2Json = await api.readFromProject(`input/spensia/vo_2parts_state_topic_${topicId}.json`);
+    }
+    if (!savedVo2Json && topicId === 1) {
+      savedVo2Json = await api.readFromProject('input/spensia/mappings/vo_2parts_state.json');
+      if (!savedVo2Json) {
+        savedVo2Json = await api.readFromProject('input/spensia/vo_2parts_state.json');
+      }
+    }
+
+    let savedPartsMap: Record<number, any> = {};
+    let savedMergedVo: MergedVoItem | null = null;
+
+    if (savedVo2Json) {
+      try {
+        const obj = JSON.parse(savedVo2Json);
+        if (Array.isArray(obj.parts)) {
+          obj.parts.forEach((p: any) => {
+            savedPartsMap[p.part_id] = p;
+          });
+        }
+        if (obj.mergedVo) {
+          savedMergedVo = obj.mergedVo;
+        }
+      } catch {}
+    }
+
+    const initialParts: VoPartItem[] = PART_CONFIGS.map((config, idx) => {
+      const saved = savedPartsMap[config.id];
+      if (saved?.rawTranscriptJson) {
+        setPastedJsonMap((prev) => ({ ...prev, [config.id]: saved.rawTranscriptJson }));
+      }
+      return {
+        part_id: config.id,
+        part_title: config.title,
+        sub_title: config.subtitle,
+        text: saved?.text || splitTextParts[idx] || '',
+        audioUrl: saved?.audioUrl || undefined,
+        audioPath: saved?.audioPath || undefined,
+        filename: saved?.filename || undefined,
+        duration: saved?.duration || undefined,
+        status: saved?.audioUrl ? 'uploaded' : 'pending',
+        rawTranscriptJson: saved?.rawTranscriptJson || undefined,
+        transcript: saved?.transcript || undefined,
+      };
+    });
+
+    setParts(initialParts);
+
+    // Load merged transcript if saved independently for this topic
+    let savedMergedTranscriptJson = await api.readFromProject(`input/spensia/transcripts/merged_transcript_topic_${topicId}.json`);
+    if (!savedMergedTranscriptJson && topicId === 1) {
+      savedMergedTranscriptJson = await api.readFromProject('input/spensia/transcripts/merged_transcript.json');
+    }
+    if (savedMergedTranscriptJson) {
+      try {
+        const report = validateSpensiaWordTranscript(savedMergedTranscriptJson);
+        if (report.normalizedData) {
+          savedMergedVo = {
+            ...(savedMergedVo || {}),
+            rawTranscriptJson: savedMergedTranscriptJson,
+            transcript: report.normalizedData,
+          };
+        }
+      } catch {}
+    }
+
+    if (!savedMergedVo) {
+      const partWithAudio = initialParts.find((p) => p.audioUrl || p.audioPath);
+      if (partWithAudio) {
+        savedMergedVo = {
+          audioUrl: partWithAudio.audioUrl,
+          audioPath: partWithAudio.audioPath,
+          filename: partWithAudio.filename || 'segment_1.wav',
+          duration: partWithAudio.duration,
+          rawTranscriptJson: partWithAudio.rawTranscriptJson,
+          transcript: partWithAudio.transcript,
+        };
+      }
+    }
+
+    if (savedMergedVo) {
+      if (savedMergedVo.rawTranscriptJson) {
+        setPastedJsonMap((prev) => ({ ...prev, merged: savedMergedVo!.rawTranscriptJson! }));
+      }
+      setMergedVo(savedMergedVo);
+      if (savedMergedVo.transcript) {
+        setPipelineStage('completed');
+        setPipelineStatusText('Transkrip Ready');
+      } else if (savedMergedVo.audioUrl) {
+        setPipelineStage('ready');
+        setPipelineStatusText('Audio Ready (Paste Hasil Gemini)');
+      }
+    } else {
+      setMergedVo(null);
+      setPipelineStage('idle');
+      setPipelineStatusText('');
+    }
+
+    if (savedMergedVo?.audioUrl) {
+      setActiveTab(0);
+    } else {
+      setActiveTab(1);
+    }
+  };
+
   // Initial load on mount
   useEffect(() => {
     (async () => {
       await loadTranscriptionPromptFromFile();
       try {
         if (api?.readFromProject) {
-          // 0. Load breakdown segments from Step 3
-          try {
-            const bJson = await api.readFromProject('input/spensia/breakdown.json');
-            if (bJson) {
-              const parsedB = JSON.parse(bJson);
-              const segs = Array.isArray(parsedB) ? parsedB : (parsedB.segments || parsedB.breakdown || []);
-              if (Array.isArray(segs)) setBreakdownSegments(segs);
-            }
-          } catch {}
+          // 1. Load selected topics from Step 1
+          const savedTopicsJson = await api.readFromProject('input/spensia/topics.json');
+          let selectedId: number | null = null;
+          let loadedTopics: BatchTopicItem[] = [];
 
-          // 1. Load full script from Step 2
-          const loadedScript = await api.readFromProject('input/spensia/full_script.txt');
-          const scriptStr = loadedScript && loadedScript.trim() ? loadedScript : '';
-          setFullScript(scriptStr);
-
-          const splitTextParts = splitScriptInto2Parts(scriptStr);
-
-          // 2. Load existing 2-part VO state & Merged VO state
-          const savedVo2Json = await api.readFromProject('input/spensia/vo_2parts_state.json');
-          let savedPartsMap: Record<number, any> = {};
-          let savedMergedVo: MergedVoItem | null = null;
-
-          if (savedVo2Json) {
-            try {
-              const obj = JSON.parse(savedVo2Json);
-              if (Array.isArray(obj.parts)) {
-                obj.parts.forEach((p: any) => {
-                  savedPartsMap[p.part_id] = p;
-                });
+          if (savedTopicsJson) {
+            const topicState = JSON.parse(savedTopicsJson);
+            if (Array.isArray(topicState.selectedTopics) && topicState.selectedTopics.length > 0) {
+              loadedTopics = topicState.selectedTopics.map((t: any) => ({
+                id: t.id,
+                title: t.title,
+                summary: t.summary,
+              }));
+              selectedId = topicState.selectedTopicId || loadedTopics[0]?.id || null;
+            } else if (Array.isArray(topicState.topics) && topicState.selectedTopicId) {
+              const matched = topicState.topics.find((t: any) => t.id === topicState.selectedTopicId);
+              if (matched) {
+                loadedTopics = [{ id: matched.id, title: matched.title, summary: matched.summary }];
+                selectedId = matched.id;
               }
-              if (obj.mergedVo) {
-                savedMergedVo = obj.mergedVo;
+            }
+          }
+
+          // Check per-topic VO files to update hasVo badges
+          const checkedTopics = await Promise.all(
+            loadedTopics.map(async (top) => {
+              try {
+                const specificVo = await api.readFromProject(`input/spensia/vo_2parts_state_topic_${top.id}.json`);
+                return { ...top, hasVo: Boolean(specificVo && specificVo.trim()) };
+              } catch {
+                return top;
               }
-            } catch {}
-          }
+            })
+          );
 
-          const initialParts: VoPartItem[] = PART_CONFIGS.map((config, idx) => {
-            const saved = savedPartsMap[config.id];
-            if (saved?.rawTranscriptJson) {
-              setPastedJsonMap((prev) => ({ ...prev, [config.id]: saved.rawTranscriptJson }));
-            }
-            return {
-              part_id: config.id,
-              part_title: config.title,
-              sub_title: config.subtitle,
-              text: saved?.text || splitTextParts[idx] || '',
-              audioUrl: saved?.audioUrl || undefined,
-              audioPath: saved?.audioPath || undefined,
-              filename: saved?.filename || undefined,
-              duration: saved?.duration || undefined,
-              status: saved?.audioUrl ? 'uploaded' : 'pending',
-              rawTranscriptJson: saved?.rawTranscriptJson || undefined,
-              transcript: saved?.transcript || undefined,
-            };
-          });
+          setBatchTopics(checkedTopics);
+          const targetId = selectedId || checkedTopics[0]?.id || 1;
+          setActiveTopicId(targetId);
+          const activeTop = checkedTopics.find((t) => t.id === targetId) || checkedTopics[0];
+          if (activeTop) setVideoTitle(activeTop.title);
 
-          setParts(initialParts);
-
-          // Load merged transcript if saved independently
-          const savedMergedTranscriptJson = await api.readFromProject('input/spensia/transcripts/merged_transcript.json');
-          if (savedMergedTranscriptJson) {
-            try {
-              const report = validateSpensiaWordTranscript(savedMergedTranscriptJson);
-              if (report.normalizedData) {
-                savedMergedVo = {
-                  ...(savedMergedVo || {}),
-                  rawTranscriptJson: savedMergedTranscriptJson,
-                  transcript: report.normalizedData,
-                };
-              }
-            } catch {}
-          }
-
-          if (!savedMergedVo) {
-            const partWithAudio = initialParts.find((p) => p.audioUrl || p.audioPath);
-            if (partWithAudio) {
-              savedMergedVo = {
-                audioUrl: partWithAudio.audioUrl,
-                audioPath: partWithAudio.audioPath,
-                filename: partWithAudio.filename || 'segment_1.wav',
-                duration: partWithAudio.duration,
-                rawTranscriptJson: partWithAudio.rawTranscriptJson,
-                transcript: partWithAudio.transcript,
-              };
-            }
-          }
-
-          if (savedMergedVo) {
-            if (savedMergedVo.rawTranscriptJson) {
-              setPastedJsonMap((prev) => ({ ...prev, merged: savedMergedVo!.rawTranscriptJson! }));
-            }
-            setMergedVo(savedMergedVo);
-            if (savedMergedVo.transcript) {
-              setPipelineStage('completed');
-              setPipelineStatusText('Transkrip Ready');
-            } else if (savedMergedVo.audioUrl) {
-              setPipelineStage('ready');
-              setPipelineStatusText('Audio Ready (Paste Hasil Gemini)');
-            }
-          }
-
-          // Default tab: If merged audio ready, open Merged tab (0), otherwise Part 1 (1)
-          if (savedMergedVo?.audioUrl) {
-            setActiveTab(0);
-          } else {
-            setActiveTab(1);
-          }
+          await loadTopicVoData(targetId);
         }
       } catch (err) {
         console.error('Error initializing Spensia 2-Part VO step:', err);
@@ -260,7 +355,13 @@ const SpensiaVoiceOverStep: React.FC = () => {
     })();
   }, []);
 
-  const save2PartsState = async (updatedParts: VoPartItem[], updatedMergedVo?: MergedVoItem | null) => {
+  const handleSwitchTopic = async (topic: BatchTopicItem) => {
+    setActiveTopicId(topic.id);
+    setVideoTitle(topic.title);
+    await loadTopicVoData(topic.id);
+  };
+
+  const save2PartsState = async (updatedParts: VoPartItem[], updatedMergedVo?: MergedVoItem | null, targetTopicId?: number) => {
     try {
       const activeMergedVo = updatedMergedVo !== undefined ? updatedMergedVo : mergedVo;
       const payload = JSON.stringify(
@@ -273,9 +374,19 @@ const SpensiaVoiceOverStep: React.FC = () => {
         2
       );
 
-      localStorage.setItem('spensia_vo_2parts_state', payload);
-      if (api?.saveToProject) {
-        await api.saveToProject('input/spensia/vo_2parts_state.json', payload);
+      const topId = targetTopicId || activeTopicId;
+      if (topId) {
+        localStorage.setItem(`spensia_vo_2parts_state_topic_${topId}`, payload);
+        if (api?.saveToProject) {
+          await api.saveToProject(`input/spensia/mappings/vo_2parts_state_topic_${topId}.json`, payload);
+        }
+      }
+
+      if (!topId || topId === 1) {
+        localStorage.setItem('spensia_vo_2parts_state', payload);
+        if (api?.saveToProject) {
+          await api.saveToProject('input/spensia/mappings/vo_2parts_state.json', payload);
+        }
       }
     } catch (err) {
       console.error('Error saving 2-parts VO state:', err);
@@ -352,7 +463,7 @@ const SpensiaVoiceOverStep: React.FC = () => {
     let res: any = null;
 
     if (api?.uploadSpensiaVoAudio) {
-      res = await api.uploadSpensiaVoAudio(partId, (file as any).path || file.name, bufferArray);
+      res = await api.uploadSpensiaVoAudio(partId, (file as any).path || file.name, bufferArray, activeTopicId || undefined);
     } else {
       const objectUrl = URL.createObjectURL(file);
       res = { filename: file.name, url: objectUrl };
@@ -415,7 +526,7 @@ const SpensiaVoiceOverStep: React.FC = () => {
 
     let res: any = null;
     if (api?.uploadSpensiaVoAudio) {
-      res = await api.uploadSpensiaVoAudio(undefined, (file as any).path || file.name, bufferArray);
+      res = await api.uploadSpensiaVoAudio(undefined, (file as any).path || file.name, bufferArray, activeTopicId || undefined);
     } else {
       const objectUrl = URL.createObjectURL(file);
       res = { filename: file.name, url: objectUrl, filePath: file.name };
@@ -479,7 +590,7 @@ const SpensiaVoiceOverStep: React.FC = () => {
         throw new Error('API mergeSpensiaVoAudio tidak tersedia di environment ini.');
       }
 
-      const mergeRes = await api.mergeSpensiaVoAudio(audioPaths);
+      const mergeRes = await api.mergeSpensiaVoAudio(audioPaths, activeTopicId || undefined);
 
       if (!mergeRes || !mergeRes.filePath) {
         throw new Error('Gagal melakukan penggabungan file audio.');
@@ -528,18 +639,30 @@ const SpensiaVoiceOverStep: React.FC = () => {
         save2PartsState(parts, updatedMerged);
 
         if (api?.saveToProject) {
-          api.saveToProject(
-            'input/spensia/transcripts/merged_transcript.json',
-            JSON.stringify(report.normalizedData, null, 2)
-          );
-          api.saveToProject(
-            'input/spensia/transcripts/transcript.json',
-            JSON.stringify(report.normalizedData, null, 2)
-          );
-          api.saveToProject(
-            'input/spensia/spensia_mapping.json',
-            JSON.stringify(report.normalizedData, null, 2)
-          );
+          if (activeTopicId) {
+            api.saveToProject(
+              `input/spensia/transcripts/merged_transcript_topic_${activeTopicId}.json`,
+              JSON.stringify(report.normalizedData, null, 2)
+            );
+            api.saveToProject(
+              `input/spensia/mappings/spensia_mapping_topic_${activeTopicId}.json`,
+              JSON.stringify(report.normalizedData, null, 2)
+            );
+          }
+          if (!activeTopicId || activeTopicId === 1) {
+            api.saveToProject(
+              'input/spensia/transcripts/merged_transcript.json',
+              JSON.stringify(report.normalizedData, null, 2)
+            );
+            api.saveToProject(
+              'input/spensia/transcripts/transcript.json',
+              JSON.stringify(report.normalizedData, null, 2)
+            );
+            api.saveToProject(
+              'input/spensia/mappings/spensia_mapping.json',
+              JSON.stringify(report.normalizedData, null, 2)
+            );
+          }
         }
 
         setPipelineStage('completed');
@@ -679,6 +802,40 @@ const SpensiaVoiceOverStep: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Top Topic Selector Bar */}
+        {batchTopics.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-4 mt-4 border-t border-emerald-900/40 relative z-10">
+            {batchTopics.map((t) => {
+              const isActive = activeTopicId === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => handleSwitchTopic(t)}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${
+                    isActive
+                      ? 'bg-emerald-950/90 border-emerald-500 text-emerald-200 shadow-md ring-1 ring-emerald-500/40'
+                      : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-emerald-300 shrink-0">
+                    #{t.id}
+                  </span>
+                  <span className="truncate">"{t.title}"</span>
+                  <span
+                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                      t.hasVo
+                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                        : 'bg-gray-900 text-gray-500 border border-gray-800'
+                    }`}
+                  >
+                    {t.hasVo ? '✓ VO Ready' : '⏳ VO Pending'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Collapsible Transcription Prompt Editor */}
@@ -804,656 +961,439 @@ const SpensiaVoiceOverStep: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Tab Selector: Merged Audio Final vs Individual Parts */}
-      <div className="flex items-center gap-3 bg-gray-950 p-2 rounded-2xl border border-gray-800">
-        <button
-          onClick={() => setActiveTab(0)}
-          className={`flex-1 py-3.5 px-6 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2.5 ${
-            activeTab === 0
-              ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-400/40'
-              : 'text-gray-300 hover:text-white hover:bg-gray-900'
-          }`}
-        >
-          <span className="w-6 h-6 rounded-lg bg-black/40 flex items-center justify-center font-mono text-xs font-bold text-emerald-400">
-            ⚡
-          </span>
-          <span className="text-xs font-black uppercase tracking-wider">
-            Audio Final & Gemini Transkrip Gabungan
-          </span>
-          {mergedVo?.transcript ? (
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
-          ) : mergedVo?.audioUrl ? (
-            <span className="w-2.5 h-2.5 rounded-full bg-teal-400 shrink-0 animate-ping" />
-          ) : (
-            <span className="w-2.5 h-2.5 rounded-full bg-gray-600 shrink-0" />
-          )}
-        </button>
+      {/* Single Audio Narasi & Gemini Transkrip Studio per Topic */}
+      <div className="bg-gray-900/90 p-7 rounded-3xl border border-emerald-800/40 shadow-2xl space-y-6 animate-in fade-in duration-200">
+        {/* Card Header & Gemini Prompt Action */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-xl bg-emerald-950 border border-emerald-800 text-emerald-300 text-sm font-mono font-bold flex items-center justify-center">
+                🎙️
+              </span>
+              <h2 className="text-base font-extrabold text-white">
+                Audio Narasi Spensia & Gemini AI Audio Alignment (Topik #{activeTopicId || 1})
+              </h2>
+            </div>
+            <p className="text-xs text-gray-400 pl-11">
+              Upload 1 file audio VO narasi lengkap, salin prompt presisi Gemini (otomatis menyertakan Naskah Asli), lalu tempelkan hasil JSON dari Gemini.
+            </p>
+          </div>
 
-        {parts.map((p) => (
-          <button
-            key={p.part_id}
-            onClick={() => setActiveTab(p.part_id)}
-            className={`py-3.5 px-5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-              activeTab === p.part_id
-                ? 'bg-gray-800 text-white border border-gray-700 shadow-md'
-                : 'text-gray-400 hover:text-white hover:bg-gray-900'
-            }`}
-          >
-            <span className="w-5 h-5 rounded-md bg-black/30 flex items-center justify-center font-mono text-[11px] font-bold">
-              #{p.part_id}
-            </span>
-            <span className="text-xs font-extrabold">{p.part_title.split(':')[0]}</span>
-            {p.status === 'uploaded' ? (
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-            ) : (
-              <span className="w-2 h-2 rounded-full bg-gray-600 shrink-0" />
-            )}
-          </button>
-        ))}
-      </div>
+          <div className="flex items-center gap-2 shrink-0 pl-11 sm:pl-0">
+            <button
+              onClick={() => handleCopyGeminiPrompt(fullScript, 'Prompt Gemini Full Script')}
+              className="px-4 py-2 bg-emerald-900 hover:bg-emerald-800 text-emerald-200 rounded-xl text-xs font-extrabold border border-emerald-700 shadow-md transition-all flex items-center gap-1.5"
+            >
+              <span>📋</span>
+              <span>Copy Gemini Prompt (Lengkap Naskah)</span>
+            </button>
+          </div>
+        </div>
 
-      {/* ─── TAB 0: MERGED AUDIO FINAL & GEMINI TRANSCRIPT VIEW ─── */}
-      {activeTab === 0 && (
-        <div className="bg-gray-900/90 p-7 rounded-3xl border border-emerald-800/40 shadow-2xl space-y-6 animate-in fade-in duration-200">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-4">
-            <div className="space-y-1">
+        {/* Full Script Reference Section */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-white flex items-center gap-2">
+              <span>📜</span> Naskah Lengkap Video (Topik #{activeTopicId || 1}):
+            </label>
+
+            <button
+              onClick={() => handleCopyText(fullScript, 'Naskah Lengkap Video')}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
+            >
+              <span>📋</span>
+              <span>Salin Naskah Topik #{activeTopicId || 1}</span>
+            </button>
+          </div>
+
+          <textarea
+            value={fullScript}
+            onChange={(e) => setFullScript(e.target.value)}
+            rows={5}
+            className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-4 text-xs text-gray-200 font-mono leading-relaxed focus:outline-none focus:border-emerald-500 shadow-inner"
+            placeholder="Naskah lengkap video dari Step 2 akan tampil di sini..."
+          />
+        </div>
+
+        {/* Single Audio Player / Dropzone Card */}
+        {mergedVo?.audioUrl ? (
+          <div className="p-5 bg-gray-950 border border-emerald-800/60 rounded-2xl space-y-3 shadow-inner">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <span className="w-8 h-8 rounded-xl bg-emerald-950 border border-emerald-800 text-emerald-300 text-sm font-mono font-bold flex items-center justify-center">
-                  ⚡
-                </span>
-                <h2 className="text-base font-extrabold text-white">Audio Final Gabungan & Gemini Transkrip</h2>
+                <div className="w-10 h-10 bg-emerald-950 text-emerald-400 rounded-xl flex items-center justify-center text-lg border border-emerald-800 shrink-0">
+                  🎵
+                </div>
+                <div>
+                  <h5 className="text-xs font-bold text-white truncate max-w-md">
+                    {mergedVo.filename || `full_narration_topic_${activeTopicId || 1}.mp3`}
+                  </h5>
+                  <span className="text-[11px] font-mono text-emerald-400 font-bold">
+                    Durasi Audio Narasi: {formatDuration(mergedVo.duration)}
+                  </span>
+                </div>
               </div>
-              <p className="text-xs text-gray-400 pl-11">
-                Seluruh file part audio VO digabungkan secara sequential tanpa gap/overlap. Gunakan Gemini Prompt untuk mendapatkan timestamp presisi sepanjang video.
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleUploadMergedAudioDirect()}
+                  className="px-3 py-1 bg-gray-900 hover:bg-gray-800 text-gray-300 rounded-xl text-xs font-semibold border border-gray-700 transition-all flex items-center gap-1"
+                >
+                  <span>📤</span>
+                  <span>Ganti File Audio</span>
+                </button>
+                <span className="text-xs font-mono font-bold px-3 py-1 bg-emerald-950 text-emerald-300 rounded-xl border border-emerald-800">
+                  ✓ Audio Ready
+                </span>
+              </div>
+            </div>
+
+            {/* Audio Player for Merged File */}
+            <audio
+              ref={(el) => (audioRefs.current['merged'] = el)}
+              src={mergedVo.audioUrl}
+              controls
+              onLoadedMetadata={(e) => handleAudioLoadedMetadata('merged', e)}
+              onTimeUpdate={(e) => handleAudioTimeUpdate('merged', e)}
+              className="w-full h-10 focus:outline-none rounded-xl"
+            />
+          </div>
+        ) : (
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const file = e.dataTransfer.files?.[0];
+              if (file) handleUploadMergedAudioDirect(file);
+            }}
+            onClick={() => handleUploadMergedAudioDirect()}
+            className="p-8 bg-gray-950 border-2 border-dashed border-gray-800 hover:border-emerald-500/80 rounded-2xl text-center space-y-3 cursor-pointer transition-all duration-200 group"
+          >
+            <div className="w-12 h-12 bg-emerald-950 text-emerald-400 rounded-2xl flex items-center justify-center text-xl mx-auto border border-emerald-800 group-hover:scale-110 transition-transform">
+              🎙️
+            </div>
+            <div className="space-y-1">
+              <h5 className="text-xs font-bold text-white">
+                Drag & Drop atau Klik untuk Upload 1 File Audio Narasi Spensia (Topik #{activeTopicId || 1})
+              </h5>
+              <p className="text-[11px] text-gray-400 max-w-md mx-auto">
+                Upload file audio VO narasi lengkap dari Google AI Studio atau TTS (.mp3 / .wav / .m4a)
+              </p>
+            </div>
+            <div className="pt-2">
+              <button
+                type="button"
+                className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white font-extrabold text-xs rounded-xl hover:from-emerald-500 hover:to-cyan-500 shadow-lg shadow-emerald-950/50 flex items-center gap-2 mx-auto"
+              >
+                <span>📤</span>
+                <span>Pilih File Audio Narasi</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Gemini JSON Transcript Input Area */}
+        <div className="p-6 bg-gray-950 border border-teal-800/60 rounded-2xl space-y-4 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-3">
+            <div>
+              <label className="text-xs font-extrabold text-teal-300 flex items-center gap-2">
+                <span>📥</span> Input Hasil Audio Mapping JSON dari Gemini (Segments Timestamps):
+              </label>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                Paste output JSON (field <code className="text-teal-300 font-mono">segments</code>) yang dihasilkan Gemini di Google AI Studio di sini.
               </p>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 pl-11 sm:pl-0">
-              <button
-                onClick={() => handleCopyGeminiPrompt(fullScript, 'Prompt Gemini Full Script')}
-                className="px-4 py-2 bg-emerald-900 hover:bg-emerald-800 text-emerald-200 rounded-xl text-xs font-extrabold border border-emerald-700 shadow-md transition-all flex items-center gap-1.5"
-              >
-                <span>📋</span>
-                <span>Copy Gemini Prompt (Lengkap Naskah)</span>
-              </button>
-
-              <button
-                onClick={() => handleRunMergeAudioPipeline()}
-                disabled={pipelineStage === 'merging'}
-                className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
-              >
-                {pipelineStage === 'merging' ? (
-                  <>
-                    <span className="animate-spin">⏳</span>
-                    <span>{pipelineStatusText}...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>🔄</span>
-                    <span>Gabung Ulang Audio Parts</span>
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              onClick={() => handleCopyGeminiPrompt(fullScript, 'Prompt Gemini')}
+              className="px-3.5 py-1.5 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 shrink-0"
+            >
+              <span>📋</span>
+              <span>Salin Prompt Gemini</span>
+            </button>
           </div>
 
-          {/* Merged Audio Player Card */}
-          {mergedVo?.audioUrl ? (
-            <div className="p-5 bg-gray-950 border border-emerald-800/60 rounded-2xl space-y-3 shadow-inner">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-emerald-950 text-emerald-400 rounded-xl flex items-center justify-center text-lg border border-emerald-800 shrink-0">
-                    🎵
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-bold text-white truncate max-w-md">
-                      {mergedVo.filename || 'merged_narration.mp3'}
-                    </h5>
-                    <span className="text-[11px] font-mono text-emerald-400 font-bold">
-                      Durasi Audio Final: {formatDuration(mergedVo.duration)}
-                    </span>
-                  </div>
-                </div>
+          <textarea
+            value={pastedJsonMap['merged'] || ''}
+            onChange={(e) => setPastedJsonMap({ ...pastedJsonMap, merged: e.target.value })}
+            rows={6}
+            className="w-full bg-gray-900 border border-gray-800 rounded-xl p-4 text-xs text-gray-200 font-mono leading-relaxed focus:outline-none focus:border-teal-500 shadow-inner"
+            placeholder='Paste teks JSON hasil Gemini di sini (contoh: { "segments": [ { "segment_id": 1, "quote": "...", "start_sec": 0.0, "end_sec": 5.5, "duration_sec": 5.5 } ] })...'
+          />
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleUploadMergedAudioDirect()}
-                    className="px-3 py-1 bg-gray-900 hover:bg-gray-800 text-gray-300 rounded-xl text-xs font-semibold border border-gray-700 transition-all flex items-center gap-1"
-                  >
-                    <span>📤</span>
-                    <span>Ganti Audio (1 File)</span>
-                  </button>
-                  <span className="text-xs font-mono font-bold px-3 py-1 bg-emerald-950 text-emerald-300 rounded-xl border border-emerald-800">
-                    ✓ Audio Ready
-                  </span>
-                </div>
-              </div>
-
-              {/* Audio Player for Merged File */}
-              <audio
-                ref={(el) => (audioRefs.current['merged'] = el)}
-                src={mergedVo.audioUrl}
-                controls
-                onLoadedMetadata={(e) => handleAudioLoadedMetadata('merged', e)}
-                onTimeUpdate={(e) => handleAudioTimeUpdate('merged', e)}
-                className="w-full h-10 focus:outline-none rounded-xl"
-              />
-            </div>
-          ) : (
-            <div className="p-8 bg-gray-950 border-2 border-dashed border-gray-800 rounded-2xl text-center space-y-3">
-              <div className="w-12 h-12 bg-emerald-950 text-emerald-400 rounded-2xl flex items-center justify-center text-xl mx-auto border border-emerald-800">
-                🎙️
-              </div>
-              <div className="space-y-1">
-                <h5 className="text-xs font-bold text-white">Audio Final Belum Di-upload / Digabungkan</h5>
-                <p className="text-[11px] text-gray-400 max-w-md mx-auto">
-                  Anda bisa langsung meng-upload <strong>1 file audio VO final</strong> (tanpa merge), atau upload per-part pada tab Part 1 & Part 2 lalu klik gabungkan.
-                </p>
-              </div>
-              <div className="flex items-center justify-center gap-3 flex-wrap pt-2">
-                <button
-                  onClick={() => handleUploadMergedAudioDirect()}
-                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white font-extrabold text-xs rounded-xl hover:from-emerald-500 hover:to-cyan-500 shadow-lg shadow-emerald-950/50 flex items-center gap-2"
-                >
-                  <span>📤</span>
-                  <span>Upload 1 File Audio Final (Langsung)</span>
-                </button>
-                <button
-                  onClick={() => handleRunMergeAudioPipeline()}
-                  className="px-4 py-2.5 bg-gray-900 border border-gray-700 text-gray-300 font-bold text-xs rounded-xl hover:bg-gray-800 hover:text-white flex items-center gap-2"
-                >
-                  <span>⚡</span>
-                  <span>Gunakan Audio Per-Part</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Gemini JSON Transcript Input Area */}
-          <div className="p-6 bg-gray-950 border border-teal-800/60 rounded-2xl space-y-4 shadow-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-3">
-              <div>
-                <label className="text-xs font-extrabold text-teal-300 flex items-center gap-2">
-                  <span>📥</span> Input Hasil Audio Mapping JSON dari Gemini (Segments Timestamps):
-                </label>
-                <p className="text-[11px] text-gray-400 mt-0.5">
-                  Paste output JSON (field <code className="text-teal-300 font-mono">segments</code>) yang dihasilkan Gemini di Google AI Studio di sini.
-                </p>
-              </div>
-
-              <button
-                onClick={() => handleCopyGeminiPrompt(fullScript, 'Prompt Gemini')}
-                className="px-3.5 py-1.5 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 shrink-0"
-              >
-                <span>📋</span>
-                <span>Salin Prompt Gemini</span>
-              </button>
-            </div>
-
-            <textarea
-              value={pastedJsonMap['merged'] || ''}
-              onChange={(e) => setPastedJsonMap({ ...pastedJsonMap, merged: e.target.value })}
-              rows={6}
-              className="w-full bg-gray-900 border border-gray-800 rounded-xl p-4 text-xs text-gray-200 font-mono leading-relaxed focus:outline-none focus:border-teal-500 shadow-inner"
-              placeholder='Paste teks JSON hasil Gemini di sini (contoh: { "segments": [ { "segment_id": 1, "quote": "...", "start_sec": 0.0, "end_sec": 5.5, "duration_sec": 5.5 } ] })...'
-            />
-
-            <div className="flex justify-end items-center gap-3">
-              {mergedVo?.transcript && (
-                <span className="text-xs font-mono text-emerald-400 font-bold">
-                  {mergedVo.transcript.segments?.length
-                    ? `✓ Valid Timeline Mapping (${mergedVo.transcript.segments.length} Segmen Aligned)`
-                    : `✓ Valid Transcript (${mergedVo.transcript.words.length} Kata Aligned)`}
-                </span>
-              )}
-              <button
-                onClick={() => handleProcessManualTranscriptJson('merged')}
-                className="px-6 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-extrabold transition-all shadow-lg flex items-center gap-2"
-              >
-                <span>✨</span>
-                <span>Proses & Validasi Audio Mapping</span>
-              </button>
-            </div>
+          <div className="flex justify-end items-center gap-3">
+            {mergedVo?.transcript && (
+              <span className="text-xs font-mono text-emerald-400 font-bold">
+                {mergedVo.transcript.segments?.length
+                  ? `✓ Valid Timeline Mapping (${mergedVo.transcript.segments.length} Segmen Aligned)`
+                  : `✓ Valid Transcript (${mergedVo.transcript.words.length} Kata Aligned)`}
+              </span>
+            )}
+            <button
+              onClick={() => handleProcessManualTranscriptJson('merged')}
+              className="px-6 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-extrabold transition-all shadow-lg flex items-center gap-2"
+            >
+              <span>✨</span>
+              <span>Proses & Validasi Audio Mapping</span>
+            </button>
           </div>
+        </div>
 
-          {/* Display Segment Timeline Mapping Table if segments array exists */}
-          {mergedVo?.transcript?.segments && mergedVo.transcript.segments.length > 0 && (
-            <div className="p-5 bg-gray-950 border border-teal-800/80 rounded-2xl space-y-3 shadow-xl animate-in fade-in duration-200">
-              <div className="flex items-center justify-between border-b border-gray-800 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="p-1 bg-teal-950 text-teal-300 rounded-lg text-xs font-bold">🎬</span>
-                  <h4 className="text-xs font-extrabold text-white tracking-wide">
-                    Timeline Mapping Segmen Adegan (`spensia_mapping.json` — Ready for FFmpeg Render)
-                  </h4>
-                </div>
-                <span className="text-[11px] font-mono text-teal-400 font-bold">
-                  {mergedVo.transcript.segments.length} Segmen Terpetakan
-                </span>
+        {/* Display Segment Timeline Mapping Table if segments array exists */}
+        {mergedVo?.transcript?.segments && mergedVo.transcript.segments.length > 0 && (
+          <div className="p-5 bg-gray-950 border border-teal-800/80 rounded-2xl space-y-3 shadow-xl animate-in fade-in duration-200">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-1 bg-teal-950 text-teal-300 rounded-lg text-xs font-bold">🎬</span>
+                <h4 className="text-xs font-extrabold text-white tracking-wide">
+                  Timeline Mapping Segmen Adegan (`spensia_mapping.json` — Ready for FFmpeg Render)
+                </h4>
               </div>
-
-              <div className="overflow-x-auto max-h-72 border border-gray-800/80 rounded-xl">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-gray-900 text-gray-400 font-mono text-[11px] uppercase tracking-wider sticky top-0">
-                    <tr>
-                      <th className="py-2.5 px-3">Segmen</th>
-                      <th className="py-2.5 px-3">Rentang Waktu (Start ➔ End)</th>
-                      <th className="py-2.5 px-3">Durasi</th>
-                      <th className="py-2.5 px-3">Teks Narasi / Quote</th>
-                      <th className="py-2.5 px-3 text-right">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-800/60 font-mono text-gray-300">
-                    {mergedVo.transcript.segments.map((seg) => (
-                      <tr key={seg.segment_id} className="hover:bg-gray-900/60 transition-colors">
-                        <td className="py-2 px-3 font-bold text-teal-400">#{seg.segment_id}</td>
-                        <td className="py-2 px-3 text-emerald-300">
-                          {seg.start_sec.toFixed(2)}s ➔ {seg.end_sec.toFixed(2)}s
-                        </td>
-                        <td className="py-2 px-3 text-amber-300 font-bold">{seg.duration_sec.toFixed(2)}s</td>
-                        <td className="py-2 px-3 font-sans text-gray-300 truncate max-w-xs" title={seg.quote}>
-                          {seg.quote}
-                        </td>
-                        <td className="py-2 px-3 text-right">
-                          <button
-                            onClick={() => handleSeekAudioToTime('merged', seg.start_sec)}
-                            className="px-2.5 py-1 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-800 transition-all"
-                          >
-                            ▶️ Play {seg.start_sec.toFixed(1)}s
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <span className="text-[11px] font-mono text-teal-400 font-bold">
+                {mergedVo.transcript.segments.length} Segmen Terpetakan
+              </span>
             </div>
-          )}
 
-          {/* Display Interactive Word-Level Transcript Inspector for Merged Audio */}
-          {mergedVo?.transcript && mergedVo.transcript.words && mergedVo.transcript.words.length > 0 && (
-            <div className="p-5 bg-gray-950 border border-emerald-800/60 rounded-2xl space-y-4 animate-in fade-in duration-200">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="p-1 bg-emerald-950 text-emerald-400 rounded-lg text-xs">📝</span>
-                  <h4 className="text-xs font-bold text-white">
-                    Transkrip Presisi Audio Final ({mergedVo.transcript.words.length} Kata Aligned)
-                  </h4>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() =>
-                      handleCopyText(
-                        JSON.stringify(mergedVo.transcript, null, 2),
-                        'JSON Words Timestamps Audio Final'
-                      )
-                    }
-                    className="px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-emerald-300 rounded-xl text-[11px] font-mono font-bold border border-gray-800 transition-all"
-                  >
-                    📋 Copy JSON Words
-                  </button>
-
-                  <div className="flex items-center gap-1 bg-gray-900 p-1 rounded-xl border border-gray-800">
-                    <button
-                      onClick={() => setTranscriptTab('chunks')}
-                      className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                        transcriptTab === 'chunks'
-                          ? 'bg-emerald-600 text-white shadow-md'
-                          : 'text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      🧩 Phrase Chunks
-                    </button>
-                    <button
-                      onClick={() => setTranscriptTab('words')}
-                      className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                        transcriptTab === 'words'
-                          ? 'bg-emerald-600 text-white shadow-md'
-                          : 'text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      ⏱️ Words
-                    </button>
-                    <button
-                      onClick={() => setTranscriptTab('full')}
-                      className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                        transcriptTab === 'full'
-                          ? 'bg-emerald-600 text-white shadow-md'
-                          : 'text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      📜 Full Text
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Phrase Chunks View */}
-              {transcriptTab === 'chunks' && (
-                <div className="space-y-3">
-                  <p className="text-[11px] text-gray-400 italic flex items-center justify-between">
-                    <span>💡 Potongan frasa alami (Chunks) untuk subtitle video. Klik frasa untuk memutar audio!</span>
-                    <span className="text-yellow-400 font-bold font-mono">
-                      ⏱️ Time: {(audioCurrentTimes['merged'] || 0).toFixed(2)}s
-                    </span>
-                  </p>
-
-                  <div className="space-y-2.5 max-h-80 overflow-y-auto p-3 bg-gray-900/90 rounded-xl border border-gray-800/80 scrollbar-thin">
-                    {(mergedVo.transcript.chunks || []).map((chunk, cIdx) => {
-                      const curTime = audioCurrentTimes['merged'] || 0;
-                      const isChunkActive = curTime >= chunk.start && curTime <= chunk.end;
-
-                      return (
-                        <div
-                          key={cIdx}
-                          className={`p-3 rounded-xl space-y-2 transition-all duration-150 ${
-                            isChunkActive
-                              ? 'bg-emerald-950/90 border-2 border-emerald-400 shadow-xl shadow-emerald-950/60 ring-2 ring-emerald-400/30'
-                              : 'bg-gray-950 border border-gray-800 hover:border-emerald-700/50'
-                          }`}
+            <div className="overflow-x-auto max-h-72 border border-gray-800/80 rounded-xl">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-gray-900 text-gray-400 font-mono text-[11px] uppercase tracking-wider sticky top-0">
+                  <tr>
+                    <th className="py-2.5 px-3">Segmen</th>
+                    <th className="py-2.5 px-3">Rentang Waktu (Start ➔ End)</th>
+                    <th className="py-2.5 px-3">Durasi</th>
+                    <th className="py-2.5 px-3">Teks Narasi / Quote</th>
+                    <th className="py-2.5 px-3 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/60 font-mono text-gray-300">
+                  {mergedVo.transcript.segments.map((seg) => (
+                    <tr key={seg.segment_id} className="hover:bg-gray-900/60 transition-colors">
+                      <td className="py-2 px-3 font-bold text-teal-400">#{seg.segment_id}</td>
+                      <td className="py-2 px-3 text-emerald-300">
+                        {seg.start_sec.toFixed(2)}s ➔ {seg.end_sec.toFixed(2)}s
+                      </td>
+                      <td className="py-2 px-3 text-amber-300 font-bold">{seg.duration_sec.toFixed(2)}s</td>
+                      <td className="py-2 px-3 font-sans text-gray-300 truncate max-w-xs" title={seg.quote}>
+                        {seg.quote}
+                      </td>
+                      <td className="py-2 px-3 text-right">
+                        <button
+                          onClick={() => handleSeekAudioToTime('merged', seg.start_sec)}
+                          className="px-2.5 py-1 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-800 transition-all"
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <button
-                              onClick={() => handleSeekAudioToTime('merged', chunk.start)}
-                              className="flex items-center gap-2 text-left group"
-                            >
-                              <span
-                                className={`px-2 py-0.5 font-mono text-[10px] rounded transition-all ${
-                                  isChunkActive
-                                    ? 'bg-emerald-400 text-gray-950 font-black shadow shadow-emerald-400/50 animate-pulse'
-                                    : 'bg-emerald-950 text-emerald-300 font-bold border border-emerald-800 group-hover:bg-emerald-800 group-hover:text-white'
-                                }`}
-                              >
-                                ▶ {chunk.start.toFixed(2)}s - {chunk.end.toFixed(2)}s
-                              </span>
-                              <span
-                                className={`text-xs font-semibold transition-colors ${
-                                  isChunkActive
-                                    ? 'text-emerald-300 font-bold text-sm'
-                                    : 'text-white group-hover:text-emerald-300'
-                                }`}
-                              >
-                                #{chunk.chunk_id} {chunk.text}
-                              </span>
-                            </button>
-                            <span className="text-[10px] text-gray-500 font-mono">
-                              {chunk.words?.length || 0} kata
-                            </span>
-                          </div>
+                          ▶️ Play {seg.start_sec.toFixed(1)}s
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
-                          {chunk.words && chunk.words.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 pl-2 pt-1.5 border-t border-gray-900/80">
-                              {chunk.words.map((w, wIdx) => {
-                                const isWordActive = curTime >= w.start && curTime <= w.end;
-                                return (
-                                  <button
-                                    key={wIdx}
-                                    onClick={() => handleSeekAudioToTime('merged', w.start)}
-                                    className={`rounded font-mono transition-all duration-100 flex items-center gap-1 ${
-                                      isWordActive
-                                        ? 'px-3 py-1 bg-yellow-400 text-gray-950 font-black border-2 border-yellow-300 shadow-xl shadow-yellow-500/60 scale-110 z-10 animate-bounce'
-                                        : 'px-2 py-1 bg-gray-900 hover:bg-emerald-950 border border-gray-800 text-[11px] text-gray-300 hover:text-emerald-300'
+        {/* Display Interactive Word-Level Transcript Inspector for Merged Audio */}
+        {mergedVo?.transcript && mergedVo.transcript.words && mergedVo.transcript.words.length > 0 && (
+          <div className="p-5 bg-gray-950 border border-emerald-800/60 rounded-2xl space-y-4 animate-in fade-in duration-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-1 bg-emerald-950 text-emerald-400 rounded-lg text-xs">📝</span>
+                <h4 className="text-xs font-bold text-white">
+                  Transkrip Presisi Audio Final ({mergedVo.transcript.words.length} Kata Aligned)
+                </h4>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() =>
+                    handleCopyText(
+                      JSON.stringify(mergedVo.transcript, null, 2),
+                      'JSON Words Timestamps Audio Final'
+                    )
+                  }
+                  className="px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-emerald-300 rounded-xl text-[11px] font-mono font-bold border border-gray-800 transition-all"
+                >
+                  📋 Copy JSON Words
+                </button>
+
+                <div className="flex items-center gap-1 bg-gray-900 p-1 rounded-xl border border-gray-800">
+                  <button
+                    onClick={() => setTranscriptTab('chunks')}
+                    className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                      transcriptTab === 'chunks'
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    🧩 Phrase Chunks
+                  </button>
+                  <button
+                    onClick={() => setTranscriptTab('words')}
+                    className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                      transcriptTab === 'words'
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    ⏱️ Words
+                  </button>
+                  <button
+                    onClick={() => setTranscriptTab('full')}
+                    className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                      transcriptTab === 'full'
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    📜 Full Text
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Phrase Chunks View */}
+            {transcriptTab === 'chunks' && (
+              <div className="space-y-3">
+                <p className="text-[11px] text-gray-400 italic flex items-center justify-between">
+                  <span>💡 Potongan frasa alami (Chunks) untuk subtitle video. Klik frasa untuk memutar audio!</span>
+                  <span className="text-yellow-400 font-bold font-mono">
+                    ⏱️ Time: {(audioCurrentTimes['merged'] || 0).toFixed(2)}s
+                  </span>
+                </p>
+
+                <div className="space-y-2.5 max-h-80 overflow-y-auto p-3 bg-gray-900/90 rounded-xl border border-gray-800/80 scrollbar-thin">
+                  {(mergedVo.transcript.chunks || []).map((chunk, cIdx) => {
+                    const curTime = audioCurrentTimes['merged'] || 0;
+                    const isChunkActive = curTime >= chunk.start && curTime <= chunk.end;
+
+                    return (
+                      <div
+                        key={cIdx}
+                        className={`p-3 rounded-xl space-y-2 transition-all duration-150 ${
+                          isChunkActive
+                            ? 'bg-emerald-950/90 border-2 border-emerald-400 shadow-xl shadow-emerald-950/60 ring-2 ring-emerald-400/30'
+                            : 'bg-gray-950 border border-gray-800 hover:border-emerald-700/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            onClick={() => handleSeekAudioToTime('merged', chunk.start)}
+                            className="flex items-center gap-2 text-left group"
+                          >
+                            <span
+                              className={`px-2 py-0.5 font-mono text-[10px] rounded transition-all ${
+                                isChunkActive
+                                  ? 'bg-emerald-400 text-gray-950 font-black shadow shadow-emerald-400/50 animate-pulse'
+                                  : 'bg-emerald-950 text-emerald-300 font-bold border border-emerald-800 group-hover:bg-emerald-800 group-hover:text-white'
+                              }`}
+                            >
+                              ▶ {chunk.start.toFixed(2)}s - {chunk.end.toFixed(2)}s
+                            </span>
+                            <span
+                              className={`text-xs font-semibold transition-colors ${
+                                isChunkActive
+                                  ? 'text-emerald-300 font-bold text-sm'
+                                  : 'text-white group-hover:text-emerald-300'
+                              }`}
+                            >
+                              #{chunk.chunk_id} {chunk.text}
+                            </span>
+                          </button>
+                          <span className="text-[10px] text-gray-500 font-mono">
+                            {chunk.words?.length || 0} kata
+                          </span>
+                        </div>
+
+                        {chunk.words && chunk.words.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pl-2 pt-1.5 border-t border-gray-900/80">
+                            {chunk.words.map((w, wIdx) => {
+                              const isWordActive = curTime >= w.start && curTime <= w.end;
+                              return (
+                                <button
+                                  key={wIdx}
+                                  onClick={() => handleSeekAudioToTime('merged', w.start)}
+                                  className={`rounded font-mono transition-all duration-100 flex items-center gap-1 ${
+                                    isWordActive
+                                      ? 'px-3 py-1 bg-yellow-400 text-gray-950 font-black border-2 border-yellow-300 shadow-xl shadow-yellow-500/60 scale-110 z-10 animate-bounce'
+                                      : 'px-2 py-1 bg-gray-900 hover:bg-emerald-950 border border-gray-800 text-[11px] text-gray-300 hover:text-emerald-300'
+                                  }`}
+                                >
+                                  <span>{w.word}</span>
+                                  <span
+                                    className={`text-[9px] ${
+                                      isWordActive ? 'text-gray-900 font-bold' : 'text-emerald-400/80'
                                     }`}
                                   >
-                                    <span>{w.word}</span>
-                                    <span
-                                      className={`text-[9px] ${
-                                        isWordActive ? 'text-gray-900 font-bold' : 'text-emerald-400/80'
-                                      }`}
-                                    >
-                                      {w.start.toFixed(2)}s
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                                    {w.start.toFixed(2)}s
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* Interactive Word Timestamps View */}
-              {transcriptTab === 'words' && (
-                <div className="space-y-3">
-                  <p className="text-[11px] text-gray-400 italic flex items-center justify-between">
-                    <span>💡 Klik kata untuk memutar audio pada detik tersebut. Kata yang diucapkan akan menyala kuning!</span>
-                    <span className="text-yellow-400 font-bold font-mono">
-                      ⏱️ Time: {(audioCurrentTimes['merged'] || 0).toFixed(2)}s
-                    </span>
-                  </p>
+            {/* Interactive Word Timestamps View */}
+            {transcriptTab === 'words' && (
+              <div className="space-y-3">
+                <p className="text-[11px] text-gray-400 italic flex items-center justify-between">
+                  <span>💡 Klik kata untuk memutar audio pada detik tersebut. Kata yang diucapkan akan menyala kuning!</span>
+                  <span className="text-yellow-400 font-bold font-mono">
+                    ⏱️ Time: {(audioCurrentTimes['merged'] || 0).toFixed(2)}s
+                  </span>
+                </p>
 
-                  <div className="flex flex-wrap gap-2 max-h-72 overflow-y-auto p-3 bg-gray-900/90 rounded-xl border border-gray-800/80 scrollbar-thin">
-                    {mergedVo.transcript.words.map((w, idx) => {
-                      const curTime = audioCurrentTimes['merged'] || 0;
-                      const isWordActive = curTime >= w.start && curTime <= w.end;
-                      return (
-                        <button
-                          key={idx}
-                          onClick={() => handleSeekAudioToTime('merged', w.start)}
-                          className={`rounded-lg font-mono transition-all duration-100 flex items-center gap-1.5 group ${
+                <div className="flex flex-wrap gap-2 max-h-72 overflow-y-auto p-3 bg-gray-900/90 rounded-xl border border-gray-800/80 scrollbar-thin">
+                  {mergedVo.transcript.words.map((w, idx) => {
+                    const curTime = audioCurrentTimes['merged'] || 0;
+                    const isWordActive = curTime >= w.start && curTime <= w.end;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => handleSeekAudioToTime('merged', w.start)}
+                        className={`rounded-lg font-mono transition-all duration-100 flex items-center gap-1.5 group ${
+                          isWordActive
+                            ? 'px-3.5 py-2 bg-yellow-400 text-gray-950 font-black border-2 border-yellow-300 text-xs shadow-xl shadow-yellow-500/60 scale-110 z-10 animate-bounce'
+                            : 'px-2.5 py-1.5 bg-gray-950 hover:bg-emerald-950 hover:border-emerald-500 border border-gray-800 text-xs text-gray-200 hover:text-emerald-300'
+                        }`}
+                      >
+                        <span className={isWordActive ? 'font-black text-gray-950' : 'font-semibold text-white'}>
+                          {w.word}
+                        </span>
+                        <span
+                          className={`text-[9px] px-1.5 py-0.5 rounded ${
                             isWordActive
-                              ? 'px-3.5 py-2 bg-yellow-400 text-gray-950 font-black border-2 border-yellow-300 text-xs shadow-xl shadow-yellow-500/60 scale-110 z-10 animate-bounce'
-                              : 'px-2.5 py-1.5 bg-gray-950 hover:bg-emerald-950 hover:border-emerald-500 border border-gray-800 text-xs text-gray-200 hover:text-emerald-300'
+                              ? 'bg-gray-950 text-yellow-300 font-bold'
+                              : 'text-emerald-400 bg-emerald-950 border border-emerald-900'
                           }`}
                         >
-                          <span className={isWordActive ? 'font-black text-gray-950' : 'font-semibold text-white'}>
-                            {w.word}
-                          </span>
-                          <span
-                            className={`text-[9px] px-1.5 py-0.5 rounded ${
-                              isWordActive
-                                ? 'bg-gray-950 text-yellow-300 font-bold'
-                                : 'text-emerald-400 bg-emerald-950 border border-emerald-900'
-                            }`}
-                          >
-                            {w.start.toFixed(2)}s
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Full Text View */}
-              {transcriptTab === 'full' && (
-                <div className="space-y-2">
-                  <textarea
-                    readOnly
-                    value={mergedVo.transcript.transcript_full}
-                    rows={6}
-                    className="w-full bg-gray-900 border border-gray-800 rounded-xl p-3.5 text-xs text-gray-200 font-mono leading-relaxed focus:outline-none"
-                  />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ─── INDIVIDUAL PART FOCUS VIEW (TABS 1 & 2) ─── */}
-      {parts.map((part) => {
-        if (part.part_id !== activeTab) return null;
-
-        const wordCount = part.text.trim() ? part.text.trim().split(/\s+/).length : 0;
-        const estimatedMin = (wordCount / 140).toFixed(1);
-
-        return (
-          <div
-            key={part.part_id}
-            className="bg-gray-900/90 p-7 rounded-3xl border border-gray-800 shadow-2xl space-y-6 animate-in fade-in duration-200"
-          >
-            {/* Part Title Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-xl bg-emerald-950 border border-emerald-800 text-emerald-300 text-sm font-mono font-bold flex items-center justify-center">
-                    #{part.part_id}
-                  </span>
-                  <h2 className="text-base font-extrabold text-white">{part.part_title}</h2>
-                </div>
-                <p className="text-xs text-gray-400 pl-11">{part.sub_title}</p>
-              </div>
-
-              <div className="flex items-center gap-3 shrink-0 pl-11 sm:pl-0">
-                <button
-                  onClick={() => handleCopyGeminiPrompt(part.text, `Prompt Gemini Part #${part.part_id}`)}
-                  className="px-4 py-2 bg-emerald-900 hover:bg-emerald-800 text-emerald-100 rounded-xl text-xs font-bold border border-emerald-700 transition-all flex items-center gap-1.5 shadow-md"
-                >
-                  <span>📋</span>
-                  <span>Copy Prompt Gemini Part #{part.part_id}</span>
-                </button>
-
-                <span className="text-xs font-mono text-emerald-400 bg-emerald-950/80 px-3 py-1 rounded-xl border border-emerald-800 font-bold">
-                  {wordCount} Kata (~{estimatedMin} mnt)
-                </span>
-
-                <span
-                  className={`text-xs font-mono font-bold px-3 py-1 rounded-xl border ${
-                    part.status === 'uploaded'
-                      ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
-                      : 'bg-gray-950 text-red-400 border-red-900/60'
-                  }`}
-                >
-                  {part.status === 'uploaded' ? '✓ VO Ready' : '⚪ Belum Upload'}
-                </span>
-              </div>
-            </div>
-
-            {/* Script Section */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-white flex items-center gap-2">
-                  <span>📜</span> Isi Naskah Part #{part.part_id}:
-                </label>
-
-                <button
-                  onClick={() => handleCopyText(part.text, `Naskah Part #${part.part_id}`)}
-                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
-                >
-                  <span>📋</span>
-                  <span>Salin Naskah Part #{part.part_id}</span>
-                </button>
-              </div>
-
-              <textarea
-                value={part.text}
-                onChange={(e) => handleUpdatePartText(part.part_id, e.target.value)}
-                rows={6}
-                className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-4 text-xs text-gray-200 font-mono leading-relaxed focus:outline-none focus:border-emerald-500 shadow-inner"
-                placeholder={`Ketik atau edit naskah untuk Part #${part.part_id} di sini...`}
-              />
-            </div>
-
-            {/* Audio Upload & Player Section */}
-            <div className="space-y-4 pt-2 border-t border-gray-800/80">
-              <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                <span>🎵</span> File Audio VO Part #{part.part_id}:
-              </h4>
-
-              {part.audioUrl ? (
-                <div className="p-5 bg-gray-950 border border-emerald-800/60 rounded-2xl space-y-3">
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-emerald-950 text-emerald-400 rounded-xl flex items-center justify-center text-lg border border-emerald-800 shrink-0">
-                        🎵
-                      </div>
-                      <div>
-                        <h5 className="text-xs font-bold text-white truncate max-w-md">
-                          {part.filename || `part_${part.part_id}.mp3`}
-                        </h5>
-                        <span className="text-[11px] font-mono text-emerald-400 font-bold">
-                          Durasi: {formatDuration(part.duration)}
+                          {w.start.toFixed(2)}s
                         </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleUploadPartAudio(part.part_id)}
-                        className="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-emerald-300 rounded-xl text-xs font-bold border border-gray-800 transition-all flex items-center gap-1.5"
-                      >
-                        <span>🔄</span>
-                        <span>Ganti Audio Part #{part.part_id}</span>
                       </button>
-                    </div>
-                  </div>
-
-                  {/* Audio Player */}
-                  <audio
-                    ref={(el) => (audioRefs.current[String(part.part_id)] = el)}
-                    src={part.audioUrl}
-                    controls
-                    onLoadedMetadata={(e) => handleAudioLoadedMetadata(String(part.part_id), e)}
-                    onTimeUpdate={(e) => handleAudioTimeUpdate(String(part.part_id), e)}
-                    className="w-full h-10 focus:outline-none rounded-xl"
-                  />
+                    );
+                  })}
                 </div>
-              ) : (
-                <div
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const file = e.dataTransfer.files?.[0];
-                    if (file) handleUploadPartAudio(part.part_id, file);
-                  }}
-                  onClick={() => handleUploadPartAudio(part.part_id)}
-                  className="p-8 bg-gray-950 border-2 border-dashed border-gray-800 hover:border-emerald-500/80 rounded-2xl text-center space-y-2 cursor-pointer transition-all duration-200 group"
-                >
-                  <div className="w-12 h-12 bg-emerald-950 text-emerald-400 rounded-2xl flex items-center justify-center text-xl mx-auto border border-emerald-800 group-hover:scale-110 transition-transform">
-                    📥
-                  </div>
-                  <div className="space-y-1">
-                    <h5 className="text-xs font-bold text-white">
-                      Drag & Drop atau Klik untuk Upload Audio VO Part #{part.part_id}
-                    </h5>
-                    <p className="text-[11px] text-gray-500">
-                      Upload file audio VO dari Google AI Studio (.mp3 / .wav / .m4a)
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Individual Part Gemini JSON Paste */}
-            <div className="p-5 bg-gray-950 border border-gray-800 rounded-2xl space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-teal-400 flex items-center gap-2">
-                  <span>📋</span> Paste Hasil Transkrip JSON Part #{part.part_id} dari Gemini:
-                </label>
-
-                <button
-                  onClick={() => handleCopyGeminiPrompt(part.text, `Prompt Part #${part.part_id}`)}
-                  className="text-xs text-emerald-400 hover:underline font-mono font-bold"
-                >
-                  📋 Copy Gemini Prompt Part #{part.part_id}
-                </button>
               </div>
+            )}
 
-              <textarea
-                value={pastedJsonMap[String(part.part_id)] || ''}
-                onChange={(e) => setPastedJsonMap({ ...pastedJsonMap, [part.part_id]: e.target.value })}
-                rows={4}
-                className="w-full bg-gray-900 border border-gray-800 rounded-xl p-3.5 text-xs text-gray-200 font-mono leading-relaxed focus:outline-none focus:border-teal-500"
-                placeholder={`Paste hasil JSON transkrip Gemini untuk Part #${part.part_id} di sini...`}
-              />
-
-              <div className="flex justify-end">
-                <button
-                  onClick={() => handleProcessManualTranscriptJson(part.part_id)}
-                  className="px-5 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-1.5"
-                >
-                  <span>✨</span>
-                  <span>Proses & Validasi Transkrip Part #{part.part_id}</span>
-                </button>
+            {/* Full Text View */}
+            {transcriptTab === 'full' && (
+              <div className="space-y-2">
+                <textarea
+                  readOnly
+                  value={mergedVo.transcript.transcript_full}
+                  rows={6}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl p-3.5 text-xs text-gray-200 font-mono leading-relaxed focus:outline-none"
+                />
               </div>
-            </div>
+            )}
           </div>
-        );
-      })}
+        )}
+      </div>
     </div>
   );
 };

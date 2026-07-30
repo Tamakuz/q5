@@ -22,6 +22,13 @@ const RESOLUTION_OPTIONS = [
   { size: '1792x1024', label: '1792x1024 (16:9 Full HD Landscape)' },
 ];
 
+export interface BatchTopicItem {
+  id: number;
+  title: string;
+  summary?: string;
+  hasTimeline?: boolean;
+}
+
 const SpensiaThumbnailStep: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'metadata' | 'thumbnail'>('metadata');
 
@@ -52,34 +59,92 @@ const SpensiaThumbnailStep: React.FC = () => {
 
   const api = window.electronAPI;
 
+  // Batch Topics State
+  const [batchTopics, setBatchTopics] = useState<BatchTopicItem[]>([]);
+  const [activeTopicId, setActiveTopicId] = useState<number | null>(null);
+  const [videoTitle, setVideoTitle] = useState<string>('');
+
+  const loadTopicData = async (topicId: number) => {
+    setUploadMetadata(null);
+    setConcepts([]);
+    setRenderedThumbnails([]);
+    setSelectedId(null);
+    setStreamingText('');
+    setStreamingMetadataText('');
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    if (api?.getSpensiaUploadMetadata) {
+      try {
+        const meta = await api.getSpensiaUploadMetadata(topicId);
+        if (meta && meta.titles) {
+          setUploadMetadata(meta);
+        }
+      } catch (err) {
+        console.warn('Error loading upload metadata:', err);
+      }
+    }
+
+    if (api?.getSpensiaThumbnails) {
+      try {
+        const res = await api.getSpensiaThumbnails(topicId);
+        if (res?.concepts && res.concepts.length > 0) {
+          setConcepts(res.concepts);
+        }
+        if (res?.rendered && res.rendered.length > 0) {
+          setRenderedThumbnails(res.rendered);
+        }
+        if (res?.selected) {
+          setSelectedId(res.selected.selectedId);
+        }
+      } catch (err: any) {
+        console.warn('Failed to load thumbnail data:', err);
+      }
+    }
+  };
+
+  const handleSelectTopic = async (topic: BatchTopicItem) => {
+    setActiveTopicId(topic.id);
+    setVideoTitle(topic.title);
+    await loadTopicData(topic.id);
+  };
+
   // Load existing data on mount
   useEffect(() => {
     (async () => {
-      if (api?.getSpensiaUploadMetadata) {
+      let loadedTopics: BatchTopicItem[] = [];
+      if (api?.readFromProject) {
         try {
-          const meta = await api.getSpensiaUploadMetadata();
-          if (meta && meta.titles) {
-            setUploadMetadata(meta);
+          const topicsJson = await api.readFromProject('input/spensia/topics.json');
+          let selectedId: number | null = null;
+          if (topicsJson) {
+            const topicState = JSON.parse(topicsJson);
+            if (Array.isArray(topicState.selectedTopics) && topicState.selectedTopics.length > 0) {
+              loadedTopics = topicState.selectedTopics.map((t: any) => ({
+                id: t.id,
+                title: t.title,
+                summary: t.summary,
+              }));
+              selectedId = topicState.selectedTopicId || loadedTopics[0]?.id || null;
+            } else if (Array.isArray(topicState.topics) && topicState.selectedTopicId) {
+              const matched = topicState.topics.find((t: any) => t.id === topicState.selectedTopicId);
+              if (matched) {
+                loadedTopics = [{ id: matched.id, title: matched.title, summary: matched.summary }];
+                selectedId = matched.id;
+              }
+            }
+            setBatchTopics(loadedTopics);
+          }
+
+          if (loadedTopics.length > 0) {
+            const activeId = selectedId !== null ? selectedId : loadedTopics[0].id;
+            const matchedTopic = loadedTopics.find((t) => t.id === activeId) || loadedTopics[0];
+            setActiveTopicId(matchedTopic.id);
+            setVideoTitle(matchedTopic.title);
+            await loadTopicData(matchedTopic.id);
           }
         } catch (err) {
-          console.warn('Error loading initial upload metadata:', err);
-        }
-      }
-
-      if (api?.getSpensiaThumbnails) {
-        try {
-          const res: SpensiaThumbnailResult = await api.getSpensiaThumbnails();
-          if (res?.concepts && res.concepts.length > 0) {
-            setConcepts(res.concepts);
-          }
-          if (res?.rendered && res.rendered.length > 0) {
-            setRenderedThumbnails(res.rendered);
-          }
-          if (res?.selected) {
-            setSelectedId(res.selected.selectedId);
-          }
-        } catch (err: any) {
-          console.warn('Failed to load initial thumbnail data:', err);
+          console.warn('Failed to load topics.json:', err);
         }
       }
     })();
@@ -131,11 +196,22 @@ const SpensiaThumbnailStep: React.FC = () => {
       }
 
       let scriptContent = '';
-      if (api.readFromProject) {
-        scriptContent = (await api.readFromProject('input/spensia/full_script.txt')) || '';
+      if (api.readFromProject && activeTopicId) {
+        scriptContent = (await api.readFromProject(`input/spensia/scripts/full_script_topic_${activeTopicId}.txt`)) || '';
+        if (!scriptContent) {
+          scriptContent = (await api.readFromProject(`input/spensia/full_script_topic_${activeTopicId}.txt`)) || '';
+        }
+        if (!scriptContent) {
+          scriptContent = (await api.readFromProject('input/spensia/full_script.txt')) || '';
+        }
       }
 
-      const res = await api.generateSpensiaUploadMetadata(scriptContent, 'Spensia Educational Facts', aiModel);
+      const res = await api.generateSpensiaUploadMetadata(
+        scriptContent,
+        videoTitle || 'Spensia Educational Facts',
+        aiModel,
+        activeTopicId || undefined
+      );
 
       if (res && res.titles && res.titles.length > 0) {
         setUploadMetadata(res);
@@ -163,8 +239,14 @@ const SpensiaThumbnailStep: React.FC = () => {
       }
 
       let scriptContent = '';
-      if (api.readFromProject) {
-        scriptContent = (await api.readFromProject('input/spensia/full_script.txt')) || '';
+      if (api.readFromProject && activeTopicId) {
+        scriptContent = (await api.readFromProject(`input/spensia/scripts/full_script_topic_${activeTopicId}.txt`)) || '';
+        if (!scriptContent) {
+          scriptContent = (await api.readFromProject(`input/spensia/full_script_topic_${activeTopicId}.txt`)) || '';
+        }
+        if (!scriptContent) {
+          scriptContent = (await api.readFromProject('input/spensia/full_script.txt')) || '';
+        }
       }
 
       // Ambil judul terpilih dari tab metadata sebagai referensi prompt
@@ -175,9 +257,10 @@ const SpensiaThumbnailStep: React.FC = () => {
 
       const res = await api.generateSpensiaThumbnailPrompts(
         scriptContent,
-        'Spensia Educational Facts',
+        videoTitle || 'Spensia Educational Facts',
         selectedTitleText,  // judul terpilih dari metadata
-        aiModel             // model AI (parameter ke-4)
+        aiModel,             // model AI (parameter ke-4)
+        activeTopicId || undefined
       );
 
       if (res?.concepts && res.concepts.length > 0) {
@@ -212,7 +295,7 @@ const SpensiaThumbnailStep: React.FC = () => {
         throw new Error('IPC handler generateSpensiaThumbnailImages tidak tersedia.');
       }
 
-      const results = await api.generateSpensiaThumbnailImages(concepts, imageModel, imageSize);
+      const results = await api.generateSpensiaThumbnailImages(concepts, imageModel, imageSize, activeTopicId || undefined);
       setRenderedThumbnails(results);
 
       // Auto select highest viral score if none selected
@@ -220,7 +303,7 @@ const SpensiaThumbnailStep: React.FC = () => {
       if (highest && highest.id) {
         setSelectedId(highest.id);
         if (api.saveSpensiaThumbnailSelection) {
-          await api.saveSpensiaThumbnailSelection(highest.id, highest);
+          await api.saveSpensiaThumbnailSelection(highest.id, highest, activeTopicId || undefined);
         }
       }
 
@@ -239,7 +322,7 @@ const SpensiaThumbnailStep: React.FC = () => {
     setSuccessMsg(`✅ Thumbnail Concept #${item.id} ("${item.title}") dipilih sebagai Thumbnail Utama!`);
     try {
       if (api?.saveSpensiaThumbnailSelection) {
-        await api.saveSpensiaThumbnailSelection(item.id, item);
+        await api.saveSpensiaThumbnailSelection(item.id, item, activeTopicId || undefined);
       }
     } catch (err: any) {
       console.warn('Error saving selection:', err);
@@ -303,6 +386,29 @@ const SpensiaThumbnailStep: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Batch Topics Tab Switcher */}
+      {batchTopics.length > 1 && (
+        <div className="flex flex-wrap gap-2 p-3 bg-gray-900/80 rounded-3xl border border-gray-800 shadow-2xl backdrop-blur-md">
+          {batchTopics.map((top) => {
+            const isActive = activeTopicId === top.id;
+            return (
+              <button
+                key={top.id}
+                onClick={() => handleSelectTopic(top)}
+                className={`px-4 py-2 rounded-2xl text-xs font-black tracking-wide transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
+                  isActive
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/20 transform scale-[1.03]'
+                    : 'bg-gray-950 text-gray-400 border border-gray-900 hover:border-gray-800 hover:text-gray-200 hover:bg-gray-900'
+                }`}
+              >
+                <span>📌</span>
+                <span>Topic {top.id}: {top.title.slice(0, 30)}{top.title.length > 30 ? '...' : ''}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Notifications */}
       {errorMsg && (

@@ -161,6 +161,8 @@ function mimeType(filePath) {
     '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo',
     '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
     '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.flac': 'audio/flac',
+    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp', '.gif': 'image/gif',
   };
   return map[ext] || 'application/octet-stream';
 }
@@ -1267,13 +1269,24 @@ ipcMain.handle('generate-spensia-image-prompts', async (event, { promptText, mod
 const SPENSIA_IMAGES_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'images');
 if (!fs.existsSync(SPENSIA_IMAGES_DIR)) fs.mkdirSync(SPENSIA_IMAGES_DIR, { recursive: true });
 
+const tsxBinPath = path.join(PROJECT_ROOT, 'node_modules', '.bin', 'tsx');
+
+function spawnTsxProcess(cliArgs, options = {}) {
+  if (fs.existsSync(tsxBinPath)) {
+    return spawn(tsxBinPath, cliArgs, options);
+  }
+  return spawn('npx', ['--no-install', 'tsx', ...cliArgs], options);
+}
+
 async function persistSpensiaImageToDisk(segmentId, savedObj, topicId) {
   try {
-    const jsonPaths = [];
-    if (topicId) {
-      jsonPaths.push(path.join(PROJECT_ROOT, 'input', 'spensia', 'images', `generated_images_topic_${topicId}.json`));
+    const topId = topicId || 1;
+    const jsonPaths = [
+      path.join(PROJECT_ROOT, 'input', 'spensia', 'images', `generated_images_topic_${topId}.json`),
+    ];
+    if (topId === 1) {
+      jsonPaths.push(path.join(PROJECT_ROOT, 'input', 'spensia', 'generated_images.json'));
     }
-    jsonPaths.push(path.join(PROJECT_ROOT, 'input', 'spensia', 'generated_images.json'));
 
     for (const jsonPath of jsonPaths) {
       let existingData = { total_images: 0, images: [] };
@@ -1404,7 +1417,9 @@ async function generateGoogleFlowImageDirect({ prompt, projectId, segmentId, wor
       }
 
       const res = await new Promise((resolve, reject) => {
-        const child = spawn('npx', ['tsx', cliPath, 'generate-images', '-p', targetProject, '-t', prompt, '--headed', '--close', '--json'], {
+
+
+        const child = spawnTsxProcess([cliPath, 'generate-images', '-p', targetProject, '-t', prompt, '--headed', '--close', '--json'], {
           cwd: projectRoot,
           env: { ...process.env },
         });
@@ -1495,7 +1510,7 @@ ipcMain.handle('generate-spensia-single-image', async (event, { segmentId, promp
   return saveSpensiaImageFile(segmentId, res, topicId);
 });
 
-ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, size, quality, image_detail, topicId }) => {
+ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, size, quality, image_detail, topicId, concurrency }) => {
   const results = [];
   const total = items.length;
   let completedCount = 0;
@@ -1506,9 +1521,19 @@ ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, si
 
   console.log(`[main.cjs] Starting SINGLE-BROWSER rapid queue injection for ${total} items in topic ${topicId || 'default'}...`);
 
+  // Emit immediate chunk start for initial concurrency batch items (e.g. 5 items)
+  try {
+    const conc = concurrency || 5;
+    const initialBatch = items.slice(0, conc).map((i) => i.segment_id);
+    event.sender.send('spensia-image-chunk-start', {
+      segmentIds: initialBatch,
+      topicId: topicId || null,
+    });
+  } catch { }
+
   await new Promise((resolve) => {
     const itemsJsonStr = JSON.stringify(items.map((i) => ({ segment_id: i.segment_id, prompt: i.prompt })));
-    const child = spawn('npx', ['tsx', cliPath, 'batch-runner', '-p', targetProject, '-j', itemsJsonStr, '--headed'], {
+    const child = spawnTsxProcess([cliPath, 'batch-runner', '-p', targetProject, '-j', itemsJsonStr, '--headed'], {
       cwd: projectRoot,
       env: { ...process.env },
     });
@@ -1599,12 +1624,16 @@ ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, si
 const SPENSIA_THUMBNAILS_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails');
 if (!fs.existsSync(SPENSIA_THUMBNAILS_DIR)) fs.mkdirSync(SPENSIA_THUMBNAILS_DIR, { recursive: true });
 
-ipcMain.handle('generate-spensia-thumbnail-prompts', async (event, { scriptContent, topicTitle, selectedTitle, model }) => {
+ipcMain.handle('generate-spensia-thumbnail-prompts', async (event, { scriptContent, topicTitle, selectedTitle, model, topicId }) => {
+  const topId = topicId || 1;
   let contextText = scriptContent || '';
   if (!contextText) {
-    const scriptPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'full_script.txt');
+    const scriptPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'scripts', `full_script_topic_${topId}.txt`);
     if (fs.existsSync(scriptPath)) {
       contextText = fs.readFileSync(scriptPath, 'utf-8');
+    } else {
+      const fallbackPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'full_script.txt');
+      if (fs.existsSync(fallbackPath)) contextText = fs.readFileSync(fallbackPath, 'utf-8');
     }
   }
 
@@ -1627,31 +1656,38 @@ ipcMain.handle('generate-spensia-thumbnail-prompts', async (event, { scriptConte
   });
 
   const parsed = JSON.parse(rawJson);
-  const savePath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail_prompts.json');
+  const savePath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_prompts_topic_${topId}.json`);
+  const dir = path.dirname(savePath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(savePath, JSON.stringify(parsed, null, 2), 'utf-8');
 
   return parsed;
 });
 
-ipcMain.handle('generate-spensia-thumbnail-images', async (event, { concepts, model, size = '1280x720' }) => {
+ipcMain.handle('generate-spensia-thumbnail-images', async (event, { concepts, model, size = '1280x720', topicId }) => {
   if (!Array.isArray(concepts) || concepts.length === 0) {
     throw new Error('Concepts list is empty.');
   }
 
-  // ── Bersihkan hasil generate sebelumnya ──
-  // Hapus semua file PNG di folder thumbnails/
-  if (fs.existsSync(SPENSIA_THUMBNAILS_DIR)) {
-    const existingFiles = fs.readdirSync(SPENSIA_THUMBNAILS_DIR);
-    for (const file of existingFiles) {
-      const filePath = path.join(SPENSIA_THUMBNAILS_DIR, file);
-      try { fs.unlinkSync(filePath); } catch { }
-    }
+  const topId = topicId || 1;
+  const targetThumbDir = path.join(SPENSIA_THUMBNAILS_DIR, `topic_${topId}`);
+  
+  // Clean up previous files for this topic only
+  if (fs.existsSync(targetThumbDir)) {
+    try {
+      const files = fs.readdirSync(targetThumbDir);
+      for (const file of files) {
+        fs.unlinkSync(path.join(targetThumbDir, file));
+      }
+    } catch { }
+  } else {
+    fs.mkdirSync(targetThumbDir, { recursive: true });
   }
-  // Hapus file JSON hasil render sebelumnya
+
   const prevFiles = [
-    path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails_rendered.json'),
-    path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail_selected.json'),
-    path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail.png'),
+    path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnails_rendered_topic_${topId}.json`),
+    path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_selected_topic_${topId}.json`),
+    path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_topic_${topId}.png`),
   ];
   for (const fp of prevFiles) {
     if (fs.existsSync(fp)) {
@@ -1666,7 +1702,7 @@ ipcMain.handle('generate-spensia-thumbnail-images', async (event, { concepts, mo
     const concept = concepts[i];
     const conceptId = concept.id || (i + 1);
     const promptText = concept.prompt;
-    const destPath = path.join(SPENSIA_THUMBNAILS_DIR, `thumbnail_${conceptId}.png`);
+    const destPath = path.join(targetThumbDir, `thumbnail_${conceptId}.png`);
 
     try {
       event.sender.send('spensia-thumbnail-image-progress', {
@@ -1749,28 +1785,42 @@ ipcMain.handle('generate-spensia-thumbnail-images', async (event, { concepts, mo
     }
   }
 
-  const savePath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails_rendered.json');
+  const savePath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnails_rendered_topic_${topId}.json`);
+  const dir = path.dirname(savePath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(savePath, JSON.stringify(results, null, 2), 'utf-8');
 
   return results;
 });
 
-ipcMain.handle('get-spensia-thumbnails', async () => {
-  const savePath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails_rendered.json');
-  const promptsPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail_prompts.json');
+ipcMain.handle('get-spensia-thumbnails', async (_event, args) => {
+  const topicId = (typeof args === 'number' ? args : args?.topicId) || 1;
+  const savePath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnails_rendered_topic_${topicId}.json`);
+  const promptsPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_prompts_topic_${topicId}.json`);
+
+  let finalSavePath = savePath;
+  let finalPromptsPath = promptsPath;
+  if (topicId === 1 && !fs.existsSync(savePath)) {
+    const legacySave = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails_rendered.json');
+    if (fs.existsSync(legacySave)) finalSavePath = legacySave;
+  }
+  if (topicId === 1 && !fs.existsSync(promptsPath)) {
+    const legacyPrompts = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail_prompts.json');
+    if (fs.existsSync(legacyPrompts)) finalPromptsPath = legacyPrompts;
+  }
 
   let concepts = [];
-  if (fs.existsSync(promptsPath)) {
+  if (fs.existsSync(finalPromptsPath)) {
     try {
-      const data = JSON.parse(fs.readFileSync(promptsPath, 'utf-8'));
+      const data = JSON.parse(fs.readFileSync(finalPromptsPath, 'utf-8'));
       concepts = data.concepts || [];
     } catch { }
   }
 
   let rendered = [];
-  if (fs.existsSync(savePath)) {
+  if (fs.existsSync(finalSavePath)) {
     try {
-      rendered = JSON.parse(fs.readFileSync(savePath, 'utf-8'));
+      rendered = JSON.parse(fs.readFileSync(finalSavePath, 'utf-8'));
       rendered = rendered.map((r) => {
         if (r.filePath && fs.existsSync(r.filePath)) {
           return { ...r, url: mediaUrl(r.filePath) };
@@ -1781,24 +1831,36 @@ ipcMain.handle('get-spensia-thumbnails', async () => {
   }
 
   let selected = null;
-  const selPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail_selected.json');
-  if (fs.existsSync(selPath)) {
+  const selPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_selected_topic_${topicId}.json`);
+  let finalSelPath = selPath;
+  if (topicId === 1 && !fs.existsSync(selPath)) {
+    const legacySel = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail_selected.json');
+    if (fs.existsSync(legacySel)) finalSelPath = legacySel;
+  }
+
+  if (fs.existsSync(finalSelPath)) {
     try {
-      selected = JSON.parse(fs.readFileSync(selPath, 'utf-8'));
+      selected = JSON.parse(fs.readFileSync(finalSelPath, 'utf-8'));
     } catch { }
   }
 
   return { concepts, rendered, selected };
 });
 
-ipcMain.handle('save-spensia-thumbnail-selection', async (_event, { selectedId, concept }) => {
-  const selPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail_selected.json');
+ipcMain.handle('save-spensia-thumbnail-selection', async (_event, { selectedId, concept, topicId }) => {
+  const topId = topicId || 1;
+  const selPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_selected_topic_${topId}.json`);
+  const sdir = path.dirname(selPath);
+  if (!fs.existsSync(sdir)) fs.mkdirSync(sdir, { recursive: true });
+
   const data = { selectedId, concept, updatedAt: new Date().toISOString() };
   fs.writeFileSync(selPath, JSON.stringify(data, null, 2), 'utf-8');
 
-  // Copy selected thumbnail as main thumbnail.png
+  // Copy selected thumbnail as main thumbnail_topic_${topicId}.png
   if (concept?.filePath && fs.existsSync(concept.filePath)) {
-    const mainThumbPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnail.png');
+    const mainThumbPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_topic_${topId}.png`);
+    const tdir = path.dirname(mainThumbPath);
+    if (!fs.existsSync(tdir)) fs.mkdirSync(tdir, { recursive: true });
     try { fs.copyFileSync(concept.filePath, mainThumbPath); } catch { }
   }
 
@@ -1807,20 +1869,30 @@ ipcMain.handle('save-spensia-thumbnail-selection', async (_event, { selectedId, 
 
 // ─── Spensia Upload Materials Generator (SEO Titles, Description, Tags) ───
 
-ipcMain.handle('generate-spensia-upload-metadata', async (event, { scriptContent, topicTitle, model }) => {
+ipcMain.handle('generate-spensia-upload-metadata', async (event, { scriptContent, topicTitle, model, topicId }) => {
+  const topId = topicId || 1;
   let contextText = scriptContent || '';
   if (!contextText) {
-    const scriptPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'full_script.txt');
+    const scriptPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'scripts', `full_script_topic_${topId}.txt`);
     if (fs.existsSync(scriptPath)) {
       contextText = fs.readFileSync(scriptPath, 'utf-8');
+    } else {
+      const fallbackPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'full_script.txt');
+      if (fs.existsSync(fallbackPath)) contextText = fs.readFileSync(fallbackPath, 'utf-8');
     }
   }
 
   let chaptersText = '';
-  const mappingPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'spensia_mapping.json');
-  if (fs.existsSync(mappingPath)) {
+  const mappingPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'mappings', `spensia_mapping_topic_${topId}.json`);
+  let finalMapPath = mappingPath;
+  if (!fs.existsSync(mappingPath)) {
+    const fallbackMap = path.join(PROJECT_ROOT, 'input', 'spensia', 'spensia_mapping.json');
+    if (fs.existsSync(fallbackMap)) finalMapPath = fallbackMap;
+  }
+
+  if (fs.existsSync(finalMapPath)) {
     try {
-      const mapping = JSON.parse(fs.readFileSync(mappingPath, 'utf-8'));
+      const mapping = JSON.parse(fs.readFileSync(finalMapPath, 'utf-8'));
       const timeline = mapping.timeline || [];
       if (timeline.length > 0) {
         let accSec = 0;
@@ -1859,18 +1931,28 @@ ipcMain.handle('generate-spensia-upload-metadata', async (event, { scriptContent
   });
 
   const parsed = JSON.parse(rawJson);
-  const savePath = path.join(PROJECT_ROOT, 'input', 'spensia', 'upload_metadata.json');
+  const savePath = path.join(PROJECT_ROOT, 'input', 'spensia', 'metadata', `upload_metadata_topic_${topId}.json`);
+  const dir = path.dirname(savePath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(savePath, JSON.stringify(parsed, null, 2), 'utf-8');
 
   return parsed;
 });
 
-ipcMain.handle('get-spensia-upload-metadata', async () => {
-  const savePath = path.join(PROJECT_ROOT, 'input', 'spensia', 'upload_metadata.json');
+ipcMain.handle('get-spensia-upload-metadata', async (_event, args) => {
+  const topicId = (typeof args === 'number' ? args : args?.topicId) || 1;
+  const savePath = path.join(PROJECT_ROOT, 'input', 'spensia', 'metadata', `upload_metadata_topic_${topicId}.json`);
   if (fs.existsSync(savePath)) {
     try {
       return JSON.parse(fs.readFileSync(savePath, 'utf-8'));
     } catch { }
+  } else if (topicId === 1) {
+    const legacyPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'upload_metadata.json');
+    if (fs.existsSync(legacyPath)) {
+      try {
+        return JSON.parse(fs.readFileSync(legacyPath, 'utf-8'));
+      } catch { }
+    }
   }
   return null;
 });
@@ -1883,7 +1965,9 @@ ipcMain.handle('upload-spensia-vo-audio', async (_event, { segmentId, sourcePath
   await fs.promises.mkdir(targetAudioDir, { recursive: true });
 
   const ext = sourcePath ? path.extname(sourcePath) || '.mp3' : '.mp3';
-  const filename = segmentId !== undefined ? `segment_${segmentId}${ext}` : `full_narration${ext}`;
+  const filename = topicId
+    ? `full_narration_topic_${topicId}${ext}`
+    : (segmentId !== undefined ? `segment_${segmentId}${ext}` : `full_narration${ext}`);
   const destPath = path.join(targetAudioDir, filename);
 
   if (bufferArray) {
@@ -1895,11 +1979,14 @@ ipcMain.handle('upload-spensia-vo-audio', async (_event, { segmentId, sourcePath
     throw new Error('File audio source atau buffer tidak valid.');
   }
 
+  const duration = await getAudioDurationHelper(destPath);
+
   return {
     segmentId,
     filename,
     filePath: destPath,
     url: mediaUrl(destPath),
+    duration,
   };
 });
 
@@ -2792,8 +2879,28 @@ ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
 // Spensia Render Engine IPC Handlers (16:9 1920×1080)
 // ══════════════════════════════════════════════════════
 
-ipcMain.handle('get-spensia-render-result', async () => {
-  const infoPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'last_render.json');
+ipcMain.handle('get-spensia-render-result', async (_event, args) => {
+  const topId = (typeof args === 'number' ? args : args?.topicId) || 1;
+  const topicFolder = path.join(SPENSIA_OUTPUT_DIR, `topic_${topId}`);
+  const topicMp4InFolder = path.join(topicFolder, `spensia_topic_${topId}.mp4`);
+  if (fs.existsSync(topicMp4InFolder)) {
+    return {
+      outputPath: topicMp4InFolder,
+      mediaUrl: mediaUrl(topicMp4InFolder),
+      fileName: `spensia_topic_${topId}.mp4`,
+    };
+  }
+
+  const topicMp4Root = path.join(SPENSIA_OUTPUT_DIR, `spensia_topic_${topId}.mp4`);
+  if (fs.existsSync(topicMp4Root)) {
+    return {
+      outputPath: topicMp4Root,
+      mediaUrl: mediaUrl(topicMp4Root),
+      fileName: `spensia_topic_${topId}.mp4`,
+    };
+  }
+
+  const infoPath = path.join(PROJECT_ROOT, 'input', 'spensia', `last_render_topic_${topId}.json`);
   if (fs.existsSync(infoPath)) {
     try {
       const info = JSON.parse(fs.readFileSync(infoPath, 'utf-8'));
@@ -2808,55 +2915,40 @@ ipcMain.handle('get-spensia-render-result', async () => {
     } catch { }
   }
 
-  if (fs.existsSync(SPENSIA_OUTPUT_DIR)) {
-    try {
-      const files = fs.readdirSync(SPENSIA_OUTPUT_DIR).filter((f) => f.endsWith('.mp4'));
-      if (files.length > 0) {
-        const newest = files
-          .map((f) => {
-            const fp = path.join(SPENSIA_OUTPUT_DIR, f);
-            return { fp, f, mtime: fs.statSync(fp).mtimeMs };
-          })
-          .sort((a, b) => b.mtime - a.mtime)[0];
-
-        if (newest && fs.existsSync(newest.fp)) {
-          return {
-            outputPath: newest.fp,
-            mediaUrl: mediaUrl(newest.fp),
-            fileName: newest.f,
-          };
-        }
-      }
-    } catch { }
-  }
-
   return null;
 });
 
-ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputPath }) => {
-  // ── Clean up previous output MP4 files in SPENSIA_OUTPUT_DIR ──
-  if (fs.existsSync(SPENSIA_OUTPUT_DIR)) {
-    try {
-      const oldFiles = fs.readdirSync(SPENSIA_OUTPUT_DIR).filter((f) => f.endsWith('.mp4'));
-      for (const f of oldFiles) {
-        try { fs.unlinkSync(path.join(SPENSIA_OUTPUT_DIR, f)); } catch { }
-      }
-    } catch { }
-  }
+ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputPath, topicId }) => {
+  const topId = topicId || timeline?.topic_id || 1;
+  const targetTopicFolder = path.join(SPENSIA_OUTPUT_DIR, `topic_${topId}`);
+  if (!fs.existsSync(targetTopicFolder)) fs.mkdirSync(targetTopicFolder, { recursive: true });
+
+  const destFileName = `spensia_topic_${topId}.mp4`;
+  const defaultOutputPath = path.join(targetTopicFolder, destFileName);
 
   const resolvedOutput = outputPath
-    ? path.isAbsolute(outputPath) ? outputPath : path.join(PROJECT_ROOT, outputPath)
-    : path.join(SPENSIA_OUTPUT_DIR, `spensia_final_${Date.now()}.mp4`);
+    ? (path.isAbsolute(outputPath) ? outputPath : path.join(PROJECT_ROOT, outputPath))
+    : defaultOutputPath;
+
+  // Clean up ONLY previous MP4 render for THIS specific topic
+  if (fs.existsSync(resolvedOutput)) {
+    try { fs.unlinkSync(resolvedOutput); } catch { }
+  }
+
+  const rootTopicOutput = path.join(SPENSIA_OUTPUT_DIR, destFileName);
+  if (fs.existsSync(rootTopicOutput)) {
+    try { fs.unlinkSync(rootTopicOutput); } catch { }
+  }
 
   const outDir = path.dirname(resolvedOutput);
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-  const tmpDir = path.join(TMP_DIR, `spensia-render-${Date.now()}`);
+  const tmpDir = path.join(TMP_DIR, `spensia-render-topic_${topId}-${Date.now()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
 
   const send = (stage, progress, message) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('render-progress', { stage, progress, message });
+      mainWindow.webContents.send('render-progress', { stage, progress, message, topicId: topId });
     }
   };
 
@@ -2865,26 +2957,36 @@ ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputP
     const h = config?.resolution?.height || 1080;
     const fps = config?.fps || 30;
 
-    send('init', 0, 'Initializing Spensia Render Engine...');
+    send('init', 0, `Initializing Spensia Render Engine for Topic #${topId}...`);
 
     // ── Validate clips ──
     const clips = timeline?.video_clips || [];
     if (clips.length === 0) {
-      send('error', 0, 'No video clips in timeline.');
-      return { error: 'No video clips in timeline.' };
+      send('error', 0, `No video clips in timeline for Topic #${topId}.`);
+      return { error: `No video clips in timeline for Topic #${topId}.` };
     }
 
     const audioTracks = timeline?.audio_tracks || [];
     const validAudioTracks = audioTracks.filter((t) => t.filePath && fs.existsSync(t.filePath));
 
-    // ── Load spensia_mapping.json for exact segment durations ──
+    // ── Load per-topic mapping JSON for exact segment durations ──
     let mappingSegments = [];
-    const mappingPath = path.join(PROJECT_ROOT, 'input', 'spensia', 'spensia_mapping.json');
-    if (fs.existsSync(mappingPath)) {
-      try {
-        const raw = JSON.parse(fs.readFileSync(mappingPath, 'utf-8'));
-        mappingSegments = raw.segments || [];
-      } catch { }
+    const spensiaMappingPaths = [
+      path.join(PROJECT_ROOT, 'input', 'spensia', `spensia_mapping_topic_${topId}.json`),
+      path.join(PROJECT_ROOT, 'input', 'spensia', 'transcripts', `merged_transcript_topic_${topId}.json`),
+    ];
+    if (topId === 1) {
+      spensiaMappingPaths.push(path.join(PROJECT_ROOT, 'input', 'spensia', 'spensia_mapping.json'));
+    }
+
+    for (const smp of spensiaMappingPaths) {
+      if (fs.existsSync(smp)) {
+        try {
+          const raw = JSON.parse(fs.readFileSync(smp, 'utf-8'));
+          mappingSegments = raw.segments || [];
+          if (mappingSegments.length > 0) break;
+        } catch { }
+      }
     }
 
     // Calculate exact duration for every single visual segment clip
@@ -2936,7 +3038,7 @@ ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputP
 
     // ── PASS 1: Pre-render individual image segment clips to MPEG-TS with per-clip ZOOM-IN ──
     const cpuCores = os.cpus().length || 4;
-    const CONCURRENCY = Math.min(Math.max(1, Math.floor(cpuCores / 2)), 3); // Max 3 parallel FFmpeg workers
+    const CONCURRENCY = 1; // Strictly sequential to prevent high CPU load and laptop freezing
     const clipFiles = new Array(clips.length);
     let completedClips = 0;
 
@@ -3113,6 +3215,11 @@ ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputP
         currentAudioStreamIdx++;
       }
 
+      const voCfg = config?.voiceOver || {};
+      const voEnabled = voCfg.enabled !== false;
+      const voVol = typeof voCfg.volume === 'number' ? voCfg.volume : 1.0;
+      const activeVoLabels = voEnabled ? voLabels : [];
+
       if (bgmInputIdx !== null) {
         const bgmIdx = bgmInputIdx;
         const bgmVol = bgmCfg.volume || 0.15;
@@ -3120,22 +3227,23 @@ ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputP
         const fadeOut = bgmCfg.fadeOutSec || 2.0;
         const fos = Math.max(0, totalDur - fadeOut);
 
-        if (voLabels.length > 1) {
-          filterParts.push(`${voLabels.join('')}amix=inputs=${voLabels.length}:duration=longest:dropout_transition=0.5[vomix]`);
-          filterParts.push(`[vomix]volume=1.0[vonorm]`);
+        if (activeVoLabels.length > 1) {
+          filterParts.push(`${activeVoLabels.join('')}amix=inputs=${activeVoLabels.length}:duration=longest:dropout_transition=0.5[vomix]`);
+          filterParts.push(`[vomix]volume=${voVol.toFixed(2)}[vonorm]`);
           filterParts.push(`[${bgmIdx}:a]aloop=loop=-1:size=2e+09,volume=${bgmVol},afade=t=in:d=${fadeIn},afade=t=out:st=${fos.toFixed(1)}:d=${fadeOut}[bgmproc]`);
           filterParts.push(`[vonorm][bgmproc]amix=inputs=2:duration=first:dropout_transition=2[aout]`);
-        } else if (voLabels.length === 1) {
-          filterParts.push(`${voLabels[0]}volume=1.0[vonorm]`);
+        } else if (activeVoLabels.length === 1) {
+          filterParts.push(`${activeVoLabels[0]}volume=${voVol.toFixed(2)}[vonorm]`);
           filterParts.push(`[${bgmIdx}:a]aloop=loop=-1:size=2e+09,volume=${bgmVol},afade=t=in:d=${fadeIn},afade=t=out:st=${fos.toFixed(1)}:d=${fadeOut}[bgmproc]`);
           filterParts.push(`[vonorm][bgmproc]amix=inputs=2:duration=first:dropout_transition=2[aout]`);
         } else {
-          filterParts.push(`[${bgmIdx}:a]aloop=loop=-1:size=2e+09,volume=${bgmVol},afade=t=in:d=${fadeIn},afade=t=out:st=${fos.toFixed(1)}:d=${fadeOut}[bgmproc]`);
+          filterParts.push(`[${bgmIdx}:a]aloop=loop=-1:size=2e+09,volume=${bgmVol},afade=t=in:d=${fadeIn},afade=t=out:st=${fos.toFixed(1)}:d=${fadeOut}[aout]`);
         }
-      } else if (voLabels.length > 1) {
-        filterParts.push(`${voLabels.join('')}amix=inputs=${voLabels.length}:duration=longest:dropout_transition=0.5[aout]`);
-      } else if (voLabels.length === 1) {
-        filterParts.push(`${voLabels[0]}volume=1.0[aout]`);
+      } else if (activeVoLabels.length > 1) {
+        filterParts.push(`${activeVoLabels.join('')}amix=inputs=${activeVoLabels.length}:duration=longest:dropout_transition=0.5[vomix]`);
+        filterParts.push(`[vomix]volume=${voVol.toFixed(2)}[aout]`);
+      } else if (activeVoLabels.length === 1) {
+        filterParts.push(`${activeVoLabels[0]}volume=${voVol.toFixed(2)}[aout]`);
       }
 
       aMap = '[aout]';
@@ -3196,15 +3304,21 @@ ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputP
     // Cleanup temp dir
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { }
 
+    // Disabled copying to root output folder to prevent duplicate output files
+
     const resultObj = {
       outputPath: resolvedOutput,
       mediaUrl: mediaUrl(resolvedOutput),
       fileName: path.basename(resolvedOutput),
+      topicId: topId,
       renderedAt: new Date().toISOString(),
     };
 
     try {
-      fs.writeFileSync(path.join(PROJECT_ROOT, 'input', 'spensia', 'last_render.json'), JSON.stringify(resultObj, null, 2), 'utf-8');
+      fs.writeFileSync(path.join(PROJECT_ROOT, 'input', 'spensia', `last_render_topic_${topId}.json`), JSON.stringify(resultObj, null, 2), 'utf-8');
+      if (topId === 1) {
+        fs.writeFileSync(path.join(PROJECT_ROOT, 'input', 'spensia', 'last_render.json'), JSON.stringify(resultObj, null, 2), 'utf-8');
+      }
     } catch { }
 
     return resultObj;
@@ -3335,12 +3449,7 @@ function buildAssSubtitleFile(captions, capCfg, width, height) {
   lines.push('ScriptType: v4.00+');
   lines.push('WrapStyle: 2');
   lines.push('ScaledBorderAndShadow: yes');
-  lines.push(`PlayResX: ${width}`);
-  lines.push(`PlayResY: ${height}`);
-  lines.push('');
-  lines.push('[V4+ Styles]');
-  lines.push('Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding');
-  lines.push(`Style: Default,${fn},${fs},${activeColor},${inactiveColor},${outlineColor},&H80000000,-1,0,0,0,100,100,1,0,1,${ow},${sd},${align},${posX},${posX},${posY},1`);
+lines.push(`Style: Default,${fn},${fs},${activeColor},${inactiveColor},${outlineColor},&H80000000,-1,0,0,0,100,100,1,0,1,${ow},${sd},${align},${posX},${posX},${posY},1`);
   lines.push('');
   lines.push('[Events]');
   lines.push('Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text');
@@ -3394,124 +3503,169 @@ function buildAssSubtitleFile(captions, capCfg, width, height) {
 // Spensia Timeline Generator (from existing data files)
 // ══════════════════════════════════════════════════════
 
-ipcMain.handle('generate-spensia-timeline', async () => {
+ipcMain.handle('generate-spensia-timeline', async (_event, args) => {
   try {
+    const topicId = (typeof args === 'number' ? args : args?.topicId) || 1;
     const spensiaDir = path.join(PROJECT_ROOT, 'input', 'spensia');
-    const imagesDir = path.join(spensiaDir, 'images');
+    const imagesDir = path.join(spensiaDir, 'images', `topic_${topicId}`);
+    const fallbackImagesDir = path.join(spensiaDir, 'images');
     const transcriptsDir = path.join(spensiaDir, 'transcripts');
-    const audioDir = path.join(spensiaDir, 'audio');
+    const audioDir = path.join(spensiaDir, 'audio', `topic_${topicId}`);
+    const fallbackAudioDir = path.join(spensiaDir, 'audio');
 
-    // 1. Read breakdown segments
+    // 1. Read breakdown segments for topic
     let segments = [];
-    const breakdownPath = path.join(spensiaDir, 'breakdown.json');
-    if (fs.existsSync(breakdownPath)) {
-      try {
-        const raw = JSON.parse(fs.readFileSync(breakdownPath, 'utf-8'));
-        segments = Array.isArray(raw) ? raw : (raw.segments || raw.breakdown || []);
-      } catch { }
+    const breakdownPaths = topicId === 1
+      ? [
+          path.join(spensiaDir, 'breakdowns', `breakdown_topic_1.json`),
+          path.join(spensiaDir, `breakdown_topic_1.json`),
+          path.join(spensiaDir, 'breakdown.json'),
+        ]
+      : [
+          path.join(spensiaDir, 'breakdowns', `breakdown_topic_${topicId}.json`),
+          path.join(spensiaDir, `breakdown_topic_${topicId}.json`),
+        ];
+
+    for (const bp of breakdownPaths) {
+      if (fs.existsSync(bp)) {
+        try {
+          const raw = JSON.parse(fs.readFileSync(bp, 'utf-8'));
+          const segs = Array.isArray(raw) ? raw : (raw.segments || raw.breakdown || []);
+          if (segs.length > 0) {
+            segments = segs;
+            break;
+          }
+        } catch { }
+      }
     }
     if (segments.length === 0) {
-      return { error: 'No breakdown data found. Jalankan step Scene Splitter dulu.' };
+      return { error: `No breakdown data found for Topic #${topicId}. Jalankan step Scene Splitter dulu.` };
     }
 
-    // 2. Read images (scan image dir for segment_N.png files)
+    // 2. Read images for topic (strictly isolated per topic)
     const images = [];
-    if (fs.existsSync(imagesDir)) {
-      const files = fs.readdirSync(imagesDir).filter(f => /^segment_\d+\.(png|jpg|jpeg|webp)$/i.test(f));
-      for (const f of files) {
-        const m = f.match(/segment_(\d+)/);
-        if (m) {
-          const segId = parseInt(m[1], 10);
-          const filePath = path.join(imagesDir, f);
-          images.push({ segment_id: segId, filePath, url: mediaUrl(filePath) });
+
+    // Check generated_images_topic_${topicId}.json first
+    const genImgJsonPath = path.join(spensiaDir, 'images', `generated_images_topic_${topicId}.json`);
+    if (fs.existsSync(genImgJsonPath)) {
+      try {
+        const genData = JSON.parse(fs.readFileSync(genImgJsonPath, 'utf-8'));
+        const genSegs = Array.isArray(genData) ? genData : (genData.segments || genData.images || []);
+        genSegs.forEach((s) => {
+          const segId = Number(s.segment_id || s.id);
+          const topicSubfile = path.join(spensiaDir, 'images', `topic_${topicId}`, `segment_${segId}.png`);
+          if (fs.existsSync(topicSubfile)) {
+            images.push({ segment_id: segId, filePath: topicSubfile, url: mediaUrl(topicSubfile) });
+          } else if (s.filePath && s.filePath.includes(`topic_${topicId}`) && fs.existsSync(s.filePath)) {
+            images.push({ segment_id: segId, filePath: s.filePath, url: mediaUrl(s.filePath) });
+          } else if (topicId === 1 && s.filePath && !s.filePath.includes('topic_') && fs.existsSync(s.filePath)) {
+            images.push({ segment_id: segId, filePath: s.filePath, url: mediaUrl(s.filePath) });
+          }
+        });
+      } catch { }
+    }
+
+    // Scan topic directory input/spensia/images/topic_${topicId}
+    const topicImgDir = path.join(spensiaDir, 'images', `topic_${topicId}`);
+    const searchImgDirs = [topicImgDir];
+    if (topicId === 1) {
+      searchImgDirs.push(path.join(spensiaDir, 'images', 'topic_1'));
+    }
+
+    for (const d of searchImgDirs) {
+      if (fs.existsSync(d)) {
+        const files = fs.readdirSync(d).filter(f => /^segment_\d+\.(png|jpg|jpeg|webp)$/i.test(f));
+        for (const f of files) {
+          const m = f.match(/segment_(\d+)/);
+          if (m) {
+            const segId = parseInt(m[1], 10);
+            const filePath = path.join(d, f);
+            if (!images.some((i) => i.segment_id === segId)) {
+              images.push({ segment_id: segId, filePath, url: mediaUrl(filePath) });
+            }
+          }
         }
       }
     }
 
-    // 3. Read audio files
+    // 3. Read audio files for topic (strictly isolated)
     let singleAudio = null;
     let part1Audio = null;
     let part2Audio = null;
-    if (fs.existsSync(audioDir)) {
-      const audioFiles = fs.readdirSync(audioDir).filter(f => /\.(mp3|wav|m4a|ogg|flac|aac)$/i.test(f));
-      for (const f of audioFiles) {
-        const fp = path.join(audioDir, f);
-        let dur = 30;
-        try {
-          const probeOut = require('child_process').execSync(
-            `"${ffmpegPath.replace('ffmpeg', 'ffprobe')}" -v error -show_entries format=duration -of csv=p=0 "${fp}"`,
-            { encoding: 'utf-8', timeout: 5000 }
-          );
-          dur = parseFloat(probeOut) || 30;
-        } catch { }
 
-        if (f.includes('merged') || f.includes('full') || f.includes('single')) {
-          singleAudio = { filePath: fp, url: mediaUrl(fp), duration: dur };
-        } else if (f.includes('part_1') || f.includes('part1') || f.includes('segment_1')) {
-          part1Audio = { filePath: fp, url: mediaUrl(fp), duration: dur };
-        } else if (f.includes('part_2') || f.includes('part2') || f.includes('segment_2')) {
-          part2Audio = { filePath: fp, url: mediaUrl(fp), duration: dur };
+    const topicAudDir = path.join(spensiaDir, 'audio', `topic_${topicId}`);
+    const searchAudDirs = topicId === 1 ? [topicAudDir, fallbackAudioDir] : [topicAudDir];
+
+    for (const d of searchAudDirs) {
+      if (fs.existsSync(d)) {
+        const audioFiles = fs.readdirSync(d).filter(f => /\.(mp3|wav|m4a|ogg|flac|aac)$/i.test(f));
+        for (const f of audioFiles) {
+          const fp = path.join(d, f);
+          let dur = 30;
+          try {
+            const probeOut = require('child_process').execSync(
+              `"${ffmpegPath.replace('ffmpeg', 'ffprobe')}" -v error -show_entries format=duration -of csv=p=0 "${fp}"`,
+              { encoding: 'utf-8', timeout: 5000 }
+            );
+            dur = parseFloat(probeOut) || 30;
+          } catch { }
+
+          if (f.includes('full') || f.includes('merged') || f.includes('single') || f.includes(`topic_${topicId}`)) {
+            singleAudio = { filePath: fp, url: mediaUrl(fp), duration: dur };
+          } else if (f.includes('part_1') || f.includes('part1') || f.includes('segment_1')) {
+            part1Audio = { filePath: fp, url: mediaUrl(fp), duration: dur };
+          } else if (f.includes('part_2') || f.includes('part2') || f.includes('segment_2')) {
+            part2Audio = { filePath: fp, url: mediaUrl(fp), duration: dur };
+          }
         }
-      }
-      if (!singleAudio && audioFiles.length === 1) {
-        const fp = path.join(audioDir, audioFiles[0]);
-        let dur = 30;
-        try {
-          const probeOut = require('child_process').execSync(
-            `"${ffmpegPath.replace('ffmpeg', 'ffprobe')}" -v error -show_entries format=duration -of csv=p=0 "${fp}"`,
-            { encoding: 'utf-8', timeout: 5000 }
-          );
-          dur = parseFloat(probeOut) || 30;
-        } catch { }
-        singleAudio = { filePath: fp, url: mediaUrl(fp), duration: dur };
+        if (!singleAudio && audioFiles.length > 0) {
+          const fp = path.join(d, audioFiles[0]);
+          let dur = 30;
+          try {
+            const probeOut = require('child_process').execSync(
+              `"${ffmpegPath.replace('ffmpeg', 'ffprobe')}" -v error -show_entries format=duration -of csv=p=0 "${fp}"`,
+              { encoding: 'utf-8', timeout: 5000 }
+            );
+            dur = parseFloat(probeOut) || 30;
+          } catch { }
+          singleAudio = { filePath: fp, url: mediaUrl(fp), duration: dur };
+        }
       }
     }
 
-    // 4. Read transcripts & mapping files
+    // 4. Read transcripts & mapping files for topic (strictly isolated)
     let mergedTranscript = null;
     let part1Transcript = null;
     let part2Transcript = null;
 
-    const spensiaMappingPath = path.join(spensiaDir, 'spensia_mapping.json');
-    if (fs.existsSync(spensiaMappingPath)) {
-      try {
-        const rawMap = JSON.parse(fs.readFileSync(spensiaMappingPath, 'utf-8'));
-        const words = rawMap.words || [];
-        const segs = rawMap.segments || [];
-        mergedTranscript = {
-          words,
-          segments: segs,
-          transcript_full: rawMap.transcript_full || '',
-        };
-      } catch { }
-    }
+    const spensiaMappingPaths = topicId === 1
+      ? [
+          path.join(spensiaDir, 'mappings', `spensia_mapping_topic_1.json`),
+          path.join(spensiaDir, `spensia_mapping_topic_1.json`),
+          path.join(transcriptsDir, `merged_transcript_topic_1.json`),
+          path.join(spensiaDir, 'mappings', 'spensia_mapping.json'),
+          path.join(spensiaDir, 'spensia_mapping.json'),
+        ]
+      : [
+          path.join(spensiaDir, 'mappings', `spensia_mapping_topic_${topicId}.json`),
+          path.join(spensiaDir, `spensia_mapping_topic_${topicId}.json`),
+          path.join(transcriptsDir, `merged_transcript_topic_${topicId}.json`),
+        ];
 
-    if (fs.existsSync(transcriptsDir)) {
-      const tFiles = fs.readdirSync(transcriptsDir).filter(f => f.endsWith('.json'));
-      for (const tf of tFiles) {
+    for (const smp of spensiaMappingPaths) {
+      if (fs.existsSync(smp)) {
         try {
-          const raw = JSON.parse(fs.readFileSync(path.join(transcriptsDir, tf), 'utf-8'));
-          const words = raw.words || raw.transcript || [];
-          const segs = raw.segments || [];
-          if (tf.includes('merged') || tf === 'transcript.json' || tf.includes('full')) {
+          const rawMap = JSON.parse(fs.readFileSync(smp, 'utf-8'));
+          const words = rawMap.words || [];
+          const segs = rawMap.segments || [];
+          if (words.length > 0 || segs.length > 0) {
             mergedTranscript = {
-              words: words.length > 0 ? words : (mergedTranscript?.words || []),
-              segments: segs.length > 0 ? segs : (mergedTranscript?.segments || []),
-              transcript_full: raw.transcript_full || raw.text || mergedTranscript?.transcript_full || '',
+              words,
+              segments: segs,
+              transcript_full: rawMap.transcript_full || '',
             };
-          } else if (tf.includes('part_1') || tf.includes('part1')) {
-            part1Transcript = { words, segments: segs, transcript_full: raw.transcript_full || raw.text || '' };
-          } else if (tf.includes('part_2') || tf.includes('part2')) {
-            part2Transcript = { words, segments: segs, transcript_full: raw.transcript_full || raw.text || '' };
+            break;
           }
-        } catch { }
-      }
-      if (!mergedTranscript && tFiles.length === 1) {
-        try {
-          const raw = JSON.parse(fs.readFileSync(path.join(transcriptsDir, tFiles[0]), 'utf-8'));
-          const words = raw.words || raw.transcript || [];
-          const segs = raw.segments || [];
-          mergedTranscript = { words, segments: segs, transcript_full: raw.transcript_full || raw.text || '' };
         } catch { }
       }
     }
@@ -3521,70 +3675,55 @@ ipcMain.handle('generate-spensia-timeline', async () => {
     const width = 1920;
     const height = 1080;
 
-    // Helper: clean punctuation for word matching
     const cleanWordForMatch = (str) => {
       if (!str) return '';
       return str.toLowerCase().replace(/[.,:;!?\-"“”'’`()[\]{}]/g, '').trim();
     };
 
-    // Video clips — word-level & segment-level sync with transcript timestamps
     const videoClips = [];
     let clipId = 1;
 
-    const buildClips = (segs, partId, partStartOffset, partDuration, transcriptObj) => {
-      if (segs.length === 0) return;
+    const buildClips = (segs, partId, partStartOffset, partDuration, transcriptData) => {
+      const transcriptWords = transcriptData?.words || [];
 
-      const totalChars = segs.reduce((acc, s) => acc + ((s.text || s.quote || '').length || 10), 0);
-
-      let currentOffset = partStartOffset;
       let wordSearchIdx = 0;
-      const transcriptWords = Array.isArray(transcriptObj) ? transcriptObj : transcriptObj?.words || [];
-      const transcriptSegments = Array.isArray(transcriptObj?.segments) ? transcriptObj.segments : [];
+      let currentOffset = partStartOffset;
+
+      const totalChars = segs.reduce((acc, s) => acc + (s.text || s.quote || '').length, 0);
 
       segs.forEach((seg, idx) => {
-        const img = images.find(i => i.segment_id === (seg.segment_id || seg.id));
+        const img = images.find((i) => i.segment_id === (seg.segment_id || seg.id || idx + 1));
+
         let segStartSec = -1;
         let segEndSec = -1;
 
-        // Mode 0: Explicit Segment-Level Timestamp from Gemini JSON mapping
-        if (transcriptSegments && transcriptSegments.length > 0) {
-          const segId = seg.segment_id || seg.id || idx + 1;
-          const matchSeg = transcriptSegments.find((ts) => Number(ts.segment_id || ts.id) === Number(segId));
-          if (matchSeg && typeof matchSeg.start_sec === 'number' && typeof matchSeg.end_sec === 'number' && matchSeg.end_sec > matchSeg.start_sec) {
-            segStartSec = partStartOffset + matchSeg.start_sec;
-            segEndSec = partStartOffset + matchSeg.end_sec;
-          }
-        }
+        if (transcriptWords.length > 0) {
+          const rawSegText = (seg.text || seg.quote || '').trim();
+          const segWords = rawSegText.split(/\s+/).map(cleanWordForMatch).filter(Boolean);
 
-        // Mode A: Sequential transcript word-level timestamp matching
-        if (segStartSec < 0 && transcriptWords && transcriptWords.length > 0 && wordSearchIdx < transcriptWords.length) {
-          const rawWords = (seg.text || seg.quote || '').split(/\s+/).map(cleanWordForMatch).filter(Boolean);
-          if (rawWords.length > 0) {
-            const firstWord = rawWords[0];
-            const lastWord = rawWords[rawWords.length - 1];
+          if (segWords.length > 0) {
+            const firstTargetWord = segWords[0];
+            const lastTargetWord = segWords[segWords.length - 1];
 
-            // Find first word occurrence after wordSearchIdx
             let matchStartIdx = -1;
             for (let i = wordSearchIdx; i < transcriptWords.length; i++) {
-              const tw = cleanWordForMatch(transcriptWords[i].word || transcriptWords[i].text || '');
-              if (tw && (tw.includes(firstWord) || firstWord.includes(tw))) {
+              const tw = cleanWordForMatch(transcriptWords[i].word || transcriptWords[i].text);
+              if (tw === firstTargetWord || tw.includes(firstTargetWord) || firstTargetWord.includes(tw)) {
                 matchStartIdx = i;
                 break;
               }
             }
 
-            // Find last word occurrence after matchStartIdx
-            let matchEndIdx = -1;
-            const searchFrom = matchStartIdx >= 0 ? matchStartIdx : wordSearchIdx;
-            for (let i = Math.min(transcriptWords.length - 1, searchFrom + rawWords.length + 5); i >= searchFrom; i--) {
-              const tw = cleanWordForMatch(transcriptWords[i].word || transcriptWords[i].text || '');
-              if (tw && (tw.includes(lastWord) || lastWord.includes(tw))) {
-                matchEndIdx = i;
-                break;
-              }
-            }
-
             if (matchStartIdx >= 0) {
+              let matchEndIdx = -1;
+              for (let j = Math.min(transcriptWords.length - 1, matchStartIdx + segWords.length + 5); j >= matchStartIdx; j--) {
+                const tw = cleanWordForMatch(transcriptWords[j].word || transcriptWords[j].text);
+                if (tw === lastTargetWord || tw.includes(lastTargetWord) || lastTargetWord.includes(tw)) {
+                  matchEndIdx = j;
+                  break;
+                }
+              }
+
               const parseN = (v) => (typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.]/g, '')));
               const startVal = parseN(transcriptWords[matchStartIdx].start);
               const endVal = matchEndIdx >= 0
@@ -3605,13 +3744,11 @@ ipcMain.handle('generate-spensia-timeline', async () => {
           segDurationSec = segEndSec - segStartSec;
           currentOffset = segStartSec;
         } else {
-          // Mode B: Proportional duration by character length fallback
           const textLen = (seg.text || seg.quote || '').length || 10;
           const ratio = textLen / Math.max(1, totalChars);
           segDurationSec = ratio * partDuration;
         }
 
-        // Ensure last clip in part fills remaining part duration exactly
         if (idx === segs.length - 1) {
           segDurationSec = Math.max(1.0, partStartOffset + partDuration - currentOffset);
         } else {
@@ -3621,9 +3758,6 @@ ipcMain.handle('generate-spensia-timeline', async () => {
         const startSec = currentOffset;
         const endSec = startSec + segDurationSec;
         currentOffset = endSec;
-
-        const startFrame = Math.round(startSec * fps);
-        const endFrame = Math.round(endSec * fps);
 
         videoClips.push({
           clip_id: clipId++,
@@ -3635,9 +3769,8 @@ ipcMain.handle('generate-spensia-timeline', async () => {
           start_sec: Number(startSec.toFixed(2)),
           end_sec: Number(endSec.toFixed(2)),
           duration_sec: Number(segDurationSec.toFixed(2)),
-          start_frame: startFrame,
-          end_frame: endFrame,
-          duration_frames: endFrame - startFrame,
+          start_frame: Math.round(startSec * fps),
+          end_frame: Math.round(endSec * fps),
           transition: 'crossfade',
         });
       });
@@ -3648,7 +3781,7 @@ ipcMain.handle('generate-spensia-timeline', async () => {
       const words = Array.isArray(transcript) ? transcript : transcript?.words;
       if (!words) return;
       words.forEach((w) => {
-        const word = (w.word || w.text || '').replace(/[.,:;!?\-"""''`()[\]{}]/g, '').trim();
+        const word = (w.word || w.text || '').replace(/[.,:;!?\-"“”'’`()[\]{}]/g, '').trim();
         if (!word) return;
         captions.push({
           part_id: partId,
@@ -3704,7 +3837,8 @@ ipcMain.handle('generate-spensia-timeline', async () => {
     }
 
     const timeline = {
-      title: 'Spensia Timeline',
+      title: `Spensia Timeline Topic #${topicId}`,
+      topic_id: topicId,
       fps,
       resolution: { width, height, aspect_ratio: '16:9' },
       total_duration_sec: Math.round(totalDur * 100) / 100,
@@ -3715,9 +3849,22 @@ ipcMain.handle('generate-spensia-timeline', async () => {
       generated_at: new Date().toISOString(),
     };
 
-    // Save to project
-    const timelinePath = path.join(spensiaDir, 'spensia_timeline.json');
-    fs.writeFileSync(timelinePath, JSON.stringify(timeline, null, 2), 'utf-8');
+    // Save per-topic timeline JSON into input/spensia/timelines/ folder
+    const timelinesDir = path.join(spensiaDir, 'timelines');
+    if (!fs.existsSync(timelinesDir)) fs.mkdirSync(timelinesDir, { recursive: true });
+
+    const timelineFolderFile = path.join(timelinesDir, `timeline_topic_${topicId}.json`);
+    fs.writeFileSync(timelineFolderFile, JSON.stringify(timeline, null, 2), 'utf-8');
+
+    const topicTimelinePath = path.join(spensiaDir, `spensia_timeline_topic_${topicId}.json`);
+    fs.writeFileSync(topicTimelinePath, JSON.stringify(timeline, null, 2), 'utf-8');
+
+    if (topicId === 1) {
+      const globalTimelinePath = path.join(spensiaDir, 'spensia_timeline.json');
+      fs.writeFileSync(globalTimelinePath, JSON.stringify(timeline, null, 2), 'utf-8');
+    }
+
+    return { timeline, saved: true };
 
     return { timeline, saved: true };
   } catch (err) {
