@@ -168,8 +168,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('render-spensia-preview-frame', { config, imagePath }),
 
   // Thumbnail Studio
-  generateSpensiaThumbnailPrompts: (scriptContent, topicTitle, selectedTitle, model, topicId) =>
-    ipcRenderer.invoke('generate-spensia-thumbnail-prompts', { scriptContent, topicTitle, selectedTitle, model, topicId }),
+  generateSpensiaThumbnailPrompts: (scriptContent, topicTitle, selectedTitle, metadata, model, topicId) =>
+    ipcRenderer.invoke('generate-spensia-thumbnail-prompts', { scriptContent, topicTitle, selectedTitle, metadata, model, topicId }),
   onSpensiaThumbnailPromptsChunk: (callback) => {
     const handler = (_e, data) => callback(data);
     ipcRenderer.on('spensia-thumbnail-prompts-chunk', handler);
@@ -185,6 +185,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSpensiaThumbnails: (topicId) => ipcRenderer.invoke('get-spensia-thumbnails', { topicId }),
   saveSpensiaThumbnailSelection: (selectedId, concept, topicId) =>
     ipcRenderer.invoke('save-spensia-thumbnail-selection', { selectedId, concept, topicId }),
+  analyzeSpensiaThumbnailImages: (topicTitle, selectedTitle, thumbnails, model, topicId) =>
+    ipcRenderer.invoke('analyze-spensia-thumbnail-images', { topicTitle, selectedTitle, thumbnails, model, topicId }),
 
   // Publish Hub SEO & Upload Metadata
   generateSpensiaUploadMetadata: (scriptContent, topicTitle, model, topicId) =>
@@ -195,4 +197,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('spensia-upload-metadata-chunk', handler);
   },
   getSpensiaUploadMetadata: (topicId) => ipcRenderer.invoke('get-spensia-upload-metadata', { topicId }),
+  analyzeSpensiaMetadata: (topicTitle, metadata, model, topicId) =>
+    ipcRenderer.invoke('analyze-spensia-metadata', { topicTitle, metadata, model, topicId }),
+  fixSpensiaMetadata: (topicTitle, metadata, analysis, model, topicId) =>
+    ipcRenderer.invoke('fix-spensia-metadata', { topicTitle, metadata, analysis, model, topicId }),
 });

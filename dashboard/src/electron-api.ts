@@ -291,16 +291,19 @@ export interface ElectronAPI {
   renderSpensiaPreviewFrame: (config: SpensiaRenderConfig, imagePath: string) => Promise<{ filePath?: string; url?: string; error?: string }>;
 
   // Thumbnail Studio & Publish Hub SEO
-  generateSpensiaThumbnailPrompts?: (scriptContent?: string, topicTitle?: string, selectedTitle?: string, model?: string) => Promise<{ concepts: SpensiaThumbnailConcept[] }>;
+  generateSpensiaThumbnailPrompts?: (scriptContent?: string, topicTitle?: string, selectedTitle?: string, metadata?: SpensiaUploadMetadata | null, model?: string, topicId?: number) => Promise<{ concepts: SpensiaThumbnailConcept[] }>;
   onSpensiaThumbnailPromptsChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
-  generateSpensiaThumbnailImages?: (concepts: SpensiaThumbnailConcept[], model?: string, size?: string) => Promise<SpensiaThumbnailConcept[]>;
+  generateSpensiaThumbnailImages?: (concepts: SpensiaThumbnailConcept[], model?: string, size?: string, topicId?: number) => Promise<SpensiaThumbnailConcept[]>;
   onSpensiaThumbnailImageProgress?: (callback: (data: { current: number; total: number; conceptId: number; title: string; item?: SpensiaThumbnailConcept; error?: string; message: string; status: string }) => void) => () => void;
-  getSpensiaThumbnails?: () => Promise<SpensiaThumbnailResult>;
-  saveSpensiaThumbnailSelection?: (selectedId: number, concept: SpensiaThumbnailConcept) => Promise<any>;
+  getSpensiaThumbnails?: (topicId?: number) => Promise<SpensiaThumbnailResult>;
+  saveSpensiaThumbnailSelection?: (selectedId: number, concept: SpensiaThumbnailConcept, topicId?: number) => Promise<any>;
+  analyzeSpensiaThumbnailImages?: (topicTitle?: string, selectedTitle?: string, thumbnails?: SpensiaThumbnailConcept[], model?: string, topicId?: number) => Promise<SpensiaThumbnailVisionAnalysis>;
 
-  generateSpensiaUploadMetadata?: (scriptContent?: string, topicTitle?: string, model?: string) => Promise<SpensiaUploadMetadata>;
+  generateSpensiaUploadMetadata?: (scriptContent?: string, topicTitle?: string, model?: string, topicId?: number) => Promise<SpensiaUploadMetadata>;
   onSpensiaUploadMetadataChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
-  getSpensiaUploadMetadata?: () => Promise<SpensiaUploadMetadata | null>;
+  getSpensiaUploadMetadata?: (topicId?: number) => Promise<SpensiaUploadMetadata | null>;
+  analyzeSpensiaMetadata?: (topicTitle?: string, metadata?: SpensiaUploadMetadata, model?: string, topicId?: number) => Promise<SpensiaMetadataAnalysis>;
+  fixSpensiaMetadata?: (topicTitle?: string, metadata?: SpensiaUploadMetadata, analysis?: SpensiaMetadataAnalysis, model?: string, topicId?: number) => Promise<SpensiaUploadMetadata>;
 }
 
 export interface WatermarkTextConfig {
@@ -393,10 +396,28 @@ export interface SpensiaThumbnailConcept {
   error?: string;
 }
 
+export interface SpensiaThumbnailVisionEvaluation {
+  id: number;
+  title: string;
+  thumb_stopping_score?: number;
+  strengths?: string;
+  weaknesses?: string;
+  scrolling_impact?: string;
+}
+
+export interface SpensiaThumbnailVisionAnalysis {
+  winner_id?: number;
+  winner_title?: string;
+  winner_reason?: string;
+  human_scrolling_psychology_notes?: string;
+  evaluations?: SpensiaThumbnailVisionEvaluation[];
+}
+
 export interface SpensiaThumbnailResult {
   concepts: SpensiaThumbnailConcept[];
   rendered: SpensiaThumbnailConcept[];
   selected?: { selectedId: number; concept: SpensiaThumbnailConcept } | null;
+  visionAnalysis?: SpensiaThumbnailVisionAnalysis | null;
 }
 
 export interface SpensiaUploadTitleItem {
@@ -405,12 +426,36 @@ export interface SpensiaUploadTitleItem {
   ctr_reason?: string;
 }
 
+export interface SpensiaMetadataImprovementItem {
+  target_field: 'tags' | 'titles' | 'description' | 'hashtags' | string;
+  reason: string;
+  suggested_fix_instruction: string;
+}
+
+export interface SpensiaMetadataAnalysis {
+  superior_title?: string;
+  superior_reason?: string;
+  what_is_great?: string;
+  areas_to_improve?: string;
+  improvements_needed?: SpensiaMetadataImprovementItem[];
+  psychological_analysis?: string;
+  doom_scroll_impact?: string;
+  metadata_checklist?: {
+    doom_scroll_stopper?: boolean;
+    title_length?: boolean;
+    psychological_formula?: boolean;
+    description_hook?: boolean;
+    seo_completeness?: boolean;
+  };
+}
+
 export interface SpensiaUploadMetadata {
   titles: (string | SpensiaUploadTitleItem)[];
   recommended_title?: string;
   description: string;
   tags: string[];
   hashtags: string[];
+  analysis?: SpensiaMetadataAnalysis;
 }
 
 declare global {

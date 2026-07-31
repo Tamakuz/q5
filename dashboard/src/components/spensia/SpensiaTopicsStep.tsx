@@ -12,6 +12,15 @@ export interface TopicItem {
   selected_angle_index?: number;
   viral_score?: number;
   viral_reason?: string;
+  ruthless_critique?: string;
+  search_keyphrases?: string[];
+  outlier_search_guide?: string;
+  outlier_evidence?: {
+    channel_name?: string;
+    video_title?: string;
+    views_count?: string;
+    notes?: string;
+  };
   selected?: boolean;
 }
 
@@ -24,7 +33,8 @@ const PRESET_THEMES = [
 ];
 
 const MODEL_OPTIONS = [
-  { id: 'cx/gpt-5.5', name: 'cx/gpt-5.5 (Default)' },
+  { id: 'ag/gemini-3-flash-agent', name: 'ag/gemini-3-flash-agent (Recommended)' },
+  { id: 'cx/gpt-5.5', name: 'cx/gpt-5.5' },
   { id: 'cmc/deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
@@ -35,7 +45,7 @@ const SpensiaTopicsStep: React.FC = () => {
   const [itemCount, setItemCount] = useState<number>(5);
   const [masterPrompt, setMasterPrompt] = useState<string>('');
   const [showPromptEditor, setShowPromptEditor] = useState<boolean>(false);
-  const [selectedModel, setSelectedModel] = useState<string>('cx/gpt-5.5');
+  const [selectedModel, setSelectedModel] = useState<string>('ag/gemini-3-flash-agent');
 
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [pastedOutput, setPastedOutput] = useState<string>('');
@@ -104,8 +114,105 @@ const SpensiaTopicsStep: React.FC = () => {
       .replace(/{jumlah}/g, String(itemCount));
   };
 
+  // 🔍 Generate Keyphrases & Ruthless Critique ONLY for existing topics
+  const handleGenerateKeyphrasesOnly = async (topicsToProcess = topics) => {
+    if (topicsToProcess.length === 0) {
+      showToast('⚠️ Belum ada topik yang dibuat. Generate topik terlebih dahulu.');
+      return;
+    }
+
+    setIsGenerating(true);
+    setPastedOutput('');
+    let unsubscribeStream: (() => void) | null = null;
+
+    try {
+      const topicSummaryList = topicsToProcess
+        .map((t) => `- ID ${t.id}: "${t.title}" (Ringkasan: ${t.summary})`)
+        .join('\n');
+
+      let templatePrompt: string = '';
+      if (api?.readFromProject) {
+        const loaded = await api.readFromProject('dashboard/prompts/spensia/demand-keyphrases-prompt.md');
+        if (loaded) templatePrompt = loaded;
+      }
+
+      if (!templatePrompt || !templatePrompt.trim()) {
+        throw new Error('File prompt dashboard/prompts/spensia/demand-keyphrases-prompt.md tidak ditemukan atau kosong.');
+      }
+
+      const keyphrasePrompt = templatePrompt
+        .replace(/{jumlah}/g, String(topicsToProcess.length))
+        .replace(/{daftar_topik}/g, topicSummaryList);
+
+      if (!api?.generateSpensiaTopics) {
+        throw new Error('API generateSpensiaTopics tidak tersedia pada Electron preload.');
+      }
+
+      if (api?.onSpensiaTopicsChunk) {
+        unsubscribeStream = api.onSpensiaTopicsChunk(({ fullText }) => {
+          setPastedOutput(fullText);
+        });
+      }
+
+      const res = await api.generateSpensiaTopics(keyphrasePrompt, selectedModel);
+      const rawContent = res?.rawText || JSON.stringify(res);
+      setPastedOutput(rawContent);
+
+      let cleaned = rawContent.trim();
+      if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+      }
+
+      let parsed: any = null;
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch (err: any) {
+        console.error('Failed to parse JSON for keyphrases:', err);
+      }
+
+      const keyphraseList: any[] = parsed?.topics_keyphrases || parsed?.topics || (Array.isArray(parsed) ? parsed : []);
+
+      if (keyphraseList.length > 0) {
+        const updatedTopics = topicsToProcess.map((topic) => {
+          const match = keyphraseList.find((k: any) => Number(k.id) === topic.id);
+          if (match) {
+            return {
+              ...topic,
+              ruthless_critique: match.ruthless_critique || match.critique || topic.ruthless_critique,
+              search_keyphrases: Array.isArray(match.search_keyphrases)
+                ? match.search_keyphrases.map((x: any) => String(x).trim())
+                : topic.search_keyphrases,
+              outlier_search_guide: match.outlier_search_guide || match.panduan_outlier || topic.outlier_search_guide,
+            };
+          }
+          return topic;
+        });
+
+        setTopics(updatedTopics);
+        saveTopicsState(updatedTopics, topicTheme, selectedTopicIds);
+        showToast(`✨ Kata kunci & Bedah Kritis berhasil ditambahkan untuk ${updatedTopics.length} topik!`);
+      } else {
+        showToast('⚠️ Respon diterima, silakan periksa output JSON.');
+      }
+    } catch (err: any) {
+      showToast(`❌ Gagal me-generate kata kunci: ${err?.message || err}`);
+    } finally {
+      if (unsubscribeStream) unsubscribeStream();
+      setIsGenerating(false);
+    }
+  };
+
   // 🤖 Automated Generation Handler via 9router API with Realtime Streaming & Strict Validation
-  const handleAutoGenerate = async () => {
+  const handleAutoGenerate = async (forceNewTopics = false) => {
+    // If topics already exist and user didn't explicitly force brand-new topics:
+    if (topics.length > 0 && !forceNewTopics) {
+      const hasMissingKeyphrases = topics.some((t) => !t.search_keyphrases || t.search_keyphrases.length === 0);
+      if (hasMissingKeyphrases) {
+        await handleGenerateKeyphrasesOnly(topics);
+        return;
+      }
+    }
+
     setIsGenerating(true);
     setPastedOutput('');
     let unsubscribeStream: (() => void) | null = null;
@@ -140,7 +247,7 @@ const SpensiaTopicsStep: React.FC = () => {
       if (report.normalizedData && report.normalizedData.topics.length > 0) {
         setTopics(report.normalizedData.topics);
         saveTopicsState(report.normalizedData.topics, topicTheme, selectedTopicIds);
-        showToast(`✨ Strict JSON Valid: ${report.normalizedData.topics.length} konsep topik (dengan 3 opsi judul) berhasil di-generate!`);
+        showToast(`✨ Strict JSON Valid: ${report.normalizedData.topics.length} konsep topik berhasil di-generate!`);
       } else {
         showToast(`⚠️ Validasi JSON Gagal: ${report.summaryText}`);
       }
@@ -331,7 +438,7 @@ const SpensiaTopicsStep: React.FC = () => {
             </button>
 
             <button
-              onClick={handleAutoGenerate}
+              onClick={() => handleAutoGenerate(false)}
               disabled={isGenerating}
               className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2"
             >
@@ -492,29 +599,60 @@ const SpensiaTopicsStep: React.FC = () => {
             </div>
           </div>
 
-          {/* Dual Action Buttons */}
+          {/* Action Buttons */}
           <div className="pt-2 space-y-2">
-            <button
-              onClick={handleAutoGenerate}
-              disabled={isGenerating}
-              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-bold rounded-2xl text-xs shadow-xl shadow-emerald-950/50 transition-all flex items-center justify-center gap-2"
-            >
-              {isGenerating ? (
-                <>
-                  <span className="animate-spin text-sm">⏳</span>
-                  <span>Generating AI...</span>
-                </>
-              ) : (
-                <>
-                  <span>✨</span>
-                  <span>Auto Generate AI (1-Click)</span>
-                </>
-              )}
-            </button>
+            {topics.length > 0 ? (
+              <>
+                <button
+                  onClick={() => handleGenerateKeyphrasesOnly(topics)}
+                  disabled={isGenerating}
+                  className="w-full py-3 bg-gradient-to-r from-amber-600 to-emerald-600 hover:from-amber-500 hover:to-emerald-500 disabled:opacity-50 text-white font-bold rounded-2xl text-xs shadow-xl shadow-amber-950/40 transition-all flex items-center justify-center gap-2"
+                >
+                  {isGenerating ? (
+                    <>
+                      <span className="animate-spin text-sm">⏳</span>
+                      <span>Menganalisis Demand & Kata Kunci...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🔍</span>
+                      <span>Generate Kata Kunci Riset ({topics.length} Topik Saat Ini)</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => handleAutoGenerate(true)}
+                  disabled={isGenerating}
+                  className="w-full py-2.5 bg-gray-950 hover:bg-gray-800 text-gray-300 font-semibold rounded-2xl text-xs border border-gray-800 transition-all flex items-center justify-center gap-2"
+                >
+                  <span>🔄</span>
+                  <span>Buat Topik Baru dari Awal (Reset)</span>
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => handleAutoGenerate(false)}
+                disabled={isGenerating}
+                className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-bold rounded-2xl text-xs shadow-xl shadow-emerald-950/50 transition-all flex items-center justify-center gap-2"
+              >
+                {isGenerating ? (
+                  <>
+                    <span className="animate-spin text-sm">⏳</span>
+                    <span>Generating AI...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>✨</span>
+                    <span>Auto Generate Topik & Demand AI (1-Click)</span>
+                  </>
+                )}
+              </button>
+            )}
 
             <button
               onClick={handleCopyPrompt}
-              className="w-full py-2.5 bg-gray-950 hover:bg-gray-800 text-gray-300 font-semibold rounded-2xl text-xs border border-gray-800 transition-all flex items-center justify-center gap-2"
+              className="w-full py-2 bg-gray-950 hover:bg-gray-800 text-gray-400 hover:text-gray-200 text-[11px] font-semibold rounded-xl border border-gray-800/80 transition-all flex items-center justify-center gap-1.5"
             >
               <span>📋</span>
               <span>Salin Prompt (Manual Copy/Paste)</span>
@@ -744,6 +882,64 @@ const SpensiaTopicsStep: React.FC = () => {
                                       </button>
                                     );
                                   })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Ruthless Critique (Anti Yes-Man AI) */}
+                            {topic.ruthless_critique && (
+                              <div className="pl-8 pt-1" onClick={(e) => e.stopPropagation()}>
+                                <div className="p-3 bg-red-950/30 border border-red-800/60 rounded-xl space-y-1 text-xs">
+                                  <div className="flex items-center gap-1.5 text-red-400 font-bold text-[11px] uppercase tracking-wider">
+                                    <span>💥</span>
+                                    <span>Bedah Kritis AI (Anti Yes-Man Analysis):</span>
+                                  </div>
+                                  <p className="text-red-200/90 leading-relaxed text-[11px]">
+                                    {topic.ruthless_critique}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Search Keyphrases (Riset Autocomplete YouTube) */}
+                            {topic.search_keyphrases && topic.search_keyphrases.length > 0 && (
+                              <div className="pl-8 pt-1 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] text-amber-400 font-mono font-bold uppercase tracking-wider flex items-center gap-1">
+                                    <span>🔍</span>
+                                    <span>Kata Kunci Autocomplete (Cek Demand YouTube):</span>
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(topic.search_keyphrases?.join('\n') || '');
+                                      showToast('📋 Kata kunci riset disalin!');
+                                    }}
+                                    className="text-[10px] text-amber-300 hover:text-white underline font-mono"
+                                  >
+                                    Copy Kueri
+                                  </button>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {topic.search_keyphrases.map((kp, kIdx) => (
+                                    <span
+                                      key={kIdx}
+                                      className="px-2 py-0.5 rounded-lg bg-amber-950/40 border border-amber-800/60 text-amber-200 text-[10px] font-mono"
+                                    >
+                                      "{kp}"
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Outlier Search Guide */}
+                            {topic.outlier_search_guide && (
+                              <div className="pl-8 pt-0.5" onClick={(e) => e.stopPropagation()}>
+                                <div className="p-2.5 bg-gray-950 border border-gray-800 rounded-xl text-[11px] text-gray-300 space-y-1">
+                                  <span className="font-bold text-emerald-400 block text-[10px] uppercase font-mono">
+                                    🎯 Panduan Outlier Channel Kecil (Filter: Upload Date → This Week):
+                                  </span>
+                                  <p className="text-gray-400 leading-normal">{topic.outlier_search_guide}</p>
                                 </div>
                               </div>
                             )}

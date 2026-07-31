@@ -7,6 +7,25 @@ const NINEROUTER_BASE_URL = process.env.AI_BASE_URL || 'https://9router.riztama.
 const NINEROUTER_API_KEY = process.env.AI_API_KEY || 'sk-6b3ac6ef8e3b70c9-eyxuxt-7adfd291';
 const DEFAULT_MODEL = 'cx/gpt-5.5';
 
+function resolveModelName(model) {
+  if (!model) return 'ag/gemini-3-flash-agent';
+  return model;
+}
+
+function extractCleanJsonObject(raw) {
+  if (!raw) return '';
+  let str = raw.trim();
+  if (str.startsWith('```')) {
+    str = str.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+  }
+  const firstBrace = str.indexOf('{');
+  const lastBrace = str.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return str.slice(firstBrace, lastBrace + 1);
+  }
+  return str;
+}
+
 /**
  * Perform a Chat Completion request against 9router / OpenAI API
  */
@@ -17,7 +36,7 @@ async function chatCompletion({
   jsonMode = false,
   temperature = 0.7,
 }) {
-  const targetModel = model || DEFAULT_MODEL;
+  const targetModel = resolveModelName(model);
   const messages = [];
 
   if (systemPrompt) {
@@ -78,7 +97,7 @@ async function streamChatCompletion({
   temperature = 0.7,
   onChunk,
 }) {
-  const targetModel = model || DEFAULT_MODEL;
+  const targetModel = resolveModelName(model);
   const messages = [];
 
   if (systemPrompt) {
@@ -371,9 +390,80 @@ async function generateImage({ prompt, model = DEFAULT_IMAGE_MODEL, size = '1280
   };
 }
 
+/**
+ * Perform a Multimodal Vision Chat Completion request against 9router / OpenAI API
+ */
+async function visionChatCompletion({
+  prompt,
+  systemPrompt,
+  images = [],
+  model = DEFAULT_MODEL,
+  jsonMode = false,
+  temperature = 0.7,
+}) {
+  const targetModel = resolveModelName(model);
+  const messages = [];
+
+  if (systemPrompt) {
+    messages.push({ role: 'system', content: systemPrompt });
+  }
+
+  const userContent = [{ type: 'text', text: prompt }];
+
+  for (const img of images) {
+    const url = img.startsWith('data:') ? img : `data:image/png;base64,${img}`;
+    userContent.push({
+      type: 'image_url',
+      image_url: { url },
+    });
+  }
+
+  messages.push({ role: 'user', content: userContent });
+
+  const reqBody = {
+    model: targetModel,
+    messages,
+    temperature,
+  };
+
+  if (jsonMode) {
+    reqBody.response_format = { type: 'json_object' };
+  }
+
+  const response = await fetch(`${NINEROUTER_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${NINEROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(reqBody),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`9router Vision API Error (${response.status}): ${errText}`);
+  }
+
+  const json = await response.json();
+  const content = json.choices?.[0]?.message?.content;
+
+  if (!content) {
+    throw new Error('No content returned from AI Vision API response.');
+  }
+
+  let raw = content.trim();
+  if (raw.startsWith('```')) {
+    raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+  }
+
+  return raw;
+}
+
 module.exports = {
   chatCompletion,
   streamChatCompletion,
+  visionChatCompletion,
+  extractCleanJsonObject,
   generateSpensiaTopics,
   generateSpensiaScript,
   generateSpensiaBreakdown,

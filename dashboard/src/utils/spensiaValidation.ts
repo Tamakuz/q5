@@ -8,6 +8,15 @@ export interface SpensiaTopicItem {
   selected_angle_index?: number;
   viral_score?: number;
   viral_reason?: string;
+  ruthless_critique?: string;
+  search_keyphrases?: string[];
+  outlier_search_guide?: string;
+  outlier_evidence?: {
+    channel_name?: string;
+    video_title?: string;
+    views_count?: string;
+    notes?: string;
+  };
   selected?: boolean;
 }
 
@@ -225,8 +234,16 @@ export function validateSpensiaTopics(rawInput: any): SpensiaTopicsValidationRep
 
     // ID validation / normalization
     const itemId = Number(item.id) || index + 1;
-    const viralScore = Number(item.viral_score || item.viral_rating || item.score) || 90;
+    const viralScore = Number(item.viral_score || item.viral_rating || item.score) || 75;
     const viralReason = item.viral_reason || item.alasan_viral || undefined;
+
+    const ruthlessCritique = item.ruthless_critique || item.critique || item.bedah_kritis || undefined;
+    const searchKeyphrases = Array.isArray(item.search_keyphrases)
+      ? item.search_keyphrases.map((k: any) => String(k).trim())
+      : Array.isArray(item.keyphrases)
+      ? item.keyphrases.map((k: any) => String(k).trim())
+      : undefined;
+    const outlierSearchGuide = item.outlier_search_guide || item.panduan_outlier || undefined;
 
     normalizedTopics.push({
       id: itemId,
@@ -234,8 +251,12 @@ export function validateSpensiaTopics(rawInput: any): SpensiaTopicsValidationRep
       summary: String(summaryVal || 'Ringkasan tidak tersedia.').trim(),
       angles: anglesVal,
       selected_angle_index: 0,
-      viral_score: Math.min(100, Math.max(50, viralScore)),
+      viral_score: Math.min(100, Math.max(30, viralScore)),
       viral_reason: typeof viralReason === 'string' ? viralReason.trim() : undefined,
+      ruthless_critique: typeof ruthlessCritique === 'string' ? ruthlessCritique.trim() : undefined,
+      search_keyphrases: searchKeyphrases,
+      outlier_search_guide: typeof outlierSearchGuide === 'string' ? outlierSearchGuide.trim() : undefined,
+      outlier_evidence: item.outlier_evidence || undefined,
     });
   });
 

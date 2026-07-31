@@ -3,13 +3,14 @@ import React, { useState, useEffect } from 'react';
 import type { SpensiaThumbnailConcept, SpensiaThumbnailResult, SpensiaUploadMetadata } from '../../electron-api';
 
 const TEXT_MODELS = [
-  { id: 'cx/gpt-5.5', name: 'cx/gpt-5.5 (Default / Recommended)' },
+  { id: 'ag/gemini-3-flash-agent', name: 'ag/gemini-3-flash-agent (Default / Recommended)' },
+  { id: 'cx/gpt-5.5', name: 'cx/gpt-5.5' },
   { id: 'google/gemini-2.5-flash', name: 'Google Gemini 2.5 Flash' },
   { id: 'openai/gpt-4o-mini', name: 'OpenAI GPT-4o Mini' },
 ];
 
 const IMAGE_MODELS = [
-  { id: 'cx/gpt-5.5-image', name: 'cx/gpt-5.5-image (Default / Recommended)' },
+  { id: 'Nano Banana Pro', name: 'Google Flow — Nano Banana Pro (Gemini Pix 2 — Same as Step 5)' },
   { id: 'imagen-3.0-generate-002', name: 'Google Imagen 3' },
   { id: 'recraft-v3', name: 'Recraft V3 (Visual Vector 2D)' },
   { id: 'flux-schnell', name: 'FLUX Schnell' },
@@ -27,6 +28,10 @@ export interface BatchTopicItem {
   title: string;
   summary?: string;
   hasTimeline?: boolean;
+  search_keyphrases?: string[];
+  ruthless_critique?: string;
+  outlier_search_guide?: string;
+  screenshot_path?: string;
 }
 
 const SpensiaThumbnailStep: React.FC = () => {
@@ -43,8 +48,8 @@ const SpensiaThumbnailStep: React.FC = () => {
   const [renderedThumbnails, setRenderedThumbnails] = useState<SpensiaThumbnailConcept[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const [aiModel, setAiModel] = useState<string>('cx/gpt-5.5');
-  const [imageModel, setImageModel] = useState<string>('cx/gpt-5.5-image');
+  const [aiModel, setAiModel] = useState<string>('ag/gemini-3-flash-agent');
+  const [imageModel, setImageModel] = useState<string>('Nano Banana Pro');
   const [imageSize, setImageSize] = useState<string>('1280x720');
 
   const [loadingPrompts, setLoadingPrompts] = useState<boolean>(false);
@@ -57,12 +62,65 @@ const SpensiaThumbnailStep: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
+  // Interactive Upload Checklist State
+  const [checklist, setChecklist] = useState<{ [key: string]: boolean }>({
+    trigger: false,
+    detection: false,
+    textLength: false,
+    titleElement: false,
+    alignment: false,
+    scrollTest: false,
+  });
+
+  const toggleChecklist = (key: string) => {
+    setChecklist((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const checkedCount = Object.values(checklist).filter(Boolean).length;
+
   const api = window.electronAPI;
 
   // Batch Topics State
   const [batchTopics, setBatchTopics] = useState<BatchTopicItem[]>([]);
   const [activeTopicId, setActiveTopicId] = useState<number | null>(null);
   const [videoTitle, setVideoTitle] = useState<string>('');
+
+  const handleUploadScreenshot = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeTopicId) return;
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Data = reader.result as string;
+        setBatchTopics((prev) =>
+          prev.map((t) => (t.id === activeTopicId ? { ...t, screenshot_path: base64Data } : t))
+        );
+
+        if (api?.readFromProject && api?.saveToProject) {
+          const topicsJson = await api.readFromProject('input/spensia/topics.json');
+          if (topicsJson) {
+            const data = JSON.parse(topicsJson);
+            if (Array.isArray(data.topics)) {
+              data.topics = data.topics.map((t: any) =>
+                t.id === activeTopicId ? { ...t, screenshot_path: base64Data } : t
+              );
+            }
+            if (Array.isArray(data.selectedTopics)) {
+              data.selectedTopics = data.selectedTopics.map((t: any) =>
+                t.id === activeTopicId ? { ...t, screenshot_path: base64Data } : t
+              );
+            }
+            await api.saveToProject('input/spensia/topics.json', JSON.stringify(data, null, 2));
+          }
+        }
+        setSuccessMsg('📸 Screenshot bukti outlier berhasil disimpan!');
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      setErrorMsg(`❌ Gagal mengunggah screenshot: ${err.message}`);
+    }
+  };
 
   const loadTopicData = async (topicId: number) => {
     setUploadMetadata(null);
@@ -124,12 +182,24 @@ const SpensiaThumbnailStep: React.FC = () => {
                 id: t.id,
                 title: t.title,
                 summary: t.summary,
+                search_keyphrases: t.search_keyphrases,
+                ruthless_critique: t.ruthless_critique,
+                outlier_search_guide: t.outlier_search_guide,
+                screenshot_path: t.screenshot_path || t.screenshot_url,
               }));
               selectedId = topicState.selectedTopicId || loadedTopics[0]?.id || null;
             } else if (Array.isArray(topicState.topics) && topicState.selectedTopicId) {
               const matched = topicState.topics.find((t: any) => t.id === topicState.selectedTopicId);
               if (matched) {
-                loadedTopics = [{ id: matched.id, title: matched.title, summary: matched.summary }];
+                loadedTopics = [{
+                  id: matched.id,
+                  title: matched.title,
+                  summary: matched.summary,
+                  search_keyphrases: matched.search_keyphrases,
+                  ruthless_critique: matched.ruthless_critique,
+                  outlier_search_guide: matched.outlier_search_guide,
+                  screenshot_path: matched.screenshot_path || matched.screenshot_url,
+                }];
                 selectedId = matched.id;
               }
             }
@@ -183,6 +253,112 @@ const SpensiaThumbnailStep: React.FC = () => {
     };
   }, [api]);
 
+  const [loadingKeyphrases, setLoadingKeyphrases] = useState<boolean>(false);
+
+  // Handler: Generate Keyphrases for Active Topic if missing or user wants to refresh
+  const handleGenerateKeyphrasesForActiveTopic = async () => {
+    const activeItem = batchTopics.find((t) => t.id === activeTopicId) || batchTopics[0];
+    if (!activeItem) return;
+
+    setLoadingKeyphrases(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    try {
+      let promptTemplate = '';
+      if (api?.readFromProject) {
+        promptTemplate = (await api.readFromProject('dashboard/prompts/spensia/demand-keyphrases-prompt.md')) || '';
+      }
+
+      if (!promptTemplate || !promptTemplate.trim()) {
+        throw new Error('File prompt dashboard/prompts/spensia/demand-keyphrases-prompt.md tidak ditemukan.');
+      }
+
+      const topicSummaryList = `- ID ${activeItem.id}: "${activeItem.title}" (Ringkasan: ${activeItem.summary || ''})`;
+      const computedPrompt = promptTemplate
+        .replace(/{jumlah}/g, '1')
+        .replace(/{daftar_topik}/g, topicSummaryList);
+
+      if (!api?.generateSpensiaTopics) {
+        throw new Error('API generateSpensiaTopics tidak tersedia pada Electron preload.');
+      }
+
+      const res = await api.generateSpensiaTopics(computedPrompt, aiModel);
+      const rawContent = res?.rawText || JSON.stringify(res);
+
+      let cleaned = rawContent.trim();
+      if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+      }
+
+      let parsed: any = null;
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch (err) {}
+
+      const keyphraseList: any[] = parsed?.topics_keyphrases || parsed?.topics || (Array.isArray(parsed) ? parsed : []);
+      const matched = keyphraseList.find((k: any) => Number(k.id) === activeItem.id) || keyphraseList[0];
+
+      if (matched && Array.isArray(matched.search_keyphrases)) {
+        const newKeyphrases = matched.search_keyphrases.map((x: any) => String(x).trim());
+        const newCritique = matched.ruthless_critique || activeItem.ruthless_critique;
+        const newGuide = matched.outlier_search_guide || activeItem.outlier_search_guide;
+
+        setBatchTopics((prev) =>
+          prev.map((t) =>
+            t.id === activeItem.id
+              ? {
+                  ...t,
+                  search_keyphrases: newKeyphrases,
+                  ruthless_critique: newCritique,
+                  outlier_search_guide: newGuide,
+                }
+              : t
+          )
+        );
+
+        if (api?.readFromProject && api?.saveToProject) {
+          const topicsJson = await api.readFromProject('input/spensia/topics.json');
+          if (topicsJson) {
+            const data = JSON.parse(topicsJson);
+            if (Array.isArray(data.topics)) {
+              data.topics = data.topics.map((t: any) =>
+                t.id === activeItem.id
+                  ? {
+                      ...t,
+                      search_keyphrases: newKeyphrases,
+                      ruthless_critique: newCritique,
+                      outlier_search_guide: newGuide,
+                    }
+                  : t
+              );
+            }
+            if (Array.isArray(data.selectedTopics)) {
+              data.selectedTopics = data.selectedTopics.map((t: any) =>
+                t.id === activeItem.id
+                  ? {
+                      ...t,
+                      search_keyphrases: newKeyphrases,
+                      ruthless_critique: newCritique,
+                      outlier_search_guide: newGuide,
+                    }
+                  : t
+              );
+            }
+            await api.saveToProject('input/spensia/topics.json', JSON.stringify(data, null, 2));
+          }
+        }
+        setSuccessMsg(`✨ Kata kunci pencarian berhasil dibuat untuk Topic #${activeItem.id}!`);
+      } else {
+        throw new Error('Format kata kunci dari AI tidak sesuai.');
+      }
+    } catch (err: any) {
+      setErrorMsg(`❌ Gagal me-generate kata kunci: ${err.message}`);
+    } finally {
+      setLoadingKeyphrases(false);
+    }
+  };
+
   // Handler: Generate YouTube Upload Metadata (SEO Titles, Description, Tags)
   const handleGenerateMetadata = async () => {
     setLoadingMetadata(true);
@@ -215,7 +391,7 @@ const SpensiaThumbnailStep: React.FC = () => {
 
       if (res && res.titles && res.titles.length > 0) {
         setUploadMetadata(res);
-        setSuccessMsg('🎉 Material Upload YouTube (Judul, Deskripsi, Tags & Chapters) berhasil dibuat!');
+        setSuccessMsg('🎉 Material Upload YouTube berhasil dibuat! Klik "2. Analisis Metadata & Centang Checklist" untuk menganalisis psikologi penonton.');
       } else {
         throw new Error('Gagal menghasilkan material upload YouTube.');
       }
@@ -223,6 +399,93 @@ const SpensiaThumbnailStep: React.FC = () => {
       setErrorMsg(`❌ Error Generate Upload Metadata: ${err.message}`);
     } finally {
       setLoadingMetadata(false);
+    }
+  };
+
+  const [analyzingMetadata, setAnalyzingMetadata] = useState<boolean>(false);
+
+  // Handler: Step 2 Standalone Metadata Psychological & Strategic Analysis
+  const handleAnalyzeMetadata = async () => {
+    if (!uploadMetadata) return;
+    setAnalyzingMetadata(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    try {
+      if (!api?.analyzeSpensiaMetadata) {
+        throw new Error('IPC handler analyzeSpensiaMetadata tidak tersedia.');
+      }
+
+      const analysis = await api.analyzeSpensiaMetadata(
+        videoTitle || 'Spensia Educational Facts',
+        uploadMetadata,
+        aiModel,
+        activeTopicId || undefined
+      );
+
+      if (analysis) {
+        setUploadMetadata((prev) => (prev ? { ...prev, analysis, recommended_title: analysis.superior_title || prev.recommended_title } : null));
+
+        if (analysis.superior_title && uploadMetadata.titles) {
+          const idx = uploadMetadata.titles.findIndex((t) =>
+            typeof t === 'string' ? t === analysis.superior_title : t.title === analysis.superior_title
+          );
+          if (idx !== -1) setSelectedTitleIndex(idx);
+        }
+
+        if (analysis.metadata_checklist) {
+          const chk = analysis.metadata_checklist;
+          setChecklist({
+            trigger: !!chk.doom_scroll_stopper,
+            detection: !!chk.title_length,
+            textLength: !!chk.psychological_formula,
+            titleElement: !!chk.psychological_formula,
+            alignment: !!chk.description_hook,
+            scrollTest: !!chk.seo_completeness,
+          });
+        }
+
+        setSuccessMsg('🧠 Analisis psikologis & pemilihan judul terbaik selesai!');
+      }
+    } catch (err: any) {
+      setErrorMsg(`❌ Error Analisis Metadata: ${err.message}`);
+    } finally {
+      setAnalyzingMetadata(false);
+    }
+  };
+
+  const [fixingMetadata, setFixingMetadata] = useState<boolean>(false);
+
+  // Handler: Auto-Fix Metadata based on AI Analysis
+  const handleFixMetadata = async () => {
+    if (!uploadMetadata || !uploadMetadata.analysis) return;
+    setFixingMetadata(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    try {
+      if (!api?.fixSpensiaMetadata) {
+        throw new Error('IPC handler fixSpensiaMetadata tidak tersedia.');
+      }
+
+      const fixedMeta = await api.fixSpensiaMetadata(
+        videoTitle || 'Spensia Educational Facts',
+        uploadMetadata,
+        uploadMetadata.analysis,
+        aiModel,
+        activeTopicId || undefined
+      );
+
+      if (fixedMeta && fixedMeta.titles && fixedMeta.titles.length > 0) {
+        setUploadMetadata(fixedMeta);
+        setSuccessMsg('🎉 Metadata berhasil diperbaiki & dioptimalkan 100% oleh AI!');
+      } else {
+        throw new Error('Gagal memperbaiki metadata.');
+      }
+    } catch (err: any) {
+      setErrorMsg(`❌ Error Fix Metadata: ${err.message}`);
+    } finally {
+      setFixingMetadata(false);
     }
   };
 
@@ -249,17 +512,22 @@ const SpensiaThumbnailStep: React.FC = () => {
         }
       }
 
-      // Ambil judul terpilih dari tab metadata sebagai referensi prompt
+      // Ambil judul terpilih yang sudah dianalisis & diputuskan dari metadata
+      const superiorTitle = uploadMetadata?.analysis?.superior_title;
+      const recommendedTitle = uploadMetadata?.recommended_title;
       const selectedTitleObj = uploadMetadata?.titles?.[selectedTitleIndex];
-      const selectedTitleText = typeof selectedTitleObj === 'string'
+      const manualTitleText = typeof selectedTitleObj === 'string'
         ? selectedTitleObj
         : selectedTitleObj?.title || undefined;
+
+      const selectedTitleText = superiorTitle || recommendedTitle || manualTitleText || videoTitle;
 
       const res = await api.generateSpensiaThumbnailPrompts(
         scriptContent,
         videoTitle || 'Spensia Educational Facts',
-        selectedTitleText,  // judul terpilih dari metadata
-        aiModel,             // model AI (parameter ke-4)
+        selectedTitleText,
+        uploadMetadata,
+        'ag/gemini-3-flash-agent',
         activeTopicId || undefined
       );
 
@@ -326,6 +594,58 @@ const SpensiaThumbnailStep: React.FC = () => {
       }
     } catch (err: any) {
       console.warn('Error saving selection:', err);
+    }
+  };
+
+  const [visionAnalysis, setVisionAnalysis] = useState<any>(null);
+  const [analyzingVision, setAnalyzingVision] = useState<boolean>(false);
+
+  // Handler: AI Vision Audit of 3 Rendered Thumbnail Images
+  const handleAnalyzeThumbnailImages = async () => {
+    if (renderedThumbnails.length === 0) {
+      setErrorMsg('Silakan render 3 gambar thumbnail terlebih dahulu.');
+      return;
+    }
+    setAnalyzingVision(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    try {
+      if (!api?.analyzeSpensiaThumbnailImages) {
+        throw new Error('IPC handler analyzeSpensiaThumbnailImages tidak tersedia.');
+      }
+
+      const superiorTitle = uploadMetadata?.analysis?.superior_title;
+      const recommendedTitle = uploadMetadata?.recommended_title;
+      const selectedTitleObj = uploadMetadata?.titles?.[selectedTitleIndex];
+      const manualTitleText = typeof selectedTitleObj === 'string'
+        ? selectedTitleObj
+        : selectedTitleObj?.title || undefined;
+      const selectedTitleText = superiorTitle || recommendedTitle || manualTitleText || videoTitle;
+
+      const res = await api.analyzeSpensiaThumbnailImages(
+        videoTitle || 'Spensia Educational Facts',
+        selectedTitleText,
+        renderedThumbnails,
+        'ag/gemini-3-flash-agent',
+        activeTopicId || undefined
+      );
+
+      if (res) {
+        setVisionAnalysis(res);
+        if (res.winner_id) {
+          setSelectedId(res.winner_id);
+          const winnerItem = renderedThumbnails.find((t) => t.id === res.winner_id);
+          if (winnerItem && api.saveSpensiaThumbnailSelection) {
+            await api.saveSpensiaThumbnailSelection(winnerItem.id, winnerItem, activeTopicId || undefined);
+          }
+        }
+        setSuccessMsg(`🧠 AI Vision berhasil menganalisis 3 thumbnail & memilih Thumbnail #${res.winner_id || 1} sebagai Pemenang Utama!`);
+      }
+    } catch (err: any) {
+      setErrorMsg(`❌ Error Analisis Vision Thumbnail: ${err.message}`);
+    } finally {
+      setAnalyzingVision(false);
     }
   };
 
@@ -425,12 +745,12 @@ const SpensiaThumbnailStep: React.FC = () => {
       {/* TAB 1: YOUTUBE UPLOAD METADATA (SEO TITLES, DESCRIPTION, TAGS) */}
       {activeTab === 'metadata' && (
         <div className="space-y-6">
-          {/* Top Bar Action */}
+          {/* Top Bar Action - 1-Click Generation */}
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-gray-900/90 border border-gray-800 rounded-2xl p-4">
             <div className="space-y-1">
               <span className="text-xs font-bold text-emerald-400 font-mono">SEO MATERIAL GENERATOR</span>
               <p className="text-xs text-gray-300">
-                Membuat 3 Judul SEO (&lt;60 Karakter), Deskripsi lengkap dengan Timestamps & CTA, 15-25 Tags, dan Hashtags.
+                Membuat 3 Judul SEO (&lt;60 Karakter), Deskripsi lengkap dengan Timestamps & CTA, 15-25 Tags, dan Hashtags sekaligus dalam 1-klik.
               </p>
             </div>
 
@@ -447,8 +767,8 @@ const SpensiaThumbnailStep: React.FC = () => {
 
               <button
                 onClick={handleGenerateMetadata}
-                disabled={loadingMetadata}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-900/40 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                disabled={loadingMetadata || analyzingMetadata}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-900/40 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 {loadingMetadata ? (
                   <>
@@ -458,10 +778,30 @@ const SpensiaThumbnailStep: React.FC = () => {
                 ) : (
                   <>
                     <span>✨</span>
-                    <span>Generate Upload Materials</span>
+                    <span>1. Generate Metadata</span>
                   </>
                 )}
               </button>
+
+              {uploadMetadata && (
+                <button
+                  onClick={handleAnalyzeMetadata}
+                  disabled={loadingMetadata || analyzingMetadata}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-purple-900/40 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {analyzingMetadata ? (
+                    <>
+                      <span className="animate-spin text-sm">⏳</span>
+                      <span>Menganalisis Psikologi...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🧠</span>
+                      <span>{uploadMetadata.analysis ? '🔄 Analisis Ulang Metadata' : '2. Analisis Metadata AI'}</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
@@ -628,6 +968,123 @@ const SpensiaThumbnailStep: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* AI PSYCHOLOGICAL & STRATEGIC METADATA ANALYSIS CARD */}
+              {uploadMetadata.analysis && (
+                <div className="md:col-span-12 bg-gray-900 border border-emerald-500/40 rounded-3xl p-6 space-y-5 shadow-2xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 bg-emerald-950 text-emerald-400 rounded-xl text-xs font-mono font-bold">🧠</span>
+                      <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wider">
+                        Analisis Psikologis & Keputusan AI (Penonton Doom Scrolling Indonesia)
+                      </h3>
+                    </div>
+                    <span className="px-3 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700 text-xs font-mono font-bold">
+                      AI Decision & Strategic Assessment
+                    </span>
+                  </div>
+
+                  {/* Superior Title Callout */}
+                  {uploadMetadata.analysis.superior_title && (
+                    <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 to-teal-950/80 border border-emerald-500/60 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-emerald-500 text-gray-950 font-bold text-[10px] font-mono">
+                          🏆 JUDUL PALING UNGGUL
+                        </span>
+                        <h4 className="text-sm font-bold text-emerald-200 font-mono">
+                          "{uploadMetadata.analysis.superior_title}"
+                        </h4>
+                      </div>
+                      {uploadMetadata.analysis.superior_reason && (
+                        <p className="text-xs text-emerald-100/90 leading-relaxed font-sans pl-1">
+                          💡 <strong className="font-mono text-emerald-300">Alasan Mengapa Unggul:</strong> {uploadMetadata.analysis.superior_reason}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Detailed Breakdown Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Box 1: Yang Sudah Bagus */}
+                    {uploadMetadata.analysis.what_is_great && (
+                      <div className="p-4 rounded-2xl bg-gray-950 border border-gray-800 space-y-1.5">
+                        <span className="text-xs font-bold text-emerald-400 font-mono flex items-center gap-1.5">
+                          <span>✅</span> Yang Sudah Sangat Bagus:
+                        </span>
+                        <p className="text-xs text-gray-300 leading-relaxed">
+                          {uploadMetadata.analysis.what_is_great}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Box 2: Perlu Diperbaiki / Catatan + Auto-Fix Button */}
+                    <div className="p-4 rounded-2xl bg-gray-950 border border-gray-800 space-y-3 flex flex-col justify-between">
+                      <div className="space-y-1.5">
+                        <span className="text-xs font-bold text-amber-400 font-mono flex items-center gap-1.5">
+                          <span>🛠️</span> Perlu Diperhatikan / Catatan:
+                        </span>
+                        <p className="text-xs text-gray-300 leading-relaxed">
+                          {uploadMetadata.analysis.areas_to_improve}
+                        </p>
+
+                        {uploadMetadata.analysis.improvements_needed && uploadMetadata.analysis.improvements_needed.length > 0 && (
+                          <div className="pt-1 space-y-1">
+                            {uploadMetadata.analysis.improvements_needed.map((imp, idx) => (
+                              <div key={idx} className="text-[11px] text-amber-300/90 font-mono bg-amber-950/30 p-2 rounded-lg border border-amber-900/40">
+                                🎯 <strong className="uppercase">Target ({imp.target_field}):</strong> {imp.suggested_fix_instruction}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-2 border-t border-gray-900">
+                        <button
+                          onClick={handleFixMetadata}
+                          disabled={fixingMetadata}
+                          className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-400 hover:to-emerald-500 text-gray-950 font-black text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          {fixingMetadata ? (
+                            <>
+                              <span className="animate-spin text-xs">⏳</span>
+                              <span>Memperbaiki Metadata AI...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>🛠️</span>
+                              <span>Auto-Fix / Perbaiki Metadata (AI)</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Box 3: Analisis Psikologi Penonton Indonesia */}
+                    {uploadMetadata.analysis.psychological_analysis && (
+                      <div className="p-4 rounded-2xl bg-gray-950 border border-gray-800 space-y-1.5">
+                        <span className="text-xs font-bold text-purple-400 font-mono flex items-center gap-1.5">
+                          <span>🧠</span> Analisis Psikologis (Indonesian Audience):
+                        </span>
+                        <p className="text-xs text-gray-300 leading-relaxed">
+                          {uploadMetadata.analysis.psychological_analysis}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Box 4: Dampak Waktu Doom Scrolling */}
+                    {uploadMetadata.analysis.doom_scroll_impact && (
+                      <div className="p-4 rounded-2xl bg-gray-950 border border-gray-800 space-y-1.5">
+                        <span className="text-xs font-bold text-teal-400 font-mono flex items-center gap-1.5">
+                          <span>⚡</span> Dampak Saat Doom Scrolling (&lt;0.5 Detik):
+                        </span>
+                        <p className="text-xs text-gray-300 leading-relaxed">
+                          {uploadMetadata.analysis.doom_scroll_impact}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -643,8 +1100,9 @@ const SpensiaThumbnailStep: React.FC = () => {
                 <label className="text-[11px] font-bold text-gray-400">Model Image Generator (Sama Step 5):</label>
                 <select
                   value={imageModel}
+                  disabled={!uploadMetadata}
                   onChange={(e) => setImageModel(e.target.value)}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-1.5 text-xs text-gray-200 font-mono focus:border-indigo-500 outline-none"
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-1.5 text-xs text-gray-200 font-mono focus:border-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {IMAGE_MODELS.map((m) => (
                     <option key={m.id} value={m.id}>{m.name}</option>
@@ -656,8 +1114,9 @@ const SpensiaThumbnailStep: React.FC = () => {
                 <label className="text-[11px] font-bold text-gray-400">Resolusi Thumbnail (16:9):</label>
                 <select
                   value={imageSize}
+                  disabled={!uploadMetadata}
                   onChange={(e) => setImageSize(e.target.value)}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-1.5 text-xs text-gray-200 font-mono focus:border-teal-500 outline-none"
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-1.5 text-xs text-gray-200 font-mono focus:border-teal-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {RESOLUTION_OPTIONS.map((r) => (
                     <option key={r.size} value={r.size}>{r.label}</option>
@@ -666,11 +1125,11 @@ const SpensiaThumbnailStep: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={handleGeneratePrompts}
-                disabled={loadingPrompts || loadingImages}
-                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-900/40 transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                disabled={loadingPrompts || loadingImages || analyzingVision || !uploadMetadata}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-900/40 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {loadingPrompts ? '⏳ Streaming Prompts...' : '🚀 1. Generate 3 Prompts'}
               </button>
@@ -678,10 +1137,30 @@ const SpensiaThumbnailStep: React.FC = () => {
               {concepts.length > 0 && (
                 <button
                   onClick={handleGenerateImages}
-                  disabled={loadingPrompts || loadingImages}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold text-xs shadow-lg shadow-indigo-900/40 transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  disabled={loadingPrompts || loadingImages || analyzingVision || !uploadMetadata}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold text-xs shadow-lg shadow-indigo-900/40 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {loadingImages ? '🎨 Rendering Images...' : '🖼️ 2. Render 3 Thumbnails'}
+                </button>
+              )}
+
+              {renderedThumbnails.length > 0 && (
+                <button
+                  onClick={handleAnalyzeThumbnailImages}
+                  disabled={loadingPrompts || loadingImages || analyzingVision || !uploadMetadata}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-purple-900/40 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {analyzingVision ? (
+                    <>
+                      <span className="animate-spin text-xs">⏳</span>
+                      <span>Menganalisis Vision AI...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🧠</span>
+                      <span>3. Analisis Vision & Pilih Otomatis</span>
+                    </>
+                  )}
                 </button>
               )}
             </div>
@@ -689,12 +1168,16 @@ const SpensiaThumbnailStep: React.FC = () => {
 
           {/* WARNING: Metadata belum di-generate */}
           {!uploadMetadata && (
-            <div className="p-4 rounded-2xl bg-amber-950/80 border border-amber-500/40 text-amber-200 text-xs font-mono flex items-start gap-3">
-              <span className="text-base">⚠️</span>
-              <div>
-                <strong>YouTube Upload Metadata belum dibuat.</strong>{' '}
-                Buat dulu di tab <strong>"Upload SEO Metadata"</strong> → Generate Upload Materials → pilih judul, lalu kembali ke tab ini.
-                Ini penting agar konsep thumbnail yang dihasilkan relevan dengan judul video terpilih.
+            <div className="p-4 rounded-2xl bg-amber-950/90 border border-amber-500/60 text-amber-200 text-xs font-mono flex items-start gap-3 shadow-xl">
+              <span className="text-xl">⚠️</span>
+              <div className="space-y-1">
+                <strong className="text-amber-300 font-bold block text-sm">Fitur Thumbnail Studio Terkunci (SEO Metadata Required)</strong>
+                <p>
+                  YouTube Upload Metadata belum dibuat untuk topik ini. Silakan masuk ke tab <strong>"1. Upload SEO Metadata"</strong> ➔ klik <strong>"1. Generate Metadata"</strong> ➔ tentukan judul video terbaik, lalu kembali ke tab ini.
+                </p>
+                <p className="text-[11px] text-amber-400/80 italic">
+                  Ini wajib dilakukan agar konsep visual thumbnail & teks overlay yang dihasilkan 100% selaras dengan judul video terpilih.
+                </p>
               </div>
             </div>
           )}
@@ -928,6 +1411,69 @@ const SpensiaThumbnailStep: React.FC = () => {
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* VISION AI ANALYSIS & SELECTION AUDIT CARD */}
+          {visionAnalysis && (
+            <div className="bg-gray-900 border border-purple-500/40 rounded-3xl p-6 space-y-5 shadow-2xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 bg-purple-950 text-purple-400 rounded-xl text-xs font-mono font-bold">👁️</span>
+                  <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wider">
+                    Analisis Vision AI & Audit Psikologi Scrolling Manusia
+                  </h3>
+                </div>
+                <span className="px-3 py-1 rounded-full bg-purple-950 text-purple-300 border border-purple-700 text-xs font-mono font-bold">
+                  Human Eye-Tracking & Pattern Interrupt Audit
+                </span>
+              </div>
+
+              {/* Winner Callout */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/90 to-indigo-950/90 border border-purple-500/60 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded bg-purple-500 text-gray-950 font-bold text-[10px] font-mono uppercase">
+                    🏆 THUMBNAIL PEMENANG UTAMA
+                  </span>
+                  <h4 className="text-sm font-bold text-purple-200 font-mono">
+                    Thumbnail #{visionAnalysis.winner_id || 1} {visionAnalysis.winner_title ? `— ${visionAnalysis.winner_title}` : ''}
+                  </h4>
+                </div>
+                {visionAnalysis.winner_reason && (
+                  <p className="text-xs text-purple-100/90 leading-relaxed pl-1">
+                    💡 <strong className="font-mono text-purple-300">Alasan Mengapa Paling Efektif Memutus Scrolling:</strong> {visionAnalysis.winner_reason}
+                  </p>
+                )}
+              </div>
+
+              {/* Human Scrolling Psychology Notes */}
+              {visionAnalysis.human_scrolling_psychology_notes && (
+                <div className="p-4 rounded-2xl bg-gray-950 border border-gray-800 space-y-1.5">
+                  <span className="text-xs font-bold text-emerald-400 font-mono flex items-center gap-1.5">
+                    <span>📱</span> Catatan Refleks Mata & Kebiasaan Penonton Indonesia:
+                  </span>
+                  <p className="text-xs text-gray-300 leading-relaxed">
+                    {visionAnalysis.human_scrolling_psychology_notes}
+                  </p>
+                </div>
+              )}
+
+              {/* Evaluations breakdown */}
+              {visionAnalysis.evaluations && visionAnalysis.evaluations.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                  {visionAnalysis.evaluations.map((ev: any) => (
+                    <div key={ev.id} className="p-4 rounded-2xl bg-gray-950 border border-gray-800 space-y-2 text-xs">
+                      <div className="flex items-center justify-between font-mono font-bold">
+                        <span className="text-white">Thumbnail #{ev.id}</span>
+                        <span className="text-emerald-400">{ev.thumb_stopping_score || 90}% Score</span>
+                      </div>
+                      {ev.strengths && <p className="text-[11px] text-emerald-300/90">✅ {ev.strengths}</p>}
+                      {ev.weaknesses && <p className="text-[11px] text-amber-300/90">⚠️ {ev.weaknesses}</p>}
+                      {ev.scrolling_impact && <p className="text-[11px] text-gray-400 italic">⚡ {ev.scrolling_impact}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
