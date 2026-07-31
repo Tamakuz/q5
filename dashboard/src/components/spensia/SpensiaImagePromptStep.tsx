@@ -441,12 +441,12 @@ const SpensiaImagePromptStep: React.FC = () => {
       )}
 
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-amber-950/80 via-gray-900 to-gray-950 p-6 rounded-3xl border border-amber-800/40 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+      <div className="bg-gradient-to-r from-emerald-950/80 via-gray-900 to-gray-950 p-6 rounded-3xl border border-emerald-800/40 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800 text-[10px] font-mono font-bold uppercase tracking-wider">
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold uppercase tracking-wider">
                 ✨ Spensia AI Workflow — Step 4
               </span>
             </div>
@@ -469,7 +469,7 @@ const SpensiaImagePromptStep: React.FC = () => {
 
             <button
               onClick={handleCopyPrompt}
-              className="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-amber-300 rounded-xl text-xs font-semibold border border-amber-800/80 transition-all flex items-center gap-1.5"
+              className="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-emerald-300 rounded-xl text-xs font-semibold border border-emerald-800/80 transition-all flex items-center gap-1.5"
             >
               <span>📋</span>
               <span>Salin Prompt</span>
@@ -478,7 +478,7 @@ const SpensiaImagePromptStep: React.FC = () => {
             <button
               onClick={handleAutoGenerate}
               disabled={isGenerating || isBatchGenerating}
-              className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-600/30 transition-all flex items-center gap-2"
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-500 hover:to-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2"
             >
               {isGenerating ? (
                 <>
@@ -498,10 +498,10 @@ const SpensiaImagePromptStep: React.FC = () => {
 
       {/* Batch Queue Topic Tabs Selector */}
       {batchTopics.length > 0 && (
-        <div className="bg-gray-900/90 p-4 rounded-3xl border border-amber-800/40 shadow-xl space-y-3">
+        <div className="bg-gray-900/90 p-4 rounded-3xl border border-emerald-800/40 shadow-xl space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-md bg-amber-950 text-amber-300 border border-amber-800 font-bold font-mono text-[10px] uppercase">
+              <span className="px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold font-mono text-[10px] uppercase">
                 🚀 Batch Queue ({batchTopics.length} Topik)
               </span>
               <h3 className="text-xs font-bold text-white">
@@ -513,7 +513,7 @@ const SpensiaImagePromptStep: React.FC = () => {
               <button
                 onClick={handleBatchGenerateAll}
                 disabled={isGenerating || isBatchGenerating}
-                className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-900/40 transition-all flex items-center gap-1.5 shrink-0"
+                className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-500 hover:to-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-900/40 transition-all flex items-center gap-1.5 shrink-0"
               >
                 {isBatchGenerating ? (
                   <>
@@ -540,23 +540,23 @@ const SpensiaImagePromptStep: React.FC = () => {
                   onClick={() => handleSwitchTopic(t)}
                   className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${
                     isGeneratingThis
-                      ? 'bg-amber-950/90 border-amber-400 text-amber-200 shadow-lg shadow-amber-950/60 ring-2 ring-amber-500/50 animate-pulse'
+                      ? 'bg-emerald-950/90 border-emerald-400 text-emerald-200 shadow-lg shadow-emerald-950/60 ring-2 ring-emerald-500/50 animate-pulse'
                       : isActive
-                      ? 'bg-amber-950/80 border-amber-500 text-amber-200 shadow-md ring-1 ring-amber-500/40'
+                      ? 'bg-emerald-950/80 border-emerald-500 text-emerald-200 shadow-md ring-1 ring-emerald-500/40'
                       : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
                   }`}
                 >
-                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-amber-300 shrink-0">
+                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-emerald-300 shrink-0">
                     #{t.id}
                   </span>
                   <span className="truncate">"{t.title}"</span>
                   <span
                     className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
                       isGeneratingThis
-                        ? 'bg-amber-900 text-amber-200 border border-amber-500 animate-pulse'
+                        ? 'bg-emerald-900 text-emerald-200 border border-emerald-500 animate-pulse'
                         : t.hasPrompts
                         ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                        : 'bg-gray-900 text-amber-400 border border-gray-800'
+                        : 'bg-gray-900 text-emerald-400 border border-gray-800'
                     }`}
                   >
                     {isGeneratingThis ? '⚡ Generating...' : t.hasPrompts ? '✓ Ready' : '⏳ Belum'}
@@ -570,23 +570,23 @@ const SpensiaImagePromptStep: React.FC = () => {
 
       {/* Realtime Process Monitor Panel */}
       {(isGenerating || isBatchGenerating) && (
-        <div className="bg-gray-900/95 p-5 rounded-3xl border border-amber-500/60 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+        <div className="bg-gray-900/95 p-5 rounded-3xl border border-emerald-500/60 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
             <div className="flex items-center gap-2">
               <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
               </span>
               <h3 className="text-xs font-bold text-white tracking-wide uppercase flex items-center gap-2">
                 <span>⚡</span> Realtime Image Prompt Monitor
               </h3>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-amber-950 text-amber-300 border border-amber-800 font-bold">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold">
                 Model: {selectedModel}
               </span>
             </div>
 
             {batchTotalCount > 0 && (
-              <span className="text-xs font-mono font-bold text-amber-300 flex items-center gap-1.5">
+              <span className="text-xs font-mono font-bold text-emerald-300 flex items-center gap-1.5">
                 <span>📊</span> Progress: Topik {batchCurrentIndex} dari {batchTotalCount} ({Math.round((batchCurrentIndex / batchTotalCount) * 100)}% Selesai)
               </span>
             )}
@@ -596,7 +596,7 @@ const SpensiaImagePromptStep: React.FC = () => {
           {batchTotalCount > 0 && (
             <div className="w-full bg-gray-950 rounded-full h-2.5 overflow-hidden border border-gray-800 p-0.5">
               <div
-                className="bg-gradient-to-r from-amber-500 via-orange-500 to-emerald-400 h-full rounded-full transition-all duration-300 shadow-md shadow-amber-500/50"
+                className="bg-gradient-to-r from-emerald-500 via-emerald-500 to-emerald-400 h-full rounded-full transition-all duration-300 shadow-md shadow-emerald-500/50"
                 style={{ width: `${Math.max(5, Math.round((batchCurrentIndex / batchTotalCount) * 100))}%` }}
               />
             </div>
@@ -612,7 +612,7 @@ const SpensiaImagePromptStep: React.FC = () => {
                     key={t.id}
                     className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 transition-all ${
                       isGeneratingThis
-                        ? 'bg-amber-950/80 border-amber-400 text-white shadow-lg shadow-amber-950/50 ring-1 ring-amber-400/50 animate-pulse'
+                        ? 'bg-emerald-950/80 border-emerald-400 text-white shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-400/50 animate-pulse'
                         : t.hasPrompts
                         ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-300'
                         : 'bg-gray-950 border-gray-800 text-gray-400'
@@ -639,16 +639,16 @@ const SpensiaImagePromptStep: React.FC = () => {
               <span className="text-gray-400 flex items-center gap-1">
                 <span>📝</span> Live Image Prompts JSON Stream:
               </span>
-              <span className="text-amber-300 font-bold bg-amber-950 px-2.5 py-1 rounded-lg border border-amber-800">
+              <span className="text-emerald-300 font-bold bg-emerald-950 px-2.5 py-1 rounded-lg border border-emerald-800">
                 {imagePrompts.length} Prompt Gambar
               </span>
             </div>
 
-            <div className="bg-gray-950 border border-gray-800 rounded-2xl p-4 font-mono text-xs text-gray-300 max-h-48 overflow-y-auto leading-relaxed whitespace-pre-wrap selection:bg-amber-900 selection:text-white border-amber-900/40">
+            <div className="bg-gray-950 border border-gray-800 rounded-2xl p-4 font-mono text-xs text-gray-300 max-h-48 overflow-y-auto leading-relaxed whitespace-pre-wrap selection:bg-emerald-900 selection:text-white border-emerald-900/40">
               {pastedOutput ? (
                 <>
                   {pastedOutput}
-                  <span className="inline-block w-2 h-4 bg-amber-400 ml-1 animate-ping" />
+                  <span className="inline-block w-2 h-4 bg-emerald-400 ml-1 animate-ping" />
                 </>
               ) : (
                 <span className="text-gray-600 italic">⏳ Menunggu respon pertama dari API AI stream...</span>
@@ -660,9 +660,9 @@ const SpensiaImagePromptStep: React.FC = () => {
 
       {/* Collapsible Master Prompt Editor */}
       {showPromptEditor && (
-        <div className="bg-gray-900/90 p-5 rounded-3xl border border-amber-800/40 shadow-xl space-y-3 animate-in slide-in-from-top-4 duration-200">
+        <div className="bg-gray-900/90 p-5 rounded-3xl border border-emerald-800/40 shadow-xl space-y-3 animate-in slide-in-from-top-4 duration-200">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+            <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
               <span>📝</span> Master Image Prompt Generator (`image-prompt-generator-prompt.md`)
             </h3>
             <div className="flex items-center gap-2">
@@ -674,7 +674,7 @@ const SpensiaImagePromptStep: React.FC = () => {
               </button>
               <button
                 onClick={handleSavePrompt}
-                className="px-3 py-1 bg-amber-700 hover:bg-amber-600 text-white rounded-lg text-[11px] font-bold transition-all"
+                className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-[11px] font-bold transition-all"
               >
                 Simpan Prompt
               </button>
@@ -685,7 +685,7 @@ const SpensiaImagePromptStep: React.FC = () => {
             value={masterPrompt}
             onChange={(e) => setMasterPrompt(e.target.value)}
             rows={12}
-            className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-4 text-xs font-mono text-gray-300 focus:outline-none focus:border-amber-500/80 leading-relaxed resize-y"
+            className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-4 text-xs font-mono text-gray-300 focus:outline-none focus:border-emerald-500/80 leading-relaxed resize-y"
             placeholder="Loading prompt from file..."
           />
         </div>
@@ -696,7 +696,7 @@ const SpensiaImagePromptStep: React.FC = () => {
         {/* Left Column: Segments Input Preview */}
         <div className="md:col-span-1 bg-gray-900/80 p-5 rounded-3xl border border-gray-800 shadow-xl space-y-5">
           <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
-            <span className="p-1 bg-amber-950 text-amber-400 rounded-lg text-xs">✂️</span>
+            <span className="p-1 bg-emerald-950 text-emerald-400 rounded-lg text-xs">✂️</span>
             Source Segmen (Step 3)
           </h2>
 
@@ -705,7 +705,7 @@ const SpensiaImagePromptStep: React.FC = () => {
               <label className="text-xs font-bold text-gray-300">
                 Segmen Adegan:
               </label>
-              <span className="text-[10px] font-mono text-amber-300 font-bold">
+              <span className="text-[10px] font-mono text-emerald-300 font-bold">
                 {segmentsCount} Segmen Loaded
               </span>
             </div>
@@ -715,7 +715,7 @@ const SpensiaImagePromptStep: React.FC = () => {
               onChange={(e) => setSegmentsListStr(e.target.value)}
               rows={12}
               placeholder="List segmen dari Step 3 akan otomatis terisi di sini..."
-              className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-3.5 text-xs text-gray-200 focus:outline-none focus:border-amber-500 transition-all leading-relaxed font-mono"
+              className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-3.5 text-xs text-gray-200 focus:outline-none focus:border-emerald-500 transition-all leading-relaxed font-mono"
             />
           </div>
 
@@ -727,7 +727,7 @@ const SpensiaImagePromptStep: React.FC = () => {
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
-              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-amber-300 focus:outline-none focus:border-amber-500 font-mono font-semibold"
+              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-emerald-300 focus:outline-none focus:border-emerald-500 font-mono font-semibold"
             >
               {MODEL_OPTIONS.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -741,7 +741,7 @@ const SpensiaImagePromptStep: React.FC = () => {
             <button
               onClick={handleAutoGenerate}
               disabled={isGenerating}
-              className="w-full py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 disabled:opacity-50 text-white font-bold rounded-2xl text-xs shadow-xl shadow-amber-950/50 transition-all flex items-center justify-center gap-2"
+              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-500 hover:to-emerald-500 disabled:opacity-50 text-white font-bold rounded-2xl text-xs shadow-xl shadow-emerald-950/50 transition-all flex items-center justify-center gap-2"
             >
               {isGenerating ? (
                 <>
@@ -772,10 +772,10 @@ const SpensiaImagePromptStep: React.FC = () => {
             {/* Header & Controls */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
               <div className="flex items-center gap-2">
-                <span className="p-1 bg-amber-950 text-amber-400 rounded-lg text-xs">🖼️</span>
+                <span className="p-1 bg-emerald-950 text-emerald-400 rounded-lg text-xs">🖼️</span>
                 <h2 className="text-sm font-bold text-white">Prompt Gambar per Segmen</h2>
                 {imagePrompts.length > 0 && (
-                  <span className="text-[11px] font-mono text-amber-300 bg-amber-950 px-2.5 py-0.5 rounded-full border border-amber-800 font-bold">
+                  <span className="text-[11px] font-mono text-emerald-300 bg-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-800 font-bold">
                     {imagePrompts.length} Prompts
                   </span>
                 )}
@@ -785,7 +785,7 @@ const SpensiaImagePromptStep: React.FC = () => {
                 {imagePrompts.length > 0 && (
                   <button
                     onClick={handleCopyAllPrompts}
-                    className="px-3 py-1.5 bg-amber-950 hover:bg-amber-900 border border-amber-800 text-amber-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+                    className="px-3 py-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
                   >
                     <span>📋</span>
                     <span>Salin Semua Prompt (.txt)</span>
@@ -796,7 +796,7 @@ const SpensiaImagePromptStep: React.FC = () => {
                   <button
                     onClick={() => setActiveTab('cards')}
                     className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      activeTab === 'cards' ? 'bg-amber-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+                      activeTab === 'cards' ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
                     }`}
                   >
                     🖼️ Visual Cards
@@ -804,7 +804,7 @@ const SpensiaImagePromptStep: React.FC = () => {
                   <button
                     onClick={() => setActiveTab('json')}
                     className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      activeTab === 'json' ? 'bg-amber-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+                      activeTab === 'json' ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
                     }`}
                   >
                     📥 Raw Output
@@ -817,8 +817,8 @@ const SpensiaImagePromptStep: React.FC = () => {
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
                 {isGenerating && (
-                  <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-md bg-amber-950/90 text-amber-300 border border-amber-700/80 font-bold animate-pulse flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                  <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-md bg-emerald-950/90 text-emerald-300 border border-emerald-700/80 font-bold animate-pulse flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                     <span>🔴 Streaming Image Prompts Live... ({pastedOutput.length} char)</span>
                   </span>
                 )}
@@ -841,7 +841,7 @@ const SpensiaImagePromptStep: React.FC = () => {
               <div className="space-y-4">
                 {imagePrompts.length === 0 ? (
                   <div className="bg-gray-950 border border-dashed border-gray-800 rounded-3xl p-12 text-center space-y-3">
-                    <div className="w-14 h-14 bg-amber-600/10 text-amber-400 rounded-2xl flex items-center justify-center text-2xl mx-auto border border-amber-500/20">
+                    <div className="w-14 h-14 bg-emerald-600/10 text-emerald-400 rounded-2xl flex items-center justify-center text-2xl mx-auto border border-emerald-500/20">
                       🎨
                     </div>
                     <div className="space-y-1">
@@ -861,7 +861,7 @@ const SpensiaImagePromptStep: React.FC = () => {
                         <div className="flex items-start justify-between gap-3 border-b border-gray-800/80 pb-2.5">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <span className="w-6 h-6 rounded-lg bg-amber-950 border border-amber-800 text-amber-300 text-xs font-mono font-bold flex items-center justify-center">
+                              <span className="w-6 h-6 rounded-lg bg-emerald-950 border border-emerald-800 text-emerald-300 text-xs font-mono font-bold flex items-center justify-center">
                                 #{item.segment_id}
                               </span>
                               <h4 className="text-xs font-bold text-white">
@@ -878,7 +878,7 @@ const SpensiaImagePromptStep: React.FC = () => {
 
                           <button
                             onClick={() => handleCopySinglePrompt(item)}
-                            className="px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-amber-300 rounded-xl text-xs font-bold border border-gray-800 transition-all flex items-center gap-1 shrink-0"
+                            className="px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-emerald-300 rounded-xl text-xs font-bold border border-gray-800 transition-all flex items-center gap-1 shrink-0"
                           >
                             <span>📋</span>
                             <span>Salin Prompt</span>
@@ -889,7 +889,7 @@ const SpensiaImagePromptStep: React.FC = () => {
                           value={item.prompt}
                           onChange={(e) => handleUpdatePromptText(item.segment_id, e.target.value)}
                           rows={6}
-                          className="w-full bg-gray-900/90 border border-gray-800 rounded-xl p-3.5 text-xs text-amber-100 font-mono leading-relaxed focus:outline-none focus:border-amber-500 transition-all"
+                          className="w-full bg-gray-900/90 border border-gray-800 rounded-xl p-3.5 text-xs text-emerald-100 font-mono leading-relaxed focus:outline-none focus:border-emerald-500 transition-all"
                         />
                       </div>
                     ))}
@@ -906,14 +906,14 @@ const SpensiaImagePromptStep: React.FC = () => {
                   onChange={(e) => setPastedOutput(e.target.value)}
                   rows={14}
                   placeholder="Paste or edit raw image prompts output here..."
-                  className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-4 text-xs font-mono text-gray-300 focus:outline-none focus:border-amber-500 transition-all leading-relaxed"
+                  className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-4 text-xs font-mono text-gray-300 focus:outline-none focus:border-emerald-500 transition-all leading-relaxed"
                 />
 
                 <div className="flex justify-end">
                   <button
                     onClick={handleProcessOutput}
                     disabled={!pastedOutput.trim()}
-                    className="px-4 py-2 bg-amber-700 hover:bg-amber-600 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
+                    className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
                   >
                     <span>⚡ Validasi & Process</span>
                   </button>

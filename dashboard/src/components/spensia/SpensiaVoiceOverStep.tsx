@@ -746,9 +746,9 @@ const SpensiaVoiceOverStep: React.FC = () => {
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider border ${
                     pipelineStage === 'merging'
-                      ? 'bg-amber-950 text-amber-300 border-amber-800 animate-pulse'
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-800 animate-pulse'
                       : pipelineStage === 'ready'
-                      ? 'bg-teal-950 text-teal-300 border-teal-800'
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
                       : pipelineStage === 'completed'
                       ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
                       : 'bg-red-950 text-red-300 border-red-800'
@@ -770,7 +770,7 @@ const SpensiaVoiceOverStep: React.FC = () => {
             <button
               onClick={() => handleRunMergeAudioPipeline()}
               disabled={pipelineStage === 'merging'}
-              className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 via-teal-600 to-cyan-600 hover:from-emerald-400 hover:to-cyan-500 text-white rounded-xl text-xs font-extrabold shadow-lg shadow-emerald-950/60 border border-emerald-300/30 transition-all flex items-center gap-2 disabled:opacity-50"
+              className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white rounded-xl text-xs font-extrabold shadow-lg shadow-emerald-950/60 border border-emerald-300/30 transition-all flex items-center gap-2 disabled:opacity-50"
             >
               {pipelineStage === 'merging' ? (
                 <>
@@ -999,7 +999,7 @@ const SpensiaVoiceOverStep: React.FC = () => {
 
             <button
               onClick={() => handleCopyText(fullScript, 'Naskah Lengkap Video')}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-500 hover:to-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
             >
               <span>📋</span>
               <span>Salin Naskah Topik #{activeTopicId || 1}</span>
@@ -1082,7 +1082,7 @@ const SpensiaVoiceOverStep: React.FC = () => {
             <div className="pt-2">
               <button
                 type="button"
-                className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white font-extrabold text-xs rounded-xl hover:from-emerald-500 hover:to-cyan-500 shadow-lg shadow-emerald-950/50 flex items-center gap-2 mx-auto"
+                className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 via-emerald-600 to-emerald-600 text-white font-extrabold text-xs rounded-xl hover:from-emerald-500 hover:to-emerald-500 shadow-lg shadow-emerald-950/50 flex items-center gap-2 mx-auto"
               >
                 <span>📤</span>
                 <span>Pilih File Audio Narasi</span>
@@ -1092,14 +1092,14 @@ const SpensiaVoiceOverStep: React.FC = () => {
         )}
 
         {/* Gemini JSON Transcript Input Area */}
-        <div className="p-6 bg-gray-950 border border-teal-800/60 rounded-2xl space-y-4 shadow-xl">
+        <div className="p-6 bg-gray-950 border border-emerald-800/60 rounded-2xl space-y-4 shadow-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-3">
             <div>
-              <label className="text-xs font-extrabold text-teal-300 flex items-center gap-2">
+              <label className="text-xs font-extrabold text-emerald-300 flex items-center gap-2">
                 <span>📥</span> Input Hasil Audio Mapping JSON dari Gemini (Segments Timestamps):
               </label>
               <p className="text-[11px] text-gray-400 mt-0.5">
-                Paste output JSON (field <code className="text-teal-300 font-mono">segments</code>) yang dihasilkan Gemini di Google AI Studio di sini.
+                Paste output JSON (field <code className="text-emerald-300 font-mono">segments</code>) yang dihasilkan Gemini di Google AI Studio di sini.
               </p>
             </div>
 
@@ -1116,7 +1116,7 @@ const SpensiaVoiceOverStep: React.FC = () => {
             value={pastedJsonMap['merged'] || ''}
             onChange={(e) => setPastedJsonMap({ ...pastedJsonMap, merged: e.target.value })}
             rows={6}
-            className="w-full bg-gray-900 border border-gray-800 rounded-xl p-4 text-xs text-gray-200 font-mono leading-relaxed focus:outline-none focus:border-teal-500 shadow-inner"
+            className="w-full bg-gray-900 border border-gray-800 rounded-xl p-4 text-xs text-gray-200 font-mono leading-relaxed focus:outline-none focus:border-emerald-500 shadow-inner"
             placeholder='Paste teks JSON hasil Gemini di sini (contoh: { "segments": [ { "segment_id": 1, "quote": "...", "start_sec": 0.0, "end_sec": 5.5, "duration_sec": 5.5 } ] })...'
           />
 
@@ -1130,7 +1130,7 @@ const SpensiaVoiceOverStep: React.FC = () => {
             )}
             <button
               onClick={() => handleProcessManualTranscriptJson('merged')}
-              className="px-6 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-extrabold transition-all shadow-lg flex items-center gap-2"
+              className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-500 hover:to-emerald-500 text-white rounded-xl text-xs font-extrabold transition-all shadow-lg flex items-center gap-2"
             >
               <span>✨</span>
               <span>Proses & Validasi Audio Mapping</span>
@@ -1140,15 +1140,15 @@ const SpensiaVoiceOverStep: React.FC = () => {
 
         {/* Display Segment Timeline Mapping Table if segments array exists */}
         {mergedVo?.transcript?.segments && mergedVo.transcript.segments.length > 0 && (
-          <div className="p-5 bg-gray-950 border border-teal-800/80 rounded-2xl space-y-3 shadow-xl animate-in fade-in duration-200">
+          <div className="p-5 bg-gray-950 border border-emerald-800/80 rounded-2xl space-y-3 shadow-xl animate-in fade-in duration-200">
             <div className="flex items-center justify-between border-b border-gray-800 pb-3">
               <div className="flex items-center gap-2">
-                <span className="p-1 bg-teal-950 text-teal-300 rounded-lg text-xs font-bold">🎬</span>
+                <span className="p-1 bg-emerald-950 text-emerald-300 rounded-lg text-xs font-bold">🎬</span>
                 <h4 className="text-xs font-extrabold text-white tracking-wide">
                   Timeline Mapping Segmen Adegan (`spensia_mapping.json` — Ready for FFmpeg Render)
                 </h4>
               </div>
-              <span className="text-[11px] font-mono text-teal-400 font-bold">
+              <span className="text-[11px] font-mono text-emerald-400 font-bold">
                 {mergedVo.transcript.segments.length} Segmen Terpetakan
               </span>
             </div>
@@ -1167,11 +1167,11 @@ const SpensiaVoiceOverStep: React.FC = () => {
                 <tbody className="divide-y divide-gray-800/60 font-mono text-gray-300">
                   {mergedVo.transcript.segments.map((seg) => (
                     <tr key={seg.segment_id} className="hover:bg-gray-900/60 transition-colors">
-                      <td className="py-2 px-3 font-bold text-teal-400">#{seg.segment_id}</td>
+                      <td className="py-2 px-3 font-bold text-emerald-400">#{seg.segment_id}</td>
                       <td className="py-2 px-3 text-emerald-300">
                         {seg.start_sec.toFixed(2)}s ➔ {seg.end_sec.toFixed(2)}s
                       </td>
-                      <td className="py-2 px-3 text-amber-300 font-bold">{seg.duration_sec.toFixed(2)}s</td>
+                      <td className="py-2 px-3 text-emerald-300 font-bold">{seg.duration_sec.toFixed(2)}s</td>
                       <td className="py-2 px-3 font-sans text-gray-300 truncate max-w-xs" title={seg.quote}>
                         {seg.quote}
                       </td>

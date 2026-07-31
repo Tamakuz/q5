@@ -1,11 +1,12 @@
 // dashboard/src/utils/spensiaAssGenerator.ts
 import { TimelineCaptionItem } from './spensiaTimelineGenerator';
 import { hexToAssColor, assTime, cleanPunct } from '../../electron/shared/subtitle-utils.cjs';
+import { SPENSIA_CAPTION_COLORS } from './spensiaTheme';
 
 export interface CaptionStyleOptions {
   fontName?: string;
   fontSize?: number;
-  activeColorHex?: string;    // Highlight active word (e.g. yellow '#FDE047')
+  activeColorHex?: string;    // Highlight active word (green-500 #22C55E)
   inactiveColorHex?: string;  // Normal text (e.g. white '#FFFFFF')
   outlineColorHex?: string;   // Outline (e.g. black '#000000')
   outlineWidth?: number;
@@ -51,9 +52,9 @@ export function generateAssSubtitles(
 ): string {
   const fontName = options?.fontName || 'Montserrat';
   const fontSize = options?.fontSize || 48;
-  const activeAssColor = hexToAssColor(options?.activeColorHex || '#FDE047');
-  const inactiveAssColor = hexToAssColor(options?.inactiveColorHex || '#FFFFFF');
-  const outlineAssColor = hexToAssColor(options?.outlineColorHex || '#000000');
+  const activeAssColor = hexToAssColor(options?.activeColorHex || SPENSIA_CAPTION_COLORS.activeColorHex);
+  const inactiveAssColor = hexToAssColor(options?.inactiveColorHex || SPENSIA_CAPTION_COLORS.inactiveColorHex);
+  const outlineAssColor = hexToAssColor(options?.outlineColorHex || SPENSIA_CAPTION_COLORS.outlineColorHex);
   const outlineWidth = options?.outlineWidth !== undefined ? options.outlineWidth : 3;
   const shadowDist = options?.shadowDistance !== undefined ? options.shadowDistance : 2;
   const posMarginV = options?.positionY !== undefined ? options.positionY : 90;

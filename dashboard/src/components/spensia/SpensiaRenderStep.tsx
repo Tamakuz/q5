@@ -130,7 +130,7 @@ const ToggleRow: React.FC<{ label: string; enabled: boolean; onChange: (v: boole
         </div>
         <button
             onClick={() => onChange(!enabled)}
-            className={`w-11 h-6 rounded-full transition-all relative shrink-0 ${enabled ? 'bg-rose-600 shadow-md shadow-rose-950' : 'bg-gray-800'}`}
+            className={`w-11 h-6 rounded-full transition-all relative shrink-0 ${enabled ? 'bg-emerald-600 shadow-md shadow-emerald-950' : 'bg-gray-800'}`}
         >
             <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${enabled ? 'left-6' : 'left-1'}`} />
         </button>
@@ -176,7 +176,7 @@ const SliderRow: React.FC<{
                         step={step}
                         value={Number(localVal.toFixed(step < 0.1 ? 2 : 0))}
                         onChange={(e) => handleValueChange(parseFloat(e.target.value))}
-                        className="w-16 bg-gray-900 border border-rose-800/60 text-rose-300 font-mono font-bold text-xs text-center rounded-xl py-1 px-1.5 focus:border-rose-500 focus:outline-none shadow-inner"
+                        className="w-16 bg-gray-900 border border-emerald-800/60 text-emerald-300 font-mono font-bold text-xs text-center rounded-xl py-1 px-1.5 focus:border-emerald-500 focus:outline-none shadow-inner"
                     />
                     {suffix && <span className="text-[11px] font-mono text-gray-400 font-bold">{suffix}</span>}
                 </div>
@@ -189,7 +189,7 @@ const SliderRow: React.FC<{
                 step={step}
                 value={localVal}
                 onChange={(e) => handleValueChange(parseFloat(e.target.value))}
-                className="w-full h-2.5 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-rose-500 border border-gray-800 shadow-inner"
+                className="w-full h-2.5 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-emerald-500 border border-gray-800 shadow-inner"
             />
 
             <div className="flex justify-between items-center text-[10px] font-semibold text-gray-400 pt-0.5">
@@ -209,7 +209,7 @@ const ColorInput: React.FC<{ label: string; value: string; onChange: (v: string)
                 type="text"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
-                className="w-24 bg-gray-950 border border-gray-800 rounded-xl px-2.5 py-1 text-xs font-mono text-gray-200 text-center focus:border-rose-500 focus:outline-none"
+                className="w-24 bg-gray-950 border border-gray-800 rounded-xl px-2.5 py-1 text-xs font-mono text-gray-200 text-center focus:border-emerald-500 focus:outline-none"
                 maxLength={7}
             />
         </div>
@@ -227,7 +227,7 @@ const SelectRow: React.FC<{
         <select
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono focus:border-rose-500 focus:outline-none"
+            className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono focus:border-emerald-500 focus:outline-none"
         >
             {options.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -255,7 +255,7 @@ const NumberInput: React.FC<{
                 max={max}
                 step={step}
                 onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-                className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs font-mono text-gray-200 focus:border-rose-500 focus:outline-none"
+                className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs font-mono text-gray-200 focus:border-emerald-500 focus:outline-none"
             />
             {suffix && <span className="text-xs text-gray-500 font-mono shrink-0">{suffix}</span>}
         </div>
@@ -670,18 +670,18 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
         <div className="max-w-6xl mx-auto space-y-6 pb-16 animate-in fade-in duration-300">
             {/* Toast Notification */}
             {toast && (
-                <div className="fixed top-5 right-5 z-50 bg-rose-600 text-white px-4 py-3 rounded-2xl shadow-2xl font-semibold text-xs flex items-center gap-2 border border-rose-400/30 animate-bounce">
+                <div className="fixed top-5 right-5 z-50 bg-emerald-600 text-white px-4 py-3 rounded-2xl shadow-2xl font-semibold text-xs flex items-center gap-2 border border-emerald-400/30 animate-bounce">
                     <span>{toast}</span>
                 </div>
             )}
 
             {/* Header Banner */}
-            <div className="bg-gradient-to-r from-rose-950/90 via-purple-950/80 to-gray-950 p-6 rounded-3xl border border-rose-800/40 shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-rose-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+            <div className="bg-gradient-to-r from-emerald-950/90 via-emerald-950/80 to-gray-950 p-6 rounded-3xl border border-emerald-800/40 shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
                     <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-800 text-[10px] font-mono font-bold uppercase tracking-wider">
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold uppercase tracking-wider">
                                 ✨ Spensia AI Workflow — Step 8
                             </span>
                             <span className="px-2 py-0.5 rounded-full bg-gray-900 text-gray-300 border border-gray-800 text-[10px] font-mono font-bold">
@@ -701,7 +701,7 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                             <button
                                 onClick={handleRenderAllTopics}
                                 disabled={rendering}
-                                className="px-4 py-3 bg-gradient-to-r from-amber-500 via-rose-600 to-purple-600 hover:from-amber-400 hover:to-purple-500 text-white rounded-2xl text-xs font-black shadow-xl shadow-amber-950/80 border border-amber-300/40 transition-all flex items-center gap-2 disabled:opacity-50"
+                                className="px-4 py-3 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white rounded-2xl text-xs font-black shadow-xl shadow-emerald-950/80 border border-emerald-300/40 transition-all flex items-center gap-2 disabled:opacity-50"
                                 title="Render seluruh video topik sekaligus secara otomatis"
                             >
                                 {rendering ? (
@@ -721,7 +721,7 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                         <button
                             onClick={handleStartRender}
                             disabled={rendering}
-                            className="px-5 py-3 bg-gradient-to-r from-rose-600 via-pink-600 to-purple-600 hover:from-rose-500 hover:to-purple-500 text-white rounded-2xl text-xs font-black shadow-xl shadow-rose-950/80 border border-rose-400/40 transition-all flex items-center gap-2 disabled:opacity-50"
+                            className="px-5 py-3 bg-gradient-to-r from-emerald-600 via-emerald-600 to-emerald-600 hover:from-emerald-500 hover:to-emerald-500 text-white rounded-2xl text-xs font-black shadow-xl shadow-emerald-950/80 border border-emerald-400/40 transition-all flex items-center gap-2 disabled:opacity-50"
                         >
                             {rendering ? (
                                 <>
@@ -756,7 +756,7 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
 
                 {/* Top Topic Selector Bar */}
                 {batchTopics.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-4 mt-4 border-t border-rose-900/40 relative z-10">
+                    <div className="flex flex-wrap gap-2 pt-4 mt-4 border-t border-emerald-900/40 relative z-10">
                         {batchTopics.map((t) => {
                             const isActive = activeTopicId === t.id;
                             return (
@@ -765,18 +765,18 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                                     onClick={() => handleSwitchTopic(t)}
                                     className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${
                                         isActive
-                                            ? 'bg-rose-950/90 border-rose-500 text-rose-200 shadow-md ring-1 ring-rose-500/40'
+                                            ? 'bg-emerald-950/90 border-emerald-500 text-emerald-200 shadow-md ring-1 ring-emerald-500/40'
                                             : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
                                     }`}
                                 >
-                                    <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-rose-300 shrink-0">
+                                    <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-emerald-300 shrink-0">
                                         #{t.id}
                                     </span>
                                     <span className="truncate">"{t.title}"</span>
                                     <span
                                         className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
                                             t.isCurrentlyRendering
-                                                ? 'bg-rose-900 text-rose-200 border border-rose-500 animate-pulse'
+                                                ? 'bg-emerald-900 text-emerald-200 border border-emerald-500 animate-pulse'
                                                 : t.hasRendered
                                                 ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
                                                 : 'bg-gray-900 text-gray-500 border border-gray-800'
@@ -801,7 +801,7 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                             <h3 className="text-xs font-extrabold text-white flex items-center gap-2 uppercase tracking-wider">
                                 <span>👁️</span> Live Canvas Preview (CSS Overlay)
                             </h3>
-                            <span className="text-[10px] text-rose-400 font-mono font-bold bg-rose-950 px-2 py-0.5 rounded-full border border-rose-800">
+                            <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-800">
                                 1920×1080 Full HD
                             </span>
                         </div>
@@ -825,27 +825,27 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                         const pctValue = Math.round((renderProgress.progress || 0) * 100);
 
                         return (
-                            <div className="bg-gray-900/95 p-5 rounded-3xl border border-rose-600/50 shadow-2xl space-y-3.5 animate-in fade-in duration-200">
+                            <div className="bg-gray-900/95 p-5 rounded-3xl border border-emerald-600/50 shadow-2xl space-y-3.5 animate-in fade-in duration-200">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-black text-rose-300 flex items-center gap-2 tracking-wide">
+                                    <span className="text-xs font-black text-emerald-300 flex items-center gap-2 tracking-wide">
                                         <span className="relative flex h-3 w-3">
-                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
-                                            <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500" />
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
                                         </span>
                                         {currentStageText}
                                         {bulkProgress && (
-                                            <span className="text-[10px] bg-amber-950 text-amber-300 border border-amber-800 px-2 py-0.5 rounded-full font-mono animate-pulse">
+                                            <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded-full font-mono animate-pulse">
                                                 Batch: {bulkProgress.current} / {bulkProgress.total}
                                             </span>
                                         )}
                                     </span>
-                                    <span className="text-xs font-mono font-black text-rose-300 bg-rose-950/80 px-3 py-1 rounded-xl border border-rose-700/60 shadow-inner">
+                                    <span className="text-xs font-mono font-black text-emerald-300 bg-emerald-950/80 px-3 py-1 rounded-xl border border-emerald-700/60 shadow-inner">
                                         {pctValue}%
                                     </span>
                                 </div>
-                                <div className="w-full bg-gray-950 rounded-full h-3.5 overflow-hidden border border-rose-900/40 p-0.5 shadow-inner">
+                                <div className="w-full bg-gray-950 rounded-full h-3.5 overflow-hidden border border-emerald-900/40 p-0.5 shadow-inner">
                                     <div
-                                        className="bg-gradient-to-r from-rose-600 via-pink-500 to-amber-400 h-full rounded-full transition-all duration-300 shadow-[0_0_12px_rgba(244,63,94,0.6)]"
+                                        className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-400 h-full rounded-full transition-all duration-300 shadow-[0_0_12px_rgba(244,63,94,0.6)]"
                                         style={{ width: `${Math.max(5, pctValue)}%` }}
                                     />
                                 </div>
@@ -882,11 +882,11 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
 
                     {/* Render Error Card */}
                     {renderError && (
-                        <div className="bg-rose-950/80 p-5 rounded-3xl border border-rose-800/60 shadow-2xl space-y-2">
-                            <h4 className="text-xs font-bold text-rose-300 flex items-center gap-2">
+                        <div className="bg-emerald-950/80 p-5 rounded-3xl border border-emerald-800/60 shadow-2xl space-y-2">
+                            <h4 className="text-xs font-bold text-emerald-300 flex items-center gap-2">
                                 <span>❌</span> Gagal Melakukan Render Video
                             </h4>
-                            <p className="text-[11px] text-rose-200 font-mono whitespace-pre-wrap leading-relaxed">{renderError}</p>
+                            <p className="text-[11px] text-emerald-200 font-mono whitespace-pre-wrap leading-relaxed">{renderError}</p>
                         </div>
                     )}
                 </div>
@@ -919,19 +919,19 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                                     <span className="text-xs text-gray-400 font-medium">Preset Intensitas:</span>
                                     <button
                                         onClick={() => updateVignette({ intensity: 0.50 })}
-                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.vignette.intensity === 0.50 ? 'bg-rose-600 text-white border-rose-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.vignette.intensity === 0.50 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
                                     >
                                         Sedang (50%)
                                     </button>
                                     <button
                                         onClick={() => updateVignette({ intensity: 0.75 })}
-                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.vignette.intensity === 0.75 ? 'bg-rose-600 text-white border-rose-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.vignette.intensity === 0.75 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
                                     >
                                         🎬 Cinematic Dark (75%)
                                     </button>
                                     <button
                                         onClick={() => updateVignette({ intensity: 0.95 })}
-                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.vignette.intensity === 0.95 ? 'bg-rose-600 text-white border-rose-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.vignette.intensity === 0.95 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
                                     >
                                         🌑 Extreme Dark (95%)
                                     </button>
@@ -958,7 +958,7 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                                         type="text"
                                         value={config.watermark.text}
                                         onChange={(e) => updateWatermark({ text: e.target.value })}
-                                        className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs font-mono text-gray-200 focus:border-rose-500 focus:outline-none"
+                                        className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs font-mono text-gray-200 focus:border-emerald-500 focus:outline-none"
                                         maxLength={30}
                                         placeholder="Contoh: Spensia Channel"
                                     />
@@ -1052,25 +1052,25 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                                     <span className="text-xs text-gray-400 font-medium">Preset Volume VO:</span>
                                     <button
                                         onClick={() => updateVoiceOver({ volume: 0.50 })}
-                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.voiceOver?.volume === 0.50 ? 'bg-rose-600 text-white border-rose-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.voiceOver?.volume === 0.50 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
                                     >
                                         Pelan (50%)
                                     </button>
                                     <button
                                         onClick={() => updateVoiceOver({ volume: 1.0 })}
-                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${(config.voiceOver?.volume ?? 1.0) === 1.0 ? 'bg-rose-600 text-white border-rose-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${(config.voiceOver?.volume ?? 1.0) === 1.0 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
                                     >
                                         🎙️ Normal (100%)
                                     </button>
                                     <button
                                         onClick={() => updateVoiceOver({ volume: 1.50 })}
-                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.voiceOver?.volume === 1.50 ? 'bg-rose-600 text-white border-rose-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.voiceOver?.volume === 1.50 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
                                     >
                                         ⚡ Boosted (150%)
                                     </button>
                                     <button
                                         onClick={() => updateVoiceOver({ volume: 2.0 })}
-                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.voiceOver?.volume === 2.0 ? 'bg-rose-600 text-white border-rose-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.voiceOver?.volume === 2.0 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
                                     >
                                         📢 Extra Loud (200%)
                                     </button>
@@ -1095,7 +1095,7 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                                     <select
                                         value={config.bgm.path}
                                         onChange={(e) => updateBgm({ path: e.target.value })}
-                                        className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono focus:border-rose-500 focus:outline-none"
+                                        className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono focus:border-emerald-500 focus:outline-none"
                                     >
                                         <option value="assets/Edge Of Unknown.mp3">Edge Of Unknown (Default Spensia BGM)</option>
                                         {bgms.map((bgm) => (
@@ -1151,7 +1151,7 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                                 <div className="space-y-2">
                                     <div className="flex justify-between">
                                         <span className="text-gray-400">Total Klip Visual:</span>
-                                        <span className="text-rose-400 font-bold">{timeline.video_clips?.length || 0} segmen</span>
+                                        <span className="text-emerald-400 font-bold">{timeline.video_clips?.length || 0} segmen</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-gray-400">Durasi Video Final:</span>
@@ -1165,7 +1165,7 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-gray-400">Aspect Ratio:</span>
-                                        <span className="text-teal-400 font-bold">16:9 Longform</span>
+                                        <span className="text-emerald-400 font-bold">16:9 Longform</span>
                                     </div>
                                 </div>
                             </div>

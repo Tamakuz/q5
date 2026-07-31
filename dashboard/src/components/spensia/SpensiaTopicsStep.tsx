@@ -606,7 +606,7 @@ const SpensiaTopicsStep: React.FC = () => {
                 <button
                   onClick={() => handleGenerateKeyphrasesOnly(topics)}
                   disabled={isGenerating}
-                  className="w-full py-3 bg-gradient-to-r from-amber-600 to-emerald-600 hover:from-amber-500 hover:to-emerald-500 disabled:opacity-50 text-white font-bold rounded-2xl text-xs shadow-xl shadow-amber-950/40 transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-500 hover:to-emerald-500 disabled:opacity-50 text-white font-bold rounded-2xl text-xs shadow-xl shadow-emerald-950/40 transition-all flex items-center justify-center gap-2"
                 >
                   {isGenerating ? (
                     <>
@@ -711,7 +711,7 @@ const SpensiaTopicsStep: React.FC = () => {
                   <div
                     key={idx}
                     className={`flex items-start gap-1.5 ${
-                      issue.severity === 'error' ? 'text-red-400' : 'text-amber-400'
+                      issue.severity === 'error' ? 'text-red-400' : 'text-emerald-400'
                     }`}
                   >
                     <span>{issue.severity === 'error' ? '❌' : '⚠️'}</span>
@@ -839,7 +839,7 @@ const SpensiaTopicsStep: React.FC = () => {
                                     topic.viral_score >= 92
                                       ? 'bg-emerald-950/90 text-emerald-300 border-emerald-700/80 shadow-emerald-950/40'
                                       : topic.viral_score >= 85
-                                      ? 'bg-amber-950/90 text-amber-300 border-amber-700/80'
+                                      ? 'bg-emerald-950/90 text-emerald-300 border-emerald-700/80'
                                       : 'bg-gray-800 text-gray-300 border-gray-700'
                                   }`}
                                 >
@@ -905,7 +905,7 @@ const SpensiaTopicsStep: React.FC = () => {
                             {topic.search_keyphrases && topic.search_keyphrases.length > 0 && (
                               <div className="pl-8 pt-1 space-y-1.5" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex items-center justify-between">
-                                  <span className="text-[10px] text-amber-400 font-mono font-bold uppercase tracking-wider flex items-center gap-1">
+                                  <span className="text-[10px] text-emerald-400 font-mono font-bold uppercase tracking-wider flex items-center gap-1">
                                     <span>🔍</span>
                                     <span>Kata Kunci Autocomplete (Cek Demand YouTube):</span>
                                   </span>
@@ -914,7 +914,7 @@ const SpensiaTopicsStep: React.FC = () => {
                                       navigator.clipboard.writeText(topic.search_keyphrases?.join('\n') || '');
                                       showToast('📋 Kata kunci riset disalin!');
                                     }}
-                                    className="text-[10px] text-amber-300 hover:text-white underline font-mono"
+                                    className="text-[10px] text-emerald-300 hover:text-white underline font-mono"
                                   >
                                     Copy Kueri
                                   </button>
@@ -923,7 +923,7 @@ const SpensiaTopicsStep: React.FC = () => {
                                   {topic.search_keyphrases.map((kp, kIdx) => (
                                     <span
                                       key={kIdx}
-                                      className="px-2 py-0.5 rounded-lg bg-amber-950/40 border border-amber-800/60 text-amber-200 text-[10px] font-mono"
+                                      className="px-2 py-0.5 rounded-lg bg-emerald-950/40 border border-emerald-800/60 text-emerald-200 text-[10px] font-mono"
                                     >
                                       "{kp}"
                                     </span>

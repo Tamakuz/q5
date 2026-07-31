@@ -1,5 +1,6 @@
 // dashboard/src/utils/spensiaRenderConfig.ts
 import { z } from 'zod';
+import { SPENSIA_CAPTION_COLORS } from './spensiaTheme';
 
 // ─── Watermark Text Configuration ─────────────────────
 
@@ -30,9 +31,9 @@ export const CaptionConfigSchema = z.object({
     enabled: z.boolean().default(false),
     fontName: z.string().default('Montserrat'),
     fontSize: z.number().default(48),
-    activeColorHex: z.string().default('#FDE047'),
-    inactiveColorHex: z.string().default('#FFFFFF'),
-    outlineColorHex: z.string().default('#000000'),
+    activeColorHex: z.string().default(SPENSIA_CAPTION_COLORS.activeColorHex),
+    inactiveColorHex: z.string().default(SPENSIA_CAPTION_COLORS.inactiveColorHex),
+    outlineColorHex: z.string().default(SPENSIA_CAPTION_COLORS.outlineColorHex),
     outlineWidth: z.number().default(3),
     shadowDistance: z.number().default(2),
     positionY: z.number().default(160),

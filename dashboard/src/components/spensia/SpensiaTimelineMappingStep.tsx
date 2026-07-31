@@ -493,18 +493,18 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed top-5 right-5 z-50 bg-teal-600 text-white px-4 py-3 rounded-2xl shadow-2xl font-semibold text-xs flex items-center gap-2 border border-teal-400/30 animate-bounce">
+        <div className="fixed top-5 right-5 z-50 bg-emerald-600 text-white px-4 py-3 rounded-2xl shadow-2xl font-semibold text-xs flex items-center gap-2 border border-emerald-400/30 animate-bounce">
           <span>{toast}</span>
         </div>
       )}
 
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-teal-950/90 via-gray-900 to-gray-950 p-6 rounded-3xl border border-teal-800/40 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-teal-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+      <div className="bg-gradient-to-r from-emerald-950/90 via-gray-900 to-gray-950 p-6 rounded-3xl border border-emerald-800/40 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-teal-950 text-teal-300 border border-teal-800 text-[10px] font-mono font-bold uppercase tracking-wider">
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold uppercase tracking-wider">
                 ✨ Spensia AI Workflow — Step 7
               </span>
             </div>
@@ -521,7 +521,7 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
               <button
                 onClick={handleGenerateAllTimelines}
                 disabled={isGeneratingTimeline}
-                className="px-4 py-2.5 bg-gradient-to-r from-amber-500 via-emerald-600 to-teal-500 hover:from-amber-400 hover:to-teal-400 text-white rounded-xl text-xs font-black shadow-lg shadow-amber-950/60 border border-amber-300/30 transition-all flex items-center gap-2 disabled:opacity-50"
+                className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-500 hover:from-emerald-400 hover:to-emerald-400 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-950/60 border border-emerald-300/30 transition-all flex items-center gap-2 disabled:opacity-50"
                 title="Generate timeline mapping untuk seluruh topik sekaligus"
               >
                 {isGeneratingTimeline ? (
@@ -541,7 +541,7 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
             <button
               onClick={handleGenerateTimeline}
               disabled={isGeneratingTimeline}
-              className="px-4 py-2.5 bg-gradient-to-r from-teal-500 via-emerald-600 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white rounded-xl text-xs font-extrabold shadow-lg shadow-teal-950/60 border border-teal-300/30 transition-all flex items-center gap-2 disabled:opacity-50"
+              className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white rounded-xl text-xs font-extrabold shadow-lg shadow-emerald-950/60 border border-emerald-300/30 transition-all flex items-center gap-2 disabled:opacity-50"
             >
               {isGeneratingTimeline ? (
                 <>
@@ -558,7 +558,7 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
 
             <button
               onClick={handleCopyGeminiPrompt}
-              className="px-3.5 py-2.5 bg-teal-900 hover:bg-teal-800 text-teal-100 rounded-xl text-xs font-extrabold border border-teal-700 shadow-md transition-all flex items-center gap-1.5"
+              className="px-3.5 py-2.5 bg-emerald-900 hover:bg-emerald-800 text-emerald-100 rounded-xl text-xs font-extrabold border border-emerald-700 shadow-md transition-all flex items-center gap-1.5"
             >
               <span>📋</span>
               <span>Copy Gemini Prompt</span>
@@ -578,7 +578,7 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
 
         {/* Top Topic Selector Bar */}
         {batchTopics.length > 0 && (
-          <div className="flex flex-wrap gap-2 pt-4 mt-4 border-t border-teal-900/40 relative z-10">
+          <div className="flex flex-wrap gap-2 pt-4 mt-4 border-t border-emerald-900/40 relative z-10">
             {batchTopics.map((t) => {
               const isActive = activeTopicId === t.id;
               return (
@@ -587,18 +587,18 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
                   onClick={() => handleSwitchTopic(t)}
                   className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${
                     isActive
-                      ? 'bg-teal-950/90 border-teal-500 text-teal-200 shadow-md ring-1 ring-teal-500/40'
+                      ? 'bg-emerald-950/90 border-emerald-500 text-emerald-200 shadow-md ring-1 ring-emerald-500/40'
                       : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
                   }`}
                 >
-                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-teal-300 shrink-0">
+                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-emerald-300 shrink-0">
                     #{t.id}
                   </span>
                   <span className="truncate">"{t.title}"</span>
                   <span
                     className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
                       t.hasTimeline
-                        ? 'bg-teal-950 text-teal-400 border border-teal-800'
+                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
                         : 'bg-gray-900 text-gray-500 border border-gray-800'
                     }`}
                   >
@@ -612,7 +612,7 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
       </div>
 
       {/* Timeline Segments Visual Mapping Inspector */}
-      <div className="bg-gray-900/90 p-6 rounded-3xl border border-teal-800/60 shadow-2xl space-y-4">
+      <div className="bg-gray-900/90 p-6 rounded-3xl border border-emerald-800/60 shadow-2xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-4">
           <div>
             <h2 className="text-sm font-extrabold text-white flex items-center gap-2">
@@ -626,7 +626,7 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={handleUploadAudioFile}
-              className="px-3 py-1.5 bg-gray-950 hover:bg-gray-800 text-teal-300 border border-teal-800/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0"
+              className="px-3 py-1.5 bg-gray-950 hover:bg-gray-800 text-emerald-300 border border-emerald-800/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0"
               title="Upload atau ganti file audio Voice Over"
             >
               <span>🎙️</span>
@@ -635,7 +635,7 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
 
             {timelineData && (
               <div className="flex items-center gap-2 text-xs font-mono font-bold">
-                <span className="px-3 py-1 bg-teal-950 text-teal-300 border border-teal-800 rounded-xl">
+                <span className="px-3 py-1 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded-xl">
                   {timelineData.video_clips?.length || 0} Segmen
                 </span>
                 <span className="px-3 py-1 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded-xl">
@@ -647,12 +647,12 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
         </div>
 
         {/* Embedded Modern Audio Player Bar (ALWAYS VISIBLE ABOVE TABLE) */}
-        <div className="p-4 bg-gradient-to-r from-gray-950 via-teal-950/40 to-gray-950 border border-teal-700/60 rounded-2xl space-y-3 shadow-xl">
+        <div className="p-4 bg-gradient-to-r from-gray-950 via-emerald-950/40 to-gray-950 border border-emerald-700/60 rounded-2xl space-y-3 shadow-xl">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3 w-full sm:w-auto">
               <button
                 onClick={handleTogglePlayPause}
-                className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white rounded-xl flex items-center justify-center text-base font-black shadow-lg border border-emerald-300/30 transition-all shrink-0"
+                className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white rounded-xl flex items-center justify-center text-base font-black shadow-lg border border-emerald-300/30 transition-all shrink-0"
                 title={isPlaying ? 'Pause Audio' : 'Play Audio'}
               >
                 {isPlaying ? '⏸️' : '▶️'}
@@ -748,13 +748,13 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
                         id={`segment-row-${clip.segment_id}`}
                         className={`transition-all duration-300 ${
                           isActive
-                            ? 'bg-gradient-to-r from-emerald-950 via-teal-950/80 to-gray-900 border-l-4 border-l-emerald-400 shadow-xl shadow-emerald-950/40 text-white font-medium'
+                            ? 'bg-gradient-to-r from-emerald-950 via-emerald-950/80 to-gray-900 border-l-4 border-l-emerald-400 shadow-xl shadow-emerald-950/40 text-white font-medium'
                             : 'hover:bg-gray-800/60 text-gray-300'
                         }`}
                       >
                         <td className="py-3 px-4 font-extrabold">
                           <div className="flex flex-col gap-1">
-                            <span className={`text-sm ${isActive ? 'text-emerald-300 font-black' : 'text-teal-400'}`}>
+                            <span className={`text-sm ${isActive ? 'text-emerald-300 font-black' : 'text-emerald-400'}`}>
                               #{clip.segment_id}
                             </span>
                             {isActive && (
@@ -779,7 +779,7 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
                         <td className={`py-3 px-4 font-bold ${isActive ? 'text-emerald-200 text-sm' : 'text-emerald-300'}`}>
                           {clip.start_sec.toFixed(2)}s ➔ {clip.end_sec.toFixed(2)}s
                         </td>
-                        <td className={`py-3 px-4 font-extrabold ${isActive ? 'text-amber-200 text-sm' : 'text-amber-300'}`}>
+                        <td className={`py-3 px-4 font-extrabold ${isActive ? 'text-emerald-200 text-sm' : 'text-emerald-300'}`}>
                           {clip.duration_sec.toFixed(2)}s
                         </td>
                         <td className={`py-3 px-4 font-sans max-w-sm truncate ${isActive ? 'text-white font-semibold' : 'text-gray-300'}`} title={clip.quote}>
@@ -791,7 +791,7 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
                             className={`px-3 py-1.5 rounded-xl text-[11px] font-extrabold border transition-all flex items-center gap-1 ml-auto ${
                               isActive
                                 ? 'bg-emerald-500 hover:bg-emerald-400 text-black border-emerald-300 shadow-lg shadow-emerald-950/80 animate-pulse'
-                                : 'bg-teal-950 hover:bg-teal-900 text-teal-300 border-teal-800'
+                                : 'bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border-emerald-800'
                             }`}
                           >
                             {isActive ? '🔊 Playing...' : `▶️ Play ${clip.start_sec.toFixed(1)}s`}
@@ -817,7 +817,7 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
               {onStepChange && (
                 <button
                   onClick={() => onStepChange('upload')}
-                  className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black text-xs rounded-2xl shadow-xl shadow-emerald-950/60 border border-emerald-400/40 transition-all flex items-center gap-2"
+                  className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white font-black text-xs rounded-2xl shadow-xl shadow-emerald-950/60 border border-emerald-400/40 transition-all flex items-center gap-2"
                 >
                   <span>🎬</span>
                   <span>Siap Render! Lanjut ke Step 8: Render Studio (16:9) ➔</span>
@@ -827,7 +827,7 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
           </div>
         ) : (
           <div className="p-10 bg-gray-950 border-2 border-dashed border-gray-800 rounded-3xl text-center space-y-4">
-            <div className="w-14 h-14 bg-teal-950 text-teal-400 rounded-3xl flex items-center justify-center text-2xl mx-auto border border-teal-800 shadow-inner">
+            <div className="w-14 h-14 bg-emerald-950 text-emerald-400 rounded-3xl flex items-center justify-center text-2xl mx-auto border border-emerald-800 shadow-inner">
               🗺️
             </div>
             <div className="space-y-1">
@@ -839,7 +839,7 @@ const SpensiaTimelineMappingStep: React.FC<SpensiaTimelineMappingStepProps> = ({
             <button
               onClick={handleGenerateTimeline}
               disabled={isGeneratingTimeline}
-              className="px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-600 text-white font-extrabold text-xs rounded-2xl shadow-xl hover:from-teal-400 hover:to-emerald-500 border border-teal-300/30"
+              className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-extrabold text-xs rounded-2xl shadow-xl hover:from-emerald-400 hover:to-emerald-500 border border-emerald-300/30"
             >
               ⚡ Generate Timeline Mapping Sekarang
             </button>

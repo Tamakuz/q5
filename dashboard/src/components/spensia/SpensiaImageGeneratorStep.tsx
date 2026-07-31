@@ -626,12 +626,12 @@ const SpensiaImageGeneratorStep: React.FC = () => {
       )}
 
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-orange-950/80 via-gray-900 to-gray-950 p-6 rounded-3xl border border-orange-800/40 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-orange-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+      <div className="bg-gradient-to-r from-emerald-950/80 via-gray-900 to-gray-950 p-6 rounded-3xl border border-emerald-800/40 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-orange-950 text-orange-300 border border-orange-800 text-[10px] font-mono font-bold uppercase tracking-wider">
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold uppercase tracking-wider">
                 ✨ Spensia AI Workflow — Step 5
               </span>
             </div>
@@ -647,7 +647,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
             <button
               onClick={handleGenerateBatch}
               disabled={isBatchGenerating || isBatchQueueRunning || items.length === 0}
-              className="px-5 py-2.5 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-orange-600/30 transition-all flex items-center gap-2"
+              className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-500 hover:to-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2"
             >
               {isBatchGenerating ? (
                 <>
@@ -672,10 +672,10 @@ const SpensiaImageGeneratorStep: React.FC = () => {
 
       {/* Batch Queue Topic Tabs Selector */}
       {batchTopics.length > 0 && (
-        <div className="bg-gray-900/90 p-4 rounded-3xl border border-orange-800/40 shadow-xl space-y-3">
+        <div className="bg-gray-900/90 p-4 rounded-3xl border border-emerald-800/40 shadow-xl space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-md bg-orange-950 text-orange-300 border border-orange-800 font-bold font-mono text-[10px] uppercase">
+              <span className="px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold font-mono text-[10px] uppercase">
                 🚀 Antrean Topik ({batchTopics.length} Topik)
               </span>
               <h3 className="text-xs font-bold text-white">
@@ -687,7 +687,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
               <button
                 onClick={handleBatchQueueAll}
                 disabled={isBatchGenerating || isBatchQueueRunning}
-                className="px-3.5 py-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-orange-900/40 transition-all flex items-center gap-1.5 shrink-0"
+                className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-500 hover:to-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-900/40 transition-all flex items-center gap-1.5 shrink-0"
               >
                 {isBatchQueueRunning ? (
                   <>
@@ -715,23 +715,23 @@ const SpensiaImageGeneratorStep: React.FC = () => {
                   onClick={() => handleSwitchTopic(t)}
                   className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${
                     isGeneratingThis
-                      ? 'bg-orange-950/90 border-orange-400 text-orange-200 shadow-lg shadow-orange-950/60 ring-2 ring-orange-500/50 animate-pulse'
+                      ? 'bg-emerald-950/90 border-emerald-400 text-emerald-200 shadow-lg shadow-emerald-950/60 ring-2 ring-emerald-500/50 animate-pulse'
                       : isActive
-                      ? 'bg-orange-950/80 border-orange-500 text-orange-200 shadow-md ring-1 ring-orange-500/40'
+                      ? 'bg-emerald-950/80 border-emerald-500 text-emerald-200 shadow-md ring-1 ring-emerald-500/40'
                       : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
                   }`}
                 >
-                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-orange-300 shrink-0">
+                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-emerald-300 shrink-0">
                     #{t.id}
                   </span>
                   <span className="truncate">"{t.title}"</span>
                   <span
                     className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
                       isGeneratingThis
-                        ? 'bg-orange-900 text-orange-200 border border-orange-500 animate-pulse'
+                        ? 'bg-emerald-900 text-emerald-200 border border-emerald-500 animate-pulse'
                         : isReady
                         ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                        : 'bg-gray-900 text-amber-400 border border-gray-800'
+                        : 'bg-gray-900 text-emerald-400 border border-gray-800'
                     }`}
                   >
                     {isGeneratingThis ? '⚡ Rendering...' : isReady ? `✓ ${t.imagesCount}/${t.totalPromptsCount || '?'}` : '⏳ Belum'}
@@ -745,23 +745,23 @@ const SpensiaImageGeneratorStep: React.FC = () => {
 
       {/* Realtime Process Monitor Panel */}
       {(isBatchGenerating || isBatchQueueRunning) && (
-        <div className="bg-gray-900/95 p-5 rounded-3xl border border-orange-500/60 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+        <div className="bg-gray-900/95 p-5 rounded-3xl border border-emerald-500/60 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
             <div className="flex items-center gap-2">
               <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-orange-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
               </span>
               <h3 className="text-xs font-bold text-white tracking-wide uppercase flex items-center gap-2">
                 <span>⚡</span> Realtime Image Generation Monitor
               </h3>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-orange-950 text-orange-300 border border-orange-800 font-bold">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold">
                 Model: {selectedModel} ({selectedSize})
               </span>
             </div>
 
             {batchQueueTotal > 0 && (
-              <span className="text-xs font-mono font-bold text-orange-300 flex items-center gap-1.5">
+              <span className="text-xs font-mono font-bold text-emerald-300 flex items-center gap-1.5">
                 <span>📊</span> Progress Topik: {batchQueueIndex} dari {batchQueueTotal} ({Math.round((batchQueueIndex / batchQueueTotal) * 100)}% Selesai)
               </span>
             )}
@@ -772,13 +772,13 @@ const SpensiaImageGeneratorStep: React.FC = () => {
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs font-mono">
                 <span className="text-gray-400">Rendering Gambar Segmen...</span>
-                <span className="text-orange-300 font-bold">
+                <span className="text-emerald-300 font-bold">
                   {batchProgress.current} / {batchProgress.total} Gambar ({Math.round((batchProgress.current / batchProgress.total) * 100)}%)
                 </span>
               </div>
               <div className="w-full bg-gray-950 rounded-full h-2.5 overflow-hidden border border-gray-800 p-0.5">
                 <div
-                  className="bg-gradient-to-r from-orange-500 via-amber-500 to-emerald-400 h-full rounded-full transition-all duration-300 shadow-md shadow-orange-500/50"
+                  className="bg-gradient-to-r from-emerald-500 via-emerald-500 to-emerald-400 h-full rounded-full transition-all duration-300 shadow-md shadow-emerald-500/50"
                   style={{ width: `${Math.max(5, Math.round((batchProgress.current / batchProgress.total) * 100))}%` }}
                 />
               </div>
@@ -795,7 +795,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
                     key={t.id}
                     className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 transition-all ${
                       isGeneratingThis
-                        ? 'bg-orange-950/80 border-orange-400 text-white shadow-lg shadow-orange-950/50 ring-1 ring-orange-400/50 animate-pulse'
+                        ? 'bg-emerald-950/80 border-emerald-400 text-white shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-400/50 animate-pulse'
                         : t.hasImages
                         ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-300'
                         : 'bg-gray-950 border-gray-800 text-gray-400'
@@ -823,7 +823,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
         {/* Left Column: Settings Form */}
         <div className="md:col-span-1 bg-gray-900/80 p-5 rounded-3xl border border-gray-800 shadow-xl space-y-5">
           <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
-            <span className="p-1 bg-orange-950 text-orange-400 rounded-lg text-xs">⚙️</span>
+            <span className="p-1 bg-emerald-950 text-emerald-400 rounded-lg text-xs">⚙️</span>
             Pengaturan Image Generator
           </h2>
 
@@ -835,7 +835,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
-              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-orange-300 focus:outline-none focus:border-orange-500 font-mono font-semibold"
+              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-emerald-300 focus:outline-none focus:border-emerald-500 font-mono font-semibold"
             >
               {IMAGE_MODELS.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -853,7 +853,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
             <select
               value={selectedSize}
               onChange={(e) => setSelectedSize(e.target.value)}
-              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-orange-500 font-mono font-semibold"
+              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono font-semibold"
             >
               {RESOLUTION_OPTIONS.map((r) => (
                 <option key={r.size} value={r.size}>
@@ -874,7 +874,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
               <select
                 value={selectedQuality}
                 onChange={(e) => setSelectedQuality(e.target.value)}
-                className="w-full bg-gray-950 border border-gray-800 rounded-xl px-2.5 py-2 text-xs text-emerald-400 focus:outline-none focus:border-orange-500 font-mono font-semibold"
+                className="w-full bg-gray-950 border border-gray-800 rounded-xl px-2.5 py-2 text-xs text-emerald-400 focus:outline-none focus:border-emerald-500 font-mono font-semibold"
               >
                 <option value="low">Low (Super Hemat)</option>
                 <option value="standard">Standard</option>
@@ -889,7 +889,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
               <select
                 value={selectedDetail}
                 onChange={(e) => setSelectedDetail(e.target.value)}
-                className="w-full bg-gray-950 border border-gray-800 rounded-xl px-2.5 py-2 text-xs text-emerald-400 focus:outline-none focus:border-orange-500 font-mono font-semibold"
+                className="w-full bg-gray-950 border border-gray-800 rounded-xl px-2.5 py-2 text-xs text-emerald-400 focus:outline-none focus:border-emerald-500 font-mono font-semibold"
               >
                 <option value="low">Low Detail (Hemat)</option>
                 <option value="high">High Detail</option>
@@ -901,7 +901,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
           <div className="p-4 bg-gray-950 border border-gray-800 rounded-2xl space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-gray-300">Status Ilustrasi:</span>
-              <span className="text-xs font-mono font-bold text-orange-400">
+              <span className="text-xs font-mono font-bold text-emerald-400">
                 {successCount} / {items.length} Selesai
               </span>
             </div>
@@ -910,7 +910,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
               <div className="space-y-1.5 pt-1">
                 <div className="w-full bg-gray-900 rounded-full h-2 overflow-hidden border border-gray-800">
                   <div
-                    className="bg-gradient-to-r from-orange-500 to-amber-400 h-full transition-all duration-300"
+                    className="bg-gradient-to-r from-emerald-500 to-emerald-400 h-full transition-all duration-300"
                     style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
                   />
                 </div>
@@ -924,7 +924,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
           <button
             onClick={handleGenerateBatch}
             disabled={isBatchGenerating || items.length === 0}
-            className="w-full py-3 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 disabled:opacity-50 text-white font-bold rounded-2xl text-xs shadow-xl shadow-orange-950/50 transition-all flex items-center justify-center gap-2"
+            className="w-full py-3 bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-500 hover:to-emerald-500 disabled:opacity-50 text-white font-bold rounded-2xl text-xs shadow-xl shadow-emerald-950/50 transition-all flex items-center justify-center gap-2"
           >
             {isBatchGenerating ? (
               <>
@@ -945,7 +945,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
           <div className="bg-gray-900/80 p-5 rounded-3xl border border-gray-800 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-800 pb-3 gap-2">
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 bg-orange-950 text-orange-300 rounded-xl text-xs font-mono font-bold border border-orange-800 shrink-0">
+                <span className="px-2.5 py-1 bg-emerald-950 text-emerald-300 rounded-xl text-xs font-mono font-bold border border-emerald-800 shrink-0">
                   🖼️ Panel Topik #{activeTopicId || 1}
                 </span>
                 <div>
@@ -965,7 +965,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
 
             {items.length === 0 ? (
               <div className="bg-gray-950 border border-dashed border-gray-800 rounded-3xl p-12 text-center space-y-3">
-                <div className="w-14 h-14 bg-orange-600/10 text-orange-400 rounded-2xl flex items-center justify-center text-2xl mx-auto border border-orange-500/20">
+                <div className="w-14 h-14 bg-emerald-600/10 text-emerald-400 rounded-2xl flex items-center justify-center text-2xl mx-auto border border-emerald-500/20">
                   🖼️
                 </div>
                 <div className="space-y-1">
@@ -985,7 +985,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
                     <div className="flex items-start justify-between gap-3 border-b border-gray-800/80 pb-2.5">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-lg bg-orange-950 border border-orange-800 text-orange-300 text-xs font-mono font-bold flex items-center justify-center shrink-0">
+                          <span className="w-6 h-6 rounded-lg bg-emerald-950 border border-emerald-800 text-emerald-300 text-xs font-mono font-bold flex items-center justify-center shrink-0">
                             #{item.segment_id}
                           </span>
                           <h4 className="text-xs font-bold text-white">
@@ -996,7 +996,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
                               item.status === 'success'
                                 ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
                                 : item.status === 'generating'
-                                ? 'bg-amber-950 text-amber-300 border-amber-800 animate-pulse'
+                                ? 'bg-emerald-950 text-emerald-300 border-emerald-800 animate-pulse'
                                 : item.status === 'error'
                                 ? 'bg-red-950 text-red-400 border-red-800'
                                 : 'bg-gray-900 text-gray-400 border-gray-800'
@@ -1033,7 +1033,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
                         <button
                           onClick={() => handleGenerateSingle(item.segment_id)}
                           disabled={item.status === 'generating' || isBatchGenerating}
-                          className="px-3 py-1.5 bg-orange-950 hover:bg-orange-900 border border-orange-800 disabled:opacity-40 text-orange-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+                          className="px-3 py-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 disabled:opacity-40 text-emerald-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
                         >
                           <span>{item.url ? '🔄 Re-generate' : '🎨 Generate'}</span>
                         </button>
@@ -1046,21 +1046,21 @@ const SpensiaImageGeneratorStep: React.FC = () => {
                         <div className="flex flex-col items-center justify-center p-6 space-y-3">
                           <div className="flex items-center gap-2">
                             <span className="relative flex h-2.5 w-2.5">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                             </span>
-                            <span className="px-2 py-0.5 rounded bg-orange-950/90 border border-orange-800 text-[10px] font-mono text-orange-300 font-bold uppercase tracking-wider shadow-sm">
+                            <span className="px-2 py-0.5 rounded bg-emerald-950/90 border border-emerald-800 text-[10px] font-mono text-emerald-300 font-bold uppercase tracking-wider shadow-sm">
                               {item.workerId ? `Worker Slot #${item.workerId}` : 'Worker Active'}
                             </span>
                           </div>
 
-                          <div className="w-full max-w-sm bg-black/70 border border-orange-900/50 rounded-xl p-3 text-center space-y-2 shadow-inner">
-                            <div className="flex items-center justify-center gap-2 text-xs font-mono text-orange-200 font-semibold">
-                              <span className="animate-spin text-sm text-orange-400">⏳</span>
+                          <div className="w-full max-w-sm bg-black/70 border border-emerald-900/50 rounded-xl p-3 text-center space-y-2 shadow-inner">
+                            <div className="flex items-center justify-center gap-2 text-xs font-mono text-emerald-200 font-semibold">
+                              <span className="animate-spin text-sm text-emerald-400">⏳</span>
                               <span>{item.liveStep || 'Menghubungkan ke Google Flow Service...'}</span>
                             </div>
-                            <div className="w-full bg-gray-950 h-1.5 rounded-full overflow-hidden border border-orange-900/30">
-                              <div className="bg-gradient-to-r from-orange-600 via-amber-400 to-orange-600 h-full animate-pulse w-full"></div>
+                            <div className="w-full bg-gray-950 h-1.5 rounded-full overflow-hidden border border-emerald-900/30">
+                              <div className="bg-gradient-to-r from-emerald-600 via-emerald-400 to-emerald-600 h-full animate-pulse w-full"></div>
                             </div>
                           </div>
                         </div>

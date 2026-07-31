@@ -407,12 +407,12 @@ const SpensiaScriptStep: React.FC = () => {
       )}
 
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-purple-950/80 via-gray-900 to-gray-950 p-6 rounded-3xl border border-purple-800/40 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+      <div className="bg-gradient-to-r from-emerald-950/80 via-gray-900 to-gray-950 p-6 rounded-3xl border border-emerald-800/40 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800 text-[10px] font-mono font-bold uppercase tracking-wider">
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold uppercase tracking-wider">
                 ✨ Spensia AI Workflow — Step 2
               </span>
             </div>
@@ -435,7 +435,7 @@ const SpensiaScriptStep: React.FC = () => {
 
             <button
               onClick={handleCopyPrompt}
-              className="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-purple-300 rounded-xl text-xs font-semibold border border-purple-800/80 transition-all flex items-center gap-1.5"
+              className="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-emerald-300 rounded-xl text-xs font-semibold border border-emerald-800/80 transition-all flex items-center gap-1.5"
             >
               <span>📋</span>
               <span>Salin Prompt</span>
@@ -444,7 +444,7 @@ const SpensiaScriptStep: React.FC = () => {
             <button
               onClick={handleAutoGenerate}
               disabled={isGenerating || isBatchGenerating}
-              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-600/30 transition-all flex items-center gap-2"
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2"
             >
               {isGenerating ? (
                 <>
@@ -464,10 +464,10 @@ const SpensiaScriptStep: React.FC = () => {
 
       {/* Batch Queue Topic Tabs Selector */}
       {batchTopics.length > 0 && (
-        <div className="bg-gray-900/90 p-4 rounded-3xl border border-purple-800/40 shadow-xl space-y-3">
+        <div className="bg-gray-900/90 p-4 rounded-3xl border border-emerald-800/40 shadow-xl space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-md bg-purple-950 text-purple-300 border border-purple-800 font-bold font-mono text-[10px] uppercase">
+              <span className="px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold font-mono text-[10px] uppercase">
                 🚀 Batch Queue ({batchTopics.length} Topik)
               </span>
               <h3 className="text-xs font-bold text-white">
@@ -479,7 +479,7 @@ const SpensiaScriptStep: React.FC = () => {
               <button
                 onClick={handleBatchGenerateAll}
                 disabled={isGenerating || isBatchGenerating}
-                className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-900/40 transition-all flex items-center gap-1.5 shrink-0"
+                className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-900/40 transition-all flex items-center gap-1.5 shrink-0"
               >
                 {isBatchGenerating ? (
                   <>
@@ -506,23 +506,23 @@ const SpensiaScriptStep: React.FC = () => {
                   onClick={() => handleSwitchTopic(t)}
                   className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${
                     isGeneratingThis
-                      ? 'bg-purple-950/90 border-purple-400 text-purple-200 shadow-lg shadow-purple-950/60 ring-2 ring-purple-500/50 animate-pulse'
+                      ? 'bg-emerald-950/90 border-emerald-400 text-emerald-200 shadow-lg shadow-emerald-950/60 ring-2 ring-emerald-500/50 animate-pulse'
                       : isActive
-                      ? 'bg-purple-950/80 border-purple-500 text-purple-200 shadow-md ring-1 ring-purple-500/40'
+                      ? 'bg-emerald-950/80 border-emerald-500 text-emerald-200 shadow-md ring-1 ring-emerald-500/40'
                       : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
                   }`}
                 >
-                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-purple-300 shrink-0">
+                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-emerald-300 shrink-0">
                     #{t.id}
                   </span>
                   <span className="truncate">"{t.title}"</span>
                   <span
                     className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
                       isGeneratingThis
-                        ? 'bg-purple-900 text-purple-200 border border-purple-500 animate-pulse'
+                        ? 'bg-emerald-900 text-emerald-200 border border-emerald-500 animate-pulse'
                         : t.hasScript
                         ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                        : 'bg-gray-900 text-amber-400 border border-gray-800'
+                        : 'bg-gray-900 text-emerald-400 border border-gray-800'
                     }`}
                   >
                     {isGeneratingThis ? '⚡ Generating...' : t.hasScript ? '✓ Ready' : '⏳ Belum'}
@@ -536,23 +536,23 @@ const SpensiaScriptStep: React.FC = () => {
 
       {/* Realtime Process Monitor Panel */}
       {(isGenerating || isBatchGenerating) && (
-        <div className="bg-gray-900/95 p-5 rounded-3xl border border-purple-500/60 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+        <div className="bg-gray-900/95 p-5 rounded-3xl border border-emerald-500/60 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
             <div className="flex items-center gap-2">
               <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
               </span>
               <h3 className="text-xs font-bold text-white tracking-wide uppercase flex items-center gap-2">
                 <span>⚡</span> Realtime Process Monitor
               </h3>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-purple-950 text-purple-300 border border-purple-800 font-bold">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold">
                 Model: {selectedModel}
               </span>
             </div>
 
             {batchTotalCount > 0 && (
-              <span className="text-xs font-mono font-bold text-purple-300 flex items-center gap-1.5">
+              <span className="text-xs font-mono font-bold text-emerald-300 flex items-center gap-1.5">
                 <span>📊</span> Progress: Topik {batchCurrentIndex} dari {batchTotalCount} ({Math.round((batchCurrentIndex / batchTotalCount) * 100)}% Selesai)
               </span>
             )}
@@ -562,7 +562,7 @@ const SpensiaScriptStep: React.FC = () => {
           {batchTotalCount > 0 && (
             <div className="w-full bg-gray-950 rounded-full h-2.5 overflow-hidden border border-gray-800 p-0.5">
               <div
-                className="bg-gradient-to-r from-purple-500 via-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-300 shadow-md shadow-purple-500/50"
+                className="bg-gradient-to-r from-emerald-500 via-emerald-500 to-emerald-400 h-full rounded-full transition-all duration-300 shadow-md shadow-emerald-500/50"
                 style={{ width: `${Math.max(5, Math.round((batchCurrentIndex / batchTotalCount) * 100))}%` }}
               />
             </div>
@@ -578,7 +578,7 @@ const SpensiaScriptStep: React.FC = () => {
                     key={t.id}
                     className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 transition-all ${
                       isGeneratingThis
-                        ? 'bg-purple-950/80 border-purple-400 text-white shadow-lg shadow-purple-950/50 ring-1 ring-purple-400/50 animate-pulse'
+                        ? 'bg-emerald-950/80 border-emerald-400 text-white shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-400/50 animate-pulse'
                         : t.hasScript
                         ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-300'
                         : 'bg-gray-950 border-gray-800 text-gray-400'
@@ -605,16 +605,16 @@ const SpensiaScriptStep: React.FC = () => {
               <span className="text-gray-400 flex items-center gap-1">
                 <span>📝</span> Streaming Response Live:
               </span>
-              <span className="text-purple-300 font-bold bg-purple-950 px-2.5 py-1 rounded-lg border border-purple-800">
+              <span className="text-emerald-300 font-bold bg-emerald-950 px-2.5 py-1 rounded-lg border border-emerald-800">
                 {pastedOutput.trim() ? pastedOutput.trim().split(/\s+/).filter(Boolean).length : 0} / {targetWords} Kata (Target: {selectedDuration})
               </span>
             </div>
 
-            <div className="bg-gray-950 border border-gray-800 rounded-2xl p-4 font-mono text-xs text-gray-300 max-h-48 overflow-y-auto leading-relaxed whitespace-pre-wrap selection:bg-purple-900 selection:text-white border-purple-900/40">
+            <div className="bg-gray-950 border border-gray-800 rounded-2xl p-4 font-mono text-xs text-gray-300 max-h-48 overflow-y-auto leading-relaxed whitespace-pre-wrap selection:bg-emerald-900 selection:text-white border-emerald-900/40">
               {pastedOutput ? (
                 <>
                   {pastedOutput}
-                  <span className="inline-block w-2 h-4 bg-purple-400 ml-1 animate-ping" />
+                  <span className="inline-block w-2 h-4 bg-emerald-400 ml-1 animate-ping" />
                 </>
               ) : (
                 <span className="text-gray-600 italic">⏳ Menunggu respon pertama dari API AI stream...</span>
@@ -626,9 +626,9 @@ const SpensiaScriptStep: React.FC = () => {
 
       {/* Collapsible Master Prompt Editor */}
       {showPromptEditor && (
-        <div className="bg-gray-900/90 p-5 rounded-3xl border border-purple-800/40 shadow-xl space-y-3 animate-in slide-in-from-top-4 duration-200">
+        <div className="bg-gray-900/90 p-5 rounded-3xl border border-emerald-800/40 shadow-xl space-y-3 animate-in slide-in-from-top-4 duration-200">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-purple-400 uppercase tracking-wider flex items-center gap-2">
+            <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
               <span>📝</span> Master Script Prompt (`script-prompt.md`)
             </h3>
             <div className="flex items-center gap-2">
@@ -640,7 +640,7 @@ const SpensiaScriptStep: React.FC = () => {
               </button>
               <button
                 onClick={handleSavePrompt}
-                className="px-3 py-1 bg-purple-700 hover:bg-purple-600 text-white rounded-lg text-[11px] font-bold transition-all"
+                className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-[11px] font-bold transition-all"
               >
                 Simpan Prompt
               </button>
@@ -651,7 +651,7 @@ const SpensiaScriptStep: React.FC = () => {
             value={masterPrompt}
             onChange={(e) => setMasterPrompt(e.target.value)}
             rows={12}
-            className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-4 text-xs font-mono text-gray-300 focus:outline-none focus:border-purple-500/80 leading-relaxed resize-y"
+            className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-4 text-xs font-mono text-gray-300 focus:outline-none focus:border-emerald-500/80 leading-relaxed resize-y"
             placeholder="Loading prompt from script-prompt.md..."
           />
         </div>
@@ -662,7 +662,7 @@ const SpensiaScriptStep: React.FC = () => {
         {/* Left Column: Input Parameter Form */}
         <div className="md:col-span-1 bg-gray-900/80 p-5 rounded-3xl border border-gray-800 shadow-xl space-y-5">
           <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
-            <span className="p-1 bg-purple-950 text-purple-400 rounded-lg text-xs">✍️</span>
+            <span className="p-1 bg-emerald-950 text-emerald-400 rounded-lg text-xs">✍️</span>
             Input Parameter Naskah
           </h2>
 
@@ -676,7 +676,7 @@ const SpensiaScriptStep: React.FC = () => {
               value={videoTitle}
               onChange={(e) => setVideoTitle(e.target.value)}
               placeholder="Judul pertanyaan provokatif video..."
-              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 transition-all font-semibold"
+              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition-all font-semibold"
             />
           </div>
 
@@ -690,7 +690,7 @@ const SpensiaScriptStep: React.FC = () => {
               onChange={(e) => setTopicSummary(e.target.value)}
               rows={3}
               placeholder="Fakta kontraintuitif utama yang akan dibahas dalam naskah..."
-              className="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500 transition-all leading-relaxed"
+              className="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition-all leading-relaxed"
             />
           </div>
 
@@ -706,7 +706,7 @@ const SpensiaScriptStep: React.FC = () => {
                   onClick={() => handleDurationChange(preset.duration, preset.words)}
                   className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition-all border flex items-center justify-between ${
                     selectedDuration === preset.duration
-                      ? 'bg-purple-950 border-purple-600 text-purple-300 shadow-md'
+                      ? 'bg-emerald-950 border-emerald-600 text-emerald-300 shadow-md'
                       : 'bg-gray-950 border-gray-800 text-gray-400 hover:bg-gray-800'
                   }`}
                 >
@@ -725,7 +725,7 @@ const SpensiaScriptStep: React.FC = () => {
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
-              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-purple-300 focus:outline-none focus:border-purple-500 font-mono font-semibold"
+              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-emerald-300 focus:outline-none focus:border-emerald-500 font-mono font-semibold"
             >
               {MODEL_OPTIONS.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -740,7 +740,7 @@ const SpensiaScriptStep: React.FC = () => {
             <button
               onClick={handleAutoGenerate}
               disabled={isGenerating}
-              className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold rounded-2xl text-xs shadow-xl shadow-purple-950/50 transition-all flex items-center justify-center gap-2"
+              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-emerald-500 disabled:opacity-50 text-white font-bold rounded-2xl text-xs shadow-xl shadow-emerald-950/50 transition-all flex items-center justify-center gap-2"
             >
               {isGenerating ? (
                 <>
@@ -772,10 +772,10 @@ const SpensiaScriptStep: React.FC = () => {
             {/* View Tabs & Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
               <div className="flex items-center gap-2">
-                <span className="p-1 bg-purple-950 text-purple-400 rounded-lg text-xs">🎬</span>
+                <span className="p-1 bg-emerald-950 text-emerald-400 rounded-lg text-xs">🎬</span>
                 <h2 className="text-sm font-bold text-white">Naskah Spensia</h2>
                 {scriptData && (
-                  <span className="text-[11px] font-mono text-purple-300 bg-purple-950 px-2.5 py-0.5 rounded-full border border-purple-800 font-bold">
+                  <span className="text-[11px] font-mono text-emerald-300 bg-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-800 font-bold">
                     {scriptData.actual_word_count} Kata ({scriptData.target_duration})
                   </span>
                 )}
@@ -787,7 +787,7 @@ const SpensiaScriptStep: React.FC = () => {
                   onClick={() => setActiveTab('full')}
                   className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                     activeTab === 'full'
-                      ? 'bg-purple-600 text-white shadow-md'
+                      ? 'bg-emerald-600 text-white shadow-md'
                       : 'text-gray-400 hover:text-white'
                   }`}
                 >
@@ -798,7 +798,7 @@ const SpensiaScriptStep: React.FC = () => {
                   onClick={() => setActiveTab('sections')}
                   className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                     activeTab === 'sections'
-                      ? 'bg-purple-600 text-white shadow-md'
+                      ? 'bg-emerald-600 text-white shadow-md'
                       : 'text-gray-400 hover:text-white'
                   }`}
                 >
@@ -809,7 +809,7 @@ const SpensiaScriptStep: React.FC = () => {
                   onClick={() => setActiveTab('json')}
                   className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                     activeTab === 'json'
-                      ? 'bg-purple-600 text-white shadow-md'
+                      ? 'bg-emerald-600 text-white shadow-md'
                       : 'text-gray-400 hover:text-white'
                   }`}
                 >
@@ -822,8 +822,8 @@ const SpensiaScriptStep: React.FC = () => {
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
                 {isGenerating && (
-                  <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-md bg-purple-950/90 text-purple-300 border border-purple-700/80 font-bold animate-pulse flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
+                  <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-md bg-emerald-950/90 text-emerald-300 border border-emerald-700/80 font-bold animate-pulse flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                     <span>🔴 Streaming Script Live... ({pastedOutput.length} char)</span>
                   </span>
                 )}
@@ -843,7 +843,7 @@ const SpensiaScriptStep: React.FC = () => {
                 {scriptData && (
                   <button
                     onClick={handleCopyFullScript}
-                    className="px-3 py-1 bg-purple-950 hover:bg-purple-900 border border-purple-800 text-purple-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                    className="px-3 py-1 bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
                   >
                     <span>📋</span>
                     <span>Salin Naskah Voiceover</span>
@@ -856,7 +856,7 @@ const SpensiaScriptStep: React.FC = () => {
               <div className="space-y-4">
                 {!scriptData ? (
                   <div className="bg-gray-950 border border-dashed border-gray-800 rounded-3xl p-12 text-center space-y-3">
-                    <div className="w-14 h-14 bg-purple-600/10 text-purple-400 rounded-2xl flex items-center justify-center text-2xl mx-auto border border-purple-500/20">
+                    <div className="w-14 h-14 bg-emerald-600/10 text-emerald-400 rounded-2xl flex items-center justify-center text-2xl mx-auto border border-emerald-500/20">
                       ⚡
                     </div>
                     <div className="space-y-1">
@@ -896,26 +896,26 @@ const SpensiaScriptStep: React.FC = () => {
                   <div className="space-y-3">
                     {/* Hook Card */}
                     {scriptData.hook && (
-                      <div className="p-4 bg-purple-950/30 border border-purple-800/60 rounded-2xl space-y-2">
+                      <div className="p-4 bg-emerald-950/30 border border-emerald-800/60 rounded-2xl space-y-2">
                         <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 bg-purple-950 text-purple-300 border border-purple-700 text-[10px] font-mono font-bold rounded-md uppercase">
+                          <span className="px-2 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-700 text-[10px] font-mono font-bold rounded-md uppercase">
                             🎣 HOOK STYLE
                           </span>
                         </div>
 
                         {scriptData.hook.imaginative_scenario && (
                           <p className="text-xs text-gray-300">
-                            <strong className="text-purple-400">Skenario Imajinatif:</strong> {scriptData.hook.imaginative_scenario}
+                            <strong className="text-emerald-400">Skenario Imajinatif:</strong> {scriptData.hook.imaginative_scenario}
                           </p>
                         )}
                         {scriptData.hook.surprising_detail && (
                           <p className="text-xs text-gray-300">
-                            <strong className="text-purple-400">Detail Mengejutkan:</strong> {scriptData.hook.surprising_detail}
+                            <strong className="text-emerald-400">Detail Mengejutkan:</strong> {scriptData.hook.surprising_detail}
                           </p>
                         )}
                         {scriptData.hook.philosophical_closing && (
-                          <p className="text-xs text-gray-300 italic border-l-2 border-purple-500 pl-2">
-                            <strong className="text-purple-300">Penutup Reflektif:</strong> "{scriptData.hook.philosophical_closing}"
+                          <p className="text-xs text-gray-300 italic border-l-2 border-emerald-500 pl-2">
+                            <strong className="text-emerald-300">Penutup Reflektif:</strong> "{scriptData.hook.philosophical_closing}"
                           </p>
                         )}
                       </div>
@@ -928,7 +928,7 @@ const SpensiaScriptStep: React.FC = () => {
                           <div key={sec.section_number} className="p-4 bg-gray-950 border border-gray-800 rounded-2xl space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-white flex items-center gap-2">
-                                <span className="w-5 h-5 bg-purple-950 border border-purple-800 text-purple-300 rounded-lg text-[10px] flex items-center justify-center font-mono">
+                                <span className="w-5 h-5 bg-emerald-950 border border-emerald-800 text-emerald-300 rounded-lg text-[10px] flex items-center justify-center font-mono">
                                   #{sec.section_number}
                                 </span>
                                 {sec.section_title}
@@ -973,14 +973,14 @@ const SpensiaScriptStep: React.FC = () => {
                   onChange={(e) => setPastedOutput(e.target.value)}
                   rows={14}
                   placeholder="Paste or edit raw script JSON here..."
-                  className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-4 text-xs font-mono text-gray-300 focus:outline-none focus:border-purple-500 transition-all leading-relaxed"
+                  className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-4 text-xs font-mono text-gray-300 focus:outline-none focus:border-emerald-500 transition-all leading-relaxed"
                 />
 
                 <div className="flex justify-end">
                   <button
                     onClick={handleProcessOutput}
                     disabled={!pastedOutput.trim()}
-                    className="px-4 py-2 bg-purple-700 hover:bg-purple-600 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
+                    className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
                   >
                     <span>⚡ Validasi Strict JSON & Process</span>
                   </button>

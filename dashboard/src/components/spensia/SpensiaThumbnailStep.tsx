@@ -658,7 +658,7 @@ const SpensiaThumbnailStep: React.FC = () => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 font-sans">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-emerald-950 via-gray-900 to-indigo-950 border border-emerald-500/30 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+      <div className="bg-gradient-to-r from-emerald-950 via-gray-900 to-emerald-950 border border-emerald-500/30 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
         <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
         
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
@@ -667,7 +667,7 @@ const SpensiaThumbnailStep: React.FC = () => {
               <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-mono font-bold tracking-wider uppercase">
                 🚀 STEP 9: PUBLISH HUB & THUMBNAIL STUDIO
               </span>
-              <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-mono font-bold">
+              <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-mono font-bold">
                 🔥 SEO Titles, Description, Tags & 3x Thumbnail
               </span>
             </div>
@@ -696,7 +696,7 @@ const SpensiaThumbnailStep: React.FC = () => {
               onClick={() => setActiveTab('thumbnail')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'thumbnail'
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
                   : 'text-gray-400 hover:text-gray-200'
               }`}
             >
@@ -718,7 +718,7 @@ const SpensiaThumbnailStep: React.FC = () => {
                 onClick={() => handleSelectTopic(top)}
                 className={`px-4 py-2 rounded-2xl text-xs font-black tracking-wide transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
                   isActive
-                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/20 transform scale-[1.03]'
+                    ? 'bg-gradient-to-r from-emerald-500 to-emerald-500 text-white shadow-lg shadow-emerald-500/20 transform scale-[1.03]'
                     : 'bg-gray-950 text-gray-400 border border-gray-900 hover:border-gray-800 hover:text-gray-200 hover:bg-gray-900'
                 }`}
               >
@@ -768,7 +768,7 @@ const SpensiaThumbnailStep: React.FC = () => {
               <button
                 onClick={handleGenerateMetadata}
                 disabled={loadingMetadata || analyzingMetadata}
-                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-900/40 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-900/40 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 {loadingMetadata ? (
                   <>
@@ -787,7 +787,7 @@ const SpensiaThumbnailStep: React.FC = () => {
                 <button
                   onClick={handleAnalyzeMetadata}
                   disabled={loadingMetadata || analyzingMetadata}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-purple-900/40 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-500 hover:to-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-900/40 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
                   {analyzingMetadata ? (
                     <>
@@ -857,7 +857,7 @@ const SpensiaThumbnailStep: React.FC = () => {
                           <div className="flex items-center justify-between text-[11px] font-mono">
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-emerald-400">OPTION #{idx + 1}</span>
-                              <span className={`px-2.5 py-0.5 rounded-full font-bold ${score >= 92 ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : 'bg-amber-950 text-amber-300 border border-amber-500/40'}`}>
+                              <span className={`px-2.5 py-0.5 rounded-full font-bold ${score >= 92 ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'}`}>
                                 {score}% 🔥 CTR Rating
                               </span>
                             </div>
@@ -986,7 +986,7 @@ const SpensiaThumbnailStep: React.FC = () => {
 
                   {/* Superior Title Callout */}
                   {uploadMetadata.analysis.superior_title && (
-                    <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 to-teal-950/80 border border-emerald-500/60 space-y-2">
+                    <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 to-emerald-950/80 border border-emerald-500/60 space-y-2">
                       <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 rounded bg-emerald-500 text-gray-950 font-bold text-[10px] font-mono">
                           🏆 JUDUL PALING UNGGUL
@@ -1020,7 +1020,7 @@ const SpensiaThumbnailStep: React.FC = () => {
                     {/* Box 2: Perlu Diperbaiki / Catatan + Auto-Fix Button */}
                     <div className="p-4 rounded-2xl bg-gray-950 border border-gray-800 space-y-3 flex flex-col justify-between">
                       <div className="space-y-1.5">
-                        <span className="text-xs font-bold text-amber-400 font-mono flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-emerald-400 font-mono flex items-center gap-1.5">
                           <span>🛠️</span> Perlu Diperhatikan / Catatan:
                         </span>
                         <p className="text-xs text-gray-300 leading-relaxed">
@@ -1030,7 +1030,7 @@ const SpensiaThumbnailStep: React.FC = () => {
                         {uploadMetadata.analysis.improvements_needed && uploadMetadata.analysis.improvements_needed.length > 0 && (
                           <div className="pt-1 space-y-1">
                             {uploadMetadata.analysis.improvements_needed.map((imp, idx) => (
-                              <div key={idx} className="text-[11px] text-amber-300/90 font-mono bg-amber-950/30 p-2 rounded-lg border border-amber-900/40">
+                              <div key={idx} className="text-[11px] text-emerald-300/90 font-mono bg-emerald-950/30 p-2 rounded-lg border border-emerald-900/40">
                                 🎯 <strong className="uppercase">Target ({imp.target_field}):</strong> {imp.suggested_fix_instruction}
                               </div>
                             ))}
@@ -1042,7 +1042,7 @@ const SpensiaThumbnailStep: React.FC = () => {
                         <button
                           onClick={handleFixMetadata}
                           disabled={fixingMetadata}
-                          className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-400 hover:to-emerald-500 text-gray-950 font-black text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-gray-950 font-black text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                         >
                           {fixingMetadata ? (
                             <>
@@ -1062,7 +1062,7 @@ const SpensiaThumbnailStep: React.FC = () => {
                     {/* Box 3: Analisis Psikologi Penonton Indonesia */}
                     {uploadMetadata.analysis.psychological_analysis && (
                       <div className="p-4 rounded-2xl bg-gray-950 border border-gray-800 space-y-1.5">
-                        <span className="text-xs font-bold text-purple-400 font-mono flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-emerald-400 font-mono flex items-center gap-1.5">
                           <span>🧠</span> Analisis Psikologis (Indonesian Audience):
                         </span>
                         <p className="text-xs text-gray-300 leading-relaxed">
@@ -1074,7 +1074,7 @@ const SpensiaThumbnailStep: React.FC = () => {
                     {/* Box 4: Dampak Waktu Doom Scrolling */}
                     {uploadMetadata.analysis.doom_scroll_impact && (
                       <div className="p-4 rounded-2xl bg-gray-950 border border-gray-800 space-y-1.5">
-                        <span className="text-xs font-bold text-teal-400 font-mono flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-emerald-400 font-mono flex items-center gap-1.5">
                           <span>⚡</span> Dampak Saat Doom Scrolling (&lt;0.5 Detik):
                         </span>
                         <p className="text-xs text-gray-300 leading-relaxed">
@@ -1102,7 +1102,7 @@ const SpensiaThumbnailStep: React.FC = () => {
                   value={imageModel}
                   disabled={!uploadMetadata}
                   onChange={(e) => setImageModel(e.target.value)}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-1.5 text-xs text-gray-200 font-mono focus:border-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-1.5 text-xs text-gray-200 font-mono focus:border-emerald-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {IMAGE_MODELS.map((m) => (
                     <option key={m.id} value={m.id}>{m.name}</option>
@@ -1116,7 +1116,7 @@ const SpensiaThumbnailStep: React.FC = () => {
                   value={imageSize}
                   disabled={!uploadMetadata}
                   onChange={(e) => setImageSize(e.target.value)}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-1.5 text-xs text-gray-200 font-mono focus:border-teal-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-1.5 text-xs text-gray-200 font-mono focus:border-emerald-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {RESOLUTION_OPTIONS.map((r) => (
                     <option key={r.size} value={r.size}>{r.label}</option>
@@ -1129,7 +1129,7 @@ const SpensiaThumbnailStep: React.FC = () => {
               <button
                 onClick={handleGeneratePrompts}
                 disabled={loadingPrompts || loadingImages || analyzingVision || !uploadMetadata}
-                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-900/40 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-900/40 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {loadingPrompts ? '⏳ Streaming Prompts...' : '🚀 1. Generate 3 Prompts'}
               </button>
@@ -1138,7 +1138,7 @@ const SpensiaThumbnailStep: React.FC = () => {
                 <button
                   onClick={handleGenerateImages}
                   disabled={loadingPrompts || loadingImages || analyzingVision || !uploadMetadata}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold text-xs shadow-lg shadow-indigo-900/40 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-900/40 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {loadingImages ? '🎨 Rendering Images...' : '🖼️ 2. Render 3 Thumbnails'}
                 </button>
@@ -1148,7 +1148,7 @@ const SpensiaThumbnailStep: React.FC = () => {
                 <button
                   onClick={handleAnalyzeThumbnailImages}
                   disabled={loadingPrompts || loadingImages || analyzingVision || !uploadMetadata}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-purple-900/40 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-500 hover:to-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-900/40 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {analyzingVision ? (
                     <>
@@ -1168,14 +1168,14 @@ const SpensiaThumbnailStep: React.FC = () => {
 
           {/* WARNING: Metadata belum di-generate */}
           {!uploadMetadata && (
-            <div className="p-4 rounded-2xl bg-amber-950/90 border border-amber-500/60 text-amber-200 text-xs font-mono flex items-start gap-3 shadow-xl">
+            <div className="p-4 rounded-2xl bg-emerald-950/90 border border-emerald-500/60 text-emerald-200 text-xs font-mono flex items-start gap-3 shadow-xl">
               <span className="text-xl">⚠️</span>
               <div className="space-y-1">
-                <strong className="text-amber-300 font-bold block text-sm">Fitur Thumbnail Studio Terkunci (SEO Metadata Required)</strong>
+                <strong className="text-emerald-300 font-bold block text-sm">Fitur Thumbnail Studio Terkunci (SEO Metadata Required)</strong>
                 <p>
                   YouTube Upload Metadata belum dibuat untuk topik ini. Silakan masuk ke tab <strong>"1. Upload SEO Metadata"</strong> ➔ klik <strong>"1. Generate Metadata"</strong> ➔ tentukan judul video terbaik, lalu kembali ke tab ini.
                 </p>
-                <p className="text-[11px] text-amber-400/80 italic">
+                <p className="text-[11px] text-emerald-400/80 italic">
                   Ini wajib dilakukan agar konsep visual thumbnail & teks overlay yang dihasilkan 100% selaras dengan judul video terpilih.
                 </p>
               </div>
@@ -1200,10 +1200,10 @@ const SpensiaThumbnailStep: React.FC = () => {
 
           {/* REAL-TIME IMAGE GENERATION PROGRESS CARD */}
           {loadingImages && imageProgress && (
-            <div className="bg-gray-950 border border-indigo-500/40 rounded-2xl p-4 space-y-3">
+            <div className="bg-gray-950 border border-emerald-500/40 rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-indigo-400 font-bold flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
+                <span className="text-emerald-400 font-bold flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
                   PROSES GENERATE THUMBNAIL IMAGE ({imageProgress.current} / {imageProgress.total})
                 </span>
                 <span className="text-gray-400">
@@ -1213,7 +1213,7 @@ const SpensiaThumbnailStep: React.FC = () => {
 
               <div className="w-full bg-gray-900 h-2.5 rounded-full overflow-hidden border border-gray-800">
                 <div
-                  className="bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 h-full rounded-full transition-all duration-300"
+                  className="bg-gradient-to-r from-emerald-500 via-emerald-500 to-emerald-400 h-full rounded-full transition-all duration-300"
                   style={{ width: `${(imageProgress.current / imageProgress.total) * 100}%` }}
                 />
               </div>
@@ -1249,7 +1249,7 @@ const SpensiaThumbnailStep: React.FC = () => {
                           className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold ${
                             (concept.viral_score || 90) >= 92
                               ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
-                              : 'bg-amber-950 text-amber-300 border border-amber-500/40'
+                              : 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
                           }`}
                         >
                           {concept.viral_score || 90}% 🔥 Viral Score
@@ -1260,12 +1260,12 @@ const SpensiaThumbnailStep: React.FC = () => {
                       <p className="text-[11px] text-gray-400 italic leading-relaxed">"{concept.viral_reason}"</p>
 
                       <div className="space-y-1 pt-1">
-                        <label className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Teks Overlay Headline:</label>
+                        <label className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Teks Overlay Headline:</label>
                         <input
                           type="text"
                           value={concept.text_overlay || ''}
                           onChange={(e) => handleUpdatePromptText(concept.id, 'text_overlay', e.target.value)}
-                          className="w-full bg-gray-950 border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-amber-300 font-mono font-bold focus:border-amber-500 outline-none"
+                          className="w-full bg-gray-950 border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-emerald-300 font-mono font-bold focus:border-emerald-500 outline-none"
                         />
                       </div>
 
@@ -1347,8 +1347,8 @@ const SpensiaThumbnailStep: React.FC = () => {
 
                         {/* Simulation Headline Text Overlay on Image */}
                         {item.text_overlay && item.url && (
-                          <div className="absolute bottom-2 left-2 right-2 bg-black/70 backdrop-blur-md border border-amber-500/40 rounded-xl p-2 text-center">
-                            <span className="text-xs font-black text-amber-300 font-mono tracking-wider drop-shadow-md uppercase">
+                          <div className="absolute bottom-2 left-2 right-2 bg-black/70 backdrop-blur-md border border-emerald-500/40 rounded-xl p-2 text-center">
+                            <span className="text-xs font-black text-emerald-300 font-mono tracking-wider drop-shadow-md uppercase">
                               "{item.text_overlay}"
                             </span>
                           </div>
@@ -1376,7 +1376,7 @@ const SpensiaThumbnailStep: React.FC = () => {
                           </div>
                           <div className="w-full bg-gray-950 h-2 rounded-full overflow-hidden border border-gray-800">
                             <div
-                              className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500"
+                              className="bg-gradient-to-r from-emerald-500 to-emerald-400 h-full rounded-full transition-all duration-500"
                               style={{ width: `${item.viral_score || 90}%` }}
                             />
                           </div>
@@ -1416,32 +1416,32 @@ const SpensiaThumbnailStep: React.FC = () => {
 
           {/* VISION AI ANALYSIS & SELECTION AUDIT CARD */}
           {visionAnalysis && (
-            <div className="bg-gray-900 border border-purple-500/40 rounded-3xl p-6 space-y-5 shadow-2xl">
+            <div className="bg-gray-900 border border-emerald-500/40 rounded-3xl p-6 space-y-5 shadow-2xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <span className="p-1.5 bg-purple-950 text-purple-400 rounded-xl text-xs font-mono font-bold">👁️</span>
+                  <span className="p-1.5 bg-emerald-950 text-emerald-400 rounded-xl text-xs font-mono font-bold">👁️</span>
                   <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wider">
                     Analisis Vision AI & Audit Psikologi Scrolling Manusia
                   </h3>
                 </div>
-                <span className="px-3 py-1 rounded-full bg-purple-950 text-purple-300 border border-purple-700 text-xs font-mono font-bold">
+                <span className="px-3 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700 text-xs font-mono font-bold">
                   Human Eye-Tracking & Pattern Interrupt Audit
                 </span>
               </div>
 
               {/* Winner Callout */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/90 to-indigo-950/90 border border-purple-500/60 space-y-2">
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/90 to-emerald-950/90 border border-emerald-500/60 space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded bg-purple-500 text-gray-950 font-bold text-[10px] font-mono uppercase">
+                  <span className="px-2 py-0.5 rounded bg-emerald-500 text-gray-950 font-bold text-[10px] font-mono uppercase">
                     🏆 THUMBNAIL PEMENANG UTAMA
                   </span>
-                  <h4 className="text-sm font-bold text-purple-200 font-mono">
+                  <h4 className="text-sm font-bold text-emerald-200 font-mono">
                     Thumbnail #{visionAnalysis.winner_id || 1} {visionAnalysis.winner_title ? `— ${visionAnalysis.winner_title}` : ''}
                   </h4>
                 </div>
                 {visionAnalysis.winner_reason && (
-                  <p className="text-xs text-purple-100/90 leading-relaxed pl-1">
-                    💡 <strong className="font-mono text-purple-300">Alasan Mengapa Paling Efektif Memutus Scrolling:</strong> {visionAnalysis.winner_reason}
+                  <p className="text-xs text-emerald-100/90 leading-relaxed pl-1">
+                    💡 <strong className="font-mono text-emerald-300">Alasan Mengapa Paling Efektif Memutus Scrolling:</strong> {visionAnalysis.winner_reason}
                   </p>
                 )}
               </div>
@@ -1468,7 +1468,7 @@ const SpensiaThumbnailStep: React.FC = () => {
                         <span className="text-emerald-400">{ev.thumb_stopping_score || 90}% Score</span>
                       </div>
                       {ev.strengths && <p className="text-[11px] text-emerald-300/90">✅ {ev.strengths}</p>}
-                      {ev.weaknesses && <p className="text-[11px] text-amber-300/90">⚠️ {ev.weaknesses}</p>}
+                      {ev.weaknesses && <p className="text-[11px] text-emerald-300/90">⚠️ {ev.weaknesses}</p>}
                       {ev.scrolling_impact && <p className="text-[11px] text-gray-400 italic">⚡ {ev.scrolling_impact}</p>}
                     </div>
                   ))}

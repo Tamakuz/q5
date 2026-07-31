@@ -8,7 +8,7 @@ const { hexToAssColor, assTime, cleanPunct } = require('../shared/subtitle-utils
 function buildAssSubtitleFile(captions, capCfg, width, height) {
   const fn = capCfg.fontName || 'Montserrat';
   const fs2 = capCfg.fontSize || 48;
-  const activeColor = hexToAssColor(capCfg.activeColorHex || '#FDE047');
+  const activeColor = hexToAssColor(capCfg.activeColorHex || '#22C55E'); // green-500 (was #FDE047 yellow)
   const inactiveColor = hexToAssColor(capCfg.inactiveColorHex || '#FFFFFF');
   const outlineColor = hexToAssColor(capCfg.outlineColorHex || '#000000');
   const ow = capCfg.outlineWidth || 3;
