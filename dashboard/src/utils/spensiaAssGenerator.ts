@@ -1,5 +1,6 @@
 // dashboard/src/utils/spensiaAssGenerator.ts
 import { TimelineCaptionItem } from './spensiaTimelineGenerator';
+import { hexToAssColor, assTime, cleanPunct } from '../../electron/shared/subtitle-utils.cjs';
 
 export interface CaptionStyleOptions {
   fontName?: string;
@@ -16,44 +17,29 @@ export interface CaptionStyleOptions {
   captionDisplayMode?: 'single-word' | 'phrase'; // 'single-word' (CapCut 1-word pop-up) vs 'phrase' (2-3 words line)
 }
 
+// Thin wrappers for API compatibility — canonical implementations live in
+// electron/shared/subtitle-utils.cjs (shared between Electron CJS and TS frontend).
+export { hexToAssColor, assTime, cleanPunct };
+
 /**
  * Clean all punctuation marks from word string (strip .,:;!?-"“”'’`()[]{})
+ * @deprecated Use cleanPunct from 'electron/shared/subtitle-utils.cjs' directly.
  */
 export function cleanPunctuation(word: string): string {
-  if (!word) return '';
-  return word.replace(/[.,:;!?\-"“”'’`()[\]{}]/g, '').trim();
+  return cleanPunct(word);
 }
 
 /**
  * Convert Hex color string (#RRGGBB) to ASS color format (&H00BBGGRR&)
+ * @deprecated Use hexToAssColor from 'electron/shared/subtitle-utils.cjs' directly.
  */
-export function hexToAssColor(hexStr: string, alphaHex: string = '00'): string {
-  let clean = hexStr.replace('#', '').trim();
-  if (clean.length === 3) {
-    clean = clean.split('').map((c) => c + c).join('');
-  }
-  if (clean.length !== 6) clean = 'FFFFFF';
-
-  const rr = clean.substring(0, 2);
-  const gg = clean.substring(2, 4);
-  const bb = clean.substring(4, 6);
-
-  return `&H${alphaHex}${bb}${gg}${rr}&`;
-}
 
 /**
  * Format seconds to ASS timecode format (H:MM:SS.cs)
+ * @deprecated Use assTime from 'electron/shared/subtitle-utils.cjs' directly.
  */
 export function formatAssTime(sec: number): string {
-  const safeSec = Math.max(0, sec);
-  const totalMs = Math.floor(safeSec * 1000);
-  const hrs = Math.floor(totalMs / 3600000);
-  const mins = Math.floor((totalMs % 3600000) / 60000);
-  const secs = Math.floor((totalMs % 60000) / 1000);
-  const cs = Math.floor((totalMs % 1000) / 10); // centiseconds (2 digits)
-
-  const pad = (n: number, len = 2) => n.toString().padStart(len, '0');
-  return `${hrs}:${pad(mins)}:${pad(secs)}.${pad(cs)}`;
+  return assTime(sec);
 }
 
 /**

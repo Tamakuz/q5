@@ -3,11 +3,9 @@ import { Command } from 'commander';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { spawn } from 'child_process';
-import { createRequire } from 'module';
 import { z } from 'zod';
-const require = createRequire(import.meta.url);
-const ffmpegBin: string = require('@ffmpeg-installer/ffmpeg').path;
+import { runFFmpeg, runFFmpegProgress } from './cli/shared/ffmpeg-helpers.js';
+import { getCaptionFontPath, cleanPunctuation, generateCaptionChunks } from './cli/shared/caption-utils.js';
 
 const program = new Command();
 
@@ -52,126 +50,7 @@ type Mapping = z.infer<typeof MappingSchema>;
 
 // ─── Helpers ──────────────────────────────────────────
 
-function getCaptionFontPath(): string {
-  const candidates = [
-    '/usr/share/fonts/truetype/inter-zorin-os/Inter-ExtraBold.ttf',
-    '/usr/share/fonts/truetype/inter-zorin-os/Inter-Bold.ttf',
-    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-    '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
-  ];
-  for (const font of candidates) {
-    if (fs.existsSync(font)) return font;
-  }
-  return 'Sans';
-}
-
-function cleanPunctuation(text: string): string {
-  return text
-    .replace(/[.,?!:;""''`~–—\-\(\)\[\]\{\}\/\\«»]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-interface CaptionChunk {
-  text: string;
-  start: number;
-  end: number;
-}
-
-function generateCaptionChunks(rawText: string, totalDur: number, maxWordsPerChunk: number = 3): CaptionChunk[] {
-  const text = cleanPunctuation(rawText);
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return [];
-
-  const chunks: string[] = [];
-  for (let i = 0; i < words.length; i += maxWordsPerChunk) {
-    chunks.push(words.slice(i, i + maxWordsPerChunk).join(' '));
-  }
-
-  const totalWords = words.length;
-  let currentStart = 0;
-  const result: CaptionChunk[] = [];
-
-  for (let i = 0; i < chunks.length; i++) {
-    const chunkWords = chunks[i].split(/\s+/).length;
-    const chunkDur = (chunkWords / totalWords) * totalDur;
-    const end = (i === chunks.length - 1) ? totalDur : Math.min(totalDur, currentStart + chunkDur);
-
-    result.push({
-      text: chunks[i],
-      start: Number(currentStart.toFixed(3)),
-      end: Number(end.toFixed(3)),
-    });
-    currentStart = end;
-  }
-  return result;
-}
-
-function wrapText(text: string, maxLen: number = 34): string {
-  const words = text.trim().split(/\s+/);
-  const lines: string[] = [];
-  let currentLine = '';
-
-  for (const word of words) {
-    if ((currentLine + ' ' + word).trim().length <= maxLen) {
-      currentLine = (currentLine + ' ' + word).trim();
-    } else {
-      if (currentLine) lines.push(currentLine);
-      currentLine = word;
-    }
-  }
-  if (currentLine) lines.push(currentLine);
-  return lines.join('\n');
-}
-
-function runFFmpeg(args: string[], cwd: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(ffmpegBin, args, { cwd });
-    let err = '';
-    child.stderr.on('data', (d: Buffer) => { err += d.toString(); });
-    child.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`FFmpeg exit ${code}: ${err.slice(-300)}`));
-    });
-    child.on('error', reject);
-  });
-}
-
-/**
- * Run FFmpeg with -progress pipe:1 for structured progress.
- * Parses `out_time_us` from stdout and calls cb(pct, msg).
- */
-function runFFmpegProgress(
-  args: string[],
-  cwd: string,
-  totalDurSec: number,
-  cb: (pct: number, msg: string) => void,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(ffmpegBin, args, { cwd });
-    let stderr = '';
-
-    child.stdout.on('data', (d: Buffer) => {
-      const text = d.toString();
-      const match = text.match(/^out_time_us=(\d+)$/m);
-      if (match) {
-        const us = parseInt(match[1], 10);
-        const sec = us / 1_000_000;
-        const pct = Math.min(99, Math.round((sec / totalDurSec) * 100));
-        cb(pct, `${sec.toFixed(1)}s / ${totalDurSec.toFixed(1)}s`);
-      }
-    });
-
-    child.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-
-    child.on('close', (code) => {
-      if (code === 0) { cb(100, 'Done'); resolve(); }
-      else reject(new Error(`FFmpeg exit ${code}: ${stderr.slice(-500)}`));
-    });
-
-    child.on('error', reject);
-  });
-}
+// All shared FFmpeg and caption helpers now live in cli/shared/
 
 // ─── Render command ──────────────────────────────────
 
