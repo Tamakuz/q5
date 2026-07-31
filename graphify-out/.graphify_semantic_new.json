@@ -1,0 +1,1351 @@
+{
+  "nodes": [
+    {
+      "id": "spensia_channel",
+      "label": "Spensia Educational Facts YouTube Channel",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/topics-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dalang_digital_blueprint_bab4",
+      "label": "Dalang Digital Blueprint — YouTube Faceless 100 Juta (Bab 4)",
+      "file_type": "rationale",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/topics-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Provides the ruthless critique methodology and outlier search strategy for validating video topic demand before production. Referenced as the authoritative framework for anti-yes-man content strategy."
+    },
+    {
+      "id": "mentor_viral_ctr_blueprint",
+      "label": "Mentor Viral CTR Blueprint",
+      "file_type": "rationale",
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/thumbnail_prompts_system.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Defines 4 core thumbnail triggers (high contrast, extreme emotion, strange/anomalous visuals, curiosity trigger), 5 click emotions, 4 proven thumbnail patterns, and art style rules for flat 2D educational cartoon thumbnails."
+    },
+    {
+      "id": "doom_scrolling_psychology",
+      "label": "Indonesian Doom-Scrolling Psychological Evaluation Framework",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/analyze_metadata_system.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "A framework for evaluating YouTube metadata and thumbnails based on how Indonesian viewers doom-scroll on mobile — assessing pattern interrupt, focal contrast, emotional intensity, cognitive curiosity gap, and small-screen legibility within <0.5 seconds."
+    },
+    {
+      "id": "curiosity_gap_formula",
+      "label": "Curiosity Gap Psychological Formula",
+      "file_type": "rationale",
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/upload_metadata_system.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "One of three core psychological elements required in every Spensia video title — creates a knowledge gap that compels the viewer to click to resolve the tension. Applied in titles, descriptions, and thumbnail text overlays."
+    },
+    {
+      "id": "underdog_angle_formula",
+      "label": "Underdog Angle Formula",
+      "file_type": "rationale",
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/upload_metadata_system.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "One of three core psychological elements required in Spensia video titles — frames the topic from an underdog perspective to trigger empathy and rooting interest in Indonesian viewers."
+    },
+    {
+      "id": "kontradiksi_formula",
+      "label": "Kontradiksi (Contradiction) Formula",
+      "file_type": "rationale",
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/upload_metadata_system.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "One of three core psychological elements required in Spensia video titles — presents a counterintuitive fact that contradicts common assumptions, forcing cognitive re-evaluation."
+    },
+    {
+      "id": "spensia_visual_style_dna",
+      "label": "Spensia Visual Style DNA",
+      "file_type": "rationale",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/image-prompt-generator-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Flat 2D illustration style with thick black outlines, semi-detailed cartoon style, warm earthy color palette (browns, terracotta, cream, amber), 1280x720px 16:9 canvas, stickman background characters, no photorealism. Referenced across image prompts and thumbnail prompts."
+    },
+    {
+      "id": "faceless_video_production_pipeline",
+      "label": "Spensia Faceless Video Production Pipeline",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/breakdown-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "End-to-end pipeline: topic research/validation → script writing → script breakdown into visual segments → audio-to-segment forced alignment → per-segment image prompt generation → upload metadata generation → metadata psychological analysis → metadata fixes + thumbnail concept generation → thumbnail vision analysis."
+    },
+    {
+      "id": "dashboard_electron_prompts_analyze_metadata_system_doomscrollingstrategist",
+      "label": "YouTube SEO, CTR & Indonesian Doom-Scrolling Psychological Strategist",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/analyze_metadata_system.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_electron_prompts_analyze_thumbnails_vision_system_eyetrackingexpert",
+      "label": "YouTube Eye-Tracking & Human Doom-Scrolling Behavioral Expert",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/analyze_thumbnails_vision_system.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_electron_prompts_fix_metadata_system_seooptimizer",
+      "label": "YouTube SEO Optimization Specialist (Metadata Fixer)",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/fix_metadata_system.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_electron_prompts_thumbnail_prompts_system_thumbnailstrategist",
+      "label": "YouTube CTR & Viral Thumbnail Strategist",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/thumbnail_prompts_system.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_electron_prompts_upload_metadata_system_seogrowthspecialist",
+      "label": "YouTube SEO & Growth Specialist (Metadata Generator)",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/upload_metadata_system.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_spensia_audio_mapping_prompt_audioaligner",
+      "label": "Master AI Audio Forced-Alignment & Precision Synchronizer",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/audio-mapping-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_spensia_breakdown_prompt_storyboardagent",
+      "label": "AI Script Breakdown / Storyboard Agent (Pemotong Naskah)",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/breakdown-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_spensia_demand_keyphrases_prompt_keyphrasestrategist",
+      "label": "YouTube Data & Content Strategist — Demand Keyphrase Research",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/demand-keyphrases-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_spensia_image_prompt_generator_prompt_imagepromptgenerator",
+      "label": "AI Image Prompt Generator for Spensia Segments",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/image-prompt-generator-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_spensia_script_prompt_scriptwriter",
+      "label": "Spensia YouTube Scriptwriter",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/script-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_spensia_topics_prompt_topicstrategist",
+      "label": "YouTube Data & Content Strategist — Topic Ideation & Validation",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/topics-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_spensia_analyze_metadata_prompt_doomscrollingstrategist",
+      "label": "Spensia Metadata Psychological Analysis (Markdown variant)",
+      "file_type": "document",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/analyze-metadata-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_spensia_analyze_thumbnails_vision_prompt_eyetrackingexpert",
+      "label": "Spensia Thumbnail Vision Analysis (Markdown variant)",
+      "file_type": "document",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/analyze-thumbnails-vision-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_spensia_fix_metadata_prompt_seooptimizer",
+      "label": "Spensia Metadata Auto-Fix (Markdown variant)",
+      "file_type": "document",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/fix-metadata-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_spensia_thumbnail_prompts_generator_prompt_thumbnailstrategist",
+      "label": "Spensia Thumbnail Prompt Generator (Markdown variant)",
+      "file_type": "document",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/thumbnail-prompts-generator-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_index_html_contentautodashboard",
+      "label": "Content Auto Dashboard",
+      "file_type": "code",
+      "source_file": "/home/jovan/project/content-auto/dashboard/index.html",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_longform_alurfilm_mapping_prompt_visual_vo_synchronization",
+      "label": "Visual-to-VO Synchronization (Alurfilm)",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-mapping-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_longform_alurfilm_mapping_prompt_content_id_bypass",
+      "label": "Content ID Bypass via Visual Transformations",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-mapping-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_longform_alurfilm_mapping_prompt_ffmpeg_json_output",
+      "label": "FFmpeg Visual Mapping JSON Output Format",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-mapping-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_longform_alurfilm_singlepass_prompt_macro_storytelling",
+      "label": "Macro Storytelling & Contextual Processing (Alurfilm)",
+      "file_type": "rationale",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-singlepass-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_longform_alurfilm_singlepass_prompt_tts_neutral_familiar",
+      "label": "TTS Neutral & Familiar Language Style (Formal-Santai Dewasa)",
+      "file_type": "rationale",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-singlepass-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_longform_alurfilm_singlepass_prompt_causality_principle",
+      "label": "Causality-Driven Scriptwriting (Sebab-Akibat)",
+      "file_type": "rationale",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-singlepass-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_longform_alurfilm_transcript_prompt_precision_transcription",
+      "label": "Precision Audio Transcription with Anti-Uniform Timestamp Strategy",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-transcript-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_longform_mapping_prompt_visual_vo_synchronization",
+      "label": "Visual-to-VO Synchronization (Generic)",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/mapping-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_longform_script_prompt_macro_storytelling",
+      "label": "Macro Storytelling & Contextual Processing (Generic)",
+      "file_type": "rationale",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/script-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_longform_transcript_prompt_precision_transcription",
+      "label": "Precision Audio Transcription (Generic Longform)",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/transcript-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_shortform_analysis_prompt_gen_z_storyteller",
+      "label": "Gen Z Shortform Storyteller Persona",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/shortform/analysis-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_shortform_analysis_prompt_tts_friendly_rules",
+      "label": "TTS-Friendly Writing Rules (Punctuation Precision, No Pacing Tags)",
+      "file_type": "rationale",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/shortform/analysis-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_shortform_mapping_prompt_vertical_visual_mapping",
+      "label": "Vertical Video Precision Visual-to-VO Mapping",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/shortform/mapping-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_shortform_mapping_prompt_bgm_mood_selection",
+      "label": "BGM Mood Selection System (sneaky_snitch/monkeys_spinning/fluffing_duck/elevator)",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/shortform/mapping-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_shortform_transcript_prompt_shortform_transcription",
+      "label": "Shortform Audio Transcription with Anti-Overflow Duration Ceiling",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/shortform/transcript-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_shortform_youtube_shorts_prompt_growth_hacker",
+      "label": "Viral Social Media Growth Hacker Persona",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/shortform/youtube-shorts-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_shortform_youtube_shorts_prompt_tiktok_fyp",
+      "label": "TikTok FYP Algorithm Optimization (Comment Bait/Engagement Trigger)",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/shortform/youtube-shorts-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dashboard_prompts_shortform_youtube_shorts_prompt_youtube_shorts_seo",
+      "label": "YouTube Shorts Curiosity Gap SEO Strategy",
+      "file_type": "rationale",
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/shortform/youtube-shorts-prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_superpowers_plans_2026_07_19_dashboard_foundation_dashboard_spa",
+      "label": "Dashboard Foundation SPA (React + Vite + Tailwind)",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/docs/superpowers/plans/2026-07-19-dashboard-foundation.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Single-page React SPA with sidebar-driven step switching (build/preview/render/export), dark theme, monorepo via npm workspaces. Designed as control center for the content-auto workflow."
+    },
+    {
+      "id": "docs_superpowers_specs_2026_07_19_dashboard_foundation_design_dashboard_design",
+      "label": "Dashboard Foundation Design Spec",
+      "file_type": "document",
+      "source_file": "/home/jovan/project/content-auto/docs/superpowers/specs/2026-07-19-dashboard-foundation-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_superpowers_plans_2026_07_19_remotion_auto_content_foundation_remotion_engine",
+      "label": "Remotion Auto-Content Foundation (Programmatic Render Backend)",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/docs/superpowers/plans/2026-07-19-remotion-auto-content-foundation.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Remotion used purely as a programmatic render backend (no Studio UI). A custom Scene Resolver Engine maps AI-generated JSON scene definitions to Remotion Composition/Sequence components. Output: MP4 via CLI."
+    },
+    {
+      "id": "docs_superpowers_plans_2026_07_19_remotion_auto_content_foundation_scene_resolver",
+      "label": "Scene Resolver Engine",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/docs/superpowers/plans/2026-07-19-remotion-auto-content-foundation.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_superpowers_plans_2026_07_19_remotion_auto_content_foundation_zod_schema",
+      "label": "Scene JSON Zod Schema (VideoConfig, TextScene, ImageScene)",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/docs/superpowers/plans/2026-07-19-remotion-auto-content-foundation.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_superpowers_specs_2026_07_19_remotion_auto_content_foundation_design_remotion_design",
+      "label": "Remotion Auto-Content Foundation Design Spec",
+      "file_type": "document",
+      "source_file": "/home/jovan/project/content-auto/docs/superpowers/specs/2026-07-19-remotion-auto-content-foundation-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "plans_2026_07_27_spensia_render_ffmpeg_spensia_render_engine",
+      "label": "Spensia FFmpeg Render Engine",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/plans/2026-07-27-spensia-render-ffmpeg.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "FFmpeg-based video render engine for Spensia workflow. Imported directly by Electron main process (not CLI spawn). Builds video from static images, VO audio, ASS subtitles, watermark text, vignette overlay, and BGM mixing. Target resolution: 9:16 (1080x1920)."
+    },
+    {
+      "id": "plans_2026_07_27_spensia_render_ffmpeg_spensia_render_config",
+      "label": "SpensiaRenderConfig Zod Schema",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/plans/2026-07-27-spensia-render-ffmpeg.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "plans_2026_07_27_spensia_render_ffmpeg_electron_ipc_integration",
+      "label": "Electron IPC Render Integration (render-spensia-video handler)",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/plans/2026-07-27-spensia-render-ffmpeg.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "plans_2026_07_27_spensia_render_ffmpeg_css_overlay_preview",
+      "label": "CSS Overlay Preview (Real-Time Canvas Without FFmpeg Render)",
+      "file_type": "concept",
+      "source_file": "/home/jovan/project/content-auto/plans/2026-07-27-spensia-render-ffmpeg.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "blueprint_youtube_faceless_100_juta_dalang_digital_updated_dalang_digital_blueprint",
+      "label": "Dalang Digital — Faceless YouTube 100 Juta Blueprint",
+      "file_type": "paper",
+      "source_file": "/home/jovan/project/content-auto/BLUEPRINT YOUTUBE FACELESS 100 JUTA - DALANG DIGITAL UPDATED.pdf",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "assets_logo_transparent_png",
+      "label": "Content Auto Logo (Transparent)",
+      "file_type": "image",
+      "source_file": "/home/jovan/project/content-auto/assets/logo-transparent.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "assets_logo_png",
+      "label": "Content Auto Logo (Opaque)",
+      "file_type": "image",
+      "source_file": "/home/jovan/project/content-auto/assets/logo.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "dashboard_prompts_spensia_topics_prompt_topicstrategist",
+      "target": "dalang_digital_blueprint_bab4",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/topics-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_demand_keyphrases_prompt_keyphrasestrategist",
+      "target": "dalang_digital_blueprint_bab4",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/demand-keyphrases-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_thumbnail_prompts_system_thumbnailstrategist",
+      "target": "mentor_viral_ctr_blueprint",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/thumbnail_prompts_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_thumbnail_prompts_generator_prompt_thumbnailstrategist",
+      "target": "mentor_viral_ctr_blueprint",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/thumbnail-prompts-generator-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_analyze_metadata_system_doomscrollingstrategist",
+      "target": "doom_scrolling_psychology",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/analyze_metadata_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_analyze_thumbnails_vision_system_eyetrackingexpert",
+      "target": "doom_scrolling_psychology",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/analyze_thumbnails_vision_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_upload_metadata_system_seogrowthspecialist",
+      "target": "curiosity_gap_formula",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/upload_metadata_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_upload_metadata_system_seogrowthspecialist",
+      "target": "underdog_angle_formula",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/upload_metadata_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_upload_metadata_system_seogrowthspecialist",
+      "target": "kontradiksi_formula",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/upload_metadata_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_thumbnail_prompts_system_thumbnailstrategist",
+      "target": "curiosity_gap_formula",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/thumbnail_prompts_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_image_prompt_generator_prompt_imagepromptgenerator",
+      "target": "spensia_visual_style_dna",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/image-prompt-generator-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_script_prompt_scriptwriter",
+      "target": "spensia_visual_style_dna",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/script-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_topics_prompt_topicstrategist",
+      "target": "spensia_channel",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/topics-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_script_prompt_scriptwriter",
+      "target": "spensia_channel",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/script-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_breakdown_prompt_storyboardagent",
+      "target": "spensia_channel",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/breakdown-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_image_prompt_generator_prompt_imagepromptgenerator",
+      "target": "spensia_channel",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/image-prompt-generator-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_audio_mapping_prompt_audioaligner",
+      "target": "spensia_channel",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/audio-mapping-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_upload_metadata_system_seogrowthspecialist",
+      "target": "spensia_channel",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/upload_metadata_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_breakdown_prompt_storyboardagent",
+      "target": "faceless_video_production_pipeline",
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/breakdown-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_topics_prompt_topicstrategist",
+      "target": "dashboard_prompts_spensia_demand_keyphrases_prompt_keyphrasestrategist",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/topics-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_analyze_metadata_system_doomscrollingstrategist",
+      "target": "dashboard_prompts_spensia_analyze_metadata_prompt_doomscrollingstrategist",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/analyze_metadata_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_analyze_thumbnails_vision_system_eyetrackingexpert",
+      "target": "dashboard_prompts_spensia_analyze_thumbnails_vision_prompt_eyetrackingexpert",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/analyze_thumbnails_vision_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_fix_metadata_system_seooptimizer",
+      "target": "dashboard_prompts_spensia_fix_metadata_prompt_seooptimizer",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/fix_metadata_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_thumbnail_prompts_system_thumbnailstrategist",
+      "target": "dashboard_prompts_spensia_thumbnail_prompts_generator_prompt_thumbnailstrategist",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/thumbnail_prompts_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_fix_metadata_system_seooptimizer",
+      "target": "dashboard_electron_prompts_analyze_metadata_system_doomscrollingstrategist",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/fix_metadata_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_analyze_thumbnails_vision_system_eyetrackingexpert",
+      "target": "dashboard_electron_prompts_thumbnail_prompts_system_thumbnailstrategist",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/analyze_thumbnails_vision_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_audio_mapping_prompt_audioaligner",
+      "target": "dashboard_prompts_spensia_breakdown_prompt_storyboardagent",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/audio-mapping-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_image_prompt_generator_prompt_imagepromptgenerator",
+      "target": "dashboard_prompts_spensia_breakdown_prompt_storyboardagent",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/image-prompt-generator-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_breakdown_prompt_storyboardagent",
+      "target": "dashboard_prompts_spensia_script_prompt_scriptwriter",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/breakdown-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_script_prompt_scriptwriter",
+      "target": "dashboard_prompts_spensia_topics_prompt_topicstrategist",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/script-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_upload_metadata_system_seogrowthspecialist",
+      "target": "dashboard_prompts_spensia_script_prompt_scriptwriter",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/upload_metadata_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_analyze_metadata_system_doomscrollingstrategist",
+      "target": "dashboard_electron_prompts_upload_metadata_system_seogrowthspecialist",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/analyze_metadata_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "curiosity_gap_formula",
+      "target": "doom_scrolling_psychology",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/upload_metadata_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_electron_prompts_thumbnail_prompts_system_thumbnailstrategist",
+      "target": "spensia_visual_style_dna",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/thumbnail_prompts_system.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_spensia_topics_prompt_topicstrategist",
+      "target": "curiosity_gap_formula",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/topics-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_index_html_contentautodashboard",
+      "target": "spensia_channel",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/home/jovan/project/content-auto/dashboard/index.html",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_longform_alurfilm_mapping_prompt_visual_vo_synchronization",
+      "target": "dashboard_prompts_longform_mapping_prompt_visual_vo_synchronization",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-mapping-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_longform_alurfilm_singlepass_prompt_macro_storytelling",
+      "target": "dashboard_prompts_longform_script_prompt_macro_storytelling",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-singlepass-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_longform_alurfilm_transcript_prompt_precision_transcription",
+      "target": "dashboard_prompts_longform_transcript_prompt_precision_transcription",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-transcript-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_longform_alurfilm_mapping_prompt_content_id_bypass",
+      "target": "dashboard_prompts_longform_mapping_prompt_visual_vo_synchronization",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/mapping-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_longform_alurfilm_mapping_prompt_visual_vo_synchronization",
+      "target": "dashboard_prompts_longform_alurfilm_mapping_prompt_ffmpeg_json_output",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-mapping-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_longform_alurfilm_singlepass_prompt_macro_storytelling",
+      "target": "dashboard_prompts_longform_alurfilm_singlepass_prompt_causality_principle",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-singlepass-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_longform_alurfilm_singlepass_prompt_macro_storytelling",
+      "target": "dashboard_prompts_longform_alurfilm_singlepass_prompt_tts_neutral_familiar",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-singlepass-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_shortform_analysis_prompt_gen_z_storyteller",
+      "target": "dashboard_prompts_shortform_analysis_prompt_tts_friendly_rules",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/shortform/analysis-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_shortform_mapping_prompt_bgm_mood_selection",
+      "target": "dashboard_prompts_shortform_mapping_prompt_vertical_visual_mapping",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/shortform/mapping-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_shortform_youtube_shorts_prompt_growth_hacker",
+      "target": "dashboard_prompts_shortform_youtube_shorts_prompt_tiktok_fyp",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/shortform/youtube-shorts-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_shortform_youtube_shorts_prompt_growth_hacker",
+      "target": "dashboard_prompts_shortform_youtube_shorts_prompt_youtube_shorts_seo",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/shortform/youtube-shorts-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_longform_alurfilm_singlepass_prompt_tts_neutral_familiar",
+      "target": "dashboard_prompts_shortform_analysis_prompt_tts_friendly_rules",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-singlepass-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_longform_alurfilm_mapping_prompt_visual_vo_synchronization",
+      "target": "dashboard_prompts_shortform_mapping_prompt_vertical_visual_mapping",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-mapping-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_longform_alurfilm_transcript_prompt_precision_transcription",
+      "target": "dashboard_prompts_shortform_transcript_prompt_shortform_transcription",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-transcript-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_superpowers_plans_2026_07_19_dashboard_foundation_dashboard_spa",
+      "target": "docs_superpowers_specs_2026_07_19_dashboard_foundation_design_dashboard_design",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/docs/superpowers/plans/2026-07-19-dashboard-foundation.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_superpowers_plans_2026_07_19_remotion_auto_content_foundation_remotion_engine",
+      "target": "docs_superpowers_specs_2026_07_19_remotion_auto_content_foundation_design_remotion_design",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/docs/superpowers/plans/2026-07-19-remotion-auto-content-foundation.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_superpowers_plans_2026_07_19_remotion_auto_content_foundation_remotion_engine",
+      "target": "docs_superpowers_plans_2026_07_19_remotion_auto_content_foundation_scene_resolver",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/docs/superpowers/plans/2026-07-19-remotion-auto-content-foundation.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_superpowers_plans_2026_07_19_remotion_auto_content_foundation_scene_resolver",
+      "target": "docs_superpowers_plans_2026_07_19_remotion_auto_content_foundation_zod_schema",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/docs/superpowers/plans/2026-07-19-remotion-auto-content-foundation.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_superpowers_plans_2026_07_19_dashboard_foundation_dashboard_spa",
+      "target": "docs_superpowers_plans_2026_07_19_remotion_auto_content_foundation_remotion_engine",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/jovan/project/content-auto/docs/superpowers/plans/2026-07-19-dashboard-foundation.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "plans_2026_07_27_spensia_render_ffmpeg_spensia_render_engine",
+      "target": "plans_2026_07_27_spensia_render_ffmpeg_spensia_render_config",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/plans/2026-07-27-spensia-render-ffmpeg.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "plans_2026_07_27_spensia_render_ffmpeg_spensia_render_engine",
+      "target": "plans_2026_07_27_spensia_render_ffmpeg_electron_ipc_integration",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/plans/2026-07-27-spensia-render-ffmpeg.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "plans_2026_07_27_spensia_render_ffmpeg_spensia_render_engine",
+      "target": "plans_2026_07_27_spensia_render_ffmpeg_css_overlay_preview",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/plans/2026-07-27-spensia-render-ffmpeg.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "plans_2026_07_27_spensia_render_ffmpeg_spensia_render_engine",
+      "target": "docs_superpowers_plans_2026_07_19_remotion_auto_content_foundation_remotion_engine",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/jovan/project/content-auto/plans/2026-07-27-spensia-render-ffmpeg.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "plans_2026_07_27_spensia_render_ffmpeg_spensia_render_engine",
+      "target": "docs_superpowers_plans_2026_07_19_dashboard_foundation_dashboard_spa",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/jovan/project/content-auto/plans/2026-07-27-spensia-render-ffmpeg.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "blueprint_youtube_faceless_100_juta_dalang_digital_updated_dalang_digital_blueprint",
+      "target": "dashboard_prompts_longform_alurfilm_singlepass_prompt_macro_storytelling",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/home/jovan/project/content-auto/BLUEPRINT YOUTUBE FACELESS 100 JUTA - DALANG DIGITAL UPDATED.pdf",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "blueprint_youtube_faceless_100_juta_dalang_digital_updated_dalang_digital_blueprint",
+      "target": "docs_superpowers_plans_2026_07_19_remotion_auto_content_foundation_remotion_engine",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/home/jovan/project/content-auto/BLUEPRINT YOUTUBE FACELESS 100 JUTA - DALANG DIGITAL UPDATED.pdf",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dashboard_prompts_shortform_youtube_shorts_prompt_tiktok_fyp",
+      "target": "dashboard_prompts_shortform_youtube_shorts_prompt_youtube_shorts_seo",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/shortform/youtube-shorts-prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "assets_logo_transparent_png",
+      "target": "assets_logo_png",
+      "relation": "semantically_similar_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/assets/logo-transparent.png",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "spensia_faceless_video_pipeline_flow",
+      "label": "Spensia Faceless Video Production Pipeline",
+      "nodes": [
+        "dashboard_prompts_spensia_topics_prompt_topicstrategist",
+        "dashboard_prompts_spensia_demand_keyphrases_prompt_keyphrasestrategist",
+        "dashboard_prompts_spensia_script_prompt_scriptwriter",
+        "dashboard_prompts_spensia_breakdown_prompt_storyboardagent",
+        "dashboard_prompts_spensia_audio_mapping_prompt_audioaligner",
+        "dashboard_prompts_spensia_image_prompt_generator_prompt_imagepromptgenerator",
+        "dashboard_electron_prompts_upload_metadata_system_seogrowthspecialist",
+        "dashboard_electron_prompts_analyze_metadata_system_doomscrollingstrategist",
+        "dashboard_electron_prompts_fix_metadata_system_seooptimizer",
+        "dashboard_electron_prompts_thumbnail_prompts_system_thumbnailstrategist",
+        "dashboard_electron_prompts_analyze_thumbnails_vision_system_eyetrackingexpert"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/spensia/breakdown-prompt.md"
+    },
+    {
+      "id": "psychological_title_formula_triad",
+      "label": "Psychological Title Formula Triad",
+      "nodes": [
+        "curiosity_gap_formula",
+        "underdog_angle_formula",
+        "kontradiksi_formula"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/electron/prompts/upload_metadata_system.txt"
+    },
+    {
+      "id": "longform_content_pipeline_three_step",
+      "label": "Longform Movie Recap Pipeline: Script -> Transcript -> Visual Mapping",
+      "nodes": [
+        "dashboard_prompts_longform_alurfilm_singlepass_prompt_macro_storytelling",
+        "dashboard_prompts_longform_alurfilm_transcript_prompt_precision_transcription",
+        "dashboard_prompts_longform_alurfilm_mapping_prompt_visual_vo_synchronization"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/longform/alurfilm-singlepass-prompt.md"
+    },
+    {
+      "id": "shortform_content_pipeline_three_step",
+      "label": "Shortform Content Pipeline: Script Analysis -> Transcript -> Visual Mapping -> Viral Optimization",
+      "nodes": [
+        "dashboard_prompts_shortform_analysis_prompt_gen_z_storyteller",
+        "dashboard_prompts_shortform_transcript_prompt_shortform_transcription",
+        "dashboard_prompts_shortform_mapping_prompt_vertical_visual_mapping",
+        "dashboard_prompts_shortform_youtube_shorts_prompt_growth_hacker"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/jovan/project/content-auto/dashboard/prompts/shortform/analysis-prompt.md"
+    },
+    {
+      "id": "content_auto_toolchain_stack",
+      "label": "Content-Auto Full Toolchain: Remotion Engine + Dashboard UI + Spensia FFmpeg Render",
+      "nodes": [
+        "docs_superpowers_plans_2026_07_19_remotion_auto_content_foundation_remotion_engine",
+        "docs_superpowers_plans_2026_07_19_dashboard_foundation_dashboard_spa",
+        "plans_2026_07_27_spensia_render_ffmpeg_spensia_render_engine"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/jovan/project/content-auto/plans/2026-07-27-spensia-render-ffmpeg.md"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}
