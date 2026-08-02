@@ -7,6 +7,90 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
   // Ensure alurfilm dirs exist
   if (!fs.existsSync(p.ALURFILM_DIR)) fs.mkdirSync(p.ALURFILM_DIR, { recursive: true });
   if (!fs.existsSync(p.ALURFILM_CHUNKS_DIR)) fs.mkdirSync(p.ALURFILM_CHUNKS_DIR, { recursive: true });
+  if (!fs.existsSync(p.ALURFILM_COMPRESS_DIR)) fs.mkdirSync(p.ALURFILM_COMPRESS_DIR, { recursive: true });
+
+  function calculateVideoMaxrateKbps(durationSec) {
+    const safeMegabytes = 380;
+    const totalBits = safeMegabytes * 8 * 1024 * 1024;
+    const duration = Math.max(1, durationSec);
+    const totalKbps = Math.floor(totalBits / (1024 * duration));
+    const audioKbps = 128;
+    return Math.max(500, totalKbps - audioKbps);
+  }
+
+  async function encodeAndCompressChunk(ffmpegPath, masterPath, startSec, durationSec, destPath) {
+    const maxrateKbps = calculateVideoMaxrateKbps(durationSec);
+    const bufsizeKbps = maxrateKbps * 2;
+
+    const runFfmpeg = (args) => new Promise((resolve, reject) => {
+      const proc = spawn(ffmpegPath, args);
+      proc.stderr.on('data', () => {});
+      proc.on('close', (code) => code === 0 ? resolve() : reject(new Error(`FFmpeg exit code ${code}`)));
+      proc.on('error', reject);
+    });
+
+    const mainArgs = [
+      '-ss', String(startSec),
+      '-i', masterPath,
+      '-t', String(durationSec),
+      '-c:v', 'libx264',
+      '-crf', '20',
+      '-preset', 'medium',
+      '-maxrate', `${maxrateKbps}k`,
+      '-bufsize', `${bufsizeKbps}k`,
+      '-c:a', 'aac',
+      '-b:a', '128k',
+      '-avoid_negative_ts', 'make_zero',
+      '-y',
+      destPath
+    ];
+
+    try {
+      await runFfmpeg(mainArgs);
+    } catch (err) {
+      const fallbackArgs = [
+        '-ss', String(startSec),
+        '-i', masterPath,
+        '-t', String(durationSec),
+        '-c:v', 'libx264',
+        '-crf', '20',
+        '-preset', 'faster',
+        '-maxrate', `${maxrateKbps}k`,
+        '-bufsize', `${bufsizeKbps}k`,
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-avoid_negative_ts', 'make_zero',
+        '-y',
+        destPath
+      ];
+      await runFfmpeg(fallbackArgs);
+    }
+
+    // Enforce 400 MB maximum size cap
+    const maxSizeBytes = 400 * 1024 * 1024;
+    if (fs.existsSync(destPath)) {
+      const stat = fs.statSync(destPath);
+      if (stat.size > maxSizeBytes) {
+        const reducedMaxrate = Math.floor(maxrateKbps * 0.8);
+        const pass2Args = [
+          '-ss', String(startSec),
+          '-i', masterPath,
+          '-t', String(durationSec),
+          '-c:v', 'libx264',
+          '-crf', '22',
+          '-preset', 'faster',
+          '-maxrate', `${reducedMaxrate}k`,
+          '-bufsize', `${reducedMaxrate * 2}k`,
+          '-c:a', 'aac',
+          '-b:a', '128k',
+          '-avoid_negative_ts', 'make_zero',
+          '-y',
+          destPath
+        ];
+        await runFfmpeg(pass2Args);
+      }
+    }
+  }
 
   // ─── Upload Alurfilm Source ────────────────────────────
   ipcMain.handle('upload-alurfilm-source', async (_event, { filePath }) => {
@@ -26,10 +110,10 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
   // ─── Split Alurfilm Video Helper ──────────────────────
   async function splitAlurfilmVideoHelper(event, masterPath, startTime, endTime) {
     const contentId = p.getOrGenerateContentId('longform');
-    const chunkDuration = 600; // Locked at 10 minutes (600 seconds)
+    const chunkDuration = 1200; // Locked at 20 minutes (1200 seconds)
 
-    if (!fs.existsSync(p.ALURFILM_CHUNKS_DIR)) {
-      fs.mkdirSync(p.ALURFILM_CHUNKS_DIR, { recursive: true });
+    if (!fs.existsSync(p.ALURFILM_COMPRESS_DIR)) {
+      fs.mkdirSync(p.ALURFILM_COMPRESS_DIR, { recursive: true });
     }
 
     function parseTimeToSeconds(val) {
@@ -65,7 +149,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       const partDurationSec = Math.min(chunkDuration, endSec - partStartSec);
       const partNumStr = String(i + 1).padStart(2, '0');
       const outputName = `${contentId}_part_${partNumStr}.mp4`;
-      const destPath = path.join(p.ALURFILM_CHUNKS_DIR, outputName);
+      const destPath = path.join(p.ALURFILM_COMPRESS_DIR, outputName);
 
       if (event && event.sender) {
         event.sender.send('alurfilm-split-progress', {
@@ -75,43 +159,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
         });
       }
 
-      await new Promise((resolve, reject) => {
-        const args = [
-          '-ss', String(partStartSec),
-          '-i', masterPath,
-          '-t', String(partDurationSec),
-          '-c', 'copy',
-          '-avoid_negative_ts', 'make_zero',
-          '-y',
-          destPath
-        ];
-
-        const ffmpegProc = spawn(ffmpeg.ffmpegPath, args);
-        ffmpegProc.stderr.on('data', () => {});
-
-        ffmpegProc.on('close', (code) => {
-          if (code !== 0) {
-            const fallbackArgs = [
-              '-ss', String(partStartSec),
-              '-i', masterPath,
-              '-t', String(partDurationSec),
-              '-c:v', 'libx264',
-              '-c:a', 'aac',
-              '-preset', 'ultrafast',
-              '-y',
-              destPath
-            ];
-            const fallbackFfmpeg = spawn(ffmpeg.ffmpegPath, fallbackArgs);
-            fallbackFfmpeg.on('close', (fbCode) => {
-              if (fbCode !== 0) return reject(new Error(`FFmpeg split failed code ${fbCode}`));
-              resolve();
-            });
-          } else {
-            resolve();
-          }
-        });
-        ffmpegProc.on('error', (err) => reject(err));
-      });
+      await encodeAndCompressChunk(ffmpeg.ffmpegPath, masterPath, partStartSec, partDurationSec, destPath);
 
       if (fs.existsSync(destPath)) {
         const stat = fs.statSync(destPath);
@@ -180,58 +228,40 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     const contentId = p.getOrGenerateContentId('longform');
     const partStr = String(partNum).padStart(2, '0');
     const outputName = `${contentId}_part_${partStr}.mp4`;
-    const destPath = path.join(p.ALURFILM_CHUNKS_DIR, outputName);
+    const destPath = path.join(p.ALURFILM_COMPRESS_DIR, outputName);
 
-    if (!fs.existsSync(p.ALURFILM_CHUNKS_DIR)) {
-      fs.mkdirSync(p.ALURFILM_CHUNKS_DIR, { recursive: true });
+    if (!fs.existsSync(p.ALURFILM_COMPRESS_DIR)) {
+      fs.mkdirSync(p.ALURFILM_COMPRESS_DIR, { recursive: true });
     }
 
-    await new Promise((resolve, reject) => {
-      const args = [
-        '-ss', String(startSec),
-        '-i', masterPath,
-        '-t', String(durationSec),
-        '-c', 'copy',
-        '-avoid_negative_ts', 'make_zero',
-        '-y',
-        destPath
-      ];
-      const ffmpegProc = spawn(ffmpeg.ffmpegPath, args);
-      ffmpegProc.on('close', (code) => {
-        if (code !== 0) {
-          const fallbackArgs = [
-            '-ss', String(startSec),
-            '-i', masterPath,
-            '-t', String(durationSec),
-            '-c:v', 'libx264',
-            '-c:a', 'aac',
-            '-preset', 'ultrafast',
-            '-y',
-            destPath
-          ];
-          const fallbackFfmpeg = spawn(ffmpeg.ffmpegPath, fallbackArgs);
-          fallbackFfmpeg.on('close', () => resolve());
-        } else { resolve(); }
-      });
-      ffmpegProc.on('error', (err) => reject(err));
-    });
+    await encodeAndCompressChunk(ffmpeg.ffmpegPath, masterPath, startSec, durationSec, destPath);
 
-    const files = fs.readdirSync(p.ALURFILM_CHUNKS_DIR);
-    const chunks = files
-      .filter(f => f.startsWith(contentId) && f.endsWith('.mp4'))
-      .sort()
-      .map((f, idx) => {
-        const fullPath = path.join(p.ALURFILM_CHUNKS_DIR, f);
-        const stat = fs.statSync(fullPath);
-        return {
-          part: idx + 1,
-          name: f,
-          size: stat.size,
-          filePath: fullPath,
-          url: media.mediaUrl(fullPath),
-          mediaUrl: media.mediaUrl(fullPath)
-        };
-      });
+    const searchDirs = [p.ALURFILM_COMPRESS_DIR, p.ALURFILM_CHUNKS_DIR].filter(d => d && fs.existsSync(d));
+    const foundFilesMap = new Map();
+    for (const dir of searchDirs) {
+      const files = fs.readdirSync(dir);
+      files
+        .filter(f => f.startsWith(contentId) && f.endsWith('.mp4'))
+        .forEach(f => {
+          if (!foundFilesMap.has(f)) {
+            foundFilesMap.set(f, path.join(dir, f));
+          }
+        });
+    }
+
+    const sortedNames = Array.from(foundFilesMap.keys()).sort();
+    const chunks = sortedNames.map((f, idx) => {
+      const fullPath = foundFilesMap.get(f);
+      const stat = fs.statSync(fullPath);
+      return {
+        part: idx + 1,
+        name: f,
+        size: stat.size,
+        filePath: fullPath,
+        url: media.mediaUrl(fullPath),
+        mediaUrl: media.mediaUrl(fullPath)
+      };
+    });
 
     return { chunks: chunks || [], content_id: contentId };
   });
@@ -239,23 +269,33 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
   // ─── List Alurfilm Chunks ──────────────────────────────
   ipcMain.handle('list-alurfilm-chunks', async (_event, modeContentId) => {
     const contentId = modeContentId || p.getOrGenerateContentId('longform');
-    if (!fs.existsSync(p.ALURFILM_CHUNKS_DIR)) return [];
+    const searchDirs = [p.ALURFILM_COMPRESS_DIR, p.ALURFILM_CHUNKS_DIR].filter(d => d && fs.existsSync(d));
+    if (searchDirs.length === 0) return [];
 
-    const files = fs.readdirSync(p.ALURFILM_CHUNKS_DIR);
-    const chunks = files
-      .filter(f => f.startsWith(contentId) && f.endsWith('.mp4'))
-      .sort()
-      .map((f, idx) => {
-        const fullPath = path.join(p.ALURFILM_CHUNKS_DIR, f);
-        const stat = fs.statSync(fullPath);
-        return {
-          part: idx + 1,
-          name: f,
-          size: stat.size,
-          filePath: fullPath,
-          url: media.mediaUrl(fullPath)
-        };
-      });
+    const foundFilesMap = new Map();
+    for (const dir of searchDirs) {
+      const files = fs.readdirSync(dir);
+      files
+        .filter(f => f.startsWith(contentId) && f.endsWith('.mp4'))
+        .forEach(f => {
+          if (!foundFilesMap.has(f)) {
+            foundFilesMap.set(f, path.join(dir, f));
+          }
+        });
+    }
+
+    const sortedNames = Array.from(foundFilesMap.keys()).sort();
+    const chunks = sortedNames.map((f, idx) => {
+      const fullPath = foundFilesMap.get(f);
+      const stat = fs.statSync(fullPath);
+      return {
+        part: idx + 1,
+        name: f,
+        size: stat.size,
+        filePath: fullPath,
+        url: media.mediaUrl(fullPath)
+      };
+    });
 
     return chunks;
   });
@@ -264,15 +304,16 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
   ipcMain.handle('delete-alurfilm-chunk', async (_event, opts) => {
     const contentId = p.getOrGenerateContentId('longform');
     const part = typeof opts === 'object' ? opts.part : opts;
-    if (!fs.existsSync(p.ALURFILM_CHUNKS_DIR)) return true;
-
-    const files = fs.readdirSync(p.ALURFILM_CHUNKS_DIR);
     const partStr = String(part).padStart(2, '0');
-    const targetFiles = files.filter(f => f.startsWith(`${contentId}_part_${partStr}.mp4`));
+    const searchDirs = [p.ALURFILM_COMPRESS_DIR, p.ALURFILM_CHUNKS_DIR].filter(d => d && fs.existsSync(d));
 
-    for (const f of targetFiles) {
-      try { fs.unlinkSync(path.join(p.ALURFILM_CHUNKS_DIR, f)); } catch (e) {
-        console.error('Failed to delete chunk:', e);
+    for (const dir of searchDirs) {
+      const files = fs.readdirSync(dir);
+      const targetFiles = files.filter(f => f.startsWith(`${contentId}_part_${partStr}.mp4`));
+      for (const f of targetFiles) {
+        try { fs.unlinkSync(path.join(dir, f)); } catch (e) {
+          console.error('Failed to delete chunk:', e);
+        }
       }
     }
     return true;
@@ -315,7 +356,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       promptTemplate = `Kamu adalah Master Scriptwriter Alur Film. Tulis naskah voiceover recap Macro Storytelling. Output JSON valid.`;
     }
 
-    const computedWordsPerChunk = 350;
+    const computedWordsPerChunk = 700;
     const prevCtxStr = previousContext ? JSON.stringify(previousContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
     const isFirstPart = Number(chunkPart) === 1;
     const isLastPart = Number(chunkPart) === Number(totalChunks);
