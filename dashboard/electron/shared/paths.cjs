@@ -12,6 +12,7 @@ const SPENSIA_THUMBNAILS_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'thum
 const SPENSIA_AUDIO_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'audio');
 const ALURFILM_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm');
 const ALURFILM_CHUNKS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'chunks');
+const ALURFILM_COMPRESS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'compress');
 const ALURFILM_AUDIO_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'audio');
 const ALURFILM_TRANSCRIPTS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'transcripts');
 const ALURFILM_MAPPINGS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'mappings');
@@ -26,6 +27,7 @@ const tsxBinPath = path.join(PROJECT_ROOT, 'node_modules', '.bin', 'tsx');
   SPENSIA_OUTPUT_DIR,
   ALURFILM_DIR,
   ALURFILM_CHUNKS_DIR,
+  ALURFILM_COMPRESS_DIR,
   ALURFILM_AUDIO_DIR,
   ALURFILM_TRANSCRIPTS_DIR,
   ALURFILM_MAPPINGS_DIR,
@@ -95,6 +97,7 @@ module.exports = {
   SPENSIA_AUDIO_DIR,
   ALURFILM_DIR,
   ALURFILM_CHUNKS_DIR,
+  ALURFILM_COMPRESS_DIR,
   ALURFILM_AUDIO_DIR,
   ALURFILM_TRANSCRIPTS_DIR,
   ALURFILM_MAPPINGS_DIR,
