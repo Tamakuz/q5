@@ -1,5 +1,6 @@
 // dashboard/src/utils/spensiaAssGenerator.ts
 import { TimelineCaptionItem } from './spensiaTimelineGenerator';
+// @ts-ignore
 import { hexToAssColor, assTime, cleanPunct } from '../../electron/shared/subtitle-utils.cjs';
 import { SPENSIA_CAPTION_COLORS } from './spensiaTheme';
 

@@ -147,28 +147,31 @@ export async function runBatchPersistentQueue(options: BatchRunnerOptions): Prom
     context = session.context;
     page = session.page;
 
-    // 2. Always create a NEW Google Flow project
-    console.log('[Sequential Engine] Always creating a new Google Flow project at startup...');
-    const createRes = await createFlowProjectAction(page);
-    if (!createRes.success || !createRes.projectId) {
-      throw new Error(`Failed to automatically create Google Flow project: ${createRes.message}`);
-    }
-
-    const projectId = createRes.projectId;
-    console.log(`[Sequential Engine] Successfully created new project. ID: ${projectId}`);
-    
-    // Navigate to the newly created project
+    // 2. Navigate to target Google Flow project
+    const projectId = options.projectId || process.env.GOOGLE_FLOW_PROJECT_ID || '10ab715a-31e2-48d3-8e56-840e8af6c062';
+    console.log(`[Sequential Engine] Opening Google Flow project ID: ${projectId}`);
     const projectUrl = `https://labs.google/fx/id/tools/flow/project/${projectId}`;
     await page.goto(projectUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-    await dismissOverlayModals(page);
+    const INPUT_SELECTOR = 'div[contenteditable="true"], [contenteditable="true"], div[role="textbox"], textarea';
 
     try {
-      await page.waitForSelector('div[contenteditable="true"]', { state: 'visible', timeout: 30000 });
+      await page.waitForSelector(INPUT_SELECTOR, { state: 'visible', timeout: 15000 });
     } catch {
       console.warn('[Sequential Engine] Warning: input element not immediately visible, attempting overlay dismiss and retry...');
       await dismissOverlayModals(page);
-      await page.waitForSelector('div[contenteditable="true"]', { timeout: 30000 });
+      try {
+        await page.waitForSelector(INPUT_SELECTOR, { state: 'visible', timeout: 15000 });
+      } catch {
+        console.warn('[Sequential Engine] Target project input not found. Creating/opening fallback project...');
+        const createRes = await createFlowProjectAction(page);
+        if (createRes.success && createRes.projectId) {
+          const newUrl = `https://labs.google/fx/id/tools/flow/project/${createRes.projectId}`;
+          await page.goto(newUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+          await dismissOverlayModals(page);
+        }
+        await page.waitForSelector(INPUT_SELECTOR, { timeout: 30000 });
+      }
     }
 
     // 3. Setup network response listener for image generation
@@ -215,7 +218,7 @@ export async function runBatchPersistentQueue(options: BatchRunnerOptions): Prom
         // Ensure model is Nano Banana Pro and count is x1
         await ensureModelInUi(page, 'Nano Banana Pro');
 
-        const input = await page.$('div[contenteditable="true"]');
+        const input = await page.$(INPUT_SELECTOR);
         if (!input) throw new Error('Prompt input field not found on Google Flow page');
 
         await input.click();

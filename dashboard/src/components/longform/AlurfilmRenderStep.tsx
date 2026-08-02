@@ -40,7 +40,15 @@ const AlurfilmRenderStep: React.FC = () => {
         // Audios
         const audioList = await api.listAlurfilmAudios(id);
         const aMap: Record<number, AlurfilmAudioResult> = {};
-        if (audioList) { for (const a of audioList) aMap[a.part] = a; }
+        if (audioList) {
+          for (const a of audioList) {
+            if (a.parts) {
+              a.parts.forEach((p) => { aMap[p] = a; });
+            } else if (typeof a.part === 'number') {
+              aMap[a.part] = a;
+            }
+          }
+        }
         setAudios(aMap);
 
         // Mappings

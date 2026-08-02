@@ -5,7 +5,8 @@ import { validateSpensiaBreakdown, SpensiaSegmentItem, SpensiaBreakdownValidatio
 const api = window.electronAPI;
 
 const MODEL_OPTIONS = [
-  { id: 'cx/gpt-5.5', name: 'cx/gpt-5.5 (Default)' },
+  { id: 'ag/gemini-3-flash-agent', name: 'ag/gemini-3-flash-agent (Recommended)' },
+  { id: 'cx/gpt-5.5', name: 'cx/gpt-5.5' },
   { id: 'cmc/deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
@@ -21,7 +22,7 @@ export interface BatchTopicItem {
 const SpensiaBreakdownStep: React.FC = () => {
   const [fullScript, setFullScript] = useState<string>('');
   const [videoTitle, setVideoTitle] = useState<string>('');
-  const [selectedModel, setSelectedModel] = useState<string>('cx/gpt-5.5');
+  const [selectedModel, setSelectedModel] = useState<string>('ag/gemini-3-flash-agent');
   const [masterPrompt, setMasterPrompt] = useState<string>('');
   const [showPromptEditor, setShowPromptEditor] = useState<boolean>(false);
 
@@ -209,9 +210,9 @@ const SpensiaBreakdownStep: React.FC = () => {
     let unsubscribeStream: (() => void) | null = null;
 
     try {
-      let currentPrompt = masterPrompt;
+      let currentPrompt = await loadPromptFromFile();
       if (!currentPrompt) {
-        currentPrompt = await loadPromptFromFile();
+        currentPrompt = masterPrompt;
       }
 
       const computed = getComputedPrompt(currentPrompt);
@@ -365,7 +366,7 @@ const SpensiaBreakdownStep: React.FC = () => {
         }
 
         try {
-          let currentPrompt = masterPrompt || (await loadPromptFromFile());
+          let currentPrompt = (await loadPromptFromFile()) || masterPrompt;
           const computed = getComputedPrompt(currentPrompt, scriptText);
 
           if (api?.generateSpensiaBreakdown) {

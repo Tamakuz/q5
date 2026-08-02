@@ -5,7 +5,8 @@ import { validateSpensiaScript, SpensiaScriptData, SpensiaScriptValidationReport
 const api = window.electronAPI;
 
 const MODEL_OPTIONS = [
-  { id: 'cx/gpt-5.5', name: 'cx/gpt-5.5 (Default)' },
+  { id: 'ag/gemini-3-flash-agent', name: 'ag/gemini-3-flash-agent (Recommended)' },
+  { id: 'cx/gpt-5.5', name: 'cx/gpt-5.5' },
   { id: 'cmc/deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
@@ -40,7 +41,7 @@ const SpensiaScriptStep: React.FC = () => {
   const [batchTotalCount, setBatchTotalCount] = useState<number>(0);
   const [generatingTopicId, setGeneratingTopicId] = useState<number | null>(null);
 
-  const [selectedModel, setSelectedModel] = useState<string>('cx/gpt-5.5');
+  const [selectedModel, setSelectedModel] = useState<string>('ag/gemini-3-flash-agent');
   const [masterPrompt, setMasterPrompt] = useState<string>('');
   const [showPromptEditor, setShowPromptEditor] = useState<boolean>(false);
 

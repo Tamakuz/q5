@@ -10,22 +10,81 @@ import {
 
 const api = window.electronAPI;
 
-function normalizeEntry(entry: any, index: number): AlurfilmTranscriptEntry {
-  const startSec = typeof entry.start_seconds === 'number'
-    ? entry.start_seconds
-    : (typeof entry.start === 'number' ? entry.start : 0);
-  const endSec = typeof entry.end_seconds === 'number'
-    ? entry.end_seconds
-    : (typeof entry.end === 'number' ? entry.end : 0);
+function normalizeEntry(entry: any, index: number, prevEndSec: number = 0): AlurfilmTranscriptEntry {
+  if (!entry || typeof entry !== 'object') {
+    const strVal = String(entry || '').trim();
+    const startSec = prevEndSec;
+    const endSec = startSec + 3;
+    const m1 = Math.floor(startSec / 60); const s1 = Math.floor(startSec % 60);
+    const m2 = Math.floor(endSec / 60); const s2 = Math.floor(endSec % 60);
+    const defaultTs = `${String(m1).padStart(2, '0')}:${String(s1).padStart(2, '0')} - ${String(m2).padStart(2, '0')}:${String(s2).padStart(2, '0')}`;
 
-  const tsMin = entry.timestamp_minute || entry.timestamp || `${formatMinute(startSec)} - ${formatMinute(endSec)}`;
+    return {
+      id: index + 1,
+      start_seconds: Number(startSec.toFixed(1)),
+      end_seconds: Number(endSec.toFixed(1)),
+      timestamp_minute: defaultTs,
+      text: strVal,
+      speaker: 'Narator',
+    };
+  }
+
+  let textStr = entry.text || entry.narration || entry.speech || entry.content ||
+                entry.dialogue || entry.sentence || entry.line || entry.naskah ||
+                entry.script || entry.kalimat || entry.transcript || '';
+
+  if (!textStr && typeof entry === 'object') {
+    for (const [k, v] of Object.entries(entry)) {
+      if (['id', 'start', 'end', 'start_seconds', 'end_seconds', 'timestamp', 'timestamp_minute', 'speaker', 'part', 'part_number'].includes(k.toLowerCase())) {
+        continue;
+      }
+      if (typeof v === 'string' && v.trim().length > 0) {
+        textStr = v;
+        break;
+      }
+    }
+  }
+
+  let rawStart = entry.start_seconds !== undefined ? entry.start_seconds : (entry.start !== undefined ? entry.start : (entry.startTime !== undefined ? entry.startTime : entry.from));
+  let rawEnd = entry.end_seconds !== undefined ? entry.end_seconds : (entry.end !== undefined ? entry.end : (entry.endTime !== undefined ? entry.endTime : entry.to));
+
+  const timeStr = entry.timestamp_minute || entry.timestamp || entry.time || entry.time_range || entry.timeframe;
+  if ((rawStart === undefined || rawEnd === undefined) && typeof timeStr === 'string') {
+    const matches = timeStr.match(/(\d+:\d+(?::\d+)?|\d+(?:\.\d+)?)/g);
+    if (matches && matches.length >= 2) {
+      const parseSec = (s: string) => {
+        if (s.includes(':')) {
+          const parts = s.split(':').map(Number);
+          if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+          if (parts.length === 2) return parts[0] * 60 + parts[1];
+        }
+        return parseFloat(s) || 0;
+      };
+      if (rawStart === undefined) rawStart = parseSec(matches[0]);
+      if (rawEnd === undefined) rawEnd = parseSec(matches[1]);
+    }
+  }
+
+  const startSec = typeof rawStart === 'number' && !isNaN(rawStart)
+    ? rawStart
+    : (parseFloat(String(rawStart)) || prevEndSec);
+
+  const endSec = typeof rawEnd === 'number' && !isNaN(rawEnd)
+    ? rawEnd
+    : (parseFloat(String(rawEnd)) || (startSec + 3));
+
+  const m1 = Math.floor(startSec / 60); const s1 = Math.floor(startSec % 60);
+  const m2 = Math.floor(endSec / 60); const s2 = Math.floor(endSec % 60);
+  const defaultTs = `${String(m1).padStart(2, '0')}:${String(s1).padStart(2, '0')} - ${String(m2).padStart(2, '0')}:${String(s2).padStart(2, '0')}`;
+
+  const tsMin = timeStr && typeof timeStr === 'string' && timeStr.includes('-') ? timeStr : defaultTs;
 
   return {
-    id: entry.id || index + 1,
-    start_seconds: startSec,
-    end_seconds: endSec,
-    timestamp_minute: tsMin,
-    text: entry.text || entry.narration || entry.speech || '',
+    id: typeof entry.id === 'number' ? entry.id : (index + 1),
+    start_seconds: Number(startSec.toFixed(1)),
+    end_seconds: Number(endSec.toFixed(1)),
+    timestamp_minute: String(tsMin),
+    text: String(textStr || ''),
     speaker: entry.speaker || 'Narator',
   };
 }
@@ -43,9 +102,11 @@ const AlurfilmTranscriptStep: React.FC = () => {
   // Audio Durations per Part (cache for validation)
   const [audioDurations, setAudioDurations] = useState<Record<number, number>>({});
 
-  // Player ref for click-to-seek
+  // Player ref & Playback state for real-time segment highlighting
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
   const [mediaMode, setMediaMode] = useState<'audio' | 'video'>('audio');
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const activeItemRef = useRef<HTMLDivElement | null>(null);
 
   // JSON Import & Edit Modal State
   const [showImportModal, setShowImportModal] = useState<boolean>(false);
@@ -72,12 +133,17 @@ const AlurfilmTranscriptStep: React.FC = () => {
         const durMap: Record<number, number> = {};
         if (audioList) {
           for (const item of audioList) {
-            audioMap[item.part] = item;
+            const targetParts = item.parts || (typeof item.part === 'number' ? [item.part] : []);
+            for (const pt of targetParts) {
+              audioMap[pt] = item;
+            }
             if (item.filePath) {
               try {
                 const meta = await api.getVideoMeta(item.filePath);
                 if (meta && meta.duration) {
-                  durMap[item.part] = meta.duration;
+                  for (const pt of targetParts) {
+                    durMap[pt] = meta.duration;
+                  }
                 }
               } catch {}
             }
@@ -109,26 +175,85 @@ const AlurfilmTranscriptStep: React.FC = () => {
     loadData();
   }, []);
 
+  const getEntriesForPart = (pt: number): AlurfilmTranscriptEntry[] | null => {
+    const t = transcripts[pt];
+    if (!t) return null;
+    if (Array.isArray(t.data) && t.data.length > 0) return t.data;
+    if (Array.isArray(t.entries) && t.entries.length > 0) return t.entries;
+    return null;
+  };
+
+  // Compute Part Groups (Combines parts sharing the same Voiceover Audio into 1 Group item)
+  const partGroups = useMemo(() => {
+    const result: Array<{
+      id: string;
+      label: string;
+      parts: number[];
+      primaryPart: number;
+      audio?: AlurfilmAudioResult;
+      isDone: boolean;
+      hasSomeDone: boolean;
+    }> = [];
+
+    const processedParts = new Set<number>();
+
+    for (const chunk of chunks) {
+      if (processedParts.has(chunk.part)) continue;
+
+      const audio = audios[chunk.part];
+      if (audio && Array.isArray(audio.parts) && audio.parts.length > 0) {
+        const sortedParts = [...audio.parts].sort((a, b) => a - b);
+        sortedParts.forEach((p) => processedParts.add(p));
+
+        const isDone = sortedParts.every((p) => !!getEntriesForPart(p)?.length);
+        const hasSomeDone = sortedParts.some((p) => !!getEntriesForPart(p)?.length);
+
+        const isGroup = sortedParts.length > 1;
+        const minP = sortedParts[0];
+        const maxP = sortedParts[sortedParts.length - 1];
+        const label = isGroup ? `Group Parts #${minP} - #${maxP}` : `Part #${minP}`;
+
+        result.push({
+          id: audio.id || `group_${sortedParts.join('_')}`,
+          label,
+          parts: sortedParts,
+          primaryPart: minP,
+          audio,
+          isDone,
+          hasSomeDone,
+        });
+      } else {
+        processedParts.add(chunk.part);
+        const isDone = !!getEntriesForPart(chunk.part)?.length;
+        result.push({
+          id: `single_${chunk.part}`,
+          label: `Part #${chunk.part}`,
+          parts: [chunk.part],
+          primaryPart: chunk.part,
+          isDone,
+          hasSomeDone: isDone,
+        });
+      }
+    }
+
+    return result;
+  }, [chunks, audios, transcripts]);
+
+  const activeGroup = useMemo(() => {
+    return partGroups.find((g) => g.parts.includes(activePart)) || {
+      id: `fallback_${activePart}`,
+      label: `Part #${activePart}`,
+      parts: [activePart],
+      primaryPart: activePart,
+      isDone: !!getEntriesForPart(activePart)?.length,
+      hasSomeDone: !!getEntriesForPart(activePart)?.length,
+    };
+  }, [partGroups, activePart, transcripts]);
+
   const handleCopyPromptForPart = async (partNum: number) => {
     try {
-      let promptTpl = await api.readFromProject('dashboard/prompts/longform/transcript-prompt.md');
-      if (!promptTpl) {
-        promptTpl = await api.readFromProject('dashboard/prompts/longform/alurfilm-transcript-prompt.md');
-      }
-      if (!promptTpl) {
-        promptTpl = `Kamu adalah seorang "Master AI Audio Transcriber & Synchronizer" presisi tinggi. Audio Part {{chunk_part}} dari {{total_chunks}} Part Total. Total duration: {{audio_duration}}.`;
-      }
-
       const totalChunks = chunks.length || 1;
-      const audioDurationSec = audioDurations[partNum] || 0;
-      const durationStr = audioDurationSec > 0 
-        ? `${audioDurationSec.toFixed(1)}s (${formatMinute(audioDurationSec)})`
-        : 'Unknown Duration';
-
-      let formattedPrompt = promptTpl
-        .replace(/\{\{chunk_part\}\}/g, String(partNum))
-        .replace(/\{\{total_chunks\}\}/g, String(totalChunks))
-        .replace(/\{\{audio_duration\}\}/g, durationStr);
+      const formattedPrompt = await api.getAlurfilmTranscriptPrompt(partNum, totalChunks);
 
       if (api.copyToClipboard) {
         await api.copyToClipboard(formattedPrompt);
@@ -148,22 +273,81 @@ const AlurfilmTranscriptStep: React.FC = () => {
         raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
       }
 
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        setError('Transcript JSON must be a non-empty array of items');
+      let parsed: any = null;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (pErr: any) {
+        setError(`JSON Syntax Error: ${pErr.message}`);
         return;
       }
 
-      const normalizedEntries = parsed.map((e, idx) => normalizeEntry(e, idx));
+      if (!parsed) {
+        setError('Transcript JSON cannot be empty');
+        return;
+      }
 
-      const res = await api.saveAlurfilmTranscript(contentId || 'default', activePart, normalizedEntries);
-      setTranscripts((prev) => ({ ...prev, [activePart]: res }));
-      setShowImportModal(false);
-      setPasteJsonInput('');
-      showToast(`🎉 Saved Transcript for Part #${activePart} (${normalizedEntries.length} items)!`);
+      const res = await api.saveAlurfilmTranscript(contentId || 'default', activePart, parsed);
+
+      if (res && res.multiPart && Array.isArray(res.savedResults)) {
+        const savedMap: Record<number, AlurfilmTranscriptResult> = {};
+        const savedPartNums: number[] = [];
+        for (const item of res.savedResults) {
+          const rawData = item.data || item.entries || [];
+          let prevEnd = 0;
+          const normData = Array.isArray(rawData) ? rawData.map((e: any, idx: number) => {
+            const r = normalizeEntry(e, idx, prevEnd);
+            prevEnd = r.end_seconds;
+            return r;
+          }) : [];
+          savedMap[item.part] = { ...item, data: normData, entries: normData };
+          savedPartNums.push(item.part);
+        }
+        setTranscripts((prev) => ({ ...prev, ...savedMap }));
+        setShowImportModal(false);
+        setPasteJsonInput('');
+        showToast(`🎉 Saved Transcripts for Parts ${savedPartNums.map((p) => `#${p}`).join(', ')}!`);
+      } else if (res) {
+        const rawData = res.data || res.entries || [];
+        let prevEnd = 0;
+        const normData = Array.isArray(rawData) ? rawData.map((e: any, idx: number) => {
+          const r = normalizeEntry(e, idx, prevEnd);
+          prevEnd = r.end_seconds;
+          return r;
+        }) : [];
+        const resNorm = { ...res, data: normData, entries: normData };
+        setTranscripts((prev) => ({ ...prev, [activePart]: resNorm }));
+        setShowImportModal(false);
+        setPasteJsonInput('');
+        showToast(`🎉 Saved Transcript for Part #${activePart}!`);
+      }
     } catch (err: any) {
-      setError(`Invalid JSON: ${err.message}`);
+      console.error('Save Transcript Error:', err);
+      setError(`Failed to save transcript: ${err.message || String(err)}`);
     }
+  };
+
+  const handleOpenImportModal = () => {
+    if (activeGroup.parts.length > 1) {
+      const groupedObj: Record<string, AlurfilmTranscriptEntry[]> = {};
+      for (const pt of activeGroup.parts) {
+        const entries = getEntriesForPart(pt);
+        if (entries && entries.length > 0) {
+          groupedObj[String(pt)] = entries;
+        }
+      }
+      if (Object.keys(groupedObj).length > 0) {
+        setPasteJsonInput(JSON.stringify(groupedObj, null, 2));
+      } else {
+        setPasteJsonInput('');
+      }
+    } else {
+      if (currentEntries && currentEntries.length > 0) {
+        setPasteJsonInput(JSON.stringify(currentEntries, null, 2));
+      } else {
+        setPasteJsonInput('');
+      }
+    }
+    setShowImportModal(true);
   };
 
   const handleSeekToTime = (startSec: number) => {
@@ -177,8 +361,26 @@ const AlurfilmTranscriptStep: React.FC = () => {
   const currentChunk = chunks.find((c) => c.part === activePart);
   const currentAudio = audios[activePart];
   const currentTranscriptResult = transcripts[activePart];
-  const currentEntries: AlurfilmTranscriptEntry[] | null = currentTranscriptResult?.entries || null;
+  const currentEntries: AlurfilmTranscriptEntry[] | null = getEntriesForPart(activePart);
   const currentAudioDuration = audioDurations[activePart] || null;
+
+  const activeEntryId = useMemo(() => {
+    if (!currentEntries || currentEntries.length === 0) return null;
+    const match = currentEntries.find(
+      (e) => currentTime >= e.start_seconds && currentTime < e.end_seconds
+    );
+    if (match) return match.id;
+    return null;
+  }, [currentEntries, currentTime]);
+
+  useEffect(() => {
+    if (activeEntryId && activeItemRef.current) {
+      activeItemRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    }
+  }, [activeEntryId]);
 
   const currentReport: ValidationReport = useMemo(() => {
     return validateTranscript(currentEntries, currentAudioDuration);
@@ -231,54 +433,118 @@ const AlurfilmTranscriptStep: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              if (currentEntries) {
-                setPasteJsonInput(JSON.stringify(currentEntries, null, 2));
-              } else {
-                setPasteJsonInput('');
-              }
-              setShowImportModal(true);
-            }}
-            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 border border-purple-500/30 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-purple-600/20"
-          >
-            <span>📋</span> {currentEntries ? 'Edit / Replace JSON' : 'Paste Transcript JSON'}
-          </button>
+        <div className="flex items-center gap-2 font-mono text-xs text-purple-300 bg-purple-950/40 border border-purple-800/50 px-3 py-1.5 rounded-xl">
+          <span>🎙️ Mode:</span>
+          <strong className="text-white">Grouped Voiceover Audio Sync</strong>
         </div>
       </div>
 
       {/* Main Grid Workspace with Side Parts List */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-5 flex-1 min-h-0 overflow-hidden">
-        {/* SIDE COLUMN: Vertical Parts Selector (Col 2) */}
-        <div className="lg:col-span-2 flex flex-col bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden shadow-xl p-3.5 space-y-3">
+        {/* SIDE COLUMN: Vertical Parts Selector (Col 3) */}
+        <div className="lg:col-span-3 flex flex-col bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden shadow-xl p-3.5 space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-gray-800 shrink-0">
             <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
               Parts ({chunks.length})
             </span>
-            <span className="text-[10px] text-purple-400 font-mono font-bold">Text</span>
+            <span className="text-[10px] text-purple-400 font-mono font-bold">Audio Group & Transcript</span>
           </div>
 
-          {chunks.length > 0 ? (
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-0.5">
-              {chunks.map((chunk) => {
-                const isDone = !!transcripts[chunk.part]?.entries?.length;
-                const isActive = activePart === chunk.part;
+          {partGroups.length > 0 ? (
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-0.5">
+              {partGroups.map((group) => {
+                const isGroupActive = group.parts.includes(activePart);
+                const isMulti = group.parts.length > 1;
+
                 return (
-                  <button
-                    key={chunk.part}
-                    onClick={() => setActivePart(chunk.part)}
-                    className={`w-full px-3 py-2 rounded-xl text-xs font-bold font-mono transition-all flex items-center justify-between border ${
-                      isActive
-                        ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/30'
-                        : isDone
-                        ? 'bg-purple-950/40 border-purple-800/60 text-purple-300 hover:bg-purple-900/50'
-                        : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-gray-200'
+                  <div
+                    key={group.id}
+                    className={`rounded-2xl transition-all border overflow-hidden ${
+                      isGroupActive
+                        ? 'bg-purple-950/40 border-purple-500/80 shadow-lg shadow-purple-600/20'
+                        : group.isDone
+                        ? 'bg-purple-950/20 border-purple-800/40'
+                        : 'bg-gray-950/80 border-gray-800'
                     }`}
                   >
-                    <span>Part #{chunk.part}</span>
-                    <span className="text-xs">{isDone ? '✓' : '○'}</span>
-                  </button>
+                    <button
+                      onClick={() => setActivePart(group.primaryPart)}
+                      className={`w-full px-3.5 py-2.5 text-left font-mono transition-all flex flex-col gap-1 ${
+                        isGroupActive
+                          ? 'bg-purple-600 text-white'
+                          : 'hover:bg-gray-900 text-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-xs font-bold">{group.label}</span>
+                        <span className="text-xs">{group.isDone ? '✓' : group.hasSomeDone ? '◐' : '○'}</span>
+                      </div>
+
+                      {isMulti ? (
+                        <div className="flex items-center justify-between text-[10px] opacity-90 font-normal">
+                          <span>🎙️ {group.parts.length} Parts (1 Audio)</span>
+                          <span>{group.audio ? `${(group.audio.size / 1024 / 1024).toFixed(1)} MB` : ''}</span>
+                        </div>
+                      ) : group.audio ? (
+                        <span className="text-[9px] opacity-80 font-normal truncate">
+                          🎙️ Voiceover Audio Uploaded
+                        </span>
+                      ) : null}
+                    </button>
+
+                    {/* Sub-Part Tabs & Group Action Buttons inside Sidebar Group */}
+                    {isMulti && (
+                      <div className="p-1.5 bg-gray-950/90 border-t border-purple-800/30 flex flex-col gap-1.5">
+                        <div className="grid grid-cols-4 gap-1">
+                          {group.parts.map((pt) => {
+                            const isPartActive = activePart === pt;
+                            const isPartDone = !!getEntriesForPart(pt)?.length;
+
+                            return (
+                              <button
+                                key={pt}
+                                onClick={() => setActivePart(pt)}
+                                className={`py-1 text-[10px] font-mono font-bold rounded-lg transition-all flex items-center justify-center gap-0.5 border ${
+                                  isPartActive
+                                    ? 'bg-purple-600 border-purple-400 text-white shadow'
+                                    : isPartDone
+                                    ? 'bg-purple-950/60 border-purple-800 text-purple-300 hover:bg-purple-900'
+                                    : 'bg-gray-900 border-gray-800 text-gray-400 hover:text-white'
+                                }`}
+                              >
+                                <span>#{pt}</span>
+                                <span className="text-[9px]">{isPartDone ? '✓' : ''}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Inline Group Actions */}
+                        {isGroupActive && (
+                          <div className="flex items-center gap-1 pt-1 border-t border-gray-800">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyPromptForPart(activePart);
+                              }}
+                              className="flex-1 py-1 px-1.5 bg-purple-900/60 hover:bg-purple-600 text-purple-200 hover:text-white rounded-lg text-[10px] font-bold font-mono transition-all flex items-center justify-center gap-1"
+                            >
+                              <span>📋</span> Copy Prompt
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenImportModal();
+                              }}
+                              className="flex-1 py-1 px-1.5 bg-indigo-900/60 hover:bg-indigo-600 text-indigo-200 hover:text-white rounded-lg text-[10px] font-bold font-mono transition-all flex items-center justify-center gap-1"
+                            >
+                              <span>📥</span> Paste JSON
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -289,25 +555,49 @@ const AlurfilmTranscriptStep: React.FC = () => {
           )}
         </div>
 
-        {/* CENTER PANEL: Media Preview Player & Prompt (Col 5) */}
-        <div className="lg:col-span-5 flex flex-col bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden shadow-xl p-5 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-gray-800">
+        {/* CENTER PANEL: Media Preview Player & Prompt (Col 4) */}
+        <div className="lg:col-span-4 flex flex-col bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden shadow-xl p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-800">
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <span>🤖</span> Part #{activePart} Player & Prompt
+                <span>🤖</span> {activeGroup.parts.length > 1 ? `Group Parts #${activeGroup.parts[0]}-#${activeGroup.parts[activeGroup.parts.length - 1]}` : `Part #${activePart}`} Studio
               </h3>
               <p className="text-[11px] text-gray-400 mt-0.5">
-                Click lines on right to seek preview player.
+                AI Input Prompt & Output JSON Sync
               </p>
             </div>
 
-            <button
-              onClick={() => handleCopyPromptForPart(activePart)}
-              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow transition-all flex items-center gap-1 shrink-0"
-            >
-              <span>📋</span> Copy Prompt #{activePart}
-            </button>
+            {/* AI Group Action Buttons inside Center Panel */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => handleCopyPromptForPart(activePart)}
+                className="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow transition-all flex items-center gap-1"
+                title="Copy AI Transcript Prompt for this group"
+              >
+                <span>📋</span> Copy Prompt
+              </button>
+
+              <button
+                onClick={handleOpenImportModal}
+                className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow"
+                title="Import or Edit Output JSON"
+              >
+                <span>📥</span> Paste JSON
+              </button>
+            </div>
           </div>
+
+          {/* Audio Grouping Banner Badge */}
+          {currentAudio?.parts && currentAudio.parts.length > 1 && (
+            <div className="p-2.5 bg-purple-950/50 border border-purple-800/60 rounded-xl flex items-center justify-between text-xs text-purple-200">
+              <span className="font-semibold flex items-center gap-1.5 text-[11px]">
+                <span>🎙️</span> Multi-Part Voiceover Audio:
+              </span>
+              <span className="px-2 py-0.5 bg-purple-800 text-purple-100 rounded-lg text-[10px] font-mono font-bold">
+                Parts #{currentAudio.parts.join(', #')}
+              </span>
+            </div>
+          )}
 
           {/* Player Mode Switcher: Audio vs Video */}
           <div className="flex items-center gap-2 bg-gray-950 p-1 rounded-xl border border-gray-800">
@@ -342,6 +632,7 @@ const AlurfilmTranscriptStep: React.FC = () => {
                     ref={mediaRef as React.RefObject<HTMLAudioElement>}
                     src={currentAudio.mediaUrl || currentAudio.url}
                     controls
+                    onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
                     className="w-full h-10 rounded-lg"
                   />
                 </div>
@@ -354,6 +645,7 @@ const AlurfilmTranscriptStep: React.FC = () => {
                   ref={mediaRef as React.RefObject<HTMLVideoElement>}
                   src={currentChunk.mediaUrl || currentChunk.url}
                   controls
+                  onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
                   className="w-full h-44 object-contain rounded-lg"
                 />
               ) : (
@@ -364,8 +656,10 @@ const AlurfilmTranscriptStep: React.FC = () => {
 
           <div className="flex-1 bg-gray-950 p-4 rounded-xl border border-gray-800 overflow-y-auto space-y-2 font-mono text-xs text-gray-300 leading-relaxed min-h-0">
             <p className="text-purple-400 font-bold">// Transcript Instructions</p>
-            <p>- Part: {activePart} of {chunks.length || 1}</p>
-            <p>- Audio Duration: {currentAudioDuration ? `${currentAudioDuration.toFixed(1)}s` : 'Unknown'}</p>
+            <p>- Selected Part: {activePart} of {chunks.length || 1}</p>
+            <p>- Audio Parts Coverage: {currentAudio?.parts ? `Parts #${currentAudio.parts.join(', #')}` : `Part #${activePart}`}</p>
+            <p>- Audio Duration: {currentAudioDuration ? `${currentAudioDuration.toFixed(1)}s (${formatMinute(currentAudioDuration)})` : 'Unknown'}</p>
+            <p>- Step 2 Reference Script: Included in Prompt</p>
           </div>
 
           {error && (
@@ -445,40 +739,76 @@ const AlurfilmTranscriptStep: React.FC = () => {
 
               {/* Click-to-Seek Transcript List */}
               <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
-                {filteredEntries.map((e, idx) => (
-                  <div
-                    key={e.id || idx}
-                    onClick={() => handleSeekToTime(e.start_seconds)}
-                    className="p-3 bg-gray-950 hover:bg-purple-950/40 border border-gray-800 hover:border-purple-600/50 rounded-xl space-y-1.5 transition-all cursor-pointer group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-bold text-gray-500">#{e.id || idx + 1}</span>
-                        <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-purple-950 text-purple-300 border border-purple-800/50 group-hover:bg-purple-600 group-hover:text-white transition-all">
-                          ▶️ {e.timestamp_minute}
+                {filteredEntries.map((e, idx) => {
+                  const isActive = (e.id || idx + 1) === activeEntryId;
+                  return (
+                    <div
+                      key={e.id || idx}
+                      ref={isActive ? activeItemRef : null}
+                      onClick={() => handleSeekToTime(e.start_seconds)}
+                      className={`p-3 rounded-xl space-y-1.5 transition-all cursor-pointer group border ${
+                        isActive
+                          ? 'bg-purple-900/50 border-purple-500 shadow-lg shadow-purple-600/30 scale-[1.01]'
+                          : 'bg-gray-950 hover:bg-purple-950/40 border-gray-800 hover:border-purple-600/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-mono font-bold ${isActive ? 'text-purple-300' : 'text-gray-500'}`}>
+                            #{e.id || idx + 1}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold transition-all border ${
+                              isActive
+                                ? 'bg-purple-600 text-white border-purple-400 shadow animate-pulse flex items-center gap-1'
+                                : 'bg-purple-950 text-purple-300 border-purple-800/50 group-hover:bg-purple-600 group-hover:text-white'
+                            }`}
+                          >
+                            {isActive ? '🔊 PLAYING | ' : '▶️ '}{e.timestamp_minute}
+                          </span>
+                        </div>
+                        <span className={`text-[11px] font-mono ${isActive ? 'text-purple-300 font-bold' : 'text-gray-500'}`}>
+                          {(typeof e.start_seconds === 'number' && !isNaN(e.start_seconds) ? e.start_seconds : 0).toFixed(1)}s - {(typeof e.end_seconds === 'number' && !isNaN(e.end_seconds) ? e.end_seconds : 0).toFixed(1)}s
                         </span>
                       </div>
-                      <span className="text-[11px] text-gray-500 font-mono">
-                        {e.start_seconds.toFixed(1)}s - {e.end_seconds.toFixed(1)}s
-                      </span>
+                      <p
+                        className={`text-xs leading-relaxed font-normal p-2.5 rounded-lg border transition-all ${
+                          isActive
+                            ? 'bg-purple-950/80 text-white font-medium border-purple-500/60 shadow-inner'
+                            : 'text-gray-200 bg-gray-900 border-gray-800 group-hover:border-purple-500/30'
+                        }`}
+                      >
+                        "{e.text}"
+                      </p>
                     </div>
-                    <p className="text-xs text-gray-200 leading-relaxed font-normal bg-gray-900 p-2.5 rounded-lg border border-gray-800 group-hover:border-purple-500/30">
-                      "{e.text}"
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border border-dashed border-gray-800 rounded-2xl space-y-3">
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border border-dashed border-gray-800 rounded-2xl space-y-3">
               <div className="w-12 h-12 bg-gray-900 text-gray-600 rounded-xl flex items-center justify-center text-xl">
                 📝
               </div>
-              <div>
-                <h4 className="text-xs font-bold text-gray-400">Belum Ada Transkrip Part #{activePart}</h4>
-                <p className="text-[11px] text-gray-500 mt-1 max-w-xs">
-                  Copy prompt di tengah, jalankan di AI Studio dengan voiceover audio, lalu paste hasilnya ke sini.
-                </p>
+              <div className="space-y-1.5 max-w-sm">
+                <h4 className="text-xs font-bold text-gray-300">Belum Ada Transkrip Part #{activePart}</h4>
+                {currentAudio?.parts && currentAudio.parts.length > 1 ? (
+                  <div className="p-3 bg-purple-950/40 border border-purple-800/50 rounded-xl text-left space-y-1">
+                    <p className="text-[11px] font-semibold text-purple-200 flex items-center gap-1">
+                      <span>🎙️</span> Audio Parts #{currentAudio.parts.join(', #')}
+                    </p>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      Klik <strong>"Copy Prompt #{activePart}"</strong> di sebelah kiri, buat transkrip di AI Studio, lalu tempel hasilnya via <strong>"Paste Transcript JSON"</strong>.
+                    </p>
+                    <p className="text-[10px] text-purple-400 font-mono pt-0.5">
+                      ⚡ Grouped JSON otomatis membagi transkrip ke semua Part sekaligus!
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-gray-500 leading-relaxed">
+                    Copy prompt di tengah, jalankan di AI Studio dengan voiceover audio, lalu paste hasilnya ke sini.
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -492,10 +822,25 @@ const AlurfilmTranscriptStep: React.FC = () => {
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <span>📋</span> Paste / Edit Transcript JSON (Part #{activePart})
             </h3>
+
+            {currentAudio?.parts && currentAudio.parts.length > 1 && (
+              <div className="p-3 bg-purple-950/40 border border-purple-800/50 rounded-xl text-[11px] text-purple-300 space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <span>💡</span> Fitur Multi-Part Audio Auto-Split Active:
+                </p>
+                <p className="text-gray-300 text-[10px]">
+                  Kamu bisa paste <strong>Grouped Object JSON</strong> <code className="text-purple-300">{`{ "1": [...], "2": [...] }`}</code>. Sistem akan otomatis memecah & mengisi transkrip untuk Parts #{currentAudio.parts.join(', #')} sekaligus!
+                </p>
+              </div>
+            )}
+
             <textarea
               value={pasteJsonInput}
               onChange={(e) => setPasteJsonInput(e.target.value)}
-              placeholder={`[\n  {\n    "id": 1,\n    "start_seconds": 0.0,\n    "end_seconds": 3.4,\n    "timestamp_minute": "00:00 - 00:03",\n    "text": "..."\n  }\n]`}
+              placeholder={currentAudio?.parts && currentAudio.parts.length > 1
+                ? `{\n  "1": [\n    { "id": 1, "start_seconds": 0.0, "end_seconds": 3.4, "timestamp_minute": "00:00 - 00:03", "text": "..." }\n  ],\n  "2": [\n    { "id": 1, "start_seconds": 105.2, "end_seconds": 109.1, "timestamp_minute": "01:45 - 01:49", "text": "..." }\n  ]\n}`
+                : `[\n  {\n    "id": 1,\n    "start_seconds": 0.0,\n    "end_seconds": 3.4,\n    "timestamp_minute": "00:00 - 00:03",\n    "text": "..."\n  }\n]`
+              }
               className="w-full h-64 bg-gray-950 text-gray-200 text-xs font-mono p-3 rounded-xl border border-gray-800 focus:border-purple-500 focus:outline-none resize-none"
             />
             <div className="flex justify-end gap-2">

@@ -65,7 +65,7 @@ program
 program
   .command('generate-images')
   .description('Generate images via Google Flow API for a given project UUID and prompt text')
-  .option('-p, --project <id>', 'Google Flow Project UUID', '5aec769c-e1c8-4741-a8db-99546809c8db')
+  .option('-p, --project <id>', 'Google Flow Project UUID', '10ab715a-31e2-48d3-8e56-840e8af6c062')
   .option('-t, --text <prompt>', 'Prompt text for image generation', 'Flat 2D illustration, Indonesian setting')
   .option('-m, --model <model>', 'Image model name', 'GEM_PIX_2')
   .option('-a, --aspect <aspect>', 'Aspect ratio (IMAGE_ASPECT_RATIO_LANDSCAPE|IMAGE_ASPECT_RATIO_SQUARE|IMAGE_ASPECT_RATIO_PORTRAIT)', 'IMAGE_ASPECT_RATIO_LANDSCAPE')
@@ -122,7 +122,7 @@ program
 program
   .command('batch-runner')
   .description('Run a batch queue of prompts in a single persistent browser tab')
-  .option('-p, --project <id>', 'Google Flow Project UUID', '5aec769c-e1c8-4741-a8db-99546809c8db')
+  .option('-p, --project <id>', 'Google Flow Project UUID', '10ab715a-31e2-48d3-8e56-840e8af6c062')
   .option('-j, --items-json <json>', 'JSON string of items array [{segment_id, prompt}]')
   .option('--headed', 'Run browser in visible GUI mode', true)
   .option('--no-headed', 'Run browser in headless mode')

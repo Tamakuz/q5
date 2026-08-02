@@ -43,6 +43,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('split-alurfilm-video', { masterPath, startTime, endTime }),
   splitAlurfilmMaster: (masterPath, intervalSeconds, startTime, endTime) =>
     ipcRenderer.invoke('split-alurfilm-master', { masterPath, intervalSeconds, startTime, endTime }),
+  onAlurfilmSplitProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('alurfilm-split-progress', handler);
+    return () => ipcRenderer.removeListener('alurfilm-split-progress', handler);
+  },
   splitAlurfilmMasterRange: (masterPath, startSec, durationSec, partNum) =>
     ipcRenderer.invoke('split-alurfilm-master-range', { masterPath, startSec, durationSec, partNum }),
   listAlurfilmChunks: (modeContentId) => ipcRenderer.invoke('list-alurfilm-chunks', modeContentId),
@@ -71,22 +76,56 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
     return ipcRenderer.invoke('save-alurfilm-analysis', { chunkPart, jsonText });
   },
-  uploadAlurfilmAudio: (part, filePath) =>
-    ipcRenderer.invoke('upload-alurfilm-audio', { part, filePath }),
+  uploadAlurfilmAudio: (contentId, parts, filePath) =>
+    ipcRenderer.invoke('upload-alurfilm-audio', { parts, filePath }),
   listAlurfilmAudios: (modeContentId) =>
     ipcRenderer.invoke('list-alurfilm-audios', modeContentId),
-  deleteAlurfilmAudio: (part) =>
-    ipcRenderer.invoke('delete-alurfilm-audio', { part }),
+  deleteAlurfilmAudio: (id) =>
+    ipcRenderer.invoke('delete-alurfilm-audio', { id }),
   getAlurfilmTranscriptPrompt: (chunkPart, totalChunks) =>
     ipcRenderer.invoke('get-alurfilm-transcript-prompt', { chunkPart, totalChunks }),
-  saveAlurfilmTranscript: (chunkPart, jsonText) =>
-    ipcRenderer.invoke('save-alurfilm-transcript', { chunkPart, jsonText }),
+  saveAlurfilmTranscript: (...args) => {
+    let chunkPart = 1;
+    let jsonText = null;
+    if (args.length >= 3) {
+      chunkPart = args[1];
+      jsonText = args[2];
+    } else if (args.length === 2) {
+      if (typeof args[0] === 'number' || !isNaN(Number(args[0]))) {
+        chunkPart = Number(args[0]);
+        jsonText = args[1];
+      } else {
+        chunkPart = Number(args[1]) || 1;
+        jsonText = args[0];
+      }
+    } else if (args.length === 1) {
+      jsonText = args[0];
+    }
+    return ipcRenderer.invoke('save-alurfilm-transcript', { chunkPart, jsonText });
+  },
   listAlurfilmTranscripts: (modeContentId) =>
     ipcRenderer.invoke('list-alurfilm-transcripts', modeContentId),
   getAlurfilmMappingPrompt: (chunkPart, totalChunks) =>
     ipcRenderer.invoke('get-alurfilm-mapping-prompt', { chunkPart, totalChunks }),
-  saveAlurfilmMapping: (chunkPart, jsonText) =>
-    ipcRenderer.invoke('save-alurfilm-mapping', { chunkPart, jsonText }),
+  saveAlurfilmMapping: (...args) => {
+    let chunkPart = 1;
+    let jsonText = null;
+    if (args.length >= 3) {
+      chunkPart = args[1];
+      jsonText = args[2];
+    } else if (args.length === 2) {
+      if (typeof args[0] === 'number' || !isNaN(Number(args[0]))) {
+        chunkPart = Number(args[0]);
+        jsonText = args[1];
+      } else {
+        chunkPart = Number(args[1]) || 1;
+        jsonText = args[0];
+      }
+    } else if (args.length === 1) {
+      jsonText = args[0];
+    }
+    return ipcRenderer.invoke('save-alurfilm-mapping', { chunkPart, jsonText });
+  },
   listAlurfilmMappings: (modeContentId) =>
     ipcRenderer.invoke('list-alurfilm-mappings', modeContentId),
   listAlurfilmRenders: (modeContentId) =>

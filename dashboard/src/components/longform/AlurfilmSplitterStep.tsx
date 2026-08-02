@@ -35,6 +35,12 @@ const AlurfilmSplitterStep: React.FC = () => {
   const [endTime, setEndTime] = useState<string>('00:00:00');
   
   const [splitting, setSplitting] = useState<boolean>(false);
+  const [splitProgress, setSplitProgress] = useState<{
+    currentPart: number;
+    totalParts: number;
+    percentage: number;
+    statusText: string;
+  } | null>(null);
   const [chunks, setChunks] = useState<AlurfilmChunk[]>([]);
   const [error, setError] = useState<string | null>(null);
   
@@ -105,12 +111,49 @@ const AlurfilmSplitterStep: React.FC = () => {
     setSplitting(true);
     setError(null);
 
+    const unsub = api.onAlurfilmSplitProgress ? api.onAlurfilmSplitProgress((data) => {
+      if (data.status === 'start') {
+        setChunks([]);
+        setSplitProgress({
+          currentPart: 0,
+          totalParts: data.totalParts,
+          percentage: 0,
+          statusText: `Menyiapkan pemotongan ${data.totalParts} part...`
+        });
+      } else if (data.status === 'splitting') {
+        const pct = Math.round(((data.currentPart - 1) / data.totalParts) * 100);
+        setSplitProgress({
+          currentPart: data.currentPart,
+          totalParts: data.totalParts,
+          percentage: pct,
+          statusText: `Memotong Part #${data.currentPart} dari ${data.totalParts}...`
+        });
+      } else if (data.status === 'chunk_completed' && data.chunk) {
+        const completedChunk = data.chunk;
+        setChunks((prev) => {
+          const filtered = prev.filter((c) => c.part !== completedChunk.part);
+          return [...filtered, completedChunk].sort((a, b) => a.part - b.part);
+        });
+        const pct = Math.round((data.currentPart / data.totalParts) * 100);
+        setSplitProgress({
+          currentPart: data.currentPart,
+          totalParts: data.totalParts,
+          percentage: pct,
+          statusText: `Part #${data.currentPart} selesai dipotong!`
+        });
+      } else if (data.status === 'done') {
+        setSplitProgress(null);
+      }
+    }) : null;
+
     try {
       const fnSplit = api.splitAlurfilmMaster || api.splitAlurfilmVideo;
       const res = await fnSplit(masterSource.filePath || '', 600, startTime, endTime);
 
       const chunkList = Array.isArray(res) ? res : res.chunks || [];
-      setChunks(chunkList);
+      if (chunkList.length > 0) {
+        setChunks(chunkList);
+      }
       if (res && 'content_id' in res && res.content_id) {
         setContentId(res.content_id);
       }
@@ -118,8 +161,11 @@ const AlurfilmSplitterStep: React.FC = () => {
       showToast(`🎉 Sukses! Memotong video dari ${startTime} s/d ${endTime} menjadi ${chunkList.length} Part (skipping intro/outro)!`);
     } catch (err: any) {
       setError(err.message || 'Gagal memotong video dengan time range');
+    } finally {
+      if (unsub) unsub();
+      setSplitting(false);
+      setSplitProgress(null);
     }
-    setSplitting(false);
   };
 
   const handleCopyChunkPath = async (chunk: AlurfilmChunk, index: number) => {
@@ -190,11 +236,17 @@ const AlurfilmSplitterStep: React.FC = () => {
             </div>
           )}
           <div className={`px-3.5 py-1.5 rounded-lg border text-xs font-semibold ${
-            chunks.length > 0
+            splitting
+              ? 'bg-purple-950/60 border-purple-700/50 text-purple-300 animate-pulse'
+              : chunks.length > 0
               ? 'bg-emerald-950/60 border-emerald-700/50 text-emerald-300'
               : 'bg-gray-900 border-gray-800 text-gray-500'
           }`}>
-            {chunks.length > 0 ? `✓ ${chunks.length} Parts Split` : 'Belum Ada Chunk'}
+            {splitting && splitProgress
+              ? `⏳ Memotong ${splitProgress.currentPart}/${splitProgress.totalParts} Parts (${splitProgress.percentage}%)`
+              : chunks.length > 0
+              ? `✓ ${chunks.length} Parts Split`
+              : 'Belum Ada Chunk'}
           </div>
         </div>
       </div>
@@ -307,10 +359,26 @@ const AlurfilmSplitterStep: React.FC = () => {
                 <span>{splitting ? '⏳' : '⚡'}</span>
                 <span>
                   {splitting
-                    ? 'Sedang Memotong Video...'
+                    ? `Sedang Memotong Video... (${splitProgress?.percentage || 0}%)`
                     : `Auto-Split Video (${startTime} s/d ${endTime}) Menjadi Part 10-Menit`}
                 </span>
               </button>
+
+              {/* Real-time Progress Bar */}
+              {splitting && splitProgress && (
+                <div className="space-y-1.5 pt-2 border-t border-purple-900/40">
+                  <div className="flex justify-between items-center text-xs font-mono">
+                    <span className="text-purple-300 font-semibold">{splitProgress.statusText}</span>
+                    <span className="text-purple-400 font-bold">{splitProgress.percentage}%</span>
+                  </div>
+                  <div className="w-full bg-gray-900 rounded-full h-2 overflow-hidden border border-purple-950">
+                    <div
+                      className="bg-gradient-to-r from-purple-600 to-indigo-500 h-full transition-all duration-300"
+                      style={{ width: `${splitProgress.percentage}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -326,7 +394,7 @@ const AlurfilmSplitterStep: React.FC = () => {
           <div className="flex items-center justify-between pb-3 border-b border-gray-800">
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <span>📑</span> Hasil Part Scene Video ({chunks.length})
+                <span>📑</span> Hasil Part Scene Video ({chunks.length}{splitProgress?.totalParts ? ` / ${splitProgress.totalParts}` : ''})
               </h3>
               <p className="text-[11px] text-gray-400 mt-0.5">
                 Setiap part dipotong presisi dari {startTime} sampai {endTime}.
@@ -334,7 +402,7 @@ const AlurfilmSplitterStep: React.FC = () => {
             </div>
           </div>
 
-          {chunks.length > 0 ? (
+          {chunks.length > 0 || (splitting && splitProgress) ? (
             <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1">
               {chunks.map((chunk, idx) => (
                 <div
@@ -382,6 +450,26 @@ const AlurfilmSplitterStep: React.FC = () => {
                   </div>
                 </div>
               ))}
+
+              {/* In-Progress Card Placeholder */}
+              {splitting && splitProgress && splitProgress.currentPart > 0 && (
+                <div className="p-3.5 rounded-xl border border-purple-500/50 bg-purple-950/30 animate-pulse flex items-center justify-between gap-3 shadow-lg">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-8 h-8 rounded-lg bg-purple-600/30 border border-purple-500/40 text-purple-300 flex items-center justify-center font-bold text-xs font-mono shrink-0">
+                      P{splitProgress.currentPart}
+                    </span>
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-bold text-purple-200 truncate font-mono">
+                        Sedang Memotong Part #{splitProgress.currentPart}...
+                      </h4>
+                      <p className="text-[11px] text-purple-400/80 font-mono mt-0.5">
+                        Proses FFmpeg chunk {splitProgress.currentPart} dari {splitProgress.totalParts}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-5 h-5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin shrink-0"></div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border border-dashed border-gray-800 rounded-2xl space-y-3">
@@ -403,3 +491,4 @@ const AlurfilmSplitterStep: React.FC = () => {
 };
 
 export default AlurfilmSplitterStep;
+

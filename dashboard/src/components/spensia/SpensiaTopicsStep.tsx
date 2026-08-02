@@ -24,14 +24,6 @@ export interface TopicItem {
   selected?: boolean;
 }
 
-const PRESET_THEMES = [
-  { label: '🏛️ Sejarah Kuno', value: 'Sejarah Kuno' },
-  { label: '🧠 Psikologi Manusia', value: 'Psikologi Manusia' },
-  { label: '🧬 Evolusi & Sains', value: 'Evolusi & Sains' },
-  { label: '💰 Sejarah Kekayaan', value: 'Sejarah Kekayaan' },
-  { label: '🍞 Kehidupan Sehari-hari', value: 'Kehidupan Sehari-hari' },
-];
-
 const MODEL_OPTIONS = [
   { id: 'ag/gemini-3-flash-agent', name: 'ag/gemini-3-flash-agent (Recommended)' },
   { id: 'cx/gpt-5.5', name: 'cx/gpt-5.5' },
@@ -41,7 +33,7 @@ const MODEL_OPTIONS = [
 ];
 
 const SpensiaTopicsStep: React.FC = () => {
-  const [topicTheme, setTopicTheme] = useState<string>('Sejarah Kuno');
+  const [topicTheme, setTopicTheme] = useState<string>('');
   const [itemCount, setItemCount] = useState<number>(5);
   const [masterPrompt, setMasterPrompt] = useState<string>('');
   const [showPromptEditor, setShowPromptEditor] = useState<boolean>(false);
@@ -511,7 +503,7 @@ const SpensiaTopicsStep: React.FC = () => {
               </span>
             </div>
             <p className="text-[11px] text-gray-300 leading-relaxed">
-              AI akan otomatis me-generate ide provokatif terbaik dari niche channel: <strong className="text-emerald-300">Sejarah Kuno, Misteri Psikologi, Evolusi & Sains Purba vs Modern</strong>.
+              AI akan otomatis riset & me-generate ide ber-demand tinggi dari <strong className="text-emerald-300">dunia nyata, isu viral, tren modern, fenomena sosial, hingga skenario imajinatif tentang kehidupan</strong>.
             </p>
           </div>
 
@@ -552,29 +544,9 @@ const SpensiaTopicsStep: React.FC = () => {
               type="text"
               value={topicTheme}
               onChange={(e) => setTopicTheme(e.target.value)}
-              placeholder='Kosongkan untuk AI memilih bebas seluruh niche Spensia...'
+              placeholder='Kosongkan untuk AI riset bebas ide ber-demand tinggi di dunia nyata...'
               className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition-all font-semibold"
             />
-
-            {/* Quick Preset Badges */}
-            <div className="space-y-1.5 pt-1">
-              <span className="text-[10px] text-gray-500 font-mono block">Rekomendasi Tema:</span>
-              <div className="flex flex-wrap gap-1.5">
-                {PRESET_THEMES.map((preset) => (
-                  <button
-                    key={preset.label}
-                    onClick={() => setTopicTheme(preset.value)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all border ${
-                      topicTheme === preset.value
-                        ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
-                        : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* Jumlah Ide Selector */}

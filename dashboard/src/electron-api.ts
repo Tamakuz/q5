@@ -87,6 +87,13 @@ export interface AlurfilmChunk {
   mediaUrl?: string;
 }
 
+export interface AlurfilmSplitProgressPayload {
+  status: 'start' | 'splitting' | 'chunk_completed' | 'done';
+  currentPart: number;
+  totalParts: number;
+  chunk?: AlurfilmChunk;
+}
+
 export interface AlurfilmAnalysisData {
   chunk_part: number;
   naskah_voiceover: {
@@ -116,12 +123,15 @@ export interface AlurfilmAnalysisResult {
 }
 
 export interface AlurfilmAudioResult {
-  part: number;
+  id?: string;
+  part?: number;
+  parts: number[];
   name: string;
   filePath: string;
   url: string;
   mediaUrl?: string;
   size: number;
+  createdAt?: string;
 }
 
 export interface AlurfilmTranscriptEntry {
@@ -135,10 +145,12 @@ export interface AlurfilmTranscriptEntry {
 
 export interface AlurfilmTranscriptResult {
   part: number;
-  name: string;
-  filePath: string;
-  data: AlurfilmTranscriptEntry[];
+  name?: string;
+  filePath?: string;
+  data?: AlurfilmTranscriptEntry[];
   entries?: AlurfilmTranscriptEntry[];
+  multiPart?: boolean;
+  savedResults?: AlurfilmTranscriptResult[];
 }
 
 export interface AlurfilmVisualClip {
@@ -202,6 +214,7 @@ export interface ElectronAPI {
   uploadAlurfilmMaster: (filePath: string) => Promise<SourceInfo>;
   splitAlurfilmVideo: (masterPath: string, startTime: string | number, endTime: string | number) => Promise<AlurfilmChunk[]>;
   splitAlurfilmMaster: (masterPath: string, intervalSeconds?: number, startTime?: string | number, endTime?: string | number) => Promise<{ chunks: AlurfilmChunk[]; content_id?: string }>;
+  onAlurfilmSplitProgress?: (callback: (data: AlurfilmSplitProgressPayload) => void) => () => void;
   splitAlurfilmMasterRange: (masterPath: string, startSec: number, durationSec: number, partNum: number) => Promise<{ chunks: AlurfilmChunk[]; content_id?: string }>;
   listAlurfilmChunks: (modeContentId?: string) => Promise<AlurfilmChunk[]>;
   deleteAlurfilmChunk: (part: number) => Promise<boolean>;
@@ -209,9 +222,9 @@ export interface ElectronAPI {
   listAlurfilmAnalyses: (modeContentId?: string) => Promise<AlurfilmAnalysisResult[]>;
   getAlurfilmPrompt: (chunkPart: number, totalChunks?: number, previousContext?: any) => Promise<string>;
   saveAlurfilmAnalysis: (contentIdOrPart: string | number, partOrData?: number | any, jsonTextOrPart?: any) => Promise<AlurfilmAnalysisResult>;
-  uploadAlurfilmAudio: (contentIdOrPart: string | number, partOrFilePath?: number | string, filePath?: string) => Promise<AlurfilmAudioResult>;
+  uploadAlurfilmAudio: (contentId: string, parts: number[], filePath: string) => Promise<AlurfilmAudioResult>;
   listAlurfilmAudios: (modeContentId?: string) => Promise<AlurfilmAudioResult[]>;
-  deleteAlurfilmAudio: (part: number) => Promise<boolean>;
+  deleteAlurfilmAudio: (id: string) => Promise<boolean>;
   getAlurfilmTranscriptPrompt: (chunkPart: number, totalChunks?: number) => Promise<string>;
   saveAlurfilmTranscript: (contentIdOrPart: string | number, partOrData?: number | any, jsonTextOrPart?: any) => Promise<AlurfilmTranscriptResult>;
   listAlurfilmTranscripts: (modeContentId?: string) => Promise<AlurfilmTranscriptResult[]>;

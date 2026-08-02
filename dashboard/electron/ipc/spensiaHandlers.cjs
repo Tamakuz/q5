@@ -158,42 +158,33 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   // ─── Generate single image via Google Flow ─────────────
 
   async function generateGoogleFlowImageDirect({ prompt, projectId, segmentId, workerId, onLog }) {
-    const targetProject = projectId || process.env.GOOGLE_FLOW_PROJECT_ID || '5aec769c-e1c8-4741-a8db-99546809c8db';
+    const targetProject = projectId || process.env.GOOGLE_FLOW_PROJECT_ID || '10ab715a-31e2-48d3-8e56-840e8af6c062';
     const cliPath = path.join(p.PROJECT_ROOT, 'playwright', 'cli.ts');
     const projectRoot = p.PROJECT_ROOT;
 
-    let lastErr = null;
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        if (onLog && segmentId) { onLog({ segmentId, workerId, text: attempt > 1 ? `🔄 Attempt #${attempt}: Connecting to Playwright...` : '🚀 Opening Chromium Browser...' }); }
+    if (onLog && segmentId) { onLog({ segmentId, workerId, text: '🚀 Opening Chromium Browser...' }); }
 
-        const res = await new Promise((resolve, reject) => {
-          const child = spawnTsxProcessForRoot(p.PROJECT_ROOT, [cliPath, 'generate-images', '-p', targetProject, '-t', prompt, '--headed', '--close', '--json'], { cwd: projectRoot, env: { ...process.env } });
+    const res = await new Promise((resolve, reject) => {
+      const child = spawnTsxProcessForRoot(p.PROJECT_ROOT, [cliPath, 'generate-images', '-p', targetProject, '-t', prompt, '--headed', '--close', '--json'], { cwd: projectRoot, env: { ...process.env } });
 
-          let stdout = '';
-          child.stdout.on('data', (data) => { stdout += data.toString(); });
-          child.stderr.on('data', () => {});
+      let stdout = '';
+      child.stdout.on('data', (data) => { stdout += data.toString(); });
+      child.stderr.on('data', () => {});
 
-          child.on('close', (code) => {
-            if (code !== 0 && !stdout.trim()) return reject(new Error(`Google Flow process failed (exit code ${code})`));
-            try {
-              const jsonMatch = stdout.match(/\{[\s\S]*\}/);
-              if (!jsonMatch) return reject(new Error(`Failed to parse JSON output from Google Flow CLI`));
-              const parsed = JSON.parse(jsonMatch[0]);
-              if (!parsed.success || !parsed.images || parsed.images.length === 0) return reject(new Error(parsed.error || 'Google Flow returned no generated images.'));
-              const imageUrl = parsed.images[0].url;
-              if (!imageUrl) return reject(new Error('Google Flow image URL is missing'));
-              resolve({ url: imageUrl });
-            } catch (err) { reject(new Error(`Failed parsing Google Flow response: ${err.message}`)); }
-          });
-        });
-        return res;
-      } catch (err) {
-        lastErr = err;
-        if (attempt < 2) await new Promise((r) => setTimeout(r, 2000));
-      }
-    }
-    throw lastErr;
+      child.on('close', (code) => {
+        if (code !== 0 && !stdout.trim()) return reject(new Error(`Google Flow process failed (exit code ${code})`));
+        try {
+          const jsonMatch = stdout.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) return reject(new Error(`Failed to parse JSON output from Google Flow CLI`));
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (!parsed.success || !parsed.images || parsed.images.length === 0) return reject(new Error(parsed.error || 'Google Flow returned no generated images.'));
+          const imageUrl = parsed.images[0].url;
+          if (!imageUrl) return reject(new Error('Google Flow image URL is missing'));
+          resolve({ url: imageUrl });
+        } catch (err) { reject(new Error(`Failed parsing Google Flow response: ${err.message}`)); }
+      });
+    });
+    return res;
   }
 
   ipcMain.handle('generate-spensia-single-image', async (event, { segmentId, prompt, model, size, quality, image_detail, topicId }) => {
@@ -208,7 +199,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     const total = items.length;
     let completedCount = 0;
 
-    const targetProject = process.env.GOOGLE_FLOW_PROJECT_ID || '5aec769c-e1c8-4741-a8db-99546809c8db';
+    const targetProject = process.env.GOOGLE_FLOW_PROJECT_ID || '10ab715a-31e2-48d3-8e56-840e8af6c062';
     const cliPath = path.join(p.PROJECT_ROOT, 'playwright', 'cli.ts');
     const projectRoot = p.PROJECT_ROOT;
 
@@ -330,7 +321,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     const total = concepts.length;
     let completedCount = 0;
 
-    const targetProject = process.env.GOOGLE_FLOW_PROJECT_ID || '5aec769c-e1c8-4741-a8db-99546809c8db';
+    const targetProject = process.env.GOOGLE_FLOW_PROJECT_ID || '10ab715a-31e2-48d3-8e56-840e8af6c062';
     const cliPath = path.join(p.PROJECT_ROOT, 'playwright', 'cli.ts');
     const projectRoot = p.PROJECT_ROOT;
 

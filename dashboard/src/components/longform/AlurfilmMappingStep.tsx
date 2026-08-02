@@ -39,7 +39,15 @@ const AlurfilmMappingStep: React.FC = () => {
         // Audios
         const audioList = await api.listAlurfilmAudios(id);
         const aMap: Record<number, AlurfilmAudioResult> = {};
-        if (audioList) { for (const a of audioList) aMap[a.part] = a; }
+        if (audioList) {
+          for (const a of audioList) {
+            if (a.parts) {
+              a.parts.forEach((p) => { aMap[p] = a; });
+            } else if (typeof a.part === 'number') {
+              aMap[a.part] = a;
+            }
+          }
+        }
         setAudios(aMap);
 
         // Transcripts
@@ -69,30 +77,48 @@ const AlurfilmMappingStep: React.FC = () => {
   }, []);
 
   const handleCopyPromptForPart = async (partNum: number) => {
-    const chunkInfo = chunks.find((c) => c.part === partNum);
-    const transcriptResult = transcripts[partNum];
-    const voiceoverSentences = transcriptResult?.entries || [];
-
     try {
-      let promptTpl = await api.readFromProject('dashboard/prompts/longform/mapping-prompt.md');
-      if (!promptTpl) {
-        promptTpl = await api.readFromProject('dashboard/prompts/longform/alurfilm-mapping-prompt.md');
-      }
-      if (!promptTpl) {
-        promptTpl = `Kamu adalah Editor Video Profesional untuk Alur Cerita Film (16:9). Part {{chunk_part}} dari {{total_chunks}}. Source: {{source_video_name}}. Voiceover sentences: {{voiceover_sentences}}`;
+      const totalChunks = chunks.length || 1;
+      let formattedPrompt = '';
+
+      if (api.getAlurfilmMappingPrompt) {
+        formattedPrompt = await api.getAlurfilmMappingPrompt(partNum, totalChunks);
       }
 
-      const totalChunks = chunks.length || 1;
-      const formattedPrompt = promptTpl
-        .replace(/\{\{chunk_part\}\}/g, String(partNum))
-        .replace(/\{\{total_chunks\}\}/g, String(totalChunks))
-        .replace(/\{\{source_video_name\}\}/g, chunkInfo ? chunkInfo.name : `part_${partNum}.mp4`)
-        .replace(/\{\{scene_id\}\}/g, `scene_p${partNum}`)
-        .replace(/\{\{voiceover_sentences\}\}/g, JSON.stringify(voiceoverSentences, null, 2));
+      if (!formattedPrompt) {
+        const chunkInfo = chunks.find((c) => c.part === partNum);
+        const transcriptResult = transcripts[partNum];
+        const rawEntries = transcriptResult?.data || transcriptResult?.entries || [];
+
+        const voiceoverSentences = Array.isArray(rawEntries)
+          ? rawEntries.map((t: any, idx) => ({
+              sentence_index: idx,
+              text: t.text || t.narration || '',
+              start: typeof t.start_seconds === 'number' ? t.start_seconds : (t.start || 0.0),
+              end: typeof t.end_seconds === 'number' ? t.end_seconds : (t.end || 0.0),
+              duration: Number(((typeof t.end_seconds === 'number' ? t.end_seconds : (t.end || 0)) - (typeof t.start_seconds === 'number' ? t.start_seconds : (t.start || 0))).toFixed(2))
+            }))
+          : [];
+
+        let promptTpl = await api.readFromProject('dashboard/prompts/longform/alurfilm-mapping-prompt.md');
+        if (!promptTpl) {
+          promptTpl = await api.readFromProject('dashboard/prompts/longform/mapping-prompt.md');
+        }
+        if (!promptTpl) {
+          promptTpl = `Kamu adalah Editor Video Profesional untuk Alur Cerita Film (16:9). Part {{chunk_part}} dari {{total_chunks}}. Source: {{source_video_name}}. Voiceover sentences: {{voiceover_sentences}}`;
+        }
+
+        formattedPrompt = promptTpl
+          .replace(/\{\{chunk_part\}\}/g, String(partNum))
+          .replace(/\{\{total_chunks\}\}/g, String(totalChunks))
+          .replace(/\{\{source_video_name\}\}/g, chunkInfo ? chunkInfo.name : `part_${partNum}.mp4`)
+          .replace(/\{\{scene_id\}\}/g, `scene_p${partNum}`)
+          .replace(/\{\{voiceover_sentences\}\}/g, JSON.stringify(voiceoverSentences, null, 2));
+      }
 
       if (api.copyToClipboard) {
         await api.copyToClipboard(formattedPrompt);
-        showToast(`Copied Video Mapping Prompt for Part #${partNum}!`);
+        showToast(`📋 Copied Video Mapping Prompt for Part #${partNum}!`);
       }
     } catch (err: any) {
       setError(`Failed to format prompt: ${err.message}`);

@@ -42,7 +42,13 @@ const MediaPreviewDrawer: React.FC<MediaPreviewDrawerProps> = ({
             const audioList = await api.listAlurfilmAudios(id);
             const aMap: Record<number, AlurfilmAudioResult> = {};
             if (audioList) {
-              for (const a of audioList) aMap[a.part] = a;
+              for (const a of audioList) {
+                if (a.parts) {
+                  a.parts.forEach((p) => { aMap[p] = a; });
+                } else if (typeof a.part === 'number') {
+                  aMap[a.part] = a;
+                }
+              }
             }
             setAudios(aMap);
           }
@@ -182,7 +188,9 @@ const MediaPreviewDrawer: React.FC<MediaPreviewDrawerProps> = ({
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white font-mono">{currentAudio.name}</h3>
-                    <p className="text-xs text-purple-400 font-mono mt-0.5">Part #{currentAudio.part} Voiceover Audio</p>
+                    <p className="text-xs text-purple-400 font-mono mt-0.5">
+                      Part #{currentAudio.parts ? currentAudio.parts.join(', #') : currentAudio.part} Voiceover Audio
+                    </p>
                   </div>
                 </div>
 

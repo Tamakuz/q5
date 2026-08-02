@@ -73,6 +73,36 @@ export interface SpensiaScriptValidationReport {
 }
 
 /**
+ * Clean and extract valid JSON substring from raw AI response text
+ */
+export function extractCleanJsonString(raw: string): string {
+  let cleaned = raw.trim();
+
+  // 1. Strip markdown code fences if present
+  if (cleaned.includes('```')) {
+    const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      cleaned = codeBlockMatch[1].trim();
+    } else {
+      cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/g, '').trim();
+    }
+  }
+
+  // 2. Extract strictly from first '{' or '[' to last '}' or ']'
+  const firstBrace = cleaned.search(/[\{\[]/);
+  if (firstBrace !== -1) {
+    const lastBraceObj = cleaned.lastIndexOf('}');
+    const lastBraceArr = cleaned.lastIndexOf(']');
+    const lastBrace = Math.max(lastBraceObj, lastBraceArr);
+    if (lastBrace > firstBrace) {
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1).trim();
+    }
+  }
+
+  return cleaned;
+}
+
+/**
  * Perform strict JSON validation and normalization for Spensia Topics output
  */
 export function validateSpensiaTopics(rawInput: any): SpensiaTopicsValidationReport {
@@ -81,10 +111,7 @@ export function validateSpensiaTopics(rawInput: any): SpensiaTopicsValidationRep
 
   // 1. Handle JSON syntax parsing if string
   if (typeof rawInput === 'string') {
-    let cleaned = rawInput.trim();
-    if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
-    }
+    const cleaned = extractCleanJsonString(rawInput);
     try {
       data = JSON.parse(cleaned);
     } catch (err: any) {
@@ -284,10 +311,7 @@ export function validateSpensiaScript(rawInput: any, targetWordCount?: number): 
   let data: any = rawInput;
 
   if (typeof rawInput === 'string') {
-    let cleaned = rawInput.trim();
-    if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
-    }
+    const cleaned = extractCleanJsonString(rawInput);
     try {
       data = JSON.parse(cleaned);
     } catch (err: any) {

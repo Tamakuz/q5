@@ -55,7 +55,13 @@ const AlurfilmAnalyzeStep: React.FC = () => {
           const audioList = await api.listAlurfilmAudios(id);
           const aMap: Record<number, AlurfilmAudioResult> = {};
           if (audioList) {
-            for (const item of audioList) aMap[item.part] = item;
+            for (const item of audioList) {
+              if (item.parts) {
+                item.parts.forEach((p) => { aMap[p] = item; });
+              } else if (typeof item.part === 'number') {
+                aMap[item.part] = item;
+              }
+            }
           }
           setAudios(aMap);
 

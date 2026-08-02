@@ -5,7 +5,8 @@ import { validateSpensiaImagePrompts, SpensiaImagePromptItem, SpensiaImagePrompt
 const api = window.electronAPI;
 
 const MODEL_OPTIONS = [
-  { id: 'cx/gpt-5.5', name: 'cx/gpt-5.5 (Default)' },
+  { id: 'ag/gemini-3-flash-agent', name: 'ag/gemini-3-flash-agent (Recommended)' },
+  { id: 'cx/gpt-5.5', name: 'cx/gpt-5.5' },
   { id: 'cmc/deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
@@ -22,7 +23,7 @@ const SpensiaImagePromptStep: React.FC = () => {
   const [segmentsListStr, setSegmentsListStr] = useState<string>('');
   const [segmentsCount, setSegmentsCount] = useState<number>(0);
   const [videoTitle, setVideoTitle] = useState<string>('');
-  const [selectedModel, setSelectedModel] = useState<string>('cx/gpt-5.5');
+  const [selectedModel, setSelectedModel] = useState<string>('ag/gemini-3-flash-agent');
   const [masterPrompt, setMasterPrompt] = useState<string>('');
   const [showPromptEditor, setShowPromptEditor] = useState<boolean>(false);
 
@@ -218,10 +219,7 @@ const SpensiaImagePromptStep: React.FC = () => {
     let unsubscribeStream: (() => void) | null = null;
 
     try {
-      let currentPrompt = masterPrompt;
-      if (!currentPrompt) {
-        currentPrompt = await loadPromptFromFile();
-      }
+      let currentPrompt = (await loadPromptFromFile()) || masterPrompt;
 
       const computed = getComputedPrompt(currentPrompt);
 
@@ -378,7 +376,7 @@ const SpensiaImagePromptStep: React.FC = () => {
         }
 
         try {
-          let currentPrompt = masterPrompt || (await loadPromptFromFile());
+          let currentPrompt = (await loadPromptFromFile()) || masterPrompt;
           const computed = getComputedPrompt(currentPrompt, segmentsText);
 
           if (api?.generateSpensiaImagePrompts) {
