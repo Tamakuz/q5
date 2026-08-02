@@ -394,12 +394,43 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     const maxPart = String(sortedParts[sortedParts.length - 1]).padStart(2, '0');
     const partsRange = sortedParts.length === 1 ? minPart : `${minPart}-${maxPart}`;
 
-    const ext = path.extname(filePath) || '.mp3';
     const timestamp = Date.now();
-    const outputName = `${contentId}_audio_parts_${partsRange}_${timestamp}${ext}`;
+    const outputName = `${contentId}_audio_parts_${partsRange}_${timestamp}.wav`;
     const destPath = path.join(p.ALURFILM_AUDIO_DIR, outputName);
 
-    fs.copyFileSync(filePath, destPath);
+    // Re-encode audio to clean 16kHz Mono PCM WAV to guarantee sample accuracy for WhisperX
+    await new Promise((resolve, reject) => {
+      const args = [
+        '-i', filePath,
+        '-ar', '16000',
+        '-ac', '1',
+        '-c:a', 'pcm_s16le',
+        '-y',
+        destPath
+      ];
+      const ffmpegProc = spawn(ffmpeg.ffmpegPath, args);
+      ffmpegProc.on('close', (code) => {
+        if (code === 0 && fs.existsSync(destPath)) {
+          resolve();
+        } else {
+          try {
+            fs.copyFileSync(filePath, destPath);
+            resolve();
+          } catch (err) {
+            reject(new Error(`Failed to process audio file: ${err.message}`));
+          }
+        }
+      });
+      ffmpegProc.on('error', (err) => {
+        try {
+          fs.copyFileSync(filePath, destPath);
+          resolve();
+        } catch (copyErr) {
+          reject(err);
+        }
+      });
+    });
+
     const stat = fs.statSync(destPath);
 
     const mappingFile = path.join(p.ALURFILM_AUDIO_DIR, `${contentId}_audio_mappings.json`);
@@ -867,6 +898,211 @@ function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
     }
 
     return { part: chunkPart, name: outputName, filePath: destPath, data: entriesArray, entries: entriesArray };
+  });
+
+  // ─── Run WhisperX Alignment ─────────────────────────────
+  ipcMain.handle('run-alurfilm-whisperx-alignment', async (event, { parts, audioPath }) => {
+    const contentId = p.getOrGenerateContentId('longform');
+    const sortedParts = Array.isArray(parts) && parts.length > 0 ? [...parts].sort((a, b) => a - b) : [1];
+
+    function sendProgress(stage, progress, log) {
+      if (event && event.sender) {
+        event.sender.send('alurfilm-alignment-progress', { stage, progress, log });
+      }
+    }
+
+    sendProgress('preparing', 5, `Starting WhisperX alignment for Parts #${sortedParts.join(', #')}...`);
+
+    // Resolve target audio path
+    let targetAudioPath = audioPath;
+    if (!targetAudioPath || !fs.existsSync(targetAudioPath)) {
+      const mappingFile = path.join(p.ALURFILM_AUDIO_DIR, `${contentId}_audio_mappings.json`);
+      if (fs.existsSync(mappingFile)) {
+        try {
+          const data = JSON.parse(fs.readFileSync(mappingFile, 'utf-8'));
+          const audioEntry = (data.audios || []).find(item => item.parts && item.parts.some(pt => sortedParts.includes(pt)));
+          if (audioEntry && audioEntry.filePath && fs.existsSync(audioEntry.filePath)) {
+            targetAudioPath = audioEntry.filePath;
+          }
+        } catch {}
+      }
+    }
+
+    if (!targetAudioPath || !fs.existsSync(targetAudioPath)) {
+      throw new Error(`Voiceover audio file not found for Parts #${sortedParts.join(', #')}. Please upload audio first.`);
+    }
+
+    // Collect reference scripts from Step 2 analysis JSON files
+    const referenceTexts = [];
+    const scriptByPart = {};
+    for (const pt of sortedParts) {
+      const partStr = String(pt).padStart(2, '0');
+      const analysisPath = path.join(p.ALURFILM_DIR, `${contentId}_analysis_part_${partStr}.json`);
+      if (fs.existsSync(analysisPath)) {
+        try {
+          const data = JSON.parse(fs.readFileSync(analysisPath, 'utf-8'));
+          const scriptText = data.naskah_voiceover?.script_text || data.script_text || '';
+          if (scriptText) {
+            referenceTexts.push(scriptText.trim());
+            scriptByPart[pt] = scriptText.trim();
+          }
+        } catch {}
+      }
+    }
+
+    if (referenceTexts.length === 0) {
+      throw new Error(`Script analysis files not found for Parts #${sortedParts.join(', #')}. Please generate or upload scripts first.`);
+    }
+
+    const combinedScriptText = referenceTexts.join(' ');
+    const partsStr = sortedParts.map(pt => String(pt).padStart(2, '0')).join('-');
+    const tempNarasiPath = path.join(p.TMP_DIR, `${contentId}_narasi_parts_${partsStr}.txt`);
+    const tempOutputPath = path.join(p.TMP_DIR, `${contentId}_alignment_output_${partsStr}.json`);
+
+    fs.writeFileSync(tempNarasiPath, combinedScriptText, 'utf-8');
+    sendProgress('preparing', 15, `Prepared script text (~${combinedScriptText.split(/\s+/).length} words) and target audio: ${path.basename(targetAudioPath)}`);
+
+    // Setup Python process arguments
+    const projectRoot = p.PROJECT_ROOT || path.resolve(__dirname, '..', '..', '..');
+    const pythonBin = path.join(projectRoot, 'whisperx', 'venv', 'bin', 'python3');
+    const alignCli = path.join(projectRoot, 'whisperx', 'align_cli.py');
+
+    if (!fs.existsSync(pythonBin)) {
+      throw new Error(`Python virtual environment not found at ${pythonBin}`);
+    }
+    if (!fs.existsSync(alignCli)) {
+      throw new Error(`Align CLI script not found at ${alignCli}`);
+    }
+
+    const args = [
+      alignCli,
+      '--audio', targetAudioPath,
+      '--text', tempNarasiPath,
+      '--output', tempOutputPath,
+      '--model', 'medium',
+      '--device', 'cpu'
+    ];
+
+    const childEnv = {
+      ...process.env,
+      PYTHONSAFEPATH: '1'
+    };
+
+    sendProgress('loading_model', 25, `Spawning Python Faster-Whisper alignment process...`);
+
+    await new Promise((resolve, reject) => {
+      const proc = spawn(pythonBin, args, { env: childEnv, cwd: projectRoot });
+
+      function handleLogLine(rawLine) {
+        const line = rawLine.replace(/^\[log\]\s*/, '').replace(/^\[faster-whisper\]\s*/, '').trim();
+        if (!line) return;
+
+        let progress = 30;
+        let stage = 'aligning';
+
+        if (line.includes('Load faster-whisper model')) { progress = 25; stage = 'loading_model'; }
+        else if (line.includes('Transcribing audio fisik')) { progress = 50; stage = 'transcribing'; }
+        else if (line.includes('Selesai VAD Transcribe')) { progress = 75; stage = 'aligning'; }
+        else if (line.includes('Mapping')) { progress = 85; stage = 'mapping'; }
+        else if (line.includes('Selesai!')) { progress = 90; stage = 'done'; }
+
+        sendProgress(stage, progress, line);
+      }
+
+      proc.stdout.on('data', (data) => {
+        const lines = data.toString().split('\n').filter(Boolean);
+        for (const l of lines) handleLogLine(l);
+      });
+
+      proc.stderr.on('data', (data) => {
+        const lines = data.toString().split('\n').filter(Boolean);
+        for (const l of lines) handleLogLine(l);
+      });
+
+      proc.on('close', (code) => {
+        if (code === 0 && fs.existsSync(tempOutputPath)) {
+          resolve(true);
+        } else {
+          reject(new Error(`WhisperX alignment process exited with code ${code}`));
+        }
+      });
+
+      proc.on('error', (err) => {
+        reject(err);
+      });
+    });
+
+    sendProgress('mapping', 92, `Alignment complete. Mapping aligned sentences to individual parts...`);
+
+    // Parse alignment JSON output
+    const alignJsonRaw = fs.readFileSync(tempOutputPath, 'utf-8');
+    const alignJson = JSON.parse(alignJsonRaw);
+    const transcriptEntries = alignJson.transcript || alignJson.sentences || [];
+
+    // Map sentences to individual parts
+    let idx = 0;
+    const multiPartMap = {};
+
+    for (const pt of sortedParts) {
+      const scriptText = scriptByPart[pt] || '';
+      const matched = [];
+
+      while (idx < transcriptEntries.length) {
+        const item = transcriptEntries[idx];
+        const txt = item.text || '';
+        if (txt && scriptText.includes(txt)) {
+          const itemCopy = { ...item, id: matched.length + 1 };
+          matched.push(itemCopy);
+          idx++;
+        } else {
+          break;
+        }
+      }
+
+      multiPartMap[pt] = matched;
+      sendProgress('mapping', 95, `Part #${pt}: Mapped ${matched.length} aligned entries.`);
+    }
+
+    // Handle any remaining unmatched entries by appending to last part if applicable
+    if (idx < transcriptEntries.length) {
+      const lastPt = sortedParts[sortedParts.length - 1];
+      const remaining = transcriptEntries.slice(idx);
+      multiPartMap[lastPt] = (multiPartMap[lastPt] || []).concat(remaining);
+    }
+
+    // Save outputs using save-alurfilm-transcript multiPart feature
+    const targetDir = p.ALURFILM_TRANSCRIPTS_DIR || path.join(p.ALURFILM_DIR, 'transcripts');
+    if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+
+    const savedResults = [];
+    for (const pt of sortedParts) {
+      const entries = multiPartMap[pt] || [];
+      const partStr = String(pt).padStart(2, '0');
+      const outputName = `${contentId}_transcript_part_${partStr}.json`;
+      const destPath = path.join(targetDir, outputName);
+
+      let prevEnd = 0;
+      const normEntries = entries.map((e, index) => {
+        const res = normalizeBackendEntry(e, index, prevEnd);
+        prevEnd = res.end_seconds;
+        return res;
+      });
+
+      fs.writeFileSync(destPath, JSON.stringify(normEntries, null, 2), 'utf-8');
+      savedResults.push({ part: pt, name: outputName, filePath: destPath, data: normEntries, entries: normEntries });
+    }
+
+    // Save combined multipart file as well
+    const multipartFile = path.join(targetDir, `${contentId}_transcript_multipart.json`);
+    const multiPartObject = {};
+    for (const pt of sortedParts) {
+      multiPartObject[String(pt)] = multiPartMap[pt] || [];
+    }
+    fs.writeFileSync(multipartFile, JSON.stringify(multiPartObject, null, 2), 'utf-8');
+
+    sendProgress('done', 100, `Successfully saved transcript files for Parts #${sortedParts.join(', #')}!`);
+
+    return { success: true, savedResults, multiPartMap };
   });
 
   // ─── List Alurfilm Transcripts ─────────────────────────

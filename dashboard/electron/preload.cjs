@@ -105,6 +105,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   listAlurfilmTranscripts: (modeContentId) =>
     ipcRenderer.invoke('list-alurfilm-transcripts', modeContentId),
+  runAlurfilmWhisperXAlignment: (parts, audioPath) =>
+    ipcRenderer.invoke('run-alurfilm-whisperx-alignment', { parts, audioPath }),
+  onAlurfilmAlignmentProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('alurfilm-alignment-progress', handler);
+    return () => ipcRenderer.removeListener('alurfilm-alignment-progress', handler);
+  },
   getAlurfilmMappingPrompt: (chunkPart, totalChunks) =>
     ipcRenderer.invoke('get-alurfilm-mapping-prompt', { chunkPart, totalChunks }),
   saveAlurfilmMapping: (...args) => {

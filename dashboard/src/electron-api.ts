@@ -94,6 +94,12 @@ export interface AlurfilmSplitProgressPayload {
   chunk?: AlurfilmChunk;
 }
 
+export interface AlurfilmAlignmentProgressPayload {
+  stage: 'preparing' | 'loading_model' | 'aligning' | 'mapping' | 'done' | 'error';
+  progress: number;
+  log: string;
+}
+
 export interface AlurfilmAnalysisData {
   chunk_part: number;
   naskah_voiceover: {
@@ -228,6 +234,8 @@ export interface ElectronAPI {
   getAlurfilmTranscriptPrompt: (chunkPart: number, totalChunks?: number) => Promise<string>;
   saveAlurfilmTranscript: (contentIdOrPart: string | number, partOrData?: number | any, jsonTextOrPart?: any) => Promise<AlurfilmTranscriptResult>;
   listAlurfilmTranscripts: (modeContentId?: string) => Promise<AlurfilmTranscriptResult[]>;
+  runAlurfilmWhisperXAlignment?: (parts: number[], audioPath?: string) => Promise<{ success: boolean; savedResults?: any[]; multiPartMap?: any }>;
+  onAlurfilmAlignmentProgress?: (callback: (data: AlurfilmAlignmentProgressPayload) => void) => () => void;
   getAlurfilmMappingPrompt: (chunkPart: number, totalChunks?: number) => Promise<string>;
   saveAlurfilmMapping: (contentIdOrPart: string | number, partOrData?: number | any, jsonTextOrPart?: any) => Promise<AlurfilmMappingResult>;
   listAlurfilmMappings: (modeContentId?: string) => Promise<AlurfilmMappingResult[]>;

@@ -113,6 +113,35 @@ const AlurfilmTranscriptStep: React.FC = () => {
   const [pasteJsonInput, setPasteJsonInput] = useState<string>('');
   const [searchFilter, setSearchFilter] = useState<string>('');
 
+  // WhisperX Real-Time Alignment State
+  const [isAligning, setIsAligning] = useState<boolean>(false);
+  const [alignProgress, setAlignProgress] = useState<number>(0);
+  const [alignStage, setAlignStage] = useState<string>('preparing');
+  const [alignLogs, setAlignLogs] = useState<string[]>([]);
+  const [showAlignModal, setShowAlignModal] = useState<boolean>(false);
+  const logContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll terminal log window
+  useEffect(() => {
+    if (logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [alignLogs]);
+
+  // IPC Listener for real-time progress & terminal logs
+  useEffect(() => {
+    if (api.onAlurfilmAlignmentProgress) {
+      const cleanup = api.onAlurfilmAlignmentProgress((data) => {
+        if (data.progress !== undefined) setAlignProgress(data.progress);
+        if (data.stage) setAlignStage(data.stage);
+        if (data.log) {
+          setAlignLogs((prev) => [...prev, data.log]);
+        }
+      });
+      return cleanup;
+    }
+  }, []);
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
@@ -350,9 +379,48 @@ const AlurfilmTranscriptStep: React.FC = () => {
     setShowImportModal(true);
   };
 
+  const handleRunWhisperXAlignment = async () => {
+    const targetParts = activeGroup.parts || [activePart];
+    const targetAudio = currentAudio?.filePath;
+
+    setIsAligning(true);
+    setAlignProgress(0);
+    setAlignStage('preparing');
+    setAlignLogs([`🚀 Initializing WhisperX Voiceover Alignment for Parts #${targetParts.join(', #')}...`]);
+    setShowAlignModal(true);
+
+    try {
+      if (!api.runAlurfilmWhisperXAlignment) {
+        throw new Error('WhisperX Alignment API not available in Electron preload');
+      }
+      const result = await api.runAlurfilmWhisperXAlignment(targetParts, targetAudio);
+      if (result && result.success) {
+        showToast(`✨ WhisperX alignment complete! Saved transcripts for Parts #${targetParts.join(', #')}`);
+        await loadData();
+      }
+    } catch (err: any) {
+      console.error('WhisperX Alignment Error:', err);
+      setAlignLogs((prev) => [...prev, `❌ ERROR: ${err.message || String(err)}`]);
+      setAlignStage('error');
+      setError(`WhisperX alignment failed: ${err.message || String(err)}`);
+    } finally {
+      setIsAligning(false);
+    }
+  };
+
   const handleSeekToTime = (startSec: number) => {
     if (mediaRef.current) {
-      mediaRef.current.currentTime = startSec;
+      let seekTarget = startSec;
+
+      // In Video mode, video chunks start at 0s. Offset target time relative to chunk start if timestamps are master-based.
+      if (mediaMode === 'video' && currentEntries && currentEntries.length > 0) {
+        const firstEntryStart = currentEntries[0].start_seconds;
+        if (firstEntryStart > 5) {
+          seekTarget = Math.max(0, startSec - firstEntryStart);
+        }
+      }
+
+      mediaRef.current.currentTime = seekTarget;
       mediaRef.current.play();
       showToast(`▶️ Playing from ${startSec.toFixed(1)}s`);
     }
@@ -364,14 +432,45 @@ const AlurfilmTranscriptStep: React.FC = () => {
   const currentEntries: AlurfilmTranscriptEntry[] | null = getEntriesForPart(activePart);
   const currentAudioDuration = audioDurations[activePart] || null;
 
+  // Auto-seek audio player to part start when activePart tab changes
+  useEffect(() => {
+    if (currentEntries && currentEntries.length > 0 && mediaRef.current) {
+      if (mediaMode === 'audio') {
+        const firstStart = currentEntries[0].start_seconds;
+        if (mediaRef.current.currentTime < firstStart || mediaRef.current.currentTime > (currentEntries[currentEntries.length - 1].end_seconds + 5)) {
+          mediaRef.current.currentTime = firstStart;
+        }
+      }
+    }
+  }, [activePart, mediaMode]);
+
   const activeEntryId = useMemo(() => {
     if (!currentEntries || currentEntries.length === 0) return null;
-    const match = currentEntries.find(
-      (e) => currentTime >= e.start_seconds && currentTime < e.end_seconds
-    );
-    if (match) return match.id;
+
+    // Calculate effective time matching master transcript timeline
+    let timeToMatch = currentTime;
+    if (mediaMode === 'video' && currentEntries.length > 0) {
+      const firstEntryStart = currentEntries[0].start_seconds;
+      if (firstEntryStart > 5) {
+        timeToMatch = currentTime + firstEntryStart;
+      }
+    }
+
+    // Find active entry with gap tolerance hysteresis (keeps line highlighted during brief silence gaps)
+    for (let i = 0; i < currentEntries.length; i++) {
+      const curr = currentEntries[i];
+      const next = currentEntries[i + 1];
+      const activeUntil = next
+        ? Math.min(curr.end_seconds + 1.2, next.start_seconds)
+        : curr.end_seconds + 2.0;
+
+      if (timeToMatch >= curr.start_seconds - 0.2 && timeToMatch < activeUntil) {
+        return curr.id;
+      }
+    }
+
     return null;
-  }, [currentEntries, currentTime]);
+  }, [currentEntries, currentTime, mediaMode]);
 
   useEffect(() => {
     if (activeEntryId && activeItemRef.current) {
@@ -569,6 +668,15 @@ const AlurfilmTranscriptStep: React.FC = () => {
 
             {/* AI Group Action Buttons inside Center Panel */}
             <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={handleRunWhisperXAlignment}
+                disabled={isAligning}
+                className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-lg transition-all flex items-center gap-1.5 border border-emerald-400/40 disabled:opacity-50"
+                title="Run automatic Faster-Whisper alignment on voiceover audio"
+              >
+                <span>⚡</span> {isAligning ? 'Aligning...' : 'Auto-Align (Faster-Whisper)'}
+              </button>
+
               <button
                 onClick={() => handleCopyPromptForPart(activePart)}
                 className="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow transition-all flex items-center gap-1"
@@ -846,6 +954,105 @@ const AlurfilmTranscriptStep: React.FC = () => {
             <div className="flex justify-end gap-2">
               <button onClick={() => setShowImportModal(false)} className="px-4 py-2 bg-gray-800 text-gray-300 rounded-xl text-xs font-medium">Batal</button>
               <button onClick={handleSaveImportedJson} className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold">Save Transcript</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Real-time WhisperX Log & Progress Modal Overlay */}
+      {showAlignModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="px-5 py-4 bg-gray-950 border-b border-gray-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg text-lg">⚡</span>
+                <div>
+                  <h3 className="text-sm font-bold text-white">WhisperX Voiceover Alignment Studio</h3>
+                  <p className="text-[11px] text-gray-400">Automatic Audio Sync & Multi-Part Script Mapping</p>
+                </div>
+              </div>
+
+              {!isAligning && (
+                <button
+                  onClick={() => setShowAlignModal(false)}
+                  className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-semibold"
+                >
+                  Tutup
+                </button>
+              )}
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 flex flex-col space-y-4 flex-1 overflow-hidden">
+              {/* Progress Section */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-emerald-400 capitalize">
+                    {alignStage === 'preparing' && '⚙️ Stage 1: Preparing Script & Audio'}
+                    {alignStage === 'loading_model' && '🧠 Stage 2: Loading Wav2Vec2 Model'}
+                    {alignStage === 'aligning' && '🎙️ Stage 3: Aligning Voiceover Audio'}
+                    {alignStage === 'mapping' && '🧩 Stage 4: Mapping Parts & Saving JSON'}
+                    {alignStage === 'done' && '🎉 Stage 5: Completed Successfully!'}
+                    {alignStage === 'error' && '❌ Alignment Failed'}
+                  </span>
+                  <span className="font-mono text-gray-300 font-bold">{alignProgress}%</span>
+                </div>
+
+                <div className="w-full bg-gray-800 h-2.5 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-300 ${
+                      alignStage === 'error'
+                        ? 'bg-red-500'
+                        : alignStage === 'done'
+                        ? 'bg-emerald-500'
+                        : 'bg-gradient-to-r from-emerald-500 to-teal-400 animate-pulse'
+                    }`}
+                    style={{ width: `${alignProgress}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Terminal Logs */}
+              <div className="flex-1 min-h-[220px] flex flex-col bg-gray-950 border border-gray-800 rounded-xl p-3 font-mono text-xs overflow-hidden">
+                <div className="flex items-center justify-between pb-2 border-b border-gray-800 mb-2 text-[10px] text-gray-400">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" /> Live Alignment Terminal
+                  </span>
+                  <span>Parts #{activeGroup.parts.join(', #')}</span>
+                </div>
+
+                <div ref={logContainerRef} className="flex-1 overflow-y-auto space-y-1 text-gray-300 text-[11px] leading-relaxed">
+                  {alignLogs.map((log, i) => (
+                    <div key={i} className={log.includes('ERROR') ? 'text-red-400 font-bold' : log.includes('Selesai') || log.includes('Successfully') ? 'text-emerald-400 font-bold' : ''}>
+                      {log}
+                    </div>
+                  ))}
+                  {isAligning && (
+                    <div className="text-gray-500 animate-pulse">... processing ...</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 bg-gray-950 border-t border-gray-800 flex items-center justify-end">
+              {isAligning ? (
+                <span className="text-xs text-gray-400 flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4 text-emerald-400" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Processing alignment... Please wait
+                </span>
+              ) : (
+                <button
+                  onClick={() => setShowAlignModal(false)}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow transition-all"
+                >
+                  Selesai
+                </button>
+              )}
             </div>
           </div>
         </div>
