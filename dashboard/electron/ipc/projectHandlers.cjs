@@ -147,60 +147,6 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return { logos, bgms };
   });
 
-  // ─── WhisperX Transcription ────────────────────────────
-  ipcMain.handle('run-whisperx-transcribe', async (event, { audioPath, model = 'small', language = 'id', device = 'auto', computeType }) => {
-    const whisperxDir = path.join(p.PROJECT_ROOT, 'whisperx');
-    const pythonVenvPath = path.join(whisperxDir, 'venv', 'bin', 'python');
-    const pythonBin = fs.existsSync(pythonVenvPath) ? pythonVenvPath : 'python3';
-    const scriptPath = path.join(whisperxDir, 'transcribe_cli.py');
-
-    if (!fs.existsSync(scriptPath)) {
-      throw new Error(`WhisperX script tidak ditemukan di: ${scriptPath}`);
-    }
-    if (!audioPath || !fs.existsSync(audioPath)) {
-      throw new Error(`File audio tidak ditemukan di: ${audioPath}`);
-    }
-
-    return new Promise((resolve, reject) => {
-      const args = [scriptPath, '--audio', audioPath, '--model', model, '--language', language, '--device', device || 'auto'];
-      if (computeType) { args.push('--compute_type', computeType); }
-
-      console.log(`[WhisperX] Running command: ${pythonBin} ${args.join(' ')}`);
-
-      const child = spawn(pythonBin, args, { cwd: p.PROJECT_ROOT });
-      let stdoutData = '';
-      let stderrData = '';
-
-      child.stdout.on('data', (data) => { stdoutData += data.toString(); });
-      child.stderr.on('data', (data) => {
-        const text = data.toString();
-        stderrData += text;
-        console.log(`[WhisperX log] ${text}`);
-        if (event && event.sender && !event.sender.isDestroyed()) {
-          event.sender.send('whisperx-progress', { audioPath, logText: text.trim() });
-        }
-      });
-
-      child.on('close', (code) => {
-        if (code !== 0) {
-          return reject(new Error(`WhisperX gagal (code ${code}): ${stderrData || stdoutData}`));
-        }
-        try {
-          const jsonMatch = stdoutData.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) throw new Error('Tidak ditemukan JSON valid pada output WhisperX.');
-          const parsedJson = JSON.parse(jsonMatch[0]);
-          resolve({ success: true, transcriptData: parsedJson });
-        } catch (err) {
-          reject(new Error(`Parse output JSON gagal: ${err.message}`));
-        }
-      });
-
-      child.on('error', (err) => {
-        reject(new Error(`Gagal memanggil Python WhisperX engine: ${err.message}`));
-      });
-    });
-  });
-
   // ─── Generate YouTube Shorts Titles via AI ────────────
   ipcMain.handle('generate-youtube-titles', async (_event, transcriptText) => {
     const promptFileName = 'youtube-shorts-prompt.md';

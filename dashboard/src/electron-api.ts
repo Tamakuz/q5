@@ -294,8 +294,6 @@ export interface ElectronAPI {
   onSpensiaImageLog?: (callback: (data: { segmentId: number; workerId?: number; text: string }) => void) => () => void;
   uploadSpensiaVoAudio: (segmentId?: number, sourcePath?: string, bufferArray?: ArrayBuffer | number[], topicId?: number) => Promise<{ segmentId?: number; filename: string; filePath: string; url: string }>;
   mergeSpensiaVoAudio: (audioPaths: string[], topicId?: number) => Promise<{ filename: string; filePath: string; url: string; duration: number }>;
-  runWhisperxTranscribe: (audioPath: string, model?: string, language?: string, device?: string, computeType?: string) => Promise<{ success: boolean; transcriptData?: any }>;
-  onWhisperxProgress: (callback: (data: { audioPath?: string; logText: string }) => void) => () => void;
 
   // Spensia Render Engine & Thumbnail Studio
   generateSpensiaTimeline: (topicId?: number) => Promise<{ timeline?: SpensiaTimelineStructure; saved?: boolean; error?: string }>;
