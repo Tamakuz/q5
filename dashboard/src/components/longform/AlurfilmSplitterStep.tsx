@@ -126,7 +126,7 @@ const AlurfilmSplitterStep: React.FC = () => {
           currentPart: data.currentPart,
           totalParts: data.totalParts,
           percentage: pct,
-          statusText: `Memotong Part #${data.currentPart} dari ${data.totalParts}...`
+          statusText: `Memotong & Mengompres Part #${data.currentPart} dari ${data.totalParts} (<400 MB)...`
         });
       } else if (data.status === 'chunk_completed' && data.chunk) {
         const completedChunk = data.chunk;
@@ -139,7 +139,7 @@ const AlurfilmSplitterStep: React.FC = () => {
           currentPart: data.currentPart,
           totalParts: data.totalParts,
           percentage: pct,
-          statusText: `Part #${data.currentPart} selesai dipotong!`
+          statusText: `Part #${data.currentPart} selesai dipotong & dikompres!`
         });
       } else if (data.status === 'done') {
         setSplitProgress(null);
@@ -148,7 +148,7 @@ const AlurfilmSplitterStep: React.FC = () => {
 
     try {
       const fnSplit = api.splitAlurfilmMaster || api.splitAlurfilmVideo;
-      const res = await fnSplit(masterSource.filePath || '', 600, startTime, endTime);
+      const res = await fnSplit(masterSource.filePath || '', 1200, startTime, endTime);
 
       const chunkList = Array.isArray(res) ? res : res.chunks || [];
       if (chunkList.length > 0) {
@@ -223,7 +223,7 @@ const AlurfilmSplitterStep: React.FC = () => {
             Alur Film Master Video Splitter
           </h1>
           <p className="text-xs text-gray-400 mt-1">
-            Set custom Start & End time to skip intro/outro, then auto-split into 10-minute storytelling parts.
+            Set custom Start & End time to skip intro/outro, then auto-split into 20-minute storytelling parts.
           </p>
         </div>
 
