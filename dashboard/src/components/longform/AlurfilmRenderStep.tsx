@@ -19,6 +19,12 @@ const AlurfilmRenderStep: React.FC = () => {
   const [renderedOutputs, setRenderedOutputs] = useState<Record<number, string>>({});
   const [renderErrors, setRenderErrors] = useState<Record<number, string>>({});
 
+  // Full Movie Render State
+  const [isFullRendering, setIsFullRendering] = useState<boolean>(false);
+  const [fullRenderProgress, setFullRenderProgress] = useState<string | null>(null);
+  const [fullRenderResult, setFullRenderResult] = useState<{ filePath?: string; mediaUrl?: string; fileName?: string } | null>(null);
+  const [fullRenderError, setFullRenderError] = useState<string | null>(null);
+
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -127,6 +133,74 @@ const AlurfilmRenderStep: React.FC = () => {
     setRenderingPart(null);
   };
 
+  const handleRenderFullMovie = async () => {
+    if (!chunks || chunks.length === 0) return;
+    const allParts = chunks.map((c) => c.part).sort((a, b) => a - b);
+
+    setIsFullRendering(true);
+    setFullRenderError(null);
+    setFullRenderProgress('Starting full movie recap render pipeline...');
+
+    try {
+      // Step 1: Render any unrendered parts sequentially first (VO 1.8x boost)
+      const currentOutputs = { ...renderedOutputs };
+      for (let i = 0; i < allParts.length; i++) {
+        const partNum = allParts[i];
+        if (!currentOutputs[partNum]) {
+          const chunkInfo = chunks.find((c) => c.part === partNum);
+          const audioInfo = audios[partNum];
+          const mappingInfo = mappings[partNum];
+
+          if (!chunkInfo || !audioInfo || !mappingInfo?.data) {
+            throw new Error(`Part #${partNum} belum siap (butuh Video Chunk, Voiceover Audio, dan Video Mapping).`);
+          }
+
+          setRenderingPart(partNum);
+          setFullRenderProgress(`Rendering Part #${partNum} (${i + 1}/${allParts.length})...`);
+          
+          const res = await api.renderAlurfilmPart(
+            partNum,
+            chunkInfo.filePath,
+            audioInfo.filePath,
+            mappingInfo.data
+          );
+
+          if (res.error) {
+            throw new Error(`Part #${partNum} render error: ${res.error}`);
+          } else if (res.outputPath) {
+            currentOutputs[partNum] = res.outputPath;
+            setRenderedOutputs((prev) => ({ ...prev, [partNum]: res.outputPath }));
+          }
+        }
+      }
+
+      setRenderingPart(null);
+
+      // Step 2: Concat all rendered parts and overlay BGM & Logo
+      setFullRenderProgress(`Merging all ${allParts.length} parts with BGM & Logo...`);
+      if (api.concatAlurfilmFinalVideo) {
+        const defaultBgm = 'assets/bgm/05_santai_misteri/Piano music in style of Thomas Newman - sad mood - Royalty free music no copyright music.mp3';
+        const res = await api.concatAlurfilmFinalVideo(allParts, {
+          bgmPath: defaultBgm,
+          bgmVolume: 0.18,
+        });
+
+        if (res.error) {
+          setFullRenderError(res.error);
+        } else if (res.filePath) {
+          setFullRenderResult(res);
+          showToast('🎉 Full Movie Recap Render Completed Successfully!');
+        }
+      }
+    } catch (err: any) {
+      setFullRenderError(err.message || 'Full movie render failed');
+    } finally {
+      setIsFullRendering(false);
+      setRenderingPart(null);
+      setFullRenderProgress(null);
+    }
+  };
+
   const currentChunk = chunks.find((c) => c.part === activePart);
   const currentAudio = audios[activePart];
   const currentMapping = mappings[activePart]?.data;
@@ -156,6 +230,85 @@ const AlurfilmRenderStep: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Top Banner: Full Movie Recap Render Controls */}
+      <div className="bg-gradient-to-r from-purple-950/80 via-gray-900 to-indigo-950/80 border border-purple-800/40 p-4 rounded-2xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 mt-3 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-purple-600/20 text-purple-300 border border-purple-500/30 flex items-center justify-center font-bold text-lg shrink-0">
+            🎬
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              Render Full Movie Recap (All {chunks.length} Parts)
+              <span className="px-2 py-0.5 bg-purple-600/30 text-purple-300 text-[10px] font-mono rounded-full border border-purple-500/30">
+                VO 1.8x Boost + BGM 0.18
+              </span>
+            </h3>
+            <p className="text-[11px] text-gray-400">
+              Concatenate all video parts into one master movie recap with Thomas Newman mystery BGM.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleRenderFullMovie}
+          disabled={isFullRendering || chunks.length === 0}
+          className={`px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg transition-all flex items-center gap-2 shrink-0 ${
+            isFullRendering
+              ? 'bg-purple-800 text-purple-200 cursor-not-allowed animate-pulse'
+              : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-purple-600/30'
+          }`}
+        >
+          <span>{isFullRendering ? '⌛' : '🍿'}</span>
+          <span>{isFullRendering ? 'Rendering Full Movie...' : 'Render Full Movie Recap'}</span>
+        </button>
+      </div>
+
+      {isFullRendering && (
+        <div className="bg-gray-950 p-4 rounded-2xl border border-purple-900/60 mt-3 space-y-2.5 shrink-0 shadow-inner">
+          <div className="flex justify-between items-center text-xs font-mono">
+            <span className="text-purple-400 font-bold flex items-center gap-2">
+              <span className="animate-spin">⚡</span> Full Movie Render Progress
+            </span>
+            <span className="text-purple-300 font-bold font-mono text-sm">
+              {renderProgress?.progress || 0}%
+            </span>
+          </div>
+          <div className="w-full bg-gray-900 rounded-full h-3 overflow-hidden border border-purple-950">
+            <div
+              className="bg-gradient-to-r from-purple-600 via-indigo-500 to-emerald-400 h-full transition-all duration-300 shadow-lg shadow-purple-500/50"
+              style={{ width: `${Math.max(3, renderProgress?.progress || 0)}%` }}
+            />
+          </div>
+          <div className="p-2.5 bg-gray-900/90 rounded-lg border border-gray-800 text-[11px] font-mono text-gray-300 leading-relaxed overflow-x-auto select-all">
+            <span className="text-purple-400 font-bold me-2">[FFmpeg LOG]</span>
+            {renderProgress?.message || fullRenderProgress || 'Initializing FFmpeg process...'}
+          </div>
+        </div>
+      )}
+
+      {fullRenderError && (
+        <div className="p-3 bg-red-950/40 border border-red-800/50 rounded-xl text-xs text-red-400 mt-2 font-mono shrink-0">
+          ⚠️ {fullRenderError}
+        </div>
+      )}
+
+      {/* Full Movie Result Player */}
+      {fullRenderResult?.filePath && (
+        <div className="bg-gray-900/90 border border-emerald-800/40 p-4 rounded-2xl shadow-2xl space-y-3 mt-3 shrink-0">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-emerald-400 flex items-center gap-2">
+              <span>🎉</span> Master Video Ready: {fullRenderResult.fileName}
+            </span>
+            <span className="text-[10px] text-gray-400 font-mono">{fullRenderResult.filePath}</span>
+          </div>
+          <video
+            src={`media://content-auto/${encodeURIComponent(fullRenderResult.filePath)}`}
+            controls
+            className="w-full max-h-64 rounded-xl bg-black object-contain border border-gray-800"
+          />
+        </div>
+      )}
 
       {/* Main Grid Workspace with Side Parts List */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-5 flex-1 min-h-0 overflow-hidden">

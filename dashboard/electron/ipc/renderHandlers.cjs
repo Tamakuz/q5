@@ -33,7 +33,10 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
 
     // Convert Alurfilm mapping format if present
     let renderMapping = mapping;
-    if (mapping && mapping.mappings && Array.isArray(mapping.mappings)) {
+    if (Array.isArray(renderMapping)) {
+      renderMapping = renderMapping.find(m => m && m.mappings) || renderMapping[0] || {};
+    }
+    if (renderMapping && renderMapping.mappings && Array.isArray(renderMapping.mappings)) {
       const timelineClips = [];
       let clipIdCounter = 1;
       for (const item of mapping.mappings) {
@@ -123,7 +126,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
 
     if (partFiles.length === 0) return { error: 'Belum ada video part yang dirender.' };
 
-    const finalOutputName = `WV-FILM-${contentId}-FULL-FINAL.mp4`;
+    const finalOutputName = contentId.startsWith('WV-FILM-') ? `${contentId}-FULL-FINAL.mp4` : `WV-FILM-${contentId}-FULL-FINAL.mp4`;
     const finalOutputPath = path.join(outputDir, finalOutputName);
 
     const listFile = path.join(p.TMP_DIR, `concat_list_${Date.now()}.txt`);
@@ -139,16 +142,21 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
 
     let resolvedBgm = bgmPath && fs.existsSync(bgmPath) ? bgmPath : null;
     if (!resolvedBgm) {
-      const assetsDir = path.join(p.PROJECT_ROOT, 'assets');
-      if (fs.existsSync(assetsDir)) {
-        const mp3s = fs.readdirSync(assetsDir).filter(f => f.toLowerCase().endsWith('.mp3'));
-        const thomasNewman = mp3s.find(f => f.toLowerCase().includes('thomas newman'));
-        if (thomasNewman) resolvedBgm = path.join(assetsDir, thomasNewman);
-        else if (mp3s.length > 0) resolvedBgm = path.join(assetsDir, mp3s[0]);
+      const thomasNewmanPath = path.join(p.PROJECT_ROOT, 'assets', 'bgm', '05_santai_misteri', 'Piano music in style of Thomas Newman - sad mood - Royalty free music no copyright music.mp3');
+      if (fs.existsSync(thomasNewmanPath)) {
+        resolvedBgm = thomasNewmanPath;
+      } else {
+        const assetsDir = path.join(p.PROJECT_ROOT, 'assets');
+        if (fs.existsSync(assetsDir)) {
+          const mp3s = fs.readdirSync(assetsDir).filter(f => f.toLowerCase().endsWith('.mp3'));
+          const thomasNewman = mp3s.find(f => f.toLowerCase().includes('thomas newman'));
+          if (thomasNewman) resolvedBgm = path.join(assetsDir, thomasNewman);
+          else if (mp3s.length > 0) resolvedBgm = path.join(assetsDir, mp3s[0]);
+        }
       }
     }
 
-    const vol = bgmVolume ?? 0.10;
+    const vol = bgmVolume ?? 0.18;
     const opacity = logoOpacity ?? 0.6;
     const margin = logoMargin ?? 40;
     const scaleHeight = logoScale ?? 60;
@@ -181,10 +189,13 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
     }
 
     if (bgmIndex !== null) {
-      filterParts.push(`[0:a]volume=1.0[vo]`);
+      filterParts.push(`[0:a]volume=1.8[vo]`);
       filterParts.push(`[${bgmIndex}:a]volume=${vol},aloop=loop=-1:size=2e+09[bgm]`);
       filterParts.push(`[vo][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]`);
       aMap = '[aout]';
+    } else {
+      filterParts.push(`[0:a]volume=1.8[vo]`);
+      aMap = '[vo]';
     }
 
     if (filterParts.length > 0) args.push('-filter_complex', filterParts.join(';'));
@@ -198,25 +209,105 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
 
     args.push('-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', finalOutputPath);
 
+    let estimatedTotalSec = 0;
+    for (const pf of partFiles) {
+      try {
+        const meta = await ffmpeg.getVideoMetaHelper(pf);
+        if (meta && meta.duration) estimatedTotalSec += meta.duration;
+      } catch {}
+    }
+    if (!estimatedTotalSec) estimatedTotalSec = 600;
+
+    const mainWindow = getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('render-progress', {
+        stage: 'concat',
+        progress: 0,
+        message: `[FFmpeg] Starting full movie concat for ${partFiles.length} parts...`
+      });
+    }
+
     return new Promise((resolve) => {
+      const startTime = Date.now();
       const child = spawn(ffmpeg.ffmpegPath, args, { cwd: p.PROJECT_ROOT });
       let stderr = '';
-      child.stderr.on('data', (d) => { stderr += d.toString(); });
+      let currentProgress = 5;
+
+      child.stderr.on('data', (d) => {
+        const text = d.toString();
+        stderr += text;
+
+        const timeMatch = text.match(/time=(\d{2}:\d{2}:\d{2}\.\d+)/);
+        if (timeMatch && estimatedTotalSec > 0) {
+          const timeParts = timeMatch[1].split(':');
+          const currentSec = parseFloat(timeParts[0]) * 3600 + parseFloat(timeParts[1]) * 60 + parseFloat(timeParts[2]);
+          const pct = Math.min(0.99, Math.max(0.05, currentSec / estimatedTotalSec));
+          currentProgress = Math.round(pct * 100);
+        }
+
+        const lines = text.split(/[\r\n]+/);
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line) continue;
+          if (line.includes('frame=') || line.includes('size=') || line.includes('time=') || line.includes('FFmpeg') || line.includes('Injecting')) {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('render-progress', {
+                stage: 'concat',
+                progress: currentProgress,
+                message: line
+              });
+            }
+          }
+        }
+      });
+
       child.on('close', (code) => {
         try { fs.unlinkSync(listFile); } catch { }
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
         if (code === 0) {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('render-progress', {
+              stage: 'done',
+              progress: 100,
+              message: `🎉 [Alurfilm Engine] Full Movie Recap Render Complete in ${elapsed}s!`
+            });
+          }
           resolve({ filePath: finalOutputPath, fileName: finalOutputName, mediaUrl: media.mediaUrl(finalOutputPath) });
         } else {
           const lastErr = stderr.split('\n').filter(Boolean).slice(-10).join(' | ');
-          resolve({ error: `FFmpeg final render exit ${code}: ${lastErr}` });
+          const errMsg = `FFmpeg final render exit ${code}: ${lastErr}`;
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('render-progress', {
+              stage: 'error',
+              progress: 0,
+              message: `❌ ${errMsg}`
+            });
+          }
+          resolve({ error: errMsg });
         }
       });
-      child.on('error', (e) => resolve({ error: e.message }));
+
+      child.on('error', (e) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('render-progress', {
+            stage: 'error',
+            progress: 0,
+            message: `❌ ${e.message}`
+          });
+        }
+        resolve({ error: e.message });
+      });
     });
   });
 
   // ─── Render Alurfilm Video (per-part) ──────────────────
-  ipcMain.handle('render-alurfilm-video', async (_event, { part, mapping, videoPath, audioPath, bgmPath, bgmVolume, logoPath, logoOpacity, logoMargin }) => {
+  ipcMain.handle('render-alurfilm-video', async (_event, args = {}) => {
+    const part = args.part || args.chunkPart || 1;
+    const mapping = args.mapping || args.mappingData;
+    const videoPath = args.videoPath;
+    const audioPath = args.audioPath;
+    const { bgmPath, bgmVolume, logoPath, logoOpacity, logoMargin } = args;
+
     if (!mapping || !videoPath) return { error: 'Missing Alurfilm mapping or video path.' };
 
     const contentId = p.getOrGenerateContentId('longform');

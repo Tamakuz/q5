@@ -23,6 +23,14 @@ function parseHHMMSS(str: string): number {
   return parseFloat(str) || 0;
 }
 
+function formatBytes(bytes?: number): string {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
+
 const AlurfilmSplitterStep: React.FC = () => {
   const [uploadingMaster, setUploadingMaster] = useState<boolean>(false);
   const [contentId, setContentId] = useState<string | null>(null);
@@ -35,6 +43,7 @@ const AlurfilmSplitterStep: React.FC = () => {
   const [endTime, setEndTime] = useState<string>('00:00:00');
   
   const [splitting, setSplitting] = useState<boolean>(false);
+  const [compressingParts, setCompressingParts] = useState<Record<number, boolean>>({});
   const [splitProgress, setSplitProgress] = useState<{
     currentPart: number;
     totalParts: number;
@@ -189,6 +198,30 @@ const AlurfilmSplitterStep: React.FC = () => {
       showToast(`🗑️ Part #${chunk.part} berhasil dihapus.`);
     } catch (err: any) {
       setError(`Gagal menghapus Part #${chunk.part}: ${err.message}`);
+    }
+  };
+
+  const handleCompressChunk = async (chunk: AlurfilmChunk) => {
+    try {
+      setCompressingParts((prev) => ({ ...prev, [chunk.part]: true }));
+      showToast(`🗜️ Mengompres Part #${chunk.part}... Mohon tunggu.`);
+
+      const updated = await api.compressAlurfilmChunk({
+        part: chunk.part,
+        filePath: chunk.filePath,
+      });
+
+      setChunks((prev) =>
+        prev.map((c) => (c.part === chunk.part ? { ...c, ...updated } : c))
+      );
+      if (selectedChunk?.part === chunk.part) {
+        setSelectedChunk((prev) => (prev ? { ...prev, ...updated } : null));
+      }
+      showToast(`✅ Part #${chunk.part} berhasil dikompres (${formatBytes(updated.size)})!`);
+    } catch (err: any) {
+      setError(`Gagal mengompres Part #${chunk.part}: ${err.message}`);
+    } finally {
+      setCompressingParts((prev) => ({ ...prev, [chunk.part]: false }));
     }
   };
 
@@ -420,13 +453,43 @@ const AlurfilmSplitterStep: React.FC = () => {
                     </span>
                     <div className="min-w-0">
                       <h4 className="text-xs font-bold text-white truncate font-mono">{chunk.name}</h4>
-                      <p className="text-[11px] text-gray-500 font-mono mt-0.5">
-                        Duration: <strong className="text-purple-400">{chunk.duration ? `${chunk.duration.toFixed(1)}s` : '~10 min'}</strong>
+                      <p className="text-[11px] text-gray-400 font-mono mt-0.5 flex items-center gap-1.5 flex-wrap">
+                        <span>Duration: <strong className="text-purple-400">{chunk.durationSec ? `${(chunk.durationSec / 60).toFixed(1)} min` : chunk.duration ? `${chunk.duration.toFixed(1)}s` : '~20 min'}</strong></span>
+                        <span>•</span>
+                        <span>Size: <strong className={chunk.size > 400 * 1024 * 1024 && !chunk.isCompressed ? 'text-amber-400 font-bold' : 'text-gray-200'}>{formatBytes(chunk.size)}</strong></span>
+                        {chunk.isCompressed ? (
+                          <span className="text-[10px] bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 px-1.5 py-0.5 rounded-md font-bold">
+                            ✓ Compressed
+                          </span>
+                        ) : chunk.size > 400 * 1024 * 1024 ? (
+                          <span className="text-[10px] bg-amber-950/80 text-amber-400 border border-amber-800/60 px-1.5 py-0.5 rounded-md font-bold">
+                            &gt; 400MB
+                          </span>
+                        ) : null}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCompressChunk(chunk);
+                      }}
+                      disabled={compressingParts[chunk.part]}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border font-mono transition-all flex items-center gap-1 ${
+                        chunk.isCompressed
+                          ? 'bg-emerald-950/40 hover:bg-emerald-900/80 text-emerald-300 border-emerald-800/60'
+                          : 'bg-purple-950/40 hover:bg-purple-900/80 text-purple-300 border-purple-800/60'
+                      }`}
+                      title="Kompres file part ini agar < 400 MB"
+                    >
+                      {compressingParts[chunk.part]
+                        ? '⏳ Compressing...'
+                        : chunk.isCompressed
+                          ? '⚡ Re-compress'
+                          : '🗜️ Compress'}
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

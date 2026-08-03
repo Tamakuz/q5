@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('split-alurfilm-master-range', { masterPath, startSec, durationSec, partNum }),
   listAlurfilmChunks: (modeContentId) => ipcRenderer.invoke('list-alurfilm-chunks', modeContentId),
   deleteAlurfilmChunk: (part) => ipcRenderer.invoke('delete-alurfilm-chunk', { part }),
+  compressAlurfilmChunk: (opts) => ipcRenderer.invoke('compress-alurfilm-chunk', opts),
   analyzeAlurfilmChunk: (chunkPath, chunkPart, previousContext) =>
     ipcRenderer.invoke('analyze-alurfilm-chunk', { chunkPath, chunkPart, previousContext }),
   listAlurfilmAnalyses: (modeContentId) => ipcRenderer.invoke('list-alurfilm-analyses', modeContentId),
@@ -137,12 +138,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('list-alurfilm-mappings', modeContentId),
   listAlurfilmRenders: (modeContentId) =>
     ipcRenderer.invoke('list-alurfilm-renders', modeContentId),
-  renderAlurfilmVideo: (part, mapping, videoPath, audioPath, opts) =>
-    ipcRenderer.invoke('render-alurfilm-video', { part, mapping, videoPath, audioPath, ...opts }),
+  renderAlurfilmPart: (part, videoPath, audioPath, mappingData, opts = {}) =>
+    ipcRenderer.invoke('render-alurfilm-video', { part, chunkPart: part, mapping: mappingData, mappingData, videoPath, audioPath, ...opts }),
+  renderAlurfilmVideo: (part, mapping, videoPath, audioPath, opts = {}) =>
+    ipcRenderer.invoke('render-alurfilm-video', { part, chunkPart: part, mapping, mappingData: mapping, videoPath, audioPath, ...opts }),
   listProjectAssets: () =>
     ipcRenderer.invoke('list-project-assets'),
   concatAlurfilmFinalVideo: (parts, opts) =>
     ipcRenderer.invoke('concat-alurfilm-final-video', { parts, ...opts }),
+  generateAlurfilmMetadata: (opts) =>
+    ipcRenderer.invoke('generate-alurfilm-metadata', opts || {}),
+  saveAlurfilmMetadata: (opts) =>
+    ipcRenderer.invoke('save-alurfilm-metadata', opts || {}),
+  getAlurfilmMetadata: (modeContentId) =>
+    ipcRenderer.invoke('get-alurfilm-metadata', modeContentId),
+  onAlurfilmMetadataChunk: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('alurfilm-metadata-chunk', handler);
+    return () => ipcRenderer.removeListener('alurfilm-metadata-chunk', handler);
+  },
 
   // Generic project file helpers
   getContentId: (mode) => ipcRenderer.invoke('get-content-id', mode),

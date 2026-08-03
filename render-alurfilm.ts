@@ -108,7 +108,7 @@ program
       bgmFile = null;
     }
 
-    const bgmVolume = parseFloat(opts.bgmVolume || '0.10') || 0.10;
+    const bgmVolume = parseFloat(opts.bgmVolume || '0.18') || 0.18;
     const logoOpacity = parseFloat(opts.logoOpacity || '0.6') || 0.6;
     const logoMargin = parseInt(opts.logoMargin || '40', 10) || 40;
     const logoScale = parseInt(opts.logoScale || '60', 10) || 60;
@@ -305,12 +305,13 @@ program
 
       // Audio filter for VO + BGM mixing
       if (voIndex !== null && bgmIndex !== null) {
-        filterParts.push(`[${voIndex}:a]volume=1.0[vo]`);
+        filterParts.push(`[${voIndex}:a]volume=1.8[vo]`);
         filterParts.push(`[${bgmIndex}:a]volume=${bgmVolume},aloop=loop=-1:size=2e+09,afade=t=out:st=${Math.max(0, totalDur - 2)}:d=2[bgm]`);
         filterParts.push(`[vo][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]`);
         aMap = '[aout]';
       } else if (voIndex !== null) {
-        aMap = `${voIndex}:a`;
+        filterParts.push(`[${voIndex}:a]volume=1.8[vo]`);
+        aMap = '[vo]';
       } else if (bgmIndex !== null) {
         filterParts.push(`[${bgmIndex}:a]volume=${bgmVolume},aloop=loop=-1:size=2e+09,afade=t=out:st=${Math.max(0, totalDur - 2)}:d=2[bgm]`);
         aMap = '[bgm]';

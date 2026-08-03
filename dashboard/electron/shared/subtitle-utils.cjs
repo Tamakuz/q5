@@ -1,6 +1,6 @@
 // dashboard/electron/shared/subtitle-utils.cjs
-// Canonical ASS subtitle utility functions shared between Electron backend
-// and TypeScript frontend (via bundler CJS interop + subtitle-utils.d.ts).
+// Canonical ASS & SRT subtitle utility functions shared between Electron backend
+// and TypeScript frontend.
 
 /**
  * Convert Hex color string (#RRGGBB) to ASS color format (&H00BBGGRR&).
@@ -36,7 +36,6 @@ function assTime(sec) {
 
 /**
  * Clean all punctuation marks from a word string for subtitle display.
- * Uses the more comprehensive regex from the TypeScript version.
  * @param {string} word
  * @returns {string}
  */
@@ -45,4 +44,84 @@ function cleanPunct(word) {
   return word.replace(/[.,:;!?\-"“”'’`()[\]{}]/g, '').trim();
 }
 
-module.exports = { hexToAssColor, assTime, cleanPunct };
+/**
+ * Parse an SRT timestamp string (e.g. "00:01:23,456" or "01:23.456") to seconds float.
+ * @param {string} tsStr
+ * @returns {number}
+ */
+function parseSrtTimestampToSeconds(tsStr) {
+  if (!tsStr) return 0;
+  const clean = tsStr.replace(',', '.').trim();
+  const parts = clean.split(':');
+  if (parts.length === 3) {
+    const hrs = parseFloat(parts[0]) || 0;
+    const mins = parseFloat(parts[1]) || 0;
+    const secs = parseFloat(parts[2]) || 0;
+    return hrs * 3600 + mins * 60 + secs;
+  }
+  if (parts.length === 2) {
+    const mins = parseFloat(parts[0]) || 0;
+    const secs = parseFloat(parts[1]) || 0;
+    return mins * 60 + secs;
+  }
+  return parseFloat(clean) || 0;
+}
+
+/**
+ * Parse SRT text string into standardized transcript entry objects array.
+ * @param {string} srtContent
+ * @returns {Array<{ id: number, start_seconds: number, end_seconds: number, timestamp_minute: string, text: string, speaker: string }>}
+ */
+function parseSrtToEntries(srtContent) {
+  if (!srtContent || typeof srtContent !== 'string') return [];
+  const normalized = srtContent
+    .replace(/^```(?:srt)?\s*\n?/i, '')
+    .replace(/\n?```\s*$/, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .trim();
+
+  const blocks = normalized.split(/\n\s*\n/);
+  const entries = [];
+
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i].trim();
+    if (!block) continue;
+    const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+    if (lines.length < 2) continue;
+
+    const timeLineIdx = lines.findIndex((l) => l.includes('-->'));
+    if (timeLineIdx === -1) continue;
+
+    const timeLine = lines[timeLineIdx];
+    const parts = timeLine.split('-->');
+    if (parts.length < 2) continue;
+
+    const startSec = parseSrtTimestampToSeconds(parts[0]);
+    const endSec = parseSrtTimestampToSeconds(parts[1]);
+
+    const textLines = lines.slice(timeLineIdx + 1);
+    const text = textLines.join(' ').trim();
+    if (!text) continue;
+
+    const m1 = Math.floor(startSec / 60);
+    const s1 = Math.floor(startSec % 60);
+    const m2 = Math.floor(endSec / 60);
+    const s2 = Math.floor(endSec % 60);
+    const pad = (n) => String(n).padStart(2, '0');
+    const tsMin = `${pad(m1)}:${pad(s1)} - ${pad(m2)}:${pad(s2)}`;
+
+    entries.push({
+      id: entries.length + 1,
+      start_seconds: Number(startSec.toFixed(3)),
+      end_seconds: Number(endSec.toFixed(3)),
+      timestamp_minute: tsMin,
+      text: text,
+      speaker: 'Narator',
+    });
+  }
+
+  return entries;
+}
+
+module.exports = { hexToAssColor, assTime, cleanPunct, parseSrtTimestampToSeconds, parseSrtToEntries };

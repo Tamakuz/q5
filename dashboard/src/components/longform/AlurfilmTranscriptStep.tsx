@@ -299,23 +299,10 @@ const AlurfilmTranscriptStep: React.FC = () => {
     try {
       let raw = pasteJsonInput.trim();
       if (raw.startsWith('```')) {
-        raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+        raw = raw.replace(/^```(?:json|srt)?\s*\n?/i, '').replace(/\n?```\s*$/, '');
       }
 
-      let parsed: any = null;
-      try {
-        parsed = JSON.parse(raw);
-      } catch (pErr: any) {
-        setError(`JSON Syntax Error: ${pErr.message}`);
-        return;
-      }
-
-      if (!parsed) {
-        setError('Transcript JSON cannot be empty');
-        return;
-      }
-
-      const res = await api.saveAlurfilmTranscript(contentId || 'default', activePart, parsed);
+      const res = await api.saveAlurfilmTranscript(contentId || 'default', activePart, raw);
 
       if (res && res.multiPart && Array.isArray(res.savedResults)) {
         const savedMap: Record<number, AlurfilmTranscriptResult> = {};
@@ -334,7 +321,7 @@ const AlurfilmTranscriptStep: React.FC = () => {
         setTranscripts((prev) => ({ ...prev, ...savedMap }));
         setShowImportModal(false);
         setPasteJsonInput('');
-        showToast(`🎉 Saved Transcripts for Parts ${savedPartNums.map((p) => `#${p}`).join(', ')}!`);
+        showToast(`🎉 Saved Transcripts (SRT/JSON) for Parts ${savedPartNums.map((p) => `#${p}`).join(', ')}!`);
       } else if (res) {
         const rawData = res.data || res.entries || [];
         let prevEnd = 0;
@@ -347,7 +334,7 @@ const AlurfilmTranscriptStep: React.FC = () => {
         setTranscripts((prev) => ({ ...prev, [activePart]: resNorm }));
         setShowImportModal(false);
         setPasteJsonInput('');
-        showToast(`🎉 Saved Transcript for Part #${activePart}!`);
+        showToast(`🎉 Saved Transcript (SRT/JSON) for Part #${activePart}!`);
       }
     } catch (err: any) {
       console.error('Save Transcript Error:', err);
@@ -456,15 +443,15 @@ const AlurfilmTranscriptStep: React.FC = () => {
       }
     }
 
-    // Find active entry with gap tolerance hysteresis (keeps line highlighted during brief silence gaps)
+    // Find active entry with seamless gap continuity (keeps line highlighted until next sentence starts)
     for (let i = 0; i < currentEntries.length; i++) {
       const curr = currentEntries[i];
       const next = currentEntries[i + 1];
       const activeUntil = next
-        ? Math.min(curr.end_seconds + 1.2, next.start_seconds)
-        : curr.end_seconds + 2.0;
+        ? Math.max(curr.end_seconds, next.start_seconds)
+        : curr.end_seconds + 3.0;
 
-      if (timeToMatch >= curr.start_seconds - 0.2 && timeToMatch < activeUntil) {
+      if (timeToMatch >= (curr.start_seconds - 0.2) && timeToMatch < activeUntil) {
         return curr.id;
       }
     }
@@ -928,7 +915,7 @@ const AlurfilmTranscriptStep: React.FC = () => {
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <span>📋</span> Paste / Edit Transcript JSON (Part #{activePart})
+              <span>📋</span> Paste / Edit Transcript Subtitle SRT / JSON (Part #{activePart})
             </h3>
 
             {currentAudio?.parts && currentAudio.parts.length > 1 && (
@@ -937,7 +924,7 @@ const AlurfilmTranscriptStep: React.FC = () => {
                   <span>💡</span> Fitur Multi-Part Audio Auto-Split Active:
                 </p>
                 <p className="text-gray-300 text-[10px]">
-                  Kamu bisa paste <strong>Grouped Object JSON</strong> <code className="text-purple-300">{`{ "1": [...], "2": [...] }`}</code>. Sistem akan otomatis memecah & mengisi transkrip untuk Parts #{currentAudio.parts.join(', #')} sekaligus!
+                  Kamu bisa paste format <strong>SRT Subtitle</strong> atau <strong>JSON Object</strong>. Sistem akan otomatis memecah & memetakan transkrip ke Parts #{currentAudio.parts.join(', #')}!
                 </p>
               </div>
             )}
@@ -945,10 +932,7 @@ const AlurfilmTranscriptStep: React.FC = () => {
             <textarea
               value={pasteJsonInput}
               onChange={(e) => setPasteJsonInput(e.target.value)}
-              placeholder={currentAudio?.parts && currentAudio.parts.length > 1
-                ? `{\n  "1": [\n    { "id": 1, "start_seconds": 0.0, "end_seconds": 3.4, "timestamp_minute": "00:00 - 00:03", "text": "..." }\n  ],\n  "2": [\n    { "id": 1, "start_seconds": 105.2, "end_seconds": 109.1, "timestamp_minute": "01:45 - 01:49", "text": "..." }\n  ]\n}`
-                : `[\n  {\n    "id": 1,\n    "start_seconds": 0.0,\n    "end_seconds": 3.4,\n    "timestamp_minute": "00:00 - 00:03",\n    "text": "..."\n  }\n]`
-              }
+              placeholder={`Format SRT Subtitle:\n1\n00:00:00,500 --> 00:00:03,800\nBapak ini terkejut saat melihat si doi datang.\n\n2\n00:00:04,100 --> 00:00:07,200\nTernyata si doi membawa pesan rahasia...`}
               className="w-full h-64 bg-gray-950 text-gray-200 text-xs font-mono p-3 rounded-xl border border-gray-800 focus:border-purple-500 focus:outline-none resize-none"
             />
             <div className="flex justify-end gap-2">

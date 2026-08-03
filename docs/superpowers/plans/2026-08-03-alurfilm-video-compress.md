@@ -1,209 +1,180 @@
-# Alurfilm Video Split Smart Compression Implementation Plan
+# Fast Split & On-Demand Per-Chunk Video Compression Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement integrated split and smart compression for Alurfilm longform video chunks so that every split chunk is compressed with high visual quality (`CRF 20`) to `input/alurfilm/compress/` and strictly kept below 400 MB.
+**Goal:** Revert initial splitting back to fast stream copy (`-c copy`) into `input/alurfilm/chunks/`, display chunk file sizes in the UI, and add an on-demand "Compress" button for individual chunks to compress into `input/alurfilm/compress/` (< 400 MB).
 
-**Architecture:** Extend Electron IPC alurfilm handlers to calculate dynamic FFmpeg bitrate caps based on chunk duration and a 380 MB target budget. Direct output files to `input/alurfilm/compress/` and update metadata across the pipeline.
+**Architecture:** 
+1. `alurfilmHandlers.cjs`: `splitAlurfilmVideoHelper` uses fast stream copy to `chunks/`.
+2. Add IPC `compress-alurfilm-chunk` to compress a specific chunk into `compress/` with CRF 20 & maxrate limit.
+3. `list-alurfilm-chunks`: Checks `compress/` first, falls back to `chunks/`, adding size & `isCompressed` metadata.
+4. `AlurfilmSplitterStep.tsx` & `electron-api.ts`: Displays file size (e.g., `350.4 MB`), `isCompressed` badge, and a "🗜️ Compress" button per chunk.
 
-**Tech Stack:** Electron (Node.js CJS IPC handlers), FFmpeg CLI spawn (`libx264`, `aac`), React / TypeScript (Alurfilm UI steps).
+**Tech Stack:** Electron (IPC), Node.js (fs, child_process), React / TypeScript (Alurfilm UI).
 
 ## Global Constraints
-- Video chunk target size: Max 400 MB (safety limit 380 MB in bitrate formula).
-- Output directory: `PROJECT_ROOT/input/alurfilm/compress`.
-- Quality: `CRF 20`, `-preset medium` (fallback to `-preset faster`).
+- Initial split must be fast stream-copy (`-c copy`).
+- Compression target size: Max 400 MB (380 MB safety limit formula).
+- Compressed outputs directory: `input/alurfilm/compress/`.
 
 ---
 
-### Task 1: Path Registration for Compression Directory
+### Task 1: Revert Splitting to Fast `-c copy` & Add `compress-alurfilm-chunk` IPC Handler
 
 **Files:**
-- Modify: `dashboard/electron/shared/paths.cjs:13-35`
+- Modify: `dashboard/electron/ipc/alurfilmHandlers.cjs`
+- Modify: `dashboard/electron/preload.cjs`
+- Modify: `dashboard/src/electron-api.ts`
 
 **Interfaces:**
-- Consumes: `PROJECT_ROOT`
-- Produces: `ALURFILM_COMPRESS_DIR` (`PROJECT_ROOT/input/alurfilm/compress`)
+- Consumes: `masterPath`, `part`, `filePath`
+- Produces: `compress-alurfilm-chunk` IPC handler returning updated chunk metadata object.
 
-- [ ] **Step 1: Check existing path declarations**
+- [ ] **Step 1: Revert `splitAlurfilmVideoHelper` and `split-alurfilm-master-range` to fast `-c copy`**
 
-Inspect `dashboard/electron/shared/paths.cjs` around line 14 to verify `ALURFILM_CHUNKS_DIR` definition.
-
-- [ ] **Step 2: Add `ALURFILM_COMPRESS_DIR` definition and directory auto-creation**
-
-In `dashboard/electron/shared/paths.cjs`:
+In `dashboard/electron/ipc/alurfilmHandlers.cjs`:
+Update `splitAlurfilmVideoHelper` to save to `p.ALURFILM_CHUNKS_DIR` using `-c copy`:
 ```javascript
-const ALURFILM_COMPRESS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'compress');
-```
-Add `ALURFILM_COMPRESS_DIR` to the directory initialization array and exports list.
-
-- [ ] **Step 3: Verify directory creation script**
-
-Run node command to verify paths exports:
-```bash
-node -e "const p = require('./dashboard/electron/shared/paths.cjs'); console.log(p.ALURFILM_COMPRESS_DIR);"
-```
-Expected output: `/home/jovan/project/content-auto/input/alurfilm/compress`
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add dashboard/electron/shared/paths.cjs
-git commit -m "feat(alurfilm): add ALURFILM_COMPRESS_DIR path registration"
-```
-
----
-
-### Task 2: Smart Compression & Dynamic Maxrate FFmpeg Integration
-
-**Files:**
-- Modify: `dashboard/electron/ipc/alurfilmHandlers.cjs:26-150`
-
-**Interfaces:**
-- Consumes: `p.ALURFILM_COMPRESS_DIR`, `ffmpeg.ffmpegPath`, `masterPath`, `startSec`, `durationSec`
-- Produces: Compressed MP4 chunk files in `input/alurfilm/compress/`, chunk metadata objects with `filePath` pointing to compressed file.
-
-- [ ] **Step 1: Implement dynamic bitrate calculation helper in `alurfilmHandlers.cjs`**
-
-Add helper function `calculateVideoMaxrateKbps(durationSec)`:
-```javascript
-function calculateVideoMaxrateKbps(durationSec) {
-  const safeMegabytes = 380;
-  const totalBits = safeMegabytes * 8 * 1024 * 1024;
-  const duration = Math.max(1, durationSec);
-  const totalKbps = Math.floor(totalBits / (1024 * duration));
-  const audioKbps = 128;
-  return Math.max(500, totalKbps - audioKbps);
-}
-```
-
-- [ ] **Step 2: Update `splitAlurfilmVideoHelper` to produce compressed outputs**
-
-In `splitAlurfilmVideoHelper`:
-Change `outputName` and `destPath`:
-```javascript
-const destPath = path.join(p.ALURFILM_COMPRESS_DIR, outputName);
-```
-
-Update FFmpeg spawn arguments to include smart CRF & maxrate capping:
-```javascript
-const maxrateKbps = calculateVideoMaxrateKbps(partDurationSec);
-const bufsizeKbps = maxrateKbps * 2;
-
+const destPath = path.join(p.ALURFILM_CHUNKS_DIR, outputName);
 const args = [
   '-ss', String(partStartSec),
   '-i', masterPath,
   '-t', String(partDurationSec),
-  '-c:v', 'libx264',
-  '-crf', '20',
-  '-preset', 'medium',
-  '-maxrate', `${maxrateKbps}k`,
-  '-bufsize', `${bufsizeKbps}k`,
-  '-c:a', 'aac',
-  '-b:a', '128k',
+  '-c', 'copy',
   '-avoid_negative_ts', 'make_zero',
   '-y',
   destPath
 ];
 ```
+Fallback on code !== 0: `-c:v libx264 -c:a aac -preset ultrafast`.
 
-Fallback args (if code !== 0):
+- [ ] **Step 2: Add `compress-alurfilm-chunk` IPC handler in `alurfilmHandlers.cjs`**
+
+Implement `compress-alurfilm-chunk` handler:
 ```javascript
-const fallbackArgs = [
-  '-ss', String(partStartSec),
-  '-i', masterPath,
-  '-t', String(partDurationSec),
-  '-c:v', 'libx264',
-  '-crf', '20',
-  '-preset', 'faster',
-  '-maxrate', `${maxrateKbps}k`,
-  '-bufsize', `${bufsizeKbps}k`,
-  '-c:a', 'aac',
-  '-b:a', '128k',
-  '-avoid_negative_ts', 'make_zero',
-  '-y',
-  destPath
-];
-```
+ipcMain.handle('compress-alurfilm-chunk', async (_event, { part, filePath }) => {
+  const contentId = p.getOrGenerateContentId('longform');
+  const partStr = String(part).padStart(2, '0');
+  const outputName = `${contentId}_part_${partStr}.mp4`;
+  const destPath = path.join(p.ALURFILM_COMPRESS_DIR, outputName);
 
-- [ ] **Step 3: Add size validation check (< 400MB)**
-
-After `ffmpegProc` completes, check `stat.size`:
-```javascript
-const maxSizeBytes = 400 * 1024 * 1024;
-if (fs.existsSync(destPath)) {
-  let stat = fs.statSync(destPath);
-  if (stat.size > maxSizeBytes) {
-    // 2nd pass with 80% bitrate
-    const reducedMaxrate = Math.floor(maxrateKbps * 0.8);
-    const pass2Args = [
-      '-ss', String(partStartSec),
-      '-i', masterPath,
-      '-t', String(partDurationSec),
-      '-c:v', 'libx264',
-      '-crf', '22',
-      '-preset', 'faster',
-      '-maxrate', `${reducedMaxrate}k`,
-      '-bufsize', `${reducedMaxrate * 2}k`,
-      '-c:a', 'aac',
-      '-b:a', '128k',
-      '-avoid_negative_ts', 'make_zero',
-      '-y',
-      destPath
-    ];
-    await new Promise((res, rej) => {
-      const p2 = spawn(ffmpeg.ffmpegPath, pass2Args);
-      p2.on('close', (c) => c === 0 ? res() : rej(new Error('Pass 2 re-compression failed')));
-      p2.on('error', rej);
-    });
+  if (!fs.existsSync(p.ALURFILM_COMPRESS_DIR)) {
+    fs.mkdirSync(p.ALURFILM_COMPRESS_DIR, { recursive: true });
   }
-}
+
+  const meta = await ffmpeg.getVideoMetaHelper(filePath).catch(() => null);
+  const durationSec = meta?.duration || 1200;
+
+  await encodeAndCompressChunk(ffmpeg.ffmpegPath, filePath, 0, durationSec, destPath);
+
+  const stat = fs.statSync(destPath);
+  return {
+    part: Number(part),
+    name: outputName,
+    size: stat.size,
+    durationSec: durationSec,
+    filePath: destPath,
+    url: media.mediaUrl(destPath),
+    isCompressed: true
+  };
+});
 ```
 
-- [ ] **Step 4: Verify syntax & run a dry execution test on helper functions**
+- [ ] **Step 3: Update `list-alurfilm-chunks` in `alurfilmHandlers.cjs`**
 
-Run node syntax check:
-```bash
-node -c dashboard/electron/ipc/alurfilmHandlers.cjs
+In `list-alurfilm-chunks`:
+Look for files in `ALURFILM_COMPRESS_DIR` first (with `isCompressed: true`). If missing, look in `ALURFILM_CHUNKS_DIR` (`isCompressed: false`). Include `size` and `isCompressed` properties in the returned objects.
+
+- [ ] **Step 4: Expose `compressAlurfilmChunk` in `preload.cjs` & `electron-api.ts`**
+
+In `dashboard/electron/preload.cjs`:
+```javascript
+compressAlurfilmChunk: (opts) => ipcRenderer.invoke('compress-alurfilm-chunk', opts),
 ```
-Expected output: No syntax error.
 
-- [ ] **Step 5: Commit**
-
-```bash
-git add dashboard/electron/ipc/alurfilmHandlers.cjs
-git commit -m "feat(alurfilm): integrate smart FFmpeg compression for video splits (<400MB)"
-```
+In `dashboard/src/electron-api.ts`:
+Add `isCompressed?: boolean;` to `AlurfilmChunk` interface and declare `compressAlurfilmChunk(opts: { part: number; filePath: string }): Promise<AlurfilmChunk>;`.
 
 ---
 
-### Task 3: UI Splitter & Downstream Reference Verification
+### Task 2: UI File Size Display & Per-Chunk "Compress" Button (`AlurfilmSplitterStep.tsx`)
 
 **Files:**
 - Modify: `dashboard/src/components/longform/AlurfilmSplitterStep.tsx`
 
 **Interfaces:**
-- Consumes: `chunk.filePath`, `chunk.size`
-- Produces: Formatted file size in MB and status labels.
+- Consumes: `chunk.size`, `chunk.isCompressed`, `api.compressAlurfilmChunk`
+- Produces: Interactive chunk list item with formatted size (e.g. `245 MB`), compression badge, and individual Compress button.
 
-- [ ] **Step 1: Check `AlurfilmSplitterStep.tsx` chunk rendering**
+- [ ] **Step 1: Add file size formatting helper in `AlurfilmSplitterStep.tsx`**
 
-Inspect chunk size formatting display to ensure MB size is shown clearly with compressed path tag.
+```typescript
+function formatBytes(bytes?: number): string {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
+```
 
-- [ ] **Step 2: Verify `split-alurfilm-master-range` and chunk listing IPC handlers use `ALURFILM_COMPRESS_DIR`**
+- [ ] **Step 2: Add compression state tracking for individual chunks**
 
-Inspect `dashboard/electron/ipc/alurfilmHandlers.cjs` for any other `ALURFILM_CHUNKS_DIR` references when listing or processing chunks and ensure fallback/consistency with `ALURFILM_COMPRESS_DIR`.
+Add state in `AlurfilmSplitterStep.tsx`:
+```typescript
+const [compressingParts, setCompressingParts] = useState<Record<number, boolean>>({});
+```
 
-- [ ] **Step 3: Test build / compile check**
+- [ ] **Step 3: Implement `handleCompressChunk` function**
+
+```typescript
+const handleCompressChunk = async (chunk: AlurfilmChunk) => {
+  try {
+    setCompressingParts(prev => ({ ...prev, [chunk.part]: true }));
+    showToast(`🗜️ Mengompres Part #${chunk.part}... Mohon tunggu.`);
+
+    const updated = await api.compressAlurfilmChunk({
+      part: chunk.part,
+      filePath: chunk.filePath
+    });
+
+    setChunks(prev => prev.map(c => c.part === chunk.part ? { ...c, ...updated } : c));
+    showToast(`✅ Part #${chunk.part} berhasil dikompres (${formatBytes(updated.size)})!`);
+  } catch (err: any) {
+    setError(`Gagal mengompres Part #${chunk.part}: ${err.message}`);
+  } finally {
+    setCompressingParts(prev => ({ ...prev, [chunk.part]: false }));
+  }
+};
+```
+
+- [ ] **Step 4: Render file size, status badges, and Compress button in list items**
+
+In chunk item JSX:
+Display formatted size: `<span className="text-gray-400 font-mono"> | {formatBytes(chunk.size)}</span>`.
+Add Compress button beside Delete button:
+```tsx
+<button
+  onClick={(e) => {
+    e.stopPropagation();
+    handleCompressChunk(chunk);
+  }}
+  disabled={compressingParts[chunk.part]}
+  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${
+    chunk.isCompressed
+      ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/50 hover:bg-emerald-900/60'
+      : 'bg-purple-950/40 text-purple-300 border-purple-800/50 hover:bg-purple-900/60'
+  }`}
+  title="Kompres file ini agar < 400 MB"
+>
+  {compressingParts[chunk.part] ? '⏳ Compressing...' : chunk.isCompressed ? '⚡ Compressed' : '🗜️ Compress'}
+</button>
+```
+
+- [ ] **Step 5: Verify build & TypeScript compilation**
 
 Run:
 ```bash
-npm run build -w dashboard -- --noEmit
+npx tsc --noEmit -p dashboard/tsconfig.json
 ```
-Expected output: Clean compile without TypeScript errors.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add dashboard/src/components/longform/AlurfilmSplitterStep.tsx dashboard/electron/ipc/alurfilmHandlers.cjs
-git commit -m "feat(alurfilm): update UI and downstream handlers to reference compressed video chunks"
-```
+Expected output: 0 errors.

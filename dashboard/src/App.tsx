@@ -20,6 +20,7 @@ import AlurfilmAudioStep from './components/longform/AlurfilmAudioStep';
 import AlurfilmTranscriptStep from './components/longform/AlurfilmTranscriptStep';
 import AlurfilmMappingStep from './components/longform/AlurfilmMappingStep';
 import AlurfilmRenderStep from './components/longform/AlurfilmRenderStep';
+import AlurfilmMetadataStep from './components/longform/AlurfilmMetadataStep';
 
 // Spensia Feature Components
 import SpensiaTopicsStep from './components/spensia/SpensiaTopicsStep';
@@ -160,6 +161,8 @@ const App: React.FC = () => {
             <AlurfilmMappingStep key={`longform-mapping-${longformId}`} />
           ) : activeStep === 'render' ? (
             <AlurfilmRenderStep key={`longform-render-${longformId}`} />
+          ) : activeStep === 'upload' ? (
+            <AlurfilmMetadataStep key={`longform-metadata-${longformId}`} />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
               <div className="w-20 h-20 bg-purple-600/10 text-purple-400 rounded-3xl flex items-center justify-center text-4xl border border-purple-500/20 shadow-xl shadow-purple-950/40">
@@ -173,7 +176,7 @@ const App: React.FC = () => {
                 </div>
                 <h2 className="text-lg font-bold text-white pt-1">Workflow Step Belum Ada</h2>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  Langkah ini belum dibuat untuk Alur Cerita Film (16:9). Gunakan step 1 (Splitter 10 Min).
+                  Langkah ini belum dibuat untuk Alur Cerita Film (16:9). Gunakan step 1 (Splitter 20 Min).
                 </p>
               </div>
             </div>

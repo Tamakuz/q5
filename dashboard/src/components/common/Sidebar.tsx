@@ -21,12 +21,13 @@ const SHORTFORM_STEPS: Step[] = [
 ];
 
 const LONGFORM_STEPS: Step[] = [
-  { id: 'source', icon: '✂️', label: '1. Splitter (10 Min)', subText: 'Cut raw movie into parts' },
+  { id: 'source', icon: '✂️', label: '1. Splitter (20 Min)', subText: 'Cut raw movie into parts' },
   { id: 'analyze', icon: '⚡', label: '2. Script Generator', subText: 'AI Studio recap story script' },
   { id: 'audio', icon: '🎙️', label: '3. Voice Over Audio', subText: 'TTS voice narration upload' },
   { id: 'transcript', icon: '📝', label: '4. Audio Transcript', subText: 'Voiceover transcript & sync' },
   { id: 'mapping', icon: '🎯', label: '5. Video Mapping', subText: 'Visual cuts per sentence' },
   { id: 'render', icon: '🎬', label: '6. Video Render', subText: 'Render & merge final movie' },
+  { id: 'upload', icon: '🚀', label: '7. Metadata Hub', subText: 'AI SEO Title, Description & Tags' },
 ];
 
 const SPENSIA_STEPS: Step[] = [

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import type { AlurfilmChunk, AlurfilmAnalysisResult, AlurfilmAudioResult } from '../../electron-api';
 
 import { validateScriptAnalysis } from '../../utils/scriptValidation';
+import { GoogleAiStudioTtsPreset } from '../common/GoogleAiStudioTtsPreset';
 
 const api = window.electronAPI;
 
@@ -100,7 +101,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
         if (!promptTpl) {
           promptTpl = await api.readFromProject('dashboard/prompts/longform/alurfilm-singlepass-prompt.md');
         }
-        const computedWords = 250;
+        const computedWords = 600;
         const isFirstPartStr = partNum === 1 ? 'YA (Part Pembuka)' : `TIDAK (Chunk #${partNum} / Part Lanjutan)`;
         const isLastPartStr = partNum === totalChunks ? 'YA (Part Penutup / Final Part)' : 'TIDAK (Part Bukan Penutup)';
         const prevCtxStr = prevContext ? JSON.stringify(prevContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
@@ -192,6 +193,9 @@ const AlurfilmAnalyzeStep: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Google AI Studio TTS Presets Copy-Paste Helper */}
+      <GoogleAiStudioTtsPreset />
 
       {/* Main Grid Workspace with Side Parts List */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-5 flex-1 min-h-0 overflow-hidden">

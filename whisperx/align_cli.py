@@ -15,6 +15,7 @@ Usage:
     --device cpu
 """
 import argparse
+import difflib
 import json
 import os
 import re
@@ -75,35 +76,91 @@ def format_minute(sec: float) -> str:
     return f"{m:02d}:{s:02d}"
 
 
-def run_faster_whisper_pipeline(audio_path: str, raw_text: str, model_name: str = "medium", device: str = "cpu") -> list:
+def run_faster_whisper_pipeline(audio_path: str, raw_text: str, model_name: str = "small", device: str = "cpu") -> list:
+    import os
     from faster_whisper import WhisperModel
 
-    log(f"Load faster-whisper model ({model_name} on {device})...")
+    threads = min(8, os.cpu_count() or 4)
     compute_type = "int8" if device == "cpu" else "float16"
-    model = WhisperModel(model_name, device=device, compute_type=compute_type)
 
-    log(f"Transcribing audio fisik dengan Silero VAD & Word Timestamps...")
+    log(f"🧠 [1/4] Checking local cache for model '{model_name}'...")
+    log(f"⚡ [2/4] Initializing CTranslate2 engine with {threads} CPU threads & 2 workers ({compute_type})...")
+    
+    t_load_start = time.time()
+    model = WhisperModel(
+        model_name,
+        device=device,
+        compute_type=compute_type,
+        cpu_threads=threads,
+        num_workers=2
+    )
+    t_load_dur = time.time() - t_load_start
+    log(f"✅ [3/4] Loaded Faster-Whisper model '{model_name}' into RAM in {t_load_dur:.2f}s!")
+
+    audio_dur = get_audio_duration(audio_path)
+    log(f"🎙️ [4/4] Audio Target: {os.path.basename(audio_path)} (Total: {format_minute(audio_dur)} / {audio_dur:.1f}s)")
+    log(f"🚀 Starting Silero VAD & Faster-Whisper live audio transcription...")
+
     start_t = time.time()
     segments_gen, info = model.transcribe(
         audio_path,
         language="id",
+        beam_size=1,
+        best_of=1,
+        condition_on_previous_text=False,
         vad_filter=True,
         vad_parameters=dict(min_silence_duration_ms=400),
         word_timestamps=True
     )
 
-    fw_segments = list(segments_gen)
-    log(f"  Selesai VAD Transcribe dalam {time.time() - start_t:.1f}s. Terdeteksi {len(fw_segments)} segmen fisik.")
+    fw_segments = []
+    for seg in segments_gen:
+        fw_segments.append(seg)
+        pct = min(99, int((seg.end / audio_dur) * 100)) if audio_dur > 0 else 0
+        t_start = format_minute(seg.start)
+        t_end = format_minute(seg.end)
+        txt = seg.text.strip()
+        if len(txt) > 42:
+            txt = txt[:39] + "..."
+        log(f"🎙️ [{pct}%] Segmen #{len(fw_segments)} [{t_start} - {t_end}]: \"{txt}\"")
+
+    log(f"✨ Selesai VAD Transcribe dalam {time.time() - start_t:.1f}s. Terdeteksi {len(fw_segments)} segmen audio fisik.")
 
     sentences = split_sentences(raw_text)
-    log(f"Mapping {len(sentences)} kalimat naskah asli ke {len(fw_segments)} segmen audio fisik...")
+    log(f"🔍 Perform Fuzzy Text-Matching Alignment: {len(sentences)} kalimat ke kata-kata audio fisik...")
+
+    # Extract all physical words with exact timestamps
+    all_words = []
+    for seg in fw_segments:
+        if hasattr(seg, "words") and seg.words:
+            for w in seg.words:
+                cleaned_word = re.sub(r'[^\w\s]', '', w.word.strip().lower())
+                if cleaned_word:
+                    all_words.append({
+                        "text": cleaned_word,
+                        "raw": w.word.strip(),
+                        "start": float(w.start),
+                        "end": float(w.end)
+                    })
+        else:
+            words_in_seg = seg.text.strip().split()
+            if words_in_seg:
+                dur_per_word = (seg.end - seg.start) / len(words_in_seg)
+                for idx, w_raw in enumerate(words_in_seg):
+                    c_word = re.sub(r'[^\w\s]', '', w_raw.lower())
+                    if c_word:
+                        all_words.append({
+                            "text": c_word,
+                            "raw": w_raw,
+                            "start": float(seg.start + idx * dur_per_word),
+                            "end": float(seg.start + (idx + 1) * dur_per_word)
+                        })
 
     entries = []
     n_sent = len(sentences)
-    n_seg = len(fw_segments)
+    total_words = len(all_words)
 
-    if n_sent == 0 or n_seg == 0:
-        # Fallback ke segmen VAD murni jika naskah kosong
+    if n_sent == 0 or total_words == 0:
         for idx, seg in enumerate(fw_segments, start=1):
             start = round(float(seg.start), 1)
             end = round(float(seg.end), 1)
@@ -117,45 +174,58 @@ def run_faster_whisper_pipeline(audio_path: str, raw_text: str, model_name: str 
             })
         return entries
 
-    # Mapping Naskah Asli ke segmen VAD fisik
+    # Fuzzy Sequence Matching from naskah sentences to physical audio words
+    current_word_idx = 0
     for i, sent in enumerate(sentences):
-        seg_idx = int(round((i / n_sent) * (n_seg - 1)))
-        seg_idx = max(0, min(n_seg - 1, seg_idx))
-        cur_seg = fw_segments[seg_idx]
+        sent_words = [re.sub(r'[^\w\s]', '', w.lower()) for w in sent.strip().split() if w.strip()]
+        sent_len = len(sent_words)
 
-        start = round(float(cur_seg.start), 1)
-        end = round(float(cur_seg.end), 1)
+        if sent_len == 0:
+            continue
 
-        # Ambil word timestamps jika tersedia untuk memperhalus start & end
-        if hasattr(cur_seg, "words") and cur_seg.words:
-            w_starts = [w.start for w in cur_seg.words if w.start is not None]
-            w_ends = [w.end for w in cur_seg.words if w.end is not None]
-            if w_starts:
-                start = round(float(min(w_starts)), 1)
-            if w_ends:
-                end = round(float(max(w_ends)), 1)
+        search_window_end = min(total_words, current_word_idx + max(20, sent_len * 3))
+        candidate_words = all_words[current_word_idx:search_window_end]
 
-        if end <= start:
-            end = round(start + 1.5, 1)
+        best_start_idx = current_word_idx
+        best_end_idx = min(total_words - 1, current_word_idx + max(0, sent_len - 1))
+        best_score = -1.0
+
+        for w_start in range(len(candidate_words)):
+            for w_end in range(w_start + 1, min(len(candidate_words) + 1, w_start + sent_len + 8)):
+                span_text = " ".join([w["text"] for w in candidate_words[w_start:w_end]])
+                target_text = " ".join(sent_words)
+
+                score = difflib.SequenceMatcher(None, target_text, span_text).ratio()
+                if score > best_score:
+                    best_score = score
+                    best_start_idx = current_word_idx + w_start
+                    best_end_idx = current_word_idx + w_end - 1
+
+        start_sec = round(all_words[best_start_idx]["start"], 1)
+        end_sec = round(all_words[best_end_idx]["end"], 1)
+
+        if end_sec <= start_sec:
+            end_sec = round(start_sec + 1.5, 1)
 
         entries.append({
             "id": i + 1,
-            "start_seconds": start,
-            "end_seconds": end,
-            "timestamp_minute": f"{format_minute(start)} - {format_minute(end)}",
+            "start_seconds": start_sec,
+            "end_seconds": end_sec,
+            "timestamp_minute": f"{format_minute(start_sec)} - {format_minute(end_sec)}",
             "text": sent,
             "speaker": "Narator"
         })
 
-    # Smooth small gaps (< 1.5s) antar kalimat berurutan
+        current_word_idx = min(total_words - 1, best_end_idx + 1)
+
+    # Seamless gap smoothing (connect gaps <= 3.0s between consecutive sentences)
     for i in range(len(entries) - 1):
         curr_end = entries[i]["end_seconds"]
         next_start = entries[i + 1]["start_seconds"]
-        if curr_end < next_start and (next_start - curr_end) <= 1.5:
-            smooth_end = round(next_start - 0.1, 1)
-            if smooth_end > entries[i]["start_seconds"]:
-                entries[i]["end_seconds"] = smooth_end
-                entries[i]["timestamp_minute"] = f"{format_minute(entries[i]['start_seconds'])} - {format_minute(smooth_end)}"
+        if curr_end < next_start and (next_start - curr_end) <= 3.0:
+            smooth_end = round(next_start, 1)
+            entries[i]["end_seconds"] = smooth_end
+            entries[i]["timestamp_minute"] = f"{format_minute(entries[i]['start_seconds'])} - {format_minute(smooth_end)}"
 
     return entries
 
@@ -165,7 +235,7 @@ def main():
     parser.add_argument("--audio", required=True, help="Path file audio")
     parser.add_argument("--text", required=True, help="Path script teks (.txt/.json)")
     parser.add_argument("--output", help="Path output JSON (default: stdout)")
-    parser.add_argument("--model", default="medium", help="Whisper model: tiny|base|small|medium|large-v2|large-v3")
+    parser.add_argument("--model", default="small", help="Whisper model: tiny|base|small|medium|large-v2|large-v3")
     parser.add_argument("--device", default="cpu", help="cpu|cuda")
     args = parser.parse_args()
 

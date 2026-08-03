@@ -108,12 +108,27 @@ const AlurfilmMappingStep: React.FC = () => {
           promptTpl = `Kamu adalah Editor Video Profesional untuk Alur Cerita Film (16:9). Part {{chunk_part}} dari {{total_chunks}}. Source: {{source_video_name}}. Voiceover sentences: {{voiceover_sentences}}`;
         }
 
+        const audioInfo = audios[partNum];
+        const audioVoFileName = audioInfo?.name || `audio_part_${partNum}.wav`;
+        const totalAudioDurSec = voiceoverSentences.length > 0 ? (voiceoverSentences[voiceoverSentences.length - 1].end || 0) : 0;
+        const mins = Math.floor(totalAudioDurSec / 60);
+        const secs = (totalAudioDurSec % 60).toFixed(1);
+        const totalAudioDurFormatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(4, '0')}`;
+        const audioStartTimestamp = voiceoverSentences.length > 0 ? `${voiceoverSentences[0].start.toFixed(1)}s` : '0.0s';
+        const audioEndTimestamp = voiceoverSentences.length > 0 ? `${voiceoverSentences[voiceoverSentences.length - 1].end.toFixed(1)}s` : `${totalAudioDurSec}s`;
+
         formattedPrompt = promptTpl
           .replace(/\{\{chunk_part\}\}/g, String(partNum))
           .replace(/\{\{total_chunks\}\}/g, String(totalChunks))
           .replace(/\{\{source_video_name\}\}/g, chunkInfo ? chunkInfo.name : `part_${partNum}.mp4`)
           .replace(/\{\{scene_id\}\}/g, `scene_p${partNum}`)
-          .replace(/\{\{voiceover_sentences\}\}/g, JSON.stringify(voiceoverSentences, null, 2));
+          .replace(/\{\{voiceover_sentences\}\}/g, JSON.stringify(voiceoverSentences, null, 2))
+          .replace(/\{\{audio_vo_file_name\}\}/g, audioVoFileName)
+          .replace(/\{\{total_audio_duration_sec\}\}/g, String(totalAudioDurSec.toFixed(2)))
+          .replace(/\{\{total_audio_duration_formatted\}\}/g, totalAudioDurFormatted)
+          .replace(/\{\{total_sentences_count\}\}/g, String(voiceoverSentences.length))
+          .replace(/\{\{audio_start_timestamp\}\}/g, audioStartTimestamp)
+          .replace(/\{\{audio_end_timestamp\}\}/g, audioEndTimestamp);
       }
 
       if (api.copyToClipboard) {
@@ -135,17 +150,28 @@ const AlurfilmMappingStep: React.FC = () => {
       }
       const parsed = JSON.parse(raw);
 
-      const res = await api.saveAlurfilmMapping(contentId || 'default', activePart, parsed);
+      const res = await api.saveAlurfilmMapping(contentId || 'default', activePart, raw);
       setMappings((prev) => ({ ...prev, [activePart]: res }));
       setShowImportModal(false);
       setPasteJsonInput('');
-      showToast(`Saved Video Mapping for Part #${activePart}!`);
+      showToast(`🎉 Saved Video Mapping for Part #${activePart}!`);
     } catch (err: any) {
-      setError(`Invalid JSON: ${err.message}`);
+      setError(`Invalid JSON Syntax: ${err.message}`);
     }
   };
 
-  const currentMapping = mappings[activePart]?.data;
+  const getNormalizedMapping = (partNum: number) => {
+    const raw = mappings[partNum]?.data;
+    if (!raw) return null;
+    if (Array.isArray(raw)) {
+      if (raw.length === 0) return null;
+      const match = raw.find((m: any) => m && (m.chunk_part === partNum || m.part === partNum || (typeof m.scene_id === 'string' && m.scene_id.includes(String(partNum))))) || raw[0];
+      return match;
+    }
+    return raw;
+  };
+
+  const currentMapping = getNormalizedMapping(activePart);
 
   return (
     <div className="flex flex-col h-full bg-gray-950 text-gray-100 p-6 overflow-hidden">
@@ -196,7 +222,8 @@ const AlurfilmMappingStep: React.FC = () => {
           {chunks.length > 0 ? (
             <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-0.5">
               {chunks.map((chunk) => {
-                const isDone = !!mappings[chunk.part]?.data;
+                const normData = getNormalizedMapping(chunk.part);
+                const isDone = Boolean(normData?.mappings && normData.mappings.length > 0);
                 const isActive = activePart === chunk.part;
                 return (
                   <button

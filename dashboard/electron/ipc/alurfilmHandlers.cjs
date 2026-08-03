@@ -2,6 +2,7 @@
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const { parseSrtToEntries } = require('../shared/subtitle-utils.cjs');
 
 function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
   // Ensure alurfilm dirs exist
@@ -29,13 +30,15 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       proc.on('error', reject);
     });
 
-    const mainArgs = [
+    // 1. Try GPU Hardware Acceleration (NVIDIA NVENC)
+    const nvencArgs = [
       '-ss', String(startSec),
       '-i', masterPath,
       '-t', String(durationSec),
-      '-c:v', 'libx264',
-      '-crf', '20',
-      '-preset', 'medium',
+      '-c:v', 'h264_nvenc',
+      '-preset', 'p4',
+      '-rc', 'vbr',
+      '-cq', '20',
       '-maxrate', `${maxrateKbps}k`,
       '-bufsize', `${bufsizeKbps}k`,
       '-c:a', 'aac',
@@ -46,15 +49,17 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     ];
 
     try {
-      await runFfmpeg(mainArgs);
-    } catch (err) {
-      const fallbackArgs = [
+      await runFfmpeg(nvencArgs);
+    } catch (gpuErr) {
+      // 2. Fallback to Ultra-Fast CPU multi-threaded x264
+      const cpuFastArgs = [
         '-ss', String(startSec),
         '-i', masterPath,
         '-t', String(durationSec),
         '-c:v', 'libx264',
+        '-preset', 'superfast',
         '-crf', '20',
-        '-preset', 'faster',
+        '-threads', '0',
         '-maxrate', `${maxrateKbps}k`,
         '-bufsize', `${bufsizeKbps}k`,
         '-c:a', 'aac',
@@ -63,7 +68,26 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
         '-y',
         destPath
       ];
-      await runFfmpeg(fallbackArgs);
+      try {
+        await runFfmpeg(cpuFastArgs);
+      } catch (cpuErr) {
+        // 3. Fallback to ultrafast
+        const ultraFastArgs = [
+          '-ss', String(startSec),
+          '-i', masterPath,
+          '-t', String(durationSec),
+          '-c:v', 'libx264',
+          '-preset', 'ultrafast',
+          '-crf', '22',
+          '-threads', '0',
+          '-c:a', 'aac',
+          '-b:a', '128k',
+          '-avoid_negative_ts', 'make_zero',
+          '-y',
+          destPath
+        ];
+        await runFfmpeg(ultraFastArgs);
+      }
     }
 
     // Enforce 400 MB maximum size cap
@@ -77,8 +101,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
           '-i', masterPath,
           '-t', String(durationSec),
           '-c:v', 'libx264',
-          '-crf', '22',
-          '-preset', 'faster',
+          '-preset', 'ultrafast',
+          '-crf', '24',
+          '-threads', '0',
           '-maxrate', `${reducedMaxrate}k`,
           '-bufsize', `${reducedMaxrate * 2}k`,
           '-c:a', 'aac',
@@ -112,8 +137,8 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     const contentId = p.getOrGenerateContentId('longform');
     const chunkDuration = 1200; // Locked at 20 minutes (1200 seconds)
 
-    if (!fs.existsSync(p.ALURFILM_COMPRESS_DIR)) {
-      fs.mkdirSync(p.ALURFILM_COMPRESS_DIR, { recursive: true });
+    if (!fs.existsSync(p.ALURFILM_CHUNKS_DIR)) {
+      fs.mkdirSync(p.ALURFILM_CHUNKS_DIR, { recursive: true });
     }
 
     function parseTimeToSeconds(val) {
@@ -149,7 +174,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       const partDurationSec = Math.min(chunkDuration, endSec - partStartSec);
       const partNumStr = String(i + 1).padStart(2, '0');
       const outputName = `${contentId}_part_${partNumStr}.mp4`;
-      const destPath = path.join(p.ALURFILM_COMPRESS_DIR, outputName);
+      const destPath = path.join(p.ALURFILM_CHUNKS_DIR, outputName);
 
       if (event && event.sender) {
         event.sender.send('alurfilm-split-progress', {
@@ -159,7 +184,41 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
         });
       }
 
-      await encodeAndCompressChunk(ffmpeg.ffmpegPath, masterPath, partStartSec, partDurationSec, destPath);
+      await new Promise((resolve, reject) => {
+        const args = [
+          '-ss', String(partStartSec),
+          '-i', masterPath,
+          '-t', String(partDurationSec),
+          '-c', 'copy',
+          '-avoid_negative_ts', 'make_zero',
+          '-y',
+          destPath
+        ];
+        const ffmpegProc = spawn(ffmpeg.ffmpegPath, args);
+        ffmpegProc.on('close', (code) => {
+          if (code !== 0) {
+            const fallbackArgs = [
+              '-ss', String(partStartSec),
+              '-i', masterPath,
+              '-t', String(partDurationSec),
+              '-c:v', 'libx264',
+              '-c:a', 'aac',
+              '-preset', 'ultrafast',
+              '-y',
+              destPath
+            ];
+            const fallbackFfmpeg = spawn(ffmpeg.ffmpegPath, fallbackArgs);
+            fallbackFfmpeg.on('close', (fbCode) => {
+              if (fbCode !== 0) return reject(new Error(`FFmpeg split failed code ${fbCode}`));
+              resolve();
+            });
+            fallbackFfmpeg.on('error', reject);
+          } else {
+            resolve();
+          }
+        });
+        ffmpegProc.on('error', (err) => reject(err));
+      });
 
       if (fs.existsSync(destPath)) {
         const stat = fs.statSync(destPath);
@@ -170,7 +229,8 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
           startSec: partStartSec,
           durationSec: partDurationSec,
           filePath: destPath,
-          url: media.mediaUrl(destPath)
+          url: media.mediaUrl(destPath),
+          isCompressed: false
         };
         createdChunks.push(chunkObj);
 
@@ -228,13 +288,41 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     const contentId = p.getOrGenerateContentId('longform');
     const partStr = String(partNum).padStart(2, '0');
     const outputName = `${contentId}_part_${partStr}.mp4`;
-    const destPath = path.join(p.ALURFILM_COMPRESS_DIR, outputName);
+    const destPath = path.join(p.ALURFILM_CHUNKS_DIR, outputName);
 
-    if (!fs.existsSync(p.ALURFILM_COMPRESS_DIR)) {
-      fs.mkdirSync(p.ALURFILM_COMPRESS_DIR, { recursive: true });
+    if (!fs.existsSync(p.ALURFILM_CHUNKS_DIR)) {
+      fs.mkdirSync(p.ALURFILM_CHUNKS_DIR, { recursive: true });
     }
 
-    await encodeAndCompressChunk(ffmpeg.ffmpegPath, masterPath, startSec, durationSec, destPath);
+    await new Promise((resolve, reject) => {
+      const args = [
+        '-ss', String(startSec),
+        '-i', masterPath,
+        '-t', String(durationSec),
+        '-c', 'copy',
+        '-avoid_negative_ts', 'make_zero',
+        '-y',
+        destPath
+      ];
+      const ffmpegProc = spawn(ffmpeg.ffmpegPath, args);
+      ffmpegProc.on('close', (code) => {
+        if (code !== 0) {
+          const fallbackArgs = [
+            '-ss', String(startSec),
+            '-i', masterPath,
+            '-t', String(durationSec),
+            '-c:v', 'libx264',
+            '-c:a', 'aac',
+            '-preset', 'ultrafast',
+            '-y',
+            destPath
+          ];
+          const fallbackFfmpeg = spawn(ffmpeg.ffmpegPath, fallbackArgs);
+          fallbackFfmpeg.on('close', () => resolve());
+        } else { resolve(); }
+      });
+      ffmpegProc.on('error', (err) => reject(err));
+    });
 
     const searchDirs = [p.ALURFILM_COMPRESS_DIR, p.ALURFILM_CHUNKS_DIR].filter(d => d && fs.existsSync(d));
     const foundFilesMap = new Map();
@@ -259,11 +347,55 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
         size: stat.size,
         filePath: fullPath,
         url: media.mediaUrl(fullPath),
-        mediaUrl: media.mediaUrl(fullPath)
+        mediaUrl: media.mediaUrl(fullPath),
+        isCompressed: fullPath.includes('/compress/')
       };
     });
 
     return { chunks: chunks || [], content_id: contentId };
+  });
+
+  // ─── IPC: compress-alurfilm-chunk ──────────────────────
+  ipcMain.handle('compress-alurfilm-chunk', async (_event, opts) => {
+    const contentId = p.getOrGenerateContentId('longform');
+    const part = typeof opts === 'object' ? opts.part : opts;
+    const inputFilePath = opts?.filePath;
+    const partStr = String(part).padStart(2, '0');
+    const outputName = `${contentId}_part_${partStr}.mp4`;
+    const destPath = path.join(p.ALURFILM_COMPRESS_DIR, outputName);
+
+    if (!fs.existsSync(p.ALURFILM_COMPRESS_DIR)) {
+      fs.mkdirSync(p.ALURFILM_COMPRESS_DIR, { recursive: true });
+    }
+
+    let srcFile = inputFilePath;
+    if (!srcFile || !fs.existsSync(srcFile)) {
+      srcFile = path.join(p.ALURFILM_CHUNKS_DIR, outputName);
+    }
+
+    if (!fs.existsSync(srcFile)) {
+      throw new Error(`File part #${part} tidak ditemukan`);
+    }
+
+    let durationSec = 1200;
+    try {
+      const meta = await ffmpeg.getVideoMetaHelper(srcFile);
+      if (meta && meta.duration) durationSec = meta.duration;
+    } catch {}
+
+    await encodeAndCompressChunk(ffmpeg.ffmpegPath, srcFile, 0, durationSec, destPath);
+
+    const stat = fs.statSync(destPath);
+    return {
+      part: Number(part),
+      name: outputName,
+      size: stat.size,
+      durationSec: durationSec,
+      filePath: destPath,
+      url: media.mediaUrl(destPath),
+      mediaUrl: media.mediaUrl(destPath),
+      isCompressed: true
+    };
   });
 
   // ─── List Alurfilm Chunks ──────────────────────────────
@@ -293,7 +425,8 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
         name: f,
         size: stat.size,
         filePath: fullPath,
-        url: media.mediaUrl(fullPath)
+        url: media.mediaUrl(fullPath),
+        isCompressed: fullPath.includes('/compress/')
       };
     });
 
@@ -554,10 +687,13 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     if (fs.existsSync(promptFile)) {
       promptTemplate = fs.readFileSync(promptFile, 'utf-8');
     } else {
-      promptTemplate = `Kamu adalah AI Audio Transcriber presisi tinggi. Transkrip audio part ${chunkPart} ke JSON dengan start_seconds, end_seconds, timestamp_minute, text. Durasi: {{audio_duration}}.`;
+      promptTemplate = `Kamu adalah AI Audio Transcriber presisi tinggi. Transkrip audio part ${chunkPart} ke SRT dengan timecode. Durasi: {{audio_duration}}.`;
     }
 
     let audioDurationText = `[Sesuai total durasi file audio Part #${chunkPart}]`;
+    let audioFileSizeText = `[File audio Part #${chunkPart}]`;
+    let audioWordEstimateText = `[Estimasi ~2500 kata per 20 menit]`;
+    let audioEtaText = `[Estimasi sesuai durasi audio]`;
     let targetParts = [Number(chunkPart)];
 
     if (fs.existsSync(p.ALURFILM_AUDIO_DIR)) {
@@ -571,12 +707,21 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
               targetParts = audioEntry.parts;
             }
             if (audioEntry.filePath && fs.existsSync(audioEntry.filePath)) {
+              const stat = fs.statSync(audioEntry.filePath);
+              const mb = (stat.size / (1024 * 1024)).toFixed(1);
+              audioFileSizeText = `${mb} MB (${path.basename(audioEntry.filePath)})`;
+
               const meta = await ffmpeg.getVideoMetaHelper(audioEntry.filePath);
               if (meta && meta.duration && meta.duration > 0) {
-                const m = Math.floor(meta.duration / 60);
-                const s = Math.floor(meta.duration % 60);
+                const dur = meta.duration;
+                const m = Math.floor(dur / 60);
+                const s = Math.floor(dur % 60);
                 const minStr = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-                audioDurationText = `${meta.duration.toFixed(1)} Detik (${minStr})`;
+                audioDurationText = `${dur.toFixed(1)} Detik (${minStr})`;
+                audioEtaText = `${minStr} (Waktu playback audio penuh)`;
+
+                const estWords = Math.round(dur * 2.5);
+                audioWordEstimateText = `~${estWords} Kata (Estimasi kecepatan 2.5 kata/detik)`;
               }
             }
           }
@@ -608,48 +753,17 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
 
     const isMultiPart = targetParts.length > 1;
     const outputFormatInstruction = isMultiPart
-      ? `Keluarkan HANYA JSON Object yang dikelompokkan berdasarkan nomor Part seperti contoh berikut:
-
-{
-  "${targetParts[0]}": [
-    {
-      "id": 1,
-      "start_seconds": 0.0,
-      "end_seconds": 3.4,
-      "timestamp_minute": "00:00 - 00:03",
-      "text": "Kalimat naskah awal...",
-      "speaker": "Narator"
-    }
-  ],
-  "${targetParts[1] || targetParts[0] + 1}": [
-    {
-      "id": 1,
-      "start_seconds": 105.2,
-      "end_seconds": 109.1,
-      "timestamp_minute": "01:45 - 01:49",
-      "text": "Kalimat awal part berikutnya...",
-      "speaker": "Narator"
-    }
-  ]
-}`
-      : `Keluarkan HANYA JSON Array murni seperti contoh berikut:
-
-[
-  {
-    "id": 1,
-    "start_seconds": 0.0,
-    "end_seconds": 3.4,
-    "timestamp_minute": "00:00 - 00:03",
-    "text": "Kalimat naskah...",
-    "speaker": "Narator"
-  }
-]`;
+      ? `Keluarkan HANYA SRT Subtitle untuk seluruh bagian audio.`
+      : `Keluarkan HANYA SRT Subtitle murni.`;
 
     const fullPrompt = promptTemplate
       .replace(/{{chunk_part}}/g, String(chunkPart))
       .replace(/{{total_chunks}}/g, String(totalChunks))
       .replace(/{{target_parts_text}}/g, targetPartsText)
       .replace(/{{audio_duration}}/g, audioDurationText)
+      .replace(/{{audio_file_size}}/g, audioFileSizeText)
+      .replace(/{{audio_word_estimate}}/g, audioWordEstimateText)
+      .replace(/{{audio_eta}}/g, audioEtaText)
       .replace(/{{reference_script}}/g, referenceScriptText)
       .replace(/{{output_format_instruction}}/g, outputFormatInstruction);
 
@@ -873,17 +987,33 @@ function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
     }
 
     if (!jsonText) {
-      throw new Error('Transcript JSON payload is empty or invalid.');
+      throw new Error('Transcript payload is empty or invalid.');
     }
 
     let raw = (typeof jsonText === 'string' ? jsonText : JSON.stringify(jsonText)).trim();
     if (raw.startsWith('```')) {
-      raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+      raw = raw.replace(/^```(?:json|srt)?\s*\n?/i, '').replace(/\n?```\s*$/, '');
     }
 
-    let parsed = JSON.parse(raw);
+    let parsed = null;
+    let srtEntries = [];
 
-    const parsedInfo = parseTranscriptPayload(parsed);
+    if (raw.includes('-->') || (!raw.startsWith('{') && !raw.startsWith('['))) {
+      srtEntries = parseSrtToEntries(raw);
+    } else {
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        srtEntries = parseSrtToEntries(raw);
+      }
+    }
+
+    let parsedInfo = { isMultiPart: false, multiPartMap: null, entries: [] };
+    if (parsed) {
+      parsedInfo = parseTranscriptPayload(parsed);
+    } else if (srtEntries.length > 0) {
+      parsedInfo = { isMultiPart: false, multiPartMap: null, entries: srtEntries };
+    }
     const savedResults = [];
 
     if (parsedInfo.isMultiPart && parsedInfo.multiPartMap) {
@@ -1020,7 +1150,7 @@ function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
       '--audio', targetAudioPath,
       '--text', tempNarasiPath,
       '--output', tempOutputPath,
-      '--model', 'medium',
+      '--model', 'small',
       '--device', 'cpu'
     ];
 
@@ -1041,11 +1171,25 @@ function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
         let progress = 30;
         let stage = 'aligning';
 
-        if (line.includes('Load faster-whisper model')) { progress = 25; stage = 'loading_model'; }
-        else if (line.includes('Transcribing audio fisik')) { progress = 50; stage = 'transcribing'; }
-        else if (line.includes('Selesai VAD Transcribe')) { progress = 75; stage = 'aligning'; }
-        else if (line.includes('Mapping')) { progress = 85; stage = 'mapping'; }
-        else if (line.includes('Selesai!')) { progress = 90; stage = 'done'; }
+        if (line.includes('Checking local cache')) { progress = 10; stage = 'loading_model'; }
+        else if (line.includes('Initializing CTranslate2')) { progress = 15; stage = 'loading_model'; }
+        else if (line.includes('Loaded Faster-Whisper model')) { progress = 25; stage = 'loading_model'; }
+        else if (line.includes('Audio Target:')) { progress = 28; stage = 'preparing'; }
+        else if (line.includes('Starting Silero VAD')) { progress = 30; stage = 'transcribing'; }
+        else if (line.includes('Selesai VAD Transcribe')) { progress = 80; stage = 'aligning'; }
+        else if (line.includes('Mapping')) { progress = 88; stage = 'mapping'; }
+        else if (line.includes('Selesai!')) { progress = 95; stage = 'done'; }
+
+        // Dynamic progress extraction from [XX%] log lines
+        const pctMatch = line.match(/\[(\d+)%\]/);
+        if (pctMatch) {
+          const rawPct = parseInt(pctMatch[1], 10);
+          if (!isNaN(rawPct)) {
+            // Map audio transcribe 0-100% into 30% - 80% progress bar
+            progress = Math.min(80, 30 + Math.floor((rawPct / 100) * 50));
+            stage = 'transcribing';
+          }
+        }
 
         sendProgress(stage, progress, line);
       }
@@ -1199,26 +1343,91 @@ function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
 
     let voSentences = [];
     const targetTransDir = p.ALURFILM_TRANSCRIPTS_DIR || path.join(p.ALURFILM_DIR, 'transcripts');
-    let transcriptPath = path.join(targetTransDir, `${contentId}_transcript_part_${partStr}.json`);
-    if (!fs.existsSync(transcriptPath)) {
-      transcriptPath = path.join(p.ALURFILM_DIR, `${contentId}_transcript_part_${partStr}.json`);
-    }
-    if (fs.existsSync(transcriptPath)) {
+    const transcriptPathJson = path.join(targetTransDir, `${contentId}_transcript_part_${partStr}.json`);
+    const transcriptPathSrt = path.join(targetTransDir, `${contentId}_transcript_part_${partStr}.srt`);
+
+    if (fs.existsSync(transcriptPathJson)) {
       try {
-        const rawTranscript = JSON.parse(fs.readFileSync(transcriptPath, 'utf-8'));
+        const rawTranscript = JSON.parse(fs.readFileSync(transcriptPathJson, 'utf-8'));
         if (Array.isArray(rawTranscript)) {
-          voSentences = rawTranscript.map((t, idx) => ({
+          voSentences = rawTranscript.map((t, idx) => {
+            const st = typeof t.start_seconds === 'number' ? t.start_seconds : 0.0;
+            const ed = typeof t.end_seconds === 'number' ? t.end_seconds : 0.0;
+            const dur = Number(Math.max(0.1, ed - st).toFixed(2));
+            return {
+              sentence_index: idx,
+              text: t.text || t.narration || '',
+              start: Number(st.toFixed(2)),
+              end: Number(ed.toFixed(2)),
+              duration: dur
+            };
+          });
+        }
+      } catch { }
+    } else if (fs.existsSync(transcriptPathSrt)) {
+      try {
+        const srtContent = fs.readFileSync(transcriptPathSrt, 'utf-8');
+        const srtEntries = parseSrtToEntries(srtContent);
+        voSentences = srtEntries.map((t, idx) => {
+          const st = t.start_seconds || 0.0;
+          const ed = t.end_seconds || 0.0;
+          const dur = Number(Math.max(0.1, ed - st).toFixed(2));
+          return {
             sentence_index: idx,
-            text: t.text || t.narration || '',
-            start: typeof t.start_seconds === 'number' ? t.start_seconds : 0.0,
-            end: typeof t.end_seconds === 'number' ? t.end_seconds : 0.0,
-            duration: Number(((typeof t.end_seconds === 'number' ? t.end_seconds : 0) - (typeof t.start_seconds === 'number' ? t.start_seconds : 0)).toFixed(2))
-          }));
+            text: t.text || '',
+            start: Number(st.toFixed(2)),
+            end: Number(ed.toFixed(2)),
+            duration: dur
+          };
+        });
+      } catch { }
+    }
+
+    // Fetch Step 2 Script Analysis for Context
+    let sceneBreakdownText = '[Acuan adegan dari Step 2 Script Generator]';
+    const analysisPath = path.join(p.ALURFILM_DIR, `${contentId}_analysis_part_${partStr}.json`);
+    if (fs.existsSync(analysisPath)) {
+      try {
+        const data = JSON.parse(fs.readFileSync(analysisPath, 'utf-8'));
+        const summary = data.naskah_voiceover?.macro_summary || '';
+        const timeline = data.timeline_edits || [];
+        const timelineText = timeline.map((tl, i) => `${i + 1}. [${tl.start_time} - ${tl.end_time}] ${tl.scene_label}: ${tl.narrative_focus}`).join('\n');
+        sceneBreakdownText = `Ringkasan: ${summary}\nTimeline Scenery:\n${timelineText}`;
+      } catch { }
+    }
+
+    // Fetch Audio VO Metadata for this part
+    let audioVoFileName = `${contentId}_audio_part_${partStr}.wav`;
+    let totalAudioDurSec = voSentences.length > 0 ? (voSentences[voSentences.length - 1].end || 0) : 0;
+
+    const audioSearchDirs = [p.ALURFILM_AUDIO_DIR, p.ALURFILM_DIR].filter(d => d && fs.existsSync(d));
+    for (const dir of audioSearchDirs) {
+      try {
+        const files = fs.readdirSync(dir);
+        const matched = files.find(f => f.includes(`part_${partStr}`) || f.includes(`parts_${partStr}`));
+        if (matched) {
+          audioVoFileName = matched;
+          const fullAudioPath = path.join(dir, matched);
+          try {
+            const meta = await ffmpeg.getVideoMetaHelper(fullAudioPath);
+            if (meta && meta.duration) {
+              totalAudioDurSec = meta.duration;
+            }
+          } catch { }
+          break;
         }
       } catch { }
     }
 
-    const chunkVideoName = `${contentId}_chunk_${partStr}.mp4`;
+    const totalAudioDurSecNum = Number(totalAudioDurSec.toFixed(2));
+    const mins = Math.floor(totalAudioDurSecNum / 60);
+    const secs = (totalAudioDurSecNum % 60).toFixed(1);
+    const totalAudioDurFormatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(4, '0')}`;
+    const audioStartTimestamp = voSentences.length > 0 ? `${voSentences[0].start.toFixed(1)}s` : '0.0s';
+    const audioEndTimestamp = voSentences.length > 0 ? `${voSentences[voSentences.length - 1].end.toFixed(1)}s` : `${totalAudioDurSecNum}s`;
+    const totalSentencesCount = voSentences.length;
+
+    const chunkVideoName = `${contentId}_part_${partStr}.mp4`;
     const voSentencesJson = JSON.stringify(voSentences, null, 2);
 
     const fullPrompt = promptTemplate
@@ -1226,29 +1435,104 @@ function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
       .replace(/{{total_chunks}}/g, String(totalChunks))
       .replace(/{{voiceover_sentences}}/g, voSentencesJson)
       .replace(/{{source_video_name}}/g, chunkVideoName)
-      .replace(/{{scene_id}}/g, `part_${partStr}`);
+      .replace(/{{scene_id}}/g, `part_${partStr}`)
+      .replace(/{{scene_breakdown}}/g, sceneBreakdownText)
+      .replace(/{{audio_vo_file_name}}/g, audioVoFileName)
+      .replace(/{{total_audio_duration_sec}}/g, String(totalAudioDurSecNum))
+      .replace(/{{total_audio_duration_formatted}}/g, totalAudioDurFormatted)
+      .replace(/{{total_sentences_count}}/g, String(totalSentencesCount))
+      .replace(/{{audio_start_timestamp}}/g, audioStartTimestamp)
+      .replace(/{{audio_end_timestamp}}/g, audioEndTimestamp);
 
     return fullPrompt;
   });
 
+  function normalizeMappingObj(obj, defaultPart = 1) {
+    if (!obj) return null;
+    if (Array.isArray(obj)) {
+      if (obj.length === 1) {
+        return normalizeMappingObj(obj[0], defaultPart);
+      }
+      const match = obj.find(item => item && (item.mappings || item.scene_id));
+      if (match) return normalizeMappingObj(match, defaultPart);
+      return null;
+    }
+    if (typeof obj === 'object') {
+      if (obj.data) return normalizeMappingObj(obj.data, defaultPart);
+      if (Array.isArray(obj.mappings)) return obj;
+      if (Array.isArray(obj.timeline)) return { scene_id: obj.scene_id || `part_${defaultPart}`, mappings: obj.timeline };
+    }
+    return obj;
+  }
+
   // ─── Save Alurfilm Mapping ─────────────────────────────
-  ipcMain.handle('save-alurfilm-mapping', async (_event, { chunkPart, jsonText }) => {
+  ipcMain.handle('save-alurfilm-mapping', async (_event, arg1, arg2, arg3) => {
     const contentId = p.getOrGenerateContentId('longform');
     if (!fs.existsSync(p.ALURFILM_DIR)) fs.mkdirSync(p.ALURFILM_DIR, { recursive: true });
 
-    let raw = (jsonText || '').trim();
+    let chunkPart = 1;
+    let jsonText = null;
+
+    if (typeof arg1 === 'object' && arg1 !== null && !Array.isArray(arg1)) {
+      if ('chunkPart' in arg1 || 'jsonText' in arg1) {
+        chunkPart = Number(arg1.chunkPart) || 1;
+        jsonText = arg1.jsonText;
+      } else {
+        jsonText = arg1;
+      }
+    } else if (typeof arg1 === 'string' && (typeof arg2 === 'number' || !isNaN(Number(arg2)))) {
+      chunkPart = Number(arg2);
+      jsonText = arg3;
+    } else if (typeof arg1 === 'number' || !isNaN(Number(arg1))) {
+      chunkPart = Number(arg1);
+      jsonText = arg2;
+    }
+
+    if (!jsonText) {
+      throw new Error('Mapping JSON payload is empty or invalid.');
+    }
+
+    let raw = (typeof jsonText === 'string' ? jsonText : JSON.stringify(jsonText)).trim();
     if (raw.startsWith('```')) {
       raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
     }
 
-    const parsed = JSON.parse(raw);
-    const partStr = String(chunkPart).padStart(2, '0');
-    const outputName = `${contentId}_mapping_part_${partStr}.json`;
-    const destPath = path.join(p.ALURFILM_DIR, outputName);
+    const parsed = typeof jsonText === 'object' && jsonText !== null ? jsonText : JSON.parse(raw);
 
-    fs.writeFileSync(destPath, JSON.stringify(parsed, null, 2), 'utf-8');
+    let targetResult = null;
 
-    return { part: chunkPart, name: outputName, filePath: destPath, data: parsed };
+    if (Array.isArray(parsed) && parsed.length > 1) {
+      for (const item of parsed) {
+        let pNum = chunkPart;
+        if (item.chunk_part || item.part) {
+          pNum = Number(item.chunk_part || item.part);
+        } else if (item.scene_id) {
+          const match = String(item.scene_id).match(/(\d+)/);
+          if (match) pNum = parseInt(match[1], 10);
+        }
+        const normalizedItem = normalizeMappingObj(item, pNum);
+        if (normalizedItem) {
+          const partStr = String(pNum).padStart(2, '0');
+          const outputName = `${contentId}_mapping_part_${partStr}.json`;
+          const destPath = path.join(p.ALURFILM_DIR, outputName);
+          fs.writeFileSync(destPath, JSON.stringify(normalizedItem, null, 2), 'utf-8');
+          if (pNum === chunkPart || !targetResult) {
+            targetResult = { part: pNum, name: outputName, filePath: destPath, data: normalizedItem };
+          }
+        }
+      }
+    }
+
+    if (!targetResult) {
+      const normalizedData = normalizeMappingObj(parsed, chunkPart) || parsed;
+      const partStr = String(chunkPart).padStart(2, '0');
+      const outputName = `${contentId}_mapping_part_${partStr}.json`;
+      const destPath = path.join(p.ALURFILM_DIR, outputName);
+      fs.writeFileSync(destPath, JSON.stringify(normalizedData, null, 2), 'utf-8');
+      targetResult = { part: chunkPart, name: outputName, filePath: destPath, data: normalizedData };
+    }
+
+    return targetResult;
   });
 
   // ─── List Alurfilm Mappings ────────────────────────────
@@ -1264,7 +1548,8 @@ function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
         const part = match ? parseInt(match[1], 10) : 1;
         const fullPath = path.join(p.ALURFILM_DIR, f);
         try {
-          const data = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+          let data = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+          data = normalizeMappingObj(data, part) || data;
           return { part, name: f, filePath: fullPath, data };
         } catch { return null; }
       })
@@ -1300,6 +1585,209 @@ function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
     }
 
     return Object.values(partMap).sort((a, b) => a.part - b.part);
+  });
+
+  // ─── Generate Alurfilm Metadata ────────────────────────
+  ipcMain.handle('generate-alurfilm-metadata', async (event, { modeContentId, model = 'ag/gemini-3-flash-agent', customNotes = '' }) => {
+    const contentId = modeContentId || p.getOrGenerateContentId('longform');
+
+    // Collect all script text from available analysis files
+    const allFiles = fs.existsSync(p.ALURFILM_DIR) ? fs.readdirSync(p.ALURFILM_DIR) : [];
+    const analysisFiles = allFiles
+      .filter(f => (
+        f.endsWith('.json') &&
+        (f.startsWith(`${contentId}_analysis_part_`) || f.startsWith(`alurfilm_${contentId}_analysis_part_`) || f.includes('_analysis_part_'))
+      ))
+      .sort((a, b) => {
+        const numA = parseInt(a.match(/_part_(\d+)/)?.[1] || '0', 10);
+        const numB = parseInt(b.match(/_part_(\d+)/)?.[1] || '0', 10);
+        return numA - numB;
+      });
+
+    let combinedScript = '';
+    let movieTitle = '';
+
+    for (const f of analysisFiles) {
+      try {
+        const filePath = path.join(p.ALURFILM_DIR, f);
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        if (data.naskah_voiceover?.script_text) {
+          combinedScript += `\n--- PART ${data.chunk_part || ''} ---\n` + data.naskah_voiceover.script_text;
+        }
+        if (data.movie_title && !movieTitle) {
+          movieTitle = data.movie_title;
+        }
+      } catch {}
+    }
+
+    if (!combinedScript.trim()) {
+      throw new Error('Naskah alur film tidak ditemukan. Silakan selesaikan Step 2 (Script Generator) terlebih dahulu.');
+    }
+
+    const systemPrompt = `Anda adalah seorang Pakar Strategi SEO & YouTube Content Specialist khusus Niche Alur Cerita Film (Recap Film).
+Tugas Anda adalah menganalisis naskah alur film yang diberikan dan menghasilkan metadata video YouTube yang sangat teroptimasi untuk Click-Through Rate (CTR) tinggi dan Daya Tahan Nonton (Retention).
+
+ATURAN STRUKTUR JUDUL (CTR FORMULA):
+Semua opsi judul HARUS mengikuti pola formula berikut:
+[Tindakan Ekstrem / Kondisi Dramatis] + [Status Karakter Underdog] + [Konflik / Ending Penasaran] — Alur Cerita Film
+
+CONTOH FORMULA SUKSES:
+1. [CUMA MODAL HP] [TUKANG PEL INI] [MEMBONGKAR KODE RAHASIA BANK] — Alur Cerita Film
+2. [Diremehkan Pakai Mobil Rongsokan] [Pensiunan Pembalap] [Akhirnya Merebut Gelar Juara Dunia] — Alur Cerita Film
+3. [Nekat Turun ke Lintasan Bromo] [Mantan Pembalap Cacat] [Bikin Syok Seluruh Penonton] — Alur Cerita Film
+
+PEMBAGIAN 5 OPSI JUDUL SESUAI EMOSI:
+Anda harus menghasilkan tepat 5 variasi judul dengan kategori emosi berikut:
+1. "underdog": Mengincar emosi Haru/Perjuangan Karakter Biasa yang Diremehkan.
+2. "balas_dendam": Mengincar emosi Marah/Pembalasan Karakter setelah Dihancurkan/Diremehkan.
+3. "aksi_nekat": Mengincar emosi Keheranan/Aksi Gila & Taruhan Tinggi.
+4. "kaget": Mengincar emosi Terkejut/Hal Tidak Masuk Akal.
+5. "misteri": Mengincar emosi Rasa Ingin Tahu/Rahasia Tersembunyi (Curiosity Gap).
+
+ATURAN TEKS THUMBNAIL (GAYA DUA WARNA VIRAL):
+Teks thumbnail harus 2-4 kata yang sangat singkat & kontras tajam.
+Gaya teks mengikuti pola dua warna yang terbukti meledak di niche Alur Cerita Film:
+- Kata Pertama (Yellow Part): Teks penarik perhatian warna Kuning Cerah (misal: "GERBANG", "PATUNG INI", "16 TAHUN", "TAK BISA", "AWAL", "SUHU", "28 TAHUN").
+- Kata Kedua (Red Part): Teks klimaks emosi warna Merah Menyala dengan Outline Hitam (misal: "TERAKHIR", "TERNYATA HIDUP", "DIKURUNG", "KABUR", "PETAKA", "-150°C", "TERISOLASI").
+
+ATURAN PROMPT GAMBAR THUMBNAIL (AI IMAGE GENERATOR):
+Hasilkan prompt gambar AI profesional (dalam Bahasa Inggris) untuk Midjourney / Flux / DALL-E / Google Flow yang menghasilkan visual thumbnail bergaya apokaliptik/dystopian/misteri bertekstur tajam dengan spesifikasi:
+1. Skala Kontras Ekstrem: Silhouette/karakter manusia kecil (tiny human) berdiri di hadapan objek/ancaman/bangunan raksasa (colossal wall, massive sea creature, giant statue, frozen city, colossal titan monster).
+2. Lighting & Color Texture: Dramatic cinematic lighting, teal and orange color grading, vibrant color contrast, highly detailed gritty textures (es beku, gurun gersang, dinding raksasa berlumut, laut merah), 8k photorealistic concept art.
+3. Angle: Wide-angle cinematic shot, epic atmosphere.
+
+DESKRIPSI VIDEO YOUTUBE (TERSTRUKTUR & SEO FRIENDLY):
+1. 2 Baris Pertama: Hook pembuka tajam yang selaras dengan judul.
+2. Ringkasan Cerita (Sinopsis 100-150 kata): Rangkuman alur film tanpa membocorkan spoiler akhir cerita.
+3. Fair Use & Copyright Notice: Kalimat standar penafsiran hak cipta karya film.
+4. Call to Action (CTA): Ajak penonton Like, Comment pendapat mereka, dan Subscribe channel.
+
+TAGS & KEYWORDS (MINIMAL 15-20 TAGS):
+Daftar kata kunci relevan dipisahkan koma untuk metadata YouTube.
+
+OUTPUT FORMAT (MANDATORY JSON OBJECT ONLY):
+{
+  "titles": [
+    {
+      "id": "1",
+      "emotion_category": "underdog",
+      "emotion_label": "😢 Underdog & Perjuangan",
+      "title": "...",
+      "thumbnail_text_yellow": "...",
+      "thumbnail_text_red": "...",
+      "thumbnail_prompt": "...",
+      "thumbnail_composition_notes": "..."
+    },
+    {
+      "id": "2",
+      "emotion_category": "balas_dendam",
+      "emotion_label": "😡 Balas Dendam & Tamparan",
+      "title": "...",
+      "thumbnail_text_yellow": "...",
+      "thumbnail_text_red": "...",
+      "thumbnail_prompt": "...",
+      "thumbnail_composition_notes": "..."
+    },
+    {
+      "id": "3",
+      "emotion_category": "aksi_nekat",
+      "emotion_label": "⚡ Aksi Gila & Nekat",
+      "title": "...",
+      "thumbnail_text_yellow": "...",
+      "thumbnail_text_red": "...",
+      "thumbnail_prompt": "...",
+      "thumbnail_composition_notes": "..."
+    },
+    {
+      "id": "4",
+      "emotion_category": "kaget",
+      "emotion_label": "😱 Syok & Tidak Masuk Akal",
+      "title": "...",
+      "thumbnail_text_yellow": "...",
+      "thumbnail_text_red": "...",
+      "thumbnail_prompt": "...",
+      "thumbnail_composition_notes": "..."
+    },
+    {
+      "id": "5",
+      "emotion_category": "misteri",
+      "emotion_label": "🤨 Rahasia & Curiosity Gap",
+      "title": "...",
+      "thumbnail_text_yellow": "...",
+      "thumbnail_text_red": "...",
+      "thumbnail_prompt": "...",
+      "thumbnail_composition_notes": "..."
+    }
+  ],
+  "description": "...",
+  "tags": ["Alur Cerita Film", "Recap Film", "..."]
+}`;
+
+    const promptText = `Berikut adalah Naskah Alur Film untuk dianalisis:
+${movieTitle ? `JUDUL FILM: ${movieTitle}\n` : ''}
+${customNotes ? `CATATAN KHUSUS USER: ${customNotes}\n` : ''}
+
+NASKAH LENGKAP:
+${combinedScript.slice(0, 12000)}`;
+
+    const rawJsonText = await aiClient.streamChatCompletion({
+      systemPrompt,
+      prompt: promptText,
+      model: model || 'ag/gemini-3-flash-agent',
+      jsonMode: true,
+      temperature: 0.7,
+      onChunk: (chunk, fullText) => {
+        try {
+          event.sender.send('alurfilm-metadata-chunk', { chunk, fullText });
+        } catch {}
+      },
+    });
+
+    let resultData = null;
+    try {
+      resultData = JSON.parse(rawJsonText);
+    } catch (e) {
+      const cleanJson = aiClient.extractCleanJsonObject(rawJsonText);
+      resultData = JSON.parse(cleanJson);
+    }
+
+    // Save initial generated metadata
+    const destPath = path.join(p.ALURFILM_DIR, `alurfilm_${contentId}_metadata.json`);
+    fs.writeFileSync(destPath, JSON.stringify(resultData, null, 2), 'utf-8');
+
+    return resultData;
+  });
+
+  // ─── Save Alurfilm Metadata ───────────────────────────
+  ipcMain.handle('save-alurfilm-metadata', async (_event, { modeContentId, metadata }) => {
+    const contentId = modeContentId || p.getOrGenerateContentId('longform');
+    const destPath = path.join(p.ALURFILM_DIR, `alurfilm_${contentId}_metadata.json`);
+
+    if (!fs.existsSync(p.ALURFILM_DIR)) {
+      fs.mkdirSync(p.ALURFILM_DIR, { recursive: true });
+    }
+
+    const payload = {
+      ...metadata,
+      updatedAt: new Date().toISOString(),
+    };
+
+    fs.writeFileSync(destPath, JSON.stringify(payload, null, 2), 'utf-8');
+    return { success: true, filePath: destPath, metadata: payload };
+  });
+
+  // ─── Get Alurfilm Metadata ────────────────────────────
+  ipcMain.handle('get-alurfilm-metadata', async (_event, modeContentId) => {
+    const contentId = modeContentId || p.getOrGenerateContentId('longform');
+    const destPath = path.join(p.ALURFILM_DIR, `alurfilm_${contentId}_metadata.json`);
+
+    if (fs.existsSync(destPath)) {
+      try {
+        const raw = fs.readFileSync(destPath, 'utf-8');
+        return JSON.parse(raw);
+      } catch {}
+    }
+    return null;
   });
 }
 

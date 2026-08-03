@@ -73,6 +73,35 @@ Di *faceless channel*, AI digunakan untuk meng-generate visual emosi ekstrem yan
 
 ---
 
+## 🎨 Formula Thumbnail "High-Contrast Curiosity" (Universal Semua Genre)
+
+Panduan praktis ini diambil dari pengamatan channel-channel alur cerita film yang berhasil menghentikan jempol penonton (*scroll stopper*):
+
+### 1. 🎨 Kunci Warna & Kontras
+- **Aturan Dominansi**: 1 warna background (desaturated/gelap) vs 1 warna aksen/subjek (terang/kontras).
+- **Matrix Warna per Mood**:
+  - *Horror/Misteri*: Teal gelap / hijau kebiruan vs Putih pucat / abu terang.
+  - *Zombie/Wabah*: Hijau toxic gelap vs Merah darah / oranye.
+  - *Bencana/Laut*: Biru gelap / merah darah vs Putih / kuning.
+  - *Fantasi/Mitos*: Ungu gelap / biru malam vs Emas / putih terang.
+  - *Sci-Fi*: Hitam kebiruan vs Cyan / hijau neon.
+
+### 2. 📐 Komposisi Skala & Layering
+- **Scale Trick (Objek Raksasa vs Manusia Kecil)**: Selalu tampilkan *colossal threat/structure* vs *tiny human silhouette* (anchor mata di 1/3 bawah frame).
+- **Depth Layering (3 Lapis)**: Foreground (karakter/objek dekat) ➔ Midground (aksi utama) ➔ Background (kabut/langit).
+- **Rule of Thirds**: Taruh objek fokus di perpotongan garis grid, horizon di 1/3 atas/bawah.
+
+### 3. 🔤 Teks 2 Warna + Curiosity Gap
+- **Struktur Wajib**: `[KATA NETRAL/INFO]` (Kuning/Putih) + `[HOOK EMOSIONAL/ANCAMAN]` (Merah Menyala + Stroke Hitam).
+- **Formula Hook**: Angka/Waktu (*16 TAHUN*, *28 TAHUN*), Ancaman (*DIKURUNG*, *TERISOLASI*, *TERJEBAK*), Kejut (*TERNYATA HIDUP*, *BERUBAH MERAH*), Larangan (*TAK BISA KABUR*).
+- **Styling Font**: Font tebal (Anton, Bebas Neue, Poppins Black), stroke hitam tebal, maksimal 4-6 kata di 1/3 atas frame.
+
+### 4. 🧩 Elemen Pendukung
+- **Vignette Gelap**: Pinggir frame dibuat agak gelap agar mata penonton otomatis ke tengah.
+- **Durasi Video**: Sinyal konten panjang di pojok kanan bawah.
+
+---
+
 ## 🎯 Formula Judul Alur Film (Terbukti Viral & CTR Tinggi)
 
 Dari pengamatan puluhan channel *faceless* yang viral, terdapat satu formula struktur judul yang terus berulang dan terbukti menghasilkan tingkat klik (CTR) sangat tinggi:

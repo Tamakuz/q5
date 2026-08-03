@@ -85,6 +85,7 @@ export interface AlurfilmChunk {
   filePath: string;
   url: string;
   mediaUrl?: string;
+  isCompressed?: boolean;
 }
 
 export interface AlurfilmSplitProgressPayload {
@@ -92,6 +93,28 @@ export interface AlurfilmSplitProgressPayload {
   currentPart: number;
   totalParts: number;
   chunk?: AlurfilmChunk;
+}
+
+export interface AlurfilmMetadataTitle {
+  id: string;
+  emotion_category: 'underdog' | 'balas_dendam' | 'aksi_nekat' | 'kaget' | 'misteri';
+  emotion_label: string;
+  title: string;
+  thumbnail_text?: string;
+  thumbnail_text_yellow?: string;
+  thumbnail_text_red?: string;
+  thumbnail_prompt?: string;
+  thumbnail_composition_notes?: string;
+}
+
+export interface AlurfilmMetadataResult {
+  titles: AlurfilmMetadataTitle[];
+  description: string;
+  tags: string[];
+  selectedTitle?: string;
+  selectedThumbnailText?: string;
+  selectedThumbnailPrompt?: string;
+  updatedAt?: string;
 }
 
 export interface AlurfilmAlignmentProgressPayload {
@@ -224,6 +247,7 @@ export interface ElectronAPI {
   splitAlurfilmMasterRange: (masterPath: string, startSec: number, durationSec: number, partNum: number) => Promise<{ chunks: AlurfilmChunk[]; content_id?: string }>;
   listAlurfilmChunks: (modeContentId?: string) => Promise<AlurfilmChunk[]>;
   deleteAlurfilmChunk: (part: number) => Promise<boolean>;
+  compressAlurfilmChunk: (opts: { part: number; filePath?: string }) => Promise<AlurfilmChunk>;
   analyzeAlurfilmChunk: (chunkPath: string, chunkPart: number, previousContext?: any) => Promise<AlurfilmAnalysisResult>;
   listAlurfilmAnalyses: (modeContentId?: string) => Promise<AlurfilmAnalysisResult[]>;
   getAlurfilmPrompt: (chunkPart: number, totalChunks?: number, previousContext?: any) => Promise<string>;
@@ -280,6 +304,10 @@ export interface ElectronAPI {
     error?: string;
   }>;
   getContentId: (mode?: string) => Promise<string | null>;
+  generateAlurfilmMetadata: (opts?: { modeContentId?: string; model?: string; customNotes?: string }) => Promise<AlurfilmMetadataResult>;
+  saveAlurfilmMetadata: (opts: { modeContentId?: string; metadata: AlurfilmMetadataResult }) => Promise<{ success: boolean; filePath: string; metadata: AlurfilmMetadataResult }>;
+  getAlurfilmMetadata: (modeContentId?: string) => Promise<AlurfilmMetadataResult | null>;
+  onAlurfilmMetadataChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
   resetProject: (mode?: string) => Promise<{ success: boolean; content_id?: string; error?: string }>;
   copyToClipboard: (text: string) => Promise<boolean>;
   saveToProject: (subPath: string, data: string) => Promise<boolean>;
