@@ -211,7 +211,8 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
     await new Promise((resolve) => {
       const itemsJsonStr = JSON.stringify(items.map((i) => ({ segment_id: i.segment_id, prompt: i.prompt })));
-      const child = spawnTsxProcessForRoot(p.PROJECT_ROOT, [cliPath, 'batch-runner', '-p', targetProject, '-j', itemsJsonStr, '--headed'], { cwd: projectRoot, env: { ...process.env } });
+      const concNum = concurrency || 5;
+      const child = spawnTsxProcessForRoot(p.PROJECT_ROOT, [cliPath, 'batch-runner', '-p', targetProject, '-j', itemsJsonStr, '-c', String(concNum), '--profiles', 'user_1,user_2', '--models', 'Nano Banana Pro,Banana 2', '--headed'], { cwd: projectRoot, env: { ...process.env } });
 
       let buffer = '';
       child.stdout.on('data', (data) => {

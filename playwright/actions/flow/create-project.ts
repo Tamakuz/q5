@@ -48,10 +48,12 @@ export async function createFlowProjectAction(
   console.log('[Playwright Action] Looking for create project button or link...');
 
   const createButtonSelectors = [
+    'button:has-text("Project baru")',
     'button:has-text("Buat Proyek")',
     'button:has-text("New Project")',
     'button:has-text("Buat")',
     'button:has-text("Create")',
+    '*:has-text("+ Project baru")',
     'a[href*="/project/"]',
     'button[aria-label*="Proyek"]',
     'button[aria-label*="Project"]',

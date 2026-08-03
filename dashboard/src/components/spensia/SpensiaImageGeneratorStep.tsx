@@ -38,7 +38,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
   const [selectedSize, setSelectedSize] = useState<string>('1280x720');
   const [selectedQuality, setSelectedQuality] = useState<string>('low');
   const [selectedDetail, setSelectedDetail] = useState<string>('low');
-  const [concurrency, setConcurrency] = useState<number>(1);
+  const [concurrency, setConcurrency] = useState<number>(5);
 
   const [batchTopics, setBatchTopics] = useState<BatchTopicItem[]>([]);
   const [activeTopicId, setActiveTopicId] = useState<number | null>(null);
@@ -863,7 +863,23 @@ const SpensiaImageGeneratorStep: React.FC = () => {
             </select>
           </div>
 
-          {/* Concurrency Selector hidden as generation is sequential */}
+          {/* Concurrency Selector */}
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-300 block">
+              Proses Paralel (Concurrent Flow Prompts):
+            </label>
+            <select
+              value={concurrency}
+              onChange={(e) => setConcurrency(Number(e.target.value))}
+              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-emerald-300 focus:outline-none focus:border-emerald-500 font-mono font-semibold"
+            >
+              <option value={1}>1 Prompt (Sequential Slower)</option>
+              <option value={2}>2 Prompt (Concurrent 2x)</option>
+              <option value={3}>3 Prompt (Concurrent 3x)</option>
+              <option value={4}>4 Prompt (Concurrent 4x)</option>
+              <option value={5}>5 Prompt (Default — Ultra Fast 5x)</option>
+            </select>
+          </div>
 
           {/* Quality & Cost Saving Controls */}
           <div className="grid grid-cols-2 gap-3">

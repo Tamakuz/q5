@@ -124,14 +124,23 @@ program
   .description('Run a batch queue of prompts in a single persistent browser tab')
   .option('-p, --project <id>', 'Google Flow Project UUID', '10ab715a-31e2-48d3-8e56-840e8af6c062')
   .option('-j, --items-json <json>', 'JSON string of items array [{segment_id, prompt}]')
+  .option('-c, --concurrency <number>', 'Number of concurrent generations in Flow (default: 5)', '5')
+  .option('--profiles <list>', 'Comma-separated profile names for auto-failover', 'user_1,user_2')
+  .option('--models <list>', 'Comma-separated model names for auto-failover', 'Nano Banana Pro,Banana 2')
   .option('--headed', 'Run browser in visible GUI mode', true)
   .option('--no-headed', 'Run browser in headless mode')
   .action(async (options) => {
     try {
       const items = JSON.parse(options.itemsJson || '[]');
+      const concurrency = parseInt(options.concurrency || '5', 10);
+      const profiles = (options.profiles || 'user_1,user_2').split(',').map((s: string) => s.trim()).filter(Boolean);
+      const models = (options.models || 'Nano Banana Pro,Banana 2').split(',').map((s: string) => s.trim()).filter(Boolean);
       await runBatchPersistentQueue({
         projectId: options.project,
         items,
+        concurrency,
+        profiles,
+        models,
         headed: options.headed,
         onItemStart: (segmentId) => {
           console.log(`[ITEM_START] ${segmentId}`);
