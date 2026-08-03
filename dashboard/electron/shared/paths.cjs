@@ -16,6 +16,10 @@ const ALURFILM_COMPRESS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'comp
 const ALURFILM_AUDIO_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'audio');
 const ALURFILM_TRANSCRIPTS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'transcripts');
 const ALURFILM_MAPPINGS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'mappings');
+const UGC_DIR = path.join(PROJECT_ROOT, 'input', 'ugc');
+const UGC_PROFILES_DIR = path.join(PROJECT_ROOT, 'input', 'ugc', 'profiles');
+const UGC_PRODUCTS_DIR = path.join(PROJECT_ROOT, 'input', 'ugc', 'products');
+const UGC_OUTPUT_DIR = path.join(PROJECT_ROOT, 'output', 'ugc');
 const PROMPTS_DIR = path.join(PROJECT_ROOT, 'dashboard', 'prompts');
 const tsxBinPath = path.join(PROJECT_ROOT, 'node_modules', '.bin', 'tsx');
 
@@ -31,6 +35,10 @@ const tsxBinPath = path.join(PROJECT_ROOT, 'node_modules', '.bin', 'tsx');
   ALURFILM_AUDIO_DIR,
   ALURFILM_TRANSCRIPTS_DIR,
   ALURFILM_MAPPINGS_DIR,
+  UGC_DIR,
+  UGC_PROFILES_DIR,
+  UGC_PRODUCTS_DIR,
+  UGC_OUTPUT_DIR,
 ].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
@@ -101,6 +109,10 @@ module.exports = {
   ALURFILM_AUDIO_DIR,
   ALURFILM_TRANSCRIPTS_DIR,
   ALURFILM_MAPPINGS_DIR,
+  UGC_DIR,
+  UGC_PROFILES_DIR,
+  UGC_PRODUCTS_DIR,
+  UGC_OUTPUT_DIR,
   PROMPTS_DIR,
   tsxBinPath,
   getOrGenerateContentId,

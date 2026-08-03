@@ -78,9 +78,17 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
               ? 'bg-indigo-950/80 text-indigo-300 border-indigo-800/80'
               : contentMode === 'longform'
               ? 'bg-purple-950/80 text-purple-300 border-purple-800/80'
-              : 'bg-emerald-950/80 text-emerald-300 border-emerald-800/80'
+              : contentMode === 'spensia'
+              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/80'
+              : 'bg-cyan-950/80 text-cyan-300 border-cyan-800/80'
           }`}>
-            {contentMode === 'shortform' ? '📱 Shorts Mode' : contentMode === 'longform' ? '🍿 Alur Film Mode' : '✨ Spensia Mode'}
+            {contentMode === 'shortform'
+              ? '📱 Shorts Mode'
+              : contentMode === 'longform'
+              ? '🍿 Alur Film Mode'
+              : contentMode === 'spensia'
+              ? '✨ Spensia Mode'
+              : '⚡ UGC Mode'}
           </span>
 
           {/* Content ID Badge */}
@@ -93,7 +101,9 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
                   ? 'bg-indigo-950/60 hover:bg-indigo-900/80 border-indigo-700/50 text-indigo-300'
                   : contentMode === 'longform'
                   ? 'bg-purple-950/60 hover:bg-purple-900/80 border-purple-700/50 text-purple-300'
-                  : 'bg-emerald-950/60 hover:bg-emerald-900/80 border-emerald-700/50 text-emerald-300'
+                  : contentMode === 'spensia'
+                  ? 'bg-emerald-950/60 hover:bg-emerald-900/80 border-emerald-700/50 text-emerald-300'
+                  : 'bg-cyan-950/60 hover:bg-cyan-900/80 border-cyan-700/50 text-cyan-300'
               }`}
             >
               <span>🆔</span>

@@ -2,7 +2,7 @@
 import React from 'react';
 
 export type StepId = 'source' | 'analyze' | 'audio' | 'transcript' | 'mapping' | 'render' | 'upload' | 'publish' | 'thumbnail';
-export type ContentMode = 'shortform' | 'longform' | 'spensia';
+export type ContentMode = 'shortform' | 'longform' | 'spensia' | 'ugc';
 
 interface Step {
   id: StepId;
@@ -42,6 +42,13 @@ const SPENSIA_STEPS: Step[] = [
   { id: 'thumbnail', icon: '🚀', label: '9. Publish Hub & Thumbnail', subText: 'AI SEO Title, Tags, Description & 3x Thumbnail' },
 ];
 
+const UGC_STEPS: Step[] = [
+  { id: 'source', icon: '👤', label: '1. Character Profiles', subText: 'Kelola nama & foto karakter UGC' },
+  { id: 'analyze', icon: '📦', label: '2. Products Manager', subText: 'Kelola & pilih produk aktif' },
+  { id: 'audio', icon: '📹', label: '3. Video Assets', subText: 'Upload video raw per-produk' },
+  { id: 'render', icon: '🎬', label: '4. UGC Render Studio', subText: 'Generator & render pola 3-clip' },
+];
+
 interface SidebarProps {
   activeStep: StepId;
   onStepChange: (step: StepId) => void;
@@ -55,7 +62,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
       ? SHORTFORM_STEPS
       : contentMode === 'longform'
         ? LONGFORM_STEPS
-        : SPENSIA_STEPS;
+        : contentMode === 'spensia'
+          ? SPENSIA_STEPS
+          : UGC_STEPS;
 
   return (
     <nav className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col py-4 shrink-0 justify-between">
@@ -65,10 +74,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
           <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block px-1">
             Content Category
           </span>
-          <div className="grid grid-cols-3 gap-1 bg-gray-950 p-1 rounded-xl border border-gray-800">
+          <div className="grid grid-cols-4 gap-1 bg-gray-950 p-1 rounded-xl border border-gray-800">
             <button
               onClick={() => onModeChange('shortform')}
-              className={`py-2 px-1 rounded-lg text-[11px] font-bold transition-all text-center flex items-center justify-center gap-1 ${contentMode === 'shortform'
+              className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all text-center flex items-center justify-center gap-0.5 ${contentMode === 'shortform'
                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
                 }`}
@@ -77,7 +86,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
             </button>
             <button
               onClick={() => onModeChange('longform')}
-              className={`py-2 px-1 rounded-lg text-[11px] font-bold transition-all text-center flex items-center justify-center gap-1 ${contentMode === 'longform'
+              className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all text-center flex items-center justify-center gap-0.5 ${contentMode === 'longform'
                 ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
                 }`}
@@ -86,12 +95,21 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
             </button>
             <button
               onClick={() => onModeChange('spensia')}
-              className={`py-2 px-1 rounded-lg text-[11px] font-bold transition-all text-center flex items-center justify-center gap-1 ${contentMode === 'spensia'
+              className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all text-center flex items-center justify-center gap-0.5 ${contentMode === 'spensia'
                 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
                 }`}
             >
               <span>✨</span> Spensia
+            </button>
+            <button
+              onClick={() => onModeChange('ugc')}
+              className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all text-center flex items-center justify-center gap-0.5 ${contentMode === 'ugc'
+                ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+                }`}
+            >
+              <span>⚡</span> UGC
             </button>
           </div>
         </div>
@@ -106,20 +124,24 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
                   ? 'text-indigo-400 font-bold'
                   : contentMode === 'longform'
                     ? 'text-purple-400 font-bold'
-                    : 'text-emerald-400 font-bold'
+                    : contentMode === 'spensia'
+                      ? 'text-emerald-400 font-bold'
+                      : 'text-cyan-400 font-bold'
               }
             >
               {contentMode === 'shortform'
                 ? '9:16 Shorts'
                 : contentMode === 'longform'
                   ? '16:9 Alur Film'
-                  : 'Spensia'}
+                  : contentMode === 'spensia'
+                    ? 'Spensia'
+                    : 'UGC Mode'}
             </span>
           </div>
 
           {activeStepsList.length === 0 ? (
             <div className="px-4 py-8 text-center text-xs text-gray-500 italic border border-dashed border-gray-800/80 rounded-xl mx-2">
-              Belum ada step workflow untuk Spensia
+              Belum ada step workflow untuk {contentMode === 'ugc' ? 'UGC' : 'mode ini'}
             </div>
           ) : (
             activeStepsList.map((step) => {
@@ -136,7 +158,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
                         ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30'
                         : contentMode === 'longform'
                           ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/30'
-                          : 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-600/30'
+                          : contentMode === 'spensia'
+                            ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-600/30'
+                            : 'bg-cyan-600 border-cyan-500 text-white shadow-lg shadow-cyan-600/30'
                       : 'bg-transparent border-transparent text-gray-400 hover:bg-gray-800/80 hover:text-gray-200'
                     }
                   `}
@@ -173,14 +197,18 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
               ? 'text-indigo-400'
               : contentMode === 'longform'
                 ? 'text-purple-400'
-                : 'text-emerald-400'
+                : contentMode === 'spensia'
+                  ? 'text-emerald-400'
+                  : 'text-cyan-400'
               }`}
           >
             {contentMode === 'shortform'
               ? '📱 Shorts / TikTok (9:16)'
               : contentMode === 'longform'
                 ? '🍿 Alur Cerita Film (16:9)'
-                : '✨ Spensia Workflow'}
+                : contentMode === 'spensia'
+                  ? '✨ Spensia Workflow'
+                  : '⚡ UGC Workflow'}
           </span>
         </div>
       </div>

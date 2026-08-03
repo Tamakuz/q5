@@ -229,7 +229,106 @@ export interface AlurfilmRenderResult {
   error?: string;
 }
 
+export interface UGCProfile {
+  id: string;
+  name: string;
+  photo: string;
+  createdAt: string;
+  photoUrl?: string;
+  photoPath?: string;
+}
+
+export interface UGCProduct {
+  id: string;
+  name: string;
+  photo?: string | null;
+  createdAt: string;
+  photoUrl?: string;
+  photoPath?: string;
+}
+
+export interface UGCVideoAsset {
+  id: string;
+  name: string;
+  fileName: string;
+  size: number;
+  filePath: string;
+  url: string;
+  createdAt: string;
+}
+
+export interface UGCPatternStats {
+  productId: string;
+  totalRawClips: number;
+  totalPossiblePatterns: number;
+  renderedCount: number;
+  uploadedCount?: number;
+  remainingCount: number;
+}
+
+export interface UGCPatternItem {
+  patternKey: string;
+  pattern: string[];
+  rendered: boolean;
+  uploaded: boolean;
+  outputFileName?: string | null;
+  videoUrl?: string | null;
+  renderedAt?: string | null;
+  uploadedAt?: string | null;
+}
+
+export interface UGCRenderResult {
+  id: string;
+  name: string;
+  fileName: string;
+  size: number;
+  pattern?: string[];
+  filePath: string;
+  url: string;
+  createdAt: string;
+}
+
 export interface ElectronAPI {
+  selectUGCImageFile?: () => Promise<SelectedFile | null>;
+  getUGCProfiles?: () => Promise<UGCProfile[]>;
+  createUGCProfile?: (name: string, sourceFilePath?: string) => Promise<UGCProfile>;
+  deleteUGCProfile?: (profileId: string) => Promise<boolean>;
+  selectActiveUGCProfile?: (profileId: string) => Promise<boolean>;
+  getActiveUGCProfile?: () => Promise<string | null>;
+
+  selectUGCVideoFile?: () => Promise<SelectedFile[]>;
+  getUGCProducts?: () => Promise<UGCProduct[]>;
+  createUGCProduct?: (name: string, sourcePhotoPath?: string) => Promise<UGCProduct>;
+  deleteUGCProduct?: (productId: string) => Promise<boolean>;
+  selectActiveUGCProduct?: (productId: string) => Promise<boolean>;
+  getActiveUGCProduct?: () => Promise<string | null>;
+  uploadUGCVideoAsset?: (productId: string, sourceFilePath: string) => Promise<UGCVideoAsset>;
+  downloadUGCVideoAsset?: (productId: string, videoUrl: string) => Promise<UGCVideoAsset>;
+  onUGCVideoDownloadProgress?: (
+    callback: (data: { productId: string; progress: number; loadedBytes: number; totalBytes: number }) => void
+  ) => () => void;
+  listUGCVideoAssets?: (productId: string) => Promise<UGCVideoAsset[]>;
+  deleteUGCVideoAsset?: (productId: string, fileName: string) => Promise<boolean>;
+
+  getUGCPatternStats?: (productId: string) => Promise<UGCPatternStats | null>;
+  getUGCPatternsList?: (
+    productId: string
+  ) => Promise<{ productId: string; items: UGCPatternItem[]; stats: UGCPatternStats; rawClipUrls?: Record<string, string> } | null>;
+  shuffleUGCPatterns?: (productId: string) => Promise<boolean>;
+  renderUGCPattern?: (
+    productId: string,
+    pattern?: string[],
+    patternIndex?: number,
+    transitionStyle?: 'radian_glow' | 'dissolve' | 'none'
+  ) => Promise<UGCRenderResult>;
+  toggleUGCOploadStatus?: (productId: string, patternKey: string, uploaded: boolean) => Promise<boolean>;
+  deleteUGCRenderPattern?: (productId: string, patternKey: string) => Promise<boolean>;
+  listUGCRenders?: (productId: string) => Promise<UGCRenderResult[]>;
+  deleteUGCRender?: (productId: string, fileName: string) => Promise<boolean>;
+  onUGCRenderProgress?: (
+    callback: (data: { productId: string; stage: string; progress: number }) => void
+  ) => () => void;
+
   selectFile: () => Promise<SelectedFile | null>;
   getVideoMeta: (filePath: string) => Promise<VideoMeta | null>;
   uploadSource: (filePath: string, start: number, end: number) => Promise<SourceInfo>;

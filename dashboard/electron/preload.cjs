@@ -254,4 +254,50 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('analyze-spensia-metadata', { topicTitle, metadata, model, topicId }),
   fixSpensiaMetadata: (topicTitle, metadata, analysis, model, topicId) =>
     ipcRenderer.invoke('fix-spensia-metadata', { topicTitle, metadata, analysis, model, topicId }),
+
+  // UGC Character Profiles
+  selectUGCImageFile: () => ipcRenderer.invoke('ugc:select-image-file'),
+  getUGCProfiles: () => ipcRenderer.invoke('ugc:get-profiles'),
+  createUGCProfile: (name, sourceFilePath) => ipcRenderer.invoke('ugc:create-profile', { name, sourceFilePath }),
+  deleteUGCProfile: (profileId) => ipcRenderer.invoke('ugc:delete-profile', profileId),
+  selectActiveUGCProfile: (profileId) => ipcRenderer.invoke('ugc:select-active-profile', profileId),
+  getActiveUGCProfile: () => ipcRenderer.invoke('ugc:get-active-profile'),
+
+  // UGC Products & Video Assets
+  selectUGCVideoFile: () => ipcRenderer.invoke('ugc:select-video-file'),
+  getUGCProducts: () => ipcRenderer.invoke('ugc:get-products'),
+  createUGCProduct: (name, sourcePhotoPath) => ipcRenderer.invoke('ugc:create-product', { name, sourcePhotoPath }),
+  deleteUGCProduct: (productId) => ipcRenderer.invoke('ugc:delete-product', productId),
+  selectActiveUGCProduct: (productId) => ipcRenderer.invoke('ugc:select-active-product', productId),
+  getActiveUGCProduct: () => ipcRenderer.invoke('ugc:get-active-product'),
+  uploadUGCVideoAsset: (productId, sourceFilePath) =>
+    ipcRenderer.invoke('ugc:upload-video-asset', { productId, sourceFilePath }),
+  listUGCVideoAssets: (productId) => ipcRenderer.invoke('ugc:list-video-assets', productId),
+  deleteUGCVideoAsset: (productId, fileName) =>
+    ipcRenderer.invoke('ugc:delete-video-asset', { productId, fileName }),
+  downloadUGCVideoAsset: (productId, videoUrl) =>
+    ipcRenderer.invoke('ugc:download-video-asset', { productId, videoUrl }),
+  onUGCVideoDownloadProgress: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('ugc:download-video-progress', handler);
+    return () => ipcRenderer.removeListener('ugc:download-video-progress', handler);
+  },
+
+  // UGC Isolated Render Studio
+  getUGCPatternStats: (productId) => ipcRenderer.invoke('ugc:get-render-patterns-stats', productId),
+  getUGCPatternsList: (productId) => ipcRenderer.invoke('ugc:get-render-patterns-list', productId),
+  shuffleUGCPatterns: (productId) => ipcRenderer.invoke('ugc:shuffle-render-patterns', productId),
+  renderUGCPattern: (productId, pattern, patternIndex, transitionStyle) =>
+    ipcRenderer.invoke('ugc:render-pattern', { productId, pattern, patternIndex, transitionStyle }),
+  toggleUGCOploadStatus: (productId, patternKey, uploaded) =>
+    ipcRenderer.invoke('ugc:toggle-upload-status', { productId, patternKey, uploaded }),
+  deleteUGCRenderPattern: (productId, patternKey) =>
+    ipcRenderer.invoke('ugc:delete-render-pattern', { productId, patternKey }),
+  listUGCRenders: (productId) => ipcRenderer.invoke('ugc:list-renders', productId),
+  deleteUGCRender: (productId, fileName) => ipcRenderer.invoke('ugc:delete-render', { productId, fileName }),
+  onUGCRenderProgress: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('ugc:render-progress', handler);
+    return () => ipcRenderer.removeListener('ugc:render-progress', handler);
+  },
 });
