@@ -70,15 +70,86 @@ const SpensiaVoiceOverStep: React.FC = () => {
   const [pastedJsonMap, setPastedJsonMap] = useState<Record<string, string>>({});
 
   const [activeTab, setActiveTab] = useState<number | 'merged'>(0); // 0 = Merged Audio Final, 1 = Part 1, 2 = Part 2
-  const [transcriptTab, setTranscriptTab] = useState<'chunks' | 'words' | 'full'>('chunks');
+  const [transcriptTab, setTranscriptTab] = useState<'sentences' | 'chunks' | 'words' | 'full'>('sentences');
   const [audioCurrentTimes, setAudioCurrentTimes] = useState<Record<string, number>>({});
   const [toast, setToast] = useState<string | null>(null);
+
+  // Faster-Whisper execution state
+  const [isTranscribingWhisper, setIsTranscribingWhisper] = useState<boolean>(false);
+  const [whisperProgressPct, setWhisperProgressPct] = useState<number>(0);
+  const [whisperProgressText, setWhisperProgressText] = useState<string>('');
+  const [whisperStage, setWhisperStage] = useState<string>('idle');
+  const [whisperLogs, setWhisperLogs] = useState<string[]>([]);
+  const whisperLogContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Pipeline execution status: 'idle' | 'merging' | 'ready' | 'completed' | 'error'
   const [pipelineStage, setPipelineStage] = useState<'idle' | 'merging' | 'ready' | 'completed' | 'error'>('idle');
   const [pipelineStatusText, setPipelineStatusText] = useState<string>('');
 
   const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
+
+  // Auto-scroll terminal log container
+  useEffect(() => {
+    if (whisperLogContainerRef.current) {
+      whisperLogContainerRef.current.scrollTop = whisperLogContainerRef.current.scrollHeight;
+    }
+  }, [whisperLogs]);
+
+  useEffect(() => {
+    if (api?.onSpensiaFasterWhisperProgress) {
+      const cleanup = api.onSpensiaFasterWhisperProgress((data) => {
+        if (activeTopicId && data?.topicId && String(data.topicId) !== String(activeTopicId)) return;
+        if (data.progress !== undefined) setWhisperProgressPct(data.progress);
+        if (data.message) setWhisperProgressText(data.message);
+        if (data.stage) setWhisperStage(data.stage);
+        if (data.log) {
+          setWhisperLogs((prev) => [...prev, data.log!]);
+        }
+        if (data.stage === 'completed' || data.stage === 'error') {
+          setIsTranscribingWhisper(false);
+        }
+      });
+      return cleanup;
+    }
+  }, [activeTopicId]);
+
+  const handleRunFasterWhisper = async () => {
+    if (!mergedVo?.audioPath && !mergedVo?.audioUrl) {
+      showToast('⚠️ Silakan upload file audio narasi terlebih dahulu.');
+      return;
+    }
+    setIsTranscribingWhisper(true);
+    setWhisperLogs([]);
+    setWhisperStage('preparing');
+    setWhisperProgressPct(5);
+    setWhisperProgressText('Memulai proses Faster-Whisper...');
+
+    try {
+      const res = await api.runSpensiaFasterWhisperAlignment?.({
+        audioPath: mergedVo?.audioPath || mergedVo?.filename,
+        scriptText: fullScript,
+        topicId: activeTopicId || 1,
+      });
+
+      if (res?.success && res.jsonContent) {
+        setPastedJsonMap((prev) => ({ ...prev, merged: res.jsonContent! }));
+        const report = validateSpensiaWordTranscript(res.jsonContent);
+        if (report.isValid && report.normalizedData) {
+          setMergedVo((prev) => (prev ? { ...prev, rawTranscriptJson: res.jsonContent, transcript: report.normalizedData! } : prev));
+          setTranscriptTab('sentences');
+          showToast('✨ Transkrip otomatis Faster-Whisper berhasil dibuat!');
+        } else {
+          showToast('⚠️ Transkrip dibuat tetapi gagal divalidasi secara sempurna.');
+        }
+      } else {
+        showToast(`❌ Gagal: ${res?.error || 'Terjadi kesalahan saat memproses Faster-Whisper.'}`);
+      }
+    } catch (err: any) {
+      showToast(`❌ Error: ${err.message}`);
+    } finally {
+      setIsTranscribingWhisper(false);
+    }
+  };
 
   const handleAudioTimeUpdate = (key: string, e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
     const curTime = e.currentTarget.currentTime;
@@ -1056,6 +1127,101 @@ const SpensiaVoiceOverStep: React.FC = () => {
               onTimeUpdate={(e) => handleAudioTimeUpdate('merged', e)}
               className="w-full h-10 focus:outline-none rounded-xl"
             />
+
+            {/* Inline Faster-Whisper 1-Click Auto Transcribe Button & Progress Panel */}
+            <div className="pt-3 border-t border-gray-900 space-y-3">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <button
+                  onClick={handleRunFasterWhisper}
+                  disabled={isTranscribingWhisper}
+                  className={`px-5 py-2.5 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs rounded-xl transition-all shadow-lg flex items-center gap-2 ${
+                    isTranscribingWhisper ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.02]'
+                  }`}
+                >
+                  <span>{isTranscribingWhisper ? '⏳' : '⚡'}</span>
+                  <span>{isTranscribingWhisper ? 'Memproses Faster-Whisper...' : 'Transkrip Otomatis (Faster-Whisper)'}</span>
+                </button>
+
+                {isTranscribingWhisper && (
+                  <span className="text-xs font-mono text-emerald-400 font-bold flex items-center gap-2">
+                    <svg className="animate-spin h-3.5 w-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    <span>{whisperProgressPct}% Processing...</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Inline Progress & Terminal Box Panel */}
+              {(isTranscribingWhisper || whisperLogs.length > 0) && (
+                <div className="p-4 bg-gray-900 border border-emerald-800/80 rounded-xl space-y-3 animate-in fade-in duration-150">
+                  {/* Stage Stepper Badge */}
+                  <div className="flex items-center justify-between text-[11px] font-mono text-gray-400 bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+                    <span className={whisperStage === 'preparing' ? 'text-emerald-400 font-bold' : ''}>[1/4] Prep</span>
+                    <span>➔</span>
+                    <span className={whisperStage === 'loading_model' ? 'text-emerald-400 font-bold' : ''}>[2/4] Model</span>
+                    <span>➔</span>
+                    <span className={whisperStage === 'transcribing' ? 'text-emerald-400 font-bold' : ''}>[3/4] VAD Transcribe</span>
+                    <span>➔</span>
+                    <span className={whisperStage === 'aligning' || whisperStage === 'done' ? 'text-emerald-400 font-bold' : ''}>[4/4] Alignment</span>
+                  </div>
+
+                  {/* Progress Bar & Status Text */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-mono text-emerald-300 font-bold truncate max-w-md">{whisperProgressText || 'Memproses Faster-Whisper...'}</span>
+                      <span className="font-mono text-emerald-400 font-bold">{whisperProgressPct}%</span>
+                    </div>
+
+                    <div className="w-full bg-gray-950 h-2.5 rounded-full overflow-hidden border border-gray-800">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          whisperStage === 'error'
+                            ? 'bg-red-500'
+                            : whisperStage === 'completed' || whisperProgressPct === 100
+                            ? 'bg-emerald-500'
+                            : 'bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 animate-pulse'
+                        }`}
+                        style={{ width: `${whisperProgressPct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Terminal Log Box */}
+                  <div className="flex flex-col bg-gray-950 border border-gray-800/80 rounded-xl p-3 font-mono text-xs overflow-hidden h-44">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-gray-800/80 mb-1.5 text-[10px] text-gray-400">
+                      <span className="flex items-center gap-1.5 font-bold text-emerald-400">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" /> Live Faster-Whisper Terminal
+                      </span>
+                      <span>Topik #{activeTopicId || 1}</span>
+                    </div>
+
+                    <div ref={whisperLogContainerRef} className="flex-1 overflow-y-auto space-y-1 text-gray-300 text-[11px] leading-relaxed scrollbar-thin">
+                      {whisperLogs.map((log, i) => (
+                        <div
+                          key={i}
+                          className={
+                            log.includes('Gagal') || log.includes('ERROR')
+                              ? 'text-red-400 font-bold'
+                              : log.includes('Selesai') || log.includes('berhasil') || log.includes('Loaded')
+                              ? 'text-emerald-400 font-bold'
+                              : log.includes('Segmen #')
+                              ? 'text-yellow-300'
+                              : 'text-gray-300'
+                          }
+                        >
+                          {log}
+                        </div>
+                      ))}
+                      {isTranscribingWhisper && (
+                        <div className="text-emerald-500/70 animate-pulse">... listening & aligning audio ...</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <div
@@ -1217,6 +1383,16 @@ const SpensiaVoiceOverStep: React.FC = () => {
 
                 <div className="flex items-center gap-1 bg-gray-900 p-1 rounded-xl border border-gray-800">
                   <button
+                    onClick={() => setTranscriptTab('sentences')}
+                    className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                      transcriptTab === 'sentences'
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    💬 Kalimat (Sentence & Words)
+                  </button>
+                  <button
                     onClick={() => setTranscriptTab('chunks')}
                     className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all ${
                       transcriptTab === 'chunks'
@@ -1249,6 +1425,93 @@ const SpensiaVoiceOverStep: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Sentence & Nested Word View */}
+            {transcriptTab === 'sentences' && (
+              <div className="space-y-3">
+                <p className="text-[11px] text-gray-400 italic flex items-center justify-between">
+                  <span>💡 Transkrip presisi level Kalimat & Kata. Klik kalimat atau kata untuk memutar audio!</span>
+                  <span className="text-yellow-400 font-bold font-mono">
+                    ⏱️ Time: {(audioCurrentTimes['merged'] || 0).toFixed(2)}s
+                  </span>
+                </p>
+
+                <div className="space-y-3 max-h-80 overflow-y-auto p-3 bg-gray-900/90 rounded-xl border border-gray-800/80 scrollbar-thin">
+                  {(mergedVo.transcript.sentences || []).map((sent) => {
+                    const curTime = audioCurrentTimes['merged'] || 0;
+                    const isSentActive = curTime >= sent.start && curTime <= sent.end;
+
+                    return (
+                      <div
+                        key={sent.sentence_id}
+                        className={`p-3.5 rounded-xl space-y-2.5 transition-all duration-150 ${
+                          isSentActive
+                            ? 'bg-emerald-950/90 border-2 border-emerald-400 shadow-xl shadow-emerald-950/60 ring-2 ring-emerald-400/30'
+                            : 'bg-gray-950 border border-gray-800 hover:border-emerald-700/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            onClick={() => handleSeekAudioToTime('merged', sent.start)}
+                            className="flex items-center gap-2 text-left group"
+                          >
+                            <span
+                              className={`px-2.5 py-0.5 font-mono text-[10px] rounded transition-all ${
+                                isSentActive
+                                  ? 'bg-emerald-400 text-gray-950 font-black shadow shadow-emerald-400/50 animate-pulse'
+                                  : 'bg-emerald-950 text-emerald-300 font-bold border border-emerald-800 group-hover:bg-emerald-800 group-hover:text-white'
+                              }`}
+                            >
+                              ▶ Kalimat #{sent.sentence_id} ({sent.start.toFixed(1)}s - {sent.end.toFixed(1)}s)
+                            </span>
+                            <span
+                              className={`text-xs transition-colors ${
+                                isSentActive
+                                  ? 'text-emerald-300 font-bold text-sm'
+                                  : 'text-white group-hover:text-emerald-300'
+                              }`}
+                            >
+                              {sent.text}
+                            </span>
+                          </button>
+                          <span className="text-[10px] text-gray-500 font-mono shrink-0">
+                            {sent.words?.length || 0} kata
+                          </span>
+                        </div>
+
+                        {sent.words && sent.words.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pl-2 pt-2 border-t border-gray-900/80">
+                            {sent.words.map((w, wIdx) => {
+                              const isWordActive = curTime >= w.start && curTime <= w.end;
+                              return (
+                                <button
+                                  key={wIdx}
+                                  onClick={() => handleSeekAudioToTime('merged', w.start)}
+                                  className={`rounded font-mono transition-all duration-100 flex items-center gap-1 ${
+                                    isWordActive
+                                      ? 'px-3 py-1 bg-yellow-400 text-gray-950 font-black border-2 border-yellow-300 shadow-xl shadow-yellow-500/60 scale-110 z-10 animate-bounce'
+                                      : 'px-2 py-1 bg-gray-900 hover:bg-emerald-950 border border-gray-800 text-[11px] text-gray-300 hover:text-emerald-300'
+                                  }`}
+                                >
+                                  <span>{w.word}</span>
+                                  <span
+                                    className={`text-[9px] ${
+                                      isWordActive ? 'text-gray-900 font-bold' : 'text-emerald-400/80'
+                                    }`}
+                                  >
+                                    {w.start.toFixed(2)}s
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Phrase Chunks View */}
             {transcriptTab === 'chunks' && (

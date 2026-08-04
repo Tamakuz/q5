@@ -5,6 +5,7 @@ import type {
     SpensiaTimelineStructure,
     SpensiaRenderResult,
     WatermarkTextConfig,
+    CaptionConfig,
     BgmConfig,
     VignetteConfig,
     RenderProgress,
@@ -28,18 +29,20 @@ const QUALITY_OPTIONS = [
     { value: 'high', label: '🏆 High Quality (Slow)' },
 ] as const;
 
-// ─── Preview Canvas (Scale factor: preview is 480×270, real canvas is 1920×1080 → 0.25x) ───
+// ─── Preview Canvas (Scale factor: preview container is max-w-4xl ~864×486, real canvas is 1920×1080 → 0.45x) ───
 
-const PREVIEW_SCALE = 0.25; // 480/1920 = 270/1080
+const PREVIEW_SCALE = 0.45; // 864/1920 = 486/1080
 
 const scale = (v: number) => Math.round(v * PREVIEW_SCALE);
 
 const PreviewCanvas: React.FC<{
     config: SpensiaRenderConfig;
     sampleImageUrl: string | null;
-}> = ({ config, sampleImageUrl }) => {
+    sampleCaptionText?: string;
+}> = ({ config, sampleImageUrl, sampleCaptionText }) => {
     const wm = config.watermark;
     const vig = config.vignette;
+    const cap = config.caption;
 
     const getPosStyle = (): React.CSSProperties => {
         const base: React.CSSProperties = {
@@ -79,9 +82,33 @@ const PreviewCanvas: React.FC<{
         }
         : {};
 
+    const capEnabled = cap?.enabled !== false;
+    const capColor = cap?.inactiveColorHex || '#CBD5E1';
+    const capFontSize = Math.max(14, scale(cap?.fontSize || 48));
+    const capBottom = scale(cap?.positionY || 160);
+    const strokeWidth = Math.max(0.5, capFontSize * 0.045);
+
+    const getCaptionStyle = (): React.CSSProperties => ({
+        position: 'absolute',
+        bottom: `${capBottom}px`,
+        left: '4%',
+        right: '4%',
+        textAlign: 'center',
+        color: capColor,
+        fontSize: `${capFontSize}px`,
+        fontFamily: `${cap?.fontName || 'Montserrat'}, sans-serif`,
+        fontWeight: 800,
+        lineHeight: 1.3,
+        letterSpacing: '0.01em',
+        textShadow: `0 2px 10px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.85)`,
+        WebkitTextStroke: `${strokeWidth.toFixed(1)}px ${cap?.outlineColorHex || '#000000'}`,
+        pointerEvents: 'none',
+        zIndex: 20,
+    });
+
     return (
         <div
-            className="relative w-full max-w-xl aspect-video mx-auto overflow-hidden rounded-2xl border border-gray-700/80 shadow-2xl bg-black flex items-center justify-center"
+            className="relative w-full max-w-4xl aspect-video mx-auto overflow-hidden rounded-3xl border border-gray-700/80 shadow-2xl bg-black flex items-center justify-center"
             style={{ aspectRatio: '16/9' }}
         >
             {/* Background image */}
@@ -98,6 +125,25 @@ const PreviewCanvas: React.FC<{
 
             {/* Dark Vignette overlay */}
             <div style={vignetteStyle} />
+
+            {/* Subtitle / Caption text overlay */}
+            {capEnabled && (
+                <div style={getCaptionStyle()}>
+                    {sampleCaptionText ? (
+                        <span>{sampleCaptionText}</span>
+                    ) : (cap?.displayMode || 'sentence') === 'single-word' ? (
+                        <span style={{ color: cap?.activeColorHex || '#22C55E' }}>PAGI</span>
+                    ) : cap?.displayMode === 'phrase' ? (
+                        <span>
+                            Bayangkan kamu <span style={{ color: cap?.activeColorHex || '#22C55E' }}>terbangun</span> jam 2 pagi...
+                        </span>
+                    ) : (
+                        <span>
+                            "Bayangkan kamu terbangun di jam 2 pagi di tengah kegelapan..."
+                        </span>
+                    )}
+                </div>
+            )}
 
             {/* Watermark text overlay */}
             {wm.enabled && (
@@ -296,6 +342,55 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
     const [renderError, setRenderError] = useState<string | null>(null);
     const [toast, setToast] = useState<string | null>(null);
     const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
+    const [renderLogs, setRenderLogs] = useState<string[]>([]);
+    const logConsoleRef = useRef<HTMLDivElement>(null);
+
+    const [renderStartTime, setRenderStartTime] = useState<number | null>(null);
+    const [elapsedSec, setElapsedSec] = useState<number>(0);
+
+    // Real-time render timer & ETA countdown calculation
+    useEffect(() => {
+        let timer: NodeJS.Timeout | null = null;
+        if (rendering && renderStartTime) {
+            timer = setInterval(() => {
+                const now = Date.now();
+                const diff = Math.max(0, Math.floor((now - renderStartTime) / 1000));
+                setElapsedSec(diff);
+            }, 1000);
+        } else {
+            setElapsedSec(0);
+        }
+        return () => {
+            if (timer) clearInterval(timer);
+        };
+    }, [rendering, renderStartTime]);
+
+    const formatSecToMinSec = (totalSeconds: number): string => {
+        const s = Math.max(0, Math.floor(totalSeconds));
+        const mins = Math.floor(s / 60);
+        const secs = s % 60;
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    };
+
+    const getEstimatedTimeRemainingSec = (): number | null => {
+        if (!rendering || !renderProgress || !renderProgress.progress || renderProgress.progress <= 0.05 || elapsedSec <= 2) {
+            return null;
+        }
+        const pct = renderProgress.progress;
+        const totalEstimated = elapsedSec / pct;
+        const remaining = Math.max(0, Math.round(totalEstimated - elapsedSec));
+        return remaining;
+    };
+
+    const addLog = useCallback((msg: string) => {
+        const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setRenderLogs((prev) => [...prev.slice(-300), `[${timeStr}] ${msg}`]);
+        setTimeout(() => {
+            if (logConsoleRef.current) {
+                logConsoleRef.current.scrollTop = logConsoleRef.current.scrollHeight;
+            }
+        }, 50);
+    }, []);
 
     const showToast = (msg: string) => {
         setToast(msg);
@@ -386,7 +481,7 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                             setConfig((prev) => ({
                                 ...prev,
                                 ...parsed,
-                                caption: { ...(parsed.caption || {}), enabled: false },
+                                caption: { enabled: true, displayMode: 'sentence', inactiveColorHex: '#CBD5E1', fontSize: 48, positionY: 160, ...(parsed.caption || {}) },
                                 vignette: { ...(parsed.vignette || {}), intensity: parsed.vignette?.intensity ?? 0.75 },
                             }));
                         } catch {}
@@ -442,6 +537,9 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
 
         const cleanup = api?.onRenderProgress?.((data) => {
             setRenderProgress(data);
+            if (data.message) {
+                addLog(data.message);
+            }
             if (data.stage === 'done') {
                 setRendering(false);
             } else if (data.stage === 'error') {
@@ -513,6 +611,14 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
         });
     }, [saveConfigDebounced]);
 
+    const updateCaption = useCallback((patch: Partial<CaptionConfig>) => {
+        setConfig((prev) => {
+            const updated = { ...prev, caption: { ...prev.caption, ...patch } };
+            saveConfigDebounced(updated as any);
+            return updated;
+        });
+    }, [saveConfigDebounced]);
+
     const handleSaveConfig = async () => {
         try {
             if (api?.saveToProject) {
@@ -526,9 +632,11 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
 
     const handleLoadDefault = () => {
         const def = getDefaultSpensiaRenderConfig();
-        def.caption.enabled = false;
         def.vignette.intensity = 0.75;
         setConfig(def);
+        if (api?.saveToProject) {
+            api.saveToProject('input/spensia/render_config.json', JSON.stringify(def, null, 2));
+        }
         showToast('🔄 Konfigurasi dikembalikan ke default.');
     };
 
@@ -536,6 +644,8 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
     const handleStartRender = async () => {
         if (rendering) return;
         setRendering(true);
+        setRenderStartTime(Date.now());
+        setElapsedSec(0);
         setRenderResult(null);
         setRenderError(null);
         setRenderProgress({ progress: 0.05, stage: 'init', message: `Mempersiapkan render engine FFmpeg untuk Topik #${activeTopicId || 1}...` });
@@ -548,14 +658,13 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                 throw new Error('API renderSpensiaVideo tidak tersedia.');
             }
 
-            // Always enforce caption disabled
-            const activeConfig = {
-                ...config,
-                caption: { ...config.caption, enabled: false },
-            };
+            // Always persist latest full config (including captions & audio) to JSON before render
+            if (api?.saveToProject) {
+                await api.saveToProject('input/spensia/render_config.json', JSON.stringify(config, null, 2));
+            }
 
             showToast(`🎬 Memulai proses render Spensia Video Topik #${activeTopicId || 1}...`);
-            const res = await api.renderSpensiaVideo(activeConfig, timeline as any, undefined, activeTopicId || undefined);
+            const res = await api.renderSpensiaVideo(config, timeline as any, undefined, activeTopicId || undefined);
 
             if ('error' in res && res.error) {
                 setRenderError(res.error);
@@ -588,6 +697,8 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
         }
 
         setRendering(true);
+        setRenderStartTime(Date.now());
+        setElapsedSec(0);
         setRenderError(null);
         setBulkProgress({ current: 1, total: batchTopics.length });
         showToast(`🚀 Memulai Bulk Render untuk ${batchTopics.length} Topik...`);
@@ -598,10 +709,10 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                 throw new Error('API renderSpensiaVideo tidak tersedia.');
             }
 
-            const activeConfig = {
-                ...config,
-                caption: { ...config.caption, enabled: false },
-            };
+            // Always persist latest full config (including captions & audio) to JSON before render
+            if (api?.saveToProject) {
+                await api.saveToProject('input/spensia/render_config.json', JSON.stringify(config, null, 2));
+            }
 
             let index = 0;
             for (const topic of batchTopics) {
@@ -626,7 +737,7 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                     continue;
                 }
 
-                const res = await api.renderSpensiaVideo(activeConfig, topicTl as any, undefined, topic.id);
+                const res = await api.renderSpensiaVideo(config, topicTl as any, undefined, topic.id);
                 
                 const isSuccess = !('error' in res) || !res.error;
                 if (isSuccess) {
@@ -791,386 +902,544 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                 )}
             </div>
 
-            {/* Main Studio Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* LEFT: Live Preview Studio + Render Output (col-span-5) */}
-                <div className="lg:col-span-5 space-y-6">
-                    {/* Live Preview Card */}
-                    <div className="bg-gray-900/90 p-5 rounded-3xl border border-gray-800 shadow-xl space-y-4">
-                        <div className="flex items-center justify-between border-b border-gray-800 pb-3">
-                            <h3 className="text-xs font-extrabold text-white flex items-center gap-2 uppercase tracking-wider">
-                                <span>👁️</span> Live Canvas Preview (CSS Overlay)
-                            </h3>
-                            <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-800">
-                                1920×1080 Full HD
-                            </span>
-                        </div>
+            {/* Main Studio Vertical Stacked Layout */}
+            <div className="space-y-6 max-w-5xl mx-auto">
+                {/* TOP: Large Live Preview Studio (Full Width) */}
+                <div className="bg-gray-900/90 p-6 rounded-3xl border border-gray-800 shadow-2xl space-y-4">
+                    <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+                        <h3 className="text-xs font-extrabold text-white flex items-center gap-2 uppercase tracking-wider">
+                            <span>👁️</span> Live Canvas Preview (CSS Overlay)
+                        </h3>
+                        <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-950 px-2.5 py-1 rounded-full border border-emerald-800">
+                            1920×1080 Full HD (16:9)
+                        </span>
+                    </div>
 
-                        <div className="flex justify-center py-1">
-                            <PreviewCanvas config={config} sampleImageUrl={sampleImageUrl} />
+                    <div className="flex justify-center py-2">
+                        <PreviewCanvas config={config} sampleImageUrl={sampleImageUrl} />
+                    </div>
+                </div>
+
+                {/* 🖥️ Dedicated Render Progress & Real-Time Log Console Panel */}
+                <div className="bg-gray-900/95 p-5 rounded-3xl border border-emerald-900/60 shadow-2xl space-y-3.5">
+                    <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+                        <div className="flex items-center gap-2">
+                            <span className="relative flex h-3 w-3">
+                                {rendering ? (
+                                    <>
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
+                                    </>
+                                ) : (
+                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-900 border border-emerald-700" />
+                                )}
+                            </span>
+                            <h3 className="text-xs font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
+                                <span>🖥️</span> Status & Real-Time Console Log Render (FFmpeg Engine)
+                            </h3>
+                            {bulkProgress && (
+                                <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded-full font-mono animate-pulse">
+                                    Batch: {bulkProgress.current} / {bulkProgress.total}
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {rendering && (
+                                <>
+                                    <span className="text-xs font-mono font-bold text-gray-300 bg-gray-950 px-2.5 py-1 rounded-xl border border-gray-800 flex items-center gap-1.5 shadow-inner" title="Waktu Render Berjalan">
+                                        <span>⏱️</span>
+                                        <span>{formatSecToMinSec(elapsedSec)}</span>
+                                    </span>
+
+                                    {(() => {
+                                        const remaining = getEstimatedTimeRemainingSec();
+                                        return (
+                                            <span className="text-xs font-mono font-bold text-amber-300 bg-amber-950/80 px-2.5 py-1 rounded-xl border border-amber-800/80 flex items-center gap-1.5 shadow-inner animate-pulse" title="Estimasi Hitung Mundur Selesai">
+                                                <span>⏳ Estimasi:</span>
+                                                <span>{remaining !== null ? `~${formatSecToMinSec(remaining)}` : 'Menghitung...'}</span>
+                                            </span>
+                                        );
+                                    })()}
+                                </>
+                            )}
+
+                            <span className="text-xs font-mono font-bold text-emerald-300 bg-emerald-950/90 px-3 py-1 rounded-xl border border-emerald-800/80 shadow-inner">
+                                {renderProgress ? `${Math.round((renderProgress.progress || 0) * 100)}%` : '0%'}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setRenderLogs([])}
+                                className="text-[10px] text-gray-400 hover:text-white bg-gray-950 border border-gray-800 px-2.5 py-1 rounded-xl transition-all"
+                            >
+                                🧹 Clear Log
+                            </button>
                         </div>
                     </div>
 
-                    {/* Active Render Progress Bar */}
-                    {rendering && renderProgress && (() => {
-                        const stageLabels: Record<string, string> = {
-                            init: '🚀 Inisialisasi Engine',
-                            clips: '🖼️ Pre-Rendering Segmen Visual',
-                            overlay: '🔗 Concat & Audio/Visual Composite',
-                            final: '⚡ Encoding Ekspor MP4 1080p',
-                            done: '🎉 Render Selesai',
-                            error: '❌ Error Render',
-                        };
-                        const currentStageText = stageLabels[renderProgress.stage] || renderProgress.stage;
-                        const pctValue = Math.round((renderProgress.progress || 0) * 100);
-
-                        return (
-                            <div className="bg-gray-900/95 p-5 rounded-3xl border border-emerald-600/50 shadow-2xl space-y-3.5 animate-in fade-in duration-200">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-black text-emerald-300 flex items-center gap-2 tracking-wide">
-                                        <span className="relative flex h-3 w-3">
-                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
-                                        </span>
-                                        {currentStageText}
-                                        {bulkProgress && (
-                                            <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded-full font-mono animate-pulse">
-                                                Batch: {bulkProgress.current} / {bulkProgress.total}
-                                            </span>
-                                        )}
-                                    </span>
-                                    <span className="text-xs font-mono font-black text-emerald-300 bg-emerald-950/80 px-3 py-1 rounded-xl border border-emerald-700/60 shadow-inner">
-                                        {pctValue}%
-                                    </span>
-                                </div>
-                                <div className="w-full bg-gray-950 rounded-full h-3.5 overflow-hidden border border-emerald-900/40 p-0.5 shadow-inner">
-                                    <div
-                                        className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-400 h-full rounded-full transition-all duration-300 shadow-[0_0_12px_rgba(244,63,94,0.6)]"
-                                        style={{ width: `${Math.max(5, pctValue)}%` }}
-                                    />
-                                </div>
-                                <div className="flex items-center justify-between text-[11px] font-mono text-gray-300 pt-0.5">
-                                    <span className="truncate pr-2 font-medium">{renderProgress.message || 'Memproses video...'}</span>
-                                    <span className="text-gray-500 shrink-0 font-bold">{pctValue}%</span>
-                                </div>
-                            </div>
-                        );
-                    })()}
-
-                    {/* Render Completed Result Card */}
-                    {renderResult && (
-                        <div className="bg-emerald-950/80 p-5 rounded-3xl border border-emerald-700/60 shadow-2xl space-y-3 animate-in slide-in-from-bottom-4 duration-300">
-                            <div className="flex items-center justify-between border-b border-emerald-800/80 pb-3">
-                                <div className="flex items-center gap-2">
-                                    <span className="p-1 bg-emerald-900 text-emerald-300 rounded-lg text-xs">🎉</span>
-                                    <h3 className="text-xs font-black text-white uppercase tracking-wider">
-                                        Render Video Sukses Dituntaskan!
-                                    </h3>
-                                </div>
-                                <span className="text-[10px] font-mono font-bold text-emerald-300 bg-emerald-900 px-2 py-0.5 rounded-full">
-                                    1080p MP4
-                                </span>
-                            </div>
-
-                            <p className="text-xs text-emerald-200 font-mono truncate">{renderResult.fileName}</p>
-
-                            {renderResult.mediaUrl && (
-                                <video src={renderResult.mediaUrl} controls className="w-full rounded-2xl max-h-64 bg-black border border-emerald-800 shadow-inner" />
-                            )}
+                    {/* Progress Bar */}
+                    <div className="space-y-1.5">
+                        <div className="w-full bg-gray-950 rounded-full h-3.5 overflow-hidden border border-emerald-900/40 p-0.5 shadow-inner">
+                            <div
+                                className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-400 h-full rounded-full transition-all duration-300 shadow-[0_0_12px_rgba(34,197,94,0.6)]"
+                                style={{ width: `${Math.max(3, renderProgress ? Math.round((renderProgress.progress || 0) * 100) : 0)}%` }}
+                            />
                         </div>
-                    )}
-
-                    {/* Render Error Card */}
-                    {renderError && (
-                        <div className="bg-emerald-950/80 p-5 rounded-3xl border border-emerald-800/60 shadow-2xl space-y-2">
-                            <h4 className="text-xs font-bold text-emerald-300 flex items-center gap-2">
-                                <span>❌</span> Gagal Melakukan Render Video
-                            </h4>
-                            <p className="text-[11px] text-emerald-200 font-mono whitespace-pre-wrap leading-relaxed">{renderError}</p>
+                        <div className="flex items-center justify-between text-[11px] font-mono text-gray-300 pt-0.5">
+                            <span className="truncate pr-2 font-bold text-emerald-300">
+                                {renderProgress?.message || (rendering ? 'Memproses video...' : 'Siap melakukan render video...')}
+                            </span>
+                            <span className="text-gray-500 shrink-0 font-bold">
+                                {renderProgress ? `${Math.round((renderProgress.progress || 0) * 100)}%` : '0%'}
+                            </span>
                         </div>
-                    )}
+                    </div>
+
+                    {/* Realtime Terminal Log Console Window */}
+                    <div
+                        ref={logConsoleRef}
+                        className="bg-black/95 p-3.5 rounded-2xl border border-gray-800/90 text-[11px] h-44 overflow-y-auto font-mono space-y-1 text-gray-300 shadow-inner"
+                    >
+                        {renderLogs.length === 0 ? (
+                            <div className="text-gray-600 italic flex items-center justify-center h-full text-center p-4">
+                                ⏳ Belum ada log aktivitas render. Klik "Render Video" atau "Proses Bulk Render" untuk melihat log real-time di sini.
+                            </div>
+                        ) : (
+                            renderLogs.map((log, idx) => (
+                                <div
+                                    key={idx}
+                                    className={`truncate ${
+                                        log.includes('❌') || log.includes('Gagal') || log.includes('Error')
+                                            ? 'text-red-400 font-bold'
+                                            : log.includes('🎉') || log.includes('Sukses') || log.includes('Selesai')
+                                            ? 'text-emerald-300 font-bold'
+                                            : log.includes('⚡') || log.includes('Encoding')
+                                            ? 'text-amber-300 font-bold'
+                                            : 'text-gray-300'
+                                    }`}
+                                >
+                                    {log}
+                                </div>
+                            ))
+                        )}
+                    </div>
                 </div>
 
-                {/* RIGHT: Configuration Panels (col-span-7) */}
-                <div className="lg:col-span-7 space-y-5 overflow-y-auto max-h-[calc(100vh-200px)] pr-1">
-                    {/* ─── 1. Vignette Darkening Panel ─── */}
-                    <ConfigSection title="🌑 Vignette Darkening (Efek Gelap Tepian)" icon="🌑" subtitle="Meningkatkan fokus adegan visual">
-                        <ToggleRow
-                            label="Aktifkan Efek Vignette Gelap"
-                            description="Memberikan efek shadow melingkar gelap di pinggir frame video."
-                            enabled={config.vignette.enabled}
-                            onChange={(v) => updateVignette({ enabled: v })}
-                        />
+                {/* Render Completed Result Card */}
+                {renderResult && (
+                    <div className="bg-emerald-950/80 p-5 rounded-3xl border border-emerald-700/60 shadow-2xl space-y-3 animate-in slide-in-from-bottom-4 duration-300">
+                        <div className="flex items-center justify-between border-b border-emerald-800/80 pb-3">
+                            <div className="flex items-center gap-2">
+                                <span className="p-1 bg-emerald-900 text-emerald-300 rounded-lg text-xs">🎉</span>
+                                <h3 className="text-xs font-black text-white uppercase tracking-wider">
+                                    Render Video Sukses Dituntaskan!
+                                </h3>
+                            </div>
+                            <span className="text-[10px] font-mono font-bold text-emerald-300 bg-emerald-900 px-2 py-0.5 rounded-full">
+                                1080p MP4
+                            </span>
+                        </div>
 
-                        {config.vignette.enabled && (
-                            <>
-                                <SliderRow
-                                    label="Tingkat Kegelapan Vignette (Intensity)"
-                                    description="Geser kanan untuk bayangan pekat gelap cinematic, geser kiri untuk bayangan samar terang"
-                                    value={config.vignette.intensity}
-                                    min={0}
-                                    max={1}
-                                    step={0.05}
-                                    leftHint="Meredup/Terang (0.0)"
-                                    rightHint="Pekat Gelap (1.0)"
-                                    onChange={(v) => updateVignette({ intensity: v })}
-                                />
-                                <div className="flex items-center gap-2 pt-1">
-                                    <span className="text-xs text-gray-400 font-medium">Preset Intensitas:</span>
-                                    <button
-                                        onClick={() => updateVignette({ intensity: 0.50 })}
-                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.vignette.intensity === 0.50 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
-                                    >
-                                        Sedang (50%)
-                                    </button>
-                                    <button
-                                        onClick={() => updateVignette({ intensity: 0.75 })}
-                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.vignette.intensity === 0.75 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
-                                    >
-                                        🎬 Cinematic Dark (75%)
-                                    </button>
-                                    <button
-                                        onClick={() => updateVignette({ intensity: 0.95 })}
-                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.vignette.intensity === 0.95 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
-                                    >
-                                        🌑 Extreme Dark (95%)
-                                    </button>
-                                </div>
-                                <ColorInput label="Warna Vignette" value={config.vignette.colorHex} onChange={(v) => updateVignette({ colorHex: v })} />
-                            </>
+                        <p className="text-xs text-emerald-200 font-mono truncate">{renderResult.fileName}</p>
+
+                        {renderResult.mediaUrl && (
+                            <video src={renderResult.mediaUrl} controls className="w-full rounded-2xl max-h-64 bg-black border border-emerald-800 shadow-inner" />
                         )}
-                    </ConfigSection>
+                    </div>
+                )}
 
-                    {/* ─── 2. Watermark & Branding Text ─── */}
-                    <ConfigSection title="📐 Watermark & Logo Text" icon="📐" subtitle="Branding teks pada video">
-                        <ToggleRow
-                            label="Aktifkan Watermark Teks"
-                            description="Menampilkan teks logo branding pada sudut video"
-                            enabled={config.watermark.enabled}
-                            onChange={(v) => updateWatermark({ enabled: v })}
-                        />
+                {/* Render Error Card */}
+                {renderError && (
+                    <div className="bg-emerald-950/80 p-5 rounded-3xl border border-emerald-800/60 shadow-2xl space-y-2">
+                        <h4 className="text-xs font-bold text-emerald-300 flex items-center gap-2">
+                            <span>❌</span> Gagal Melakukan Render Video
+                        </h4>
+                        <p className="text-[11px] text-emerald-200 font-mono whitespace-pre-wrap leading-relaxed">{renderError}</p>
+                    </div>
+                )}
 
-                        {config.watermark.enabled && (
-                            <>
-                                <div className="space-y-1">
-                                    <span className="text-xs text-gray-400 font-medium">Teks Watermark / Nama Channel</span>
-                                    <input
-                                        type="text"
-                                        value={config.watermark.text}
-                                        onChange={(e) => updateWatermark({ text: e.target.value })}
-                                        className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs font-mono text-gray-200 focus:border-emerald-500 focus:outline-none"
-                                        maxLength={30}
-                                        placeholder="Contoh: Spensia Channel"
-                                    />
-                                </div>
+                {/* BOTTOM: Configuration Panels Grid (2-Column Ergonomic Edit Stack) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+                    {/* LEFT COLUMN: Caption, Vignette & Watermark */}
+                    <div className="space-y-6">
+                        {/* ─── 1. Subtitel & Caption Engine ─── */}
+                        <ConfigSection title="💬 Subtitel & Caption Engine" icon="💬" subtitle="Tampilan teks transkrip narasi pada video 16:9">
+                            <ToggleRow
+                                label="Aktifkan Subtitel / Caption"
+                                description="Tampilkan teks transkrip narasi otomatis pada video"
+                                enabled={config.caption?.enabled !== false}
+                                onChange={(v) => updateCaption({ enabled: v })}
+                            />
 
-                                <SelectRow
-                                    label="Posisi Watermark pada Video"
-                                    value={config.watermark.position}
-                                    options={POSITION_OPTIONS}
-                                    onChange={(v) => updateWatermark({ position: v as WatermarkTextConfig['position'] })}
-                                />
+                            {config.caption?.enabled !== false && (
+                                <>
+                                    <div className="space-y-1.5 bg-gray-950/60 p-3.5 rounded-2xl border border-gray-800/80">
+                                        <span className="text-xs text-gray-200 font-bold">Mode Tampilan Subtitel</span>
+                                        <p className="text-[10px] text-gray-400">Pilih pengelompokan format teks pada layar</p>
+                                        <div className="grid grid-cols-3 gap-2 pt-1">
+                                            {[
+                                                { id: 'sentence', label: '📝 Kalimat (Sentence)', desc: 'Teks utuh per kalimat (Rekomendasi)' },
+                                                { id: 'phrase', label: '💬 Frasa (3 Kata)', desc: 'Grup 3-4 kata per baris' },
+                                                { id: 'single-word', label: '⚡ Kata (Single Word)', desc: 'Satu kata bergantian' },
+                                            ].map((m) => (
+                                                <button
+                                                    key={m.id}
+                                                    type="button"
+                                                    onClick={() => updateCaption({ displayMode: m.id as any })}
+                                                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                                                        (config.caption?.displayMode || 'sentence') === m.id
+                                                            ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-300 shadow-md ring-1 ring-emerald-500/30'
+                                                            : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-700'
+                                                    }`}
+                                                >
+                                                    <div className="text-xs font-bold">{m.label}</div>
+                                                    <div className="text-[10px] opacity-75 mt-0.5">{m.desc}</div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2 bg-gray-950/60 p-3.5 rounded-2xl border border-gray-800/80">
+                                        <span className="text-xs text-gray-200 font-bold">Warna Subtitel & Preset Slate</span>
+                                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                                            {[
+                                                { label: 'Slate 300 (Rekomendasi)', color: '#CBD5E1' },
+                                                { label: 'Slate 200', color: '#E2E8F0' },
+                                                { label: 'White', color: '#FFFFFF' },
+                                                { label: 'Emerald Accent', color: '#22C55E' },
+                                            ].map((p) => (
+                                                <button
+                                                    key={p.color}
+                                                    type="button"
+                                                    onClick={() => updateCaption({ inactiveColorHex: p.color })}
+                                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono font-bold transition-all ${
+                                                        (config.caption?.inactiveColorHex || '#CBD5E1').toUpperCase() === p.color.toUpperCase()
+                                                            ? 'bg-gray-800 border-emerald-500 text-white ring-1 ring-emerald-500/50 shadow-md'
+                                                            : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-700'
+                                                    }`}
+                                                >
+                                                    <span className="w-3 h-3 rounded-full border border-gray-900 shadow-inner shrink-0" style={{ backgroundColor: p.color }} />
+                                                    <span>{p.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <ColorInput
+                                            label="Pilih Warna Subtitel Custom (Hex)"
+                                            value={config.caption?.inactiveColorHex || '#CBD5E1'}
+                                            onChange={(v) => updateCaption({ inactiveColorHex: v })}
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <SliderRow
+                                            label="Ukuran Font Subtitel"
+                                            value={config.caption?.fontSize || 48}
+                                            min={24}
+                                            max={96}
+                                            step={1}
+                                            leftHint="Kecil (24px)"
+                                            rightHint="Besar (96px)"
+                                            onChange={(v) => updateCaption({ fontSize: v })}
+                                            suffix="px"
+                                        />
+                                        <SliderRow
+                                            label="Posisi Vertikal dari Bawah (Position Y)"
+                                            value={config.caption?.positionY || 160}
+                                            min={40}
+                                            max={400}
+                                            step={5}
+                                            leftHint="Bawah (40px)"
+                                            rightHint="Atas (400px)"
+                                            onChange={(v) => updateCaption({ positionY: v })}
+                                            suffix="px"
+                                        />
+                                    </div>
+                                </>
+                            )}
+                        </ConfigSection>
+
+                        {/* ─── 2. Vignette Darkening Panel ─── */}
+                        <ConfigSection title="🌑 Vignette Darkening (Efek Gelap Tepian)" icon="🌑" subtitle="Meningkatkan fokus adegan visual">
+                            <ToggleRow
+                                label="Aktifkan Efek Vignette Gelap"
+                                description="Memberikan efek shadow melingkar gelap di pinggir frame video."
+                                enabled={config.vignette.enabled}
+                                onChange={(v) => updateVignette({ enabled: v })}
+                            />
+
+                            {config.vignette.enabled && (
+                                <>
                                     <SliderRow
-                                        label="Ukuran Font"
-                                        value={config.watermark.fontSize}
-                                        min={8}
-                                        max={120}
-                                        step={1}
-                                        leftHint="Kecil (8px)"
-                                        rightHint="Besar (120px)"
-                                        onChange={(v) => updateWatermark({ fontSize: v })}
-                                        suffix="px"
-                                    />
-                                    <SliderRow
-                                        label="Transparansi (Opacity)"
-                                        value={config.watermark.opacity}
+                                        label="Tingkat Kegelapan Vignette (Intensity)"
+                                        description="Geser kanan untuk bayangan pekat gelap cinematic, geser kiri untuk bayangan samar terang"
+                                        value={config.vignette.intensity}
                                         min={0}
                                         max={1}
                                         step={0.05}
-                                        leftHint="Transparansi (0.0)"
-                                        rightHint="Jelas/Solid (1.0)"
-                                        onChange={(v) => updateWatermark({ opacity: v })}
+                                        leftHint="Meredup/Terang (0.0)"
+                                        rightHint="Pekat Gelap (1.0)"
+                                        onChange={(v) => updateVignette({ intensity: v })}
                                     />
-                                </div>
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <span className="text-xs text-gray-400 font-medium">Preset Intensitas:</span>
+                                        <button
+                                            onClick={() => updateVignette({ intensity: 0.50 })}
+                                            className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.vignette.intensity === 0.50 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                        >
+                                            Sedang (50%)
+                                        </button>
+                                        <button
+                                            onClick={() => updateVignette({ intensity: 0.75 })}
+                                            className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.vignette.intensity === 0.75 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                        >
+                                            🎬 Cinematic Dark (75%)
+                                        </button>
+                                        <button
+                                            onClick={() => updateVignette({ intensity: 0.95 })}
+                                            className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.vignette.intensity === 0.95 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                        >
+                                            🌑 Extreme Dark (95%)
+                                        </button>
+                                    </div>
+                                    <ColorInput label="Warna Vignette" value={config.vignette.colorHex} onChange={(v) => updateVignette({ colorHex: v })} />
+                                </>
+                            )}
+                        </ConfigSection>
 
-                                <ColorInput label="Warna Teks Watermark" value={config.watermark.colorHex} onChange={(v) => updateWatermark({ colorHex: v })} />
+                        {/* ─── 3. Watermark & Branding Text ─── */}
+                        <ConfigSection title="📐 Watermark & Logo Text" icon="📐" subtitle="Branding teks pada video">
+                            <ToggleRow
+                                label="Aktifkan Watermark Teks"
+                                description="Menampilkan teks logo branding pada sudut video"
+                                enabled={config.watermark.enabled}
+                                onChange={(v) => updateWatermark({ enabled: v })}
+                            />
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {config.watermark.enabled && (
+                                <>
+                                    <div className="space-y-1">
+                                        <span className="text-xs text-gray-400 font-medium">Teks Watermark / Nama Channel</span>
+                                        <input
+                                            type="text"
+                                            value={config.watermark.text}
+                                            onChange={(e) => updateWatermark({ text: e.target.value })}
+                                            className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs font-mono text-gray-200 focus:border-emerald-500 focus:outline-none"
+                                            maxLength={30}
+                                            placeholder="Contoh: Spensia Channel"
+                                        />
+                                    </div>
+
+                                    <SelectRow
+                                        label="Posisi Watermark pada Video"
+                                        value={config.watermark.position}
+                                        options={POSITION_OPTIONS}
+                                        onChange={(v) => updateWatermark({ position: v as WatermarkTextConfig['position'] })}
+                                    />
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <SliderRow
+                                            label="Ukuran Font"
+                                            value={config.watermark.fontSize}
+                                            min={8}
+                                            max={120}
+                                            step={1}
+                                            leftHint="Kecil (8px)"
+                                            rightHint="Besar (120px)"
+                                            onChange={(v) => updateWatermark({ fontSize: v })}
+                                            suffix="px"
+                                        />
+                                        <SliderRow
+                                            label="Transparansi (Opacity)"
+                                            value={config.watermark.opacity}
+                                            min={0}
+                                            max={1}
+                                            step={0.05}
+                                            leftHint="Transparansi (0.0)"
+                                            rightHint="Jelas/Solid (1.0)"
+                                            onChange={(v) => updateWatermark({ opacity: v })}
+                                        />
+                                    </div>
+
+                                    <ColorInput label="Warna Teks Watermark" value={config.watermark.colorHex} onChange={(v) => updateWatermark({ colorHex: v })} />
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <SliderRow
+                                            label="Geser Horisontal (Offset X)"
+                                            value={config.watermark.offsetX}
+                                            min={-200}
+                                            max={200}
+                                            step={1}
+                                            leftHint="Geser Kiri (-200px)"
+                                            rightHint="Geser Kanan (+200px)"
+                                            onChange={(v) => updateWatermark({ offsetX: v })}
+                                            suffix="px"
+                                        />
+                                        <SliderRow
+                                            label="Geser Vertikal (Offset Y)"
+                                            value={config.watermark.offsetY}
+                                            min={-200}
+                                            max={200}
+                                            step={1}
+                                            leftHint="Geser Atas (-200px)"
+                                            rightHint="Geser Bawah (+200px)"
+                                            onChange={(v) => updateWatermark({ offsetY: v })}
+                                            suffix="px"
+                                        />
+                                    </div>
+                                </>
+                            )}
+                        </ConfigSection>
+                    </div>
+
+                    {/* RIGHT COLUMN: Audio VO, BGM, Export & Timeline Summary */}
+                    <div className="space-y-6">
+                        {/* ─── 4. Voice Over (VO) Audio Narasi ─── */}
+                        <ConfigSection title="🎙️ Voice Over (VO) Audio Narasi" icon="🎙️" subtitle="Kontrol volume narasi suara manusia/TTS">
+                            <ToggleRow
+                                label="Aktifkan Narasi Voice Over"
+                                description="Mematikan/mengaktifkan audio suara narator pada video hasil render"
+                                enabled={config.voiceOver?.enabled ?? true}
+                                onChange={(v) => updateVoiceOver({ enabled: v })}
+                            />
+
+                            {(config.voiceOver?.enabled ?? true) && (
+                                <>
                                     <SliderRow
-                                        label="Geser Horisontal (Offset X)"
-                                        value={config.watermark.offsetX}
-                                        min={-200}
-                                        max={200}
-                                        step={1}
-                                        leftHint="Geser Kiri (-200px)"
-                                        rightHint="Geser Kanan (+200px)"
-                                        onChange={(v) => updateWatermark({ offsetX: v })}
-                                        suffix="px"
+                                        label="Volume Audio Voice Over"
+                                        description="Geser kanan untuk memperkerus narasi, geser kiri untuk memperkecil"
+                                        value={config.voiceOver?.volume ?? 1.0}
+                                        min={0}
+                                        max={2}
+                                        step={0.05}
+                                        leftHint="🔇 Mute (0.0)"
+                                        rightHint="🔊 Normal (1.0) ▶"
+                                        onChange={(v) => updateVoiceOver({ volume: v })}
                                     />
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <span className="text-xs text-gray-400 font-medium">Preset Volume:</span>
+                                        <button
+                                            onClick={() => updateVoiceOver({ volume: 0.5 })}
+                                            className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.voiceOver?.volume === 0.5 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                        >
+                                            Pelan (50%)
+                                        </button>
+                                        <button
+                                            onClick={() => updateVoiceOver({ volume: 1.0 })}
+                                            className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${(config.voiceOver?.volume ?? 1.0) === 1.0 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                        >
+                                            🔊 Normal (100%)
+                                        </button>
+                                        <button
+                                            onClick={() => updateVoiceOver({ volume: 1.5 })}
+                                            className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.voiceOver?.volume === 1.5 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                        >
+                                            📢 Loud (150%)
+                                        </button>
+                                        <button
+                                            onClick={() => updateVoiceOver({ volume: 2.0 })}
+                                            className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.voiceOver?.volume === 2.0 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
+                                        >
+                                            📢 Extra Loud (200%)
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </ConfigSection>
+
+                        {/* ─── 5. Background Music (BGM) ─── */}
+                        <ConfigSection title="🎵 Background Music (BGM)" icon="🎵" subtitle="Audio latar musik Spensia">
+                            <ToggleRow
+                                label="Aktifkan Musik Latar (BGM)"
+                                description="Menggabungkan audio musik latar dengan narasi voice over"
+                                enabled={config.bgm.enabled}
+                                onChange={(v) => updateBgm({ enabled: v })}
+                            />
+
+                            {config.bgm.enabled && (
+                                <>
+                                    <div className="space-y-1">
+                                        <span className="text-xs text-gray-400 font-medium">Pilih File Musik (BGM)</span>
+                                        <select
+                                            value={config.bgm.path}
+                                            onChange={(e) => updateBgm({ path: e.target.value })}
+                                            className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono focus:border-emerald-500 focus:outline-none"
+                                        >
+                                            <option value="assets/'Hiraeth' [Emotional Classical CC-BY] - Scott Buckley.mp3">Scott Buckley - Hiraeth (Default Spensia Comfort BGM)</option>
+                                            <option value="assets/Edge Of Unknown.mp3">Edge Of Unknown</option>
+                                            {bgms.map((bgm) => (
+                                                <option key={bgm.path} value={`assets/${bgm.name}`}>{bgm.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
                                     <SliderRow
-                                        label="Geser Vertikal (Offset Y)"
-                                        value={config.watermark.offsetY}
-                                        min={-200}
-                                        max={200}
-                                        step={1}
-                                        leftHint="Geser Atas (-200px)"
-                                        rightHint="Geser Bawah (+200px)"
-                                        onChange={(v) => updateWatermark({ offsetY: v })}
-                                        suffix="px"
+                                        label="Volume Musik Latar (BGM Audio)"
+                                        description="Geser kanan untuk memperkeras BGM, geser kiri untuk meredupkan/memperkecil BGM (Rekomendasi: 10% - 20%)"
+                                        value={config.bgm.volume}
+                                        min={0}
+                                        max={1}
+                                        step={0.05}
+                                        leftHint="🔈 Meredup / Senyap (0.0)"
+                                        rightHint="🔊 Memperkeras Musik (1.0) ▶"
+                                        onChange={(v) => updateBgm({ volume: v })}
                                     />
-                                </div>
-                            </>
-                        )}
-                    </ConfigSection>
 
-                    {/* ─── 3. Voice Over (VO) Audio Narasi ─── */}
-                    <ConfigSection title="🎙️ Voice Over (VO) Audio Narasi" icon="🎙️" subtitle="Kontrol volume narasi suara manusia/TTS">
-                        <ToggleRow
-                            label="Aktifkan Audio Voice Over (Narasi)"
-                            description="Menggabungkan audio narasi pengisi suara ke dalam video"
-                            enabled={config.voiceOver?.enabled ?? true}
-                            onChange={(v) => updateVoiceOver({ enabled: v })}
-                        />
-
-                        {(config.voiceOver?.enabled ?? true) && (
-                            <>
-                                <SliderRow
-                                    label="Volume Voice Over (Narasi Suara)"
-                                    description="Mengatur kekerasan suara narator (Default: 1.0 / 100%. Geser kanan untuk memperkeras hingga 200%)"
-                                    value={config.voiceOver?.volume ?? 1.0}
-                                    min={0}
-                                    max={2}
-                                    step={0.05}
-                                    leftHint="🔈 Meredup / Senyap (0.0)"
-                                    rightHint="🔊 Memperkeras Narasi (2.0) ▶"
-                                    onChange={(v) => updateVoiceOver({ volume: v })}
-                                />
-
-                                <div className="flex items-center gap-2 pt-1 flex-wrap">
-                                    <span className="text-xs text-gray-400 font-medium">Preset Volume VO:</span>
-                                    <button
-                                        onClick={() => updateVoiceOver({ volume: 0.50 })}
-                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.voiceOver?.volume === 0.50 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
-                                    >
-                                        Pelan (50%)
-                                    </button>
-                                    <button
-                                        onClick={() => updateVoiceOver({ volume: 1.0 })}
-                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${(config.voiceOver?.volume ?? 1.0) === 1.0 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
-                                    >
-                                        🎙️ Normal (100%)
-                                    </button>
-                                    <button
-                                        onClick={() => updateVoiceOver({ volume: 1.50 })}
-                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.voiceOver?.volume === 1.50 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
-                                    >
-                                        ⚡ Boosted (150%)
-                                    </button>
-                                    <button
-                                        onClick={() => updateVoiceOver({ volume: 2.0 })}
-                                        className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${config.voiceOver?.volume === 2.0 ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'}`}
-                                    >
-                                        📢 Extra Loud (200%)
-                                    </button>
-                                </div>
-                            </>
-                        )}
-                    </ConfigSection>
-
-                    {/* ─── 4. Background Music (BGM) ─── */}
-                    <ConfigSection title="🎵 Background Music (BGM)" icon="🎵" subtitle="Audio latar musik Spensia">
-                        <ToggleRow
-                            label="Aktifkan Musik Latar (BGM)"
-                            description="Menggabungkan audio musik latar dengan narasi voice over"
-                            enabled={config.bgm.enabled}
-                            onChange={(v) => updateBgm({ enabled: v })}
-                        />
-
-                        {config.bgm.enabled && (
-                            <>
-                                <div className="space-y-1">
-                                    <span className="text-xs text-gray-400 font-medium">Pilih File Musik (BGM)</span>
-                                    <select
-                                        value={config.bgm.path}
-                                        onChange={(e) => updateBgm({ path: e.target.value })}
-                                        className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono focus:border-emerald-500 focus:outline-none"
-                                    >
-                                        <option value="assets/Edge Of Unknown.mp3">Edge Of Unknown (Default Spensia BGM)</option>
-                                        {bgms.map((bgm) => (
-                                            <option key={bgm.path} value={`assets/${bgm.name}`}>{bgm.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <SliderRow
-                                    label="Volume Musik Latar (BGM Audio)"
-                                    description="Geser kanan untuk memperkeras BGM, geser kiri untuk meredupkan/memperkecil BGM (Rekomendasi: 10% - 20%)"
-                                    value={config.bgm.volume}
-                                    min={0}
-                                    max={1}
-                                    step={0.05}
-                                    leftHint="🔈 Meredup / Senyap (0.0)"
-                                    rightHint="🔊 Memperkeras Musik (1.0) ▶"
-                                    onChange={(v) => updateBgm({ volume: v })}
-                                />
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <NumberInput label="Fade In Audio" value={config.bgm.fadeInSec} min={0} max={10} onChange={(v) => updateBgm({ fadeInSec: v })} suffix="detik" />
-                                    <NumberInput label="Fade Out Audio" value={config.bgm.fadeOutSec} min={0} max={10} onChange={(v) => updateBgm({ fadeOutSec: v })} suffix="detik" />
-                                </div>
-                            </>
-                        )}
-                    </ConfigSection>
-
-                    {/* ─── 4. Output & Quality Presets ─── */}
-                    <ConfigSection title="⚙️ Parameter Ekspor Video" icon="⚙️" subtitle="Format 16:9 YouTube Longform">
-                        <SelectRow
-                            label="Kualitas & Kecepatan Enkoding"
-                            value={config.outputQuality}
-                            options={QUALITY_OPTIONS}
-                            onChange={(v) => updateConfig('outputQuality', v as SpensiaRenderConfig['outputQuality'])}
-                        />
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <NumberInput label="Resolusi Lebar (Width)" value={config.resolution.width} onChange={(v) => updateConfig('resolution', { ...config.resolution, width: v })} suffix="px" />
-                            <NumberInput label="Resolusi Tinggi (Height)" value={config.resolution.height} onChange={(v) => updateConfig('resolution', { ...config.resolution, height: v })} suffix="px" />
-                        </div>
-
-                        <NumberInput label="Framerate Video (FPS)" value={config.fps} min={15} max={60} onChange={(v) => updateConfig('fps', v)} suffix="fps" />
-                    </ConfigSection>
-
-                    {/* ─── 5. Timeline Summary Card ─── */}
-                    {timeline && (
-                        <div className="bg-gray-900/90 p-5 rounded-3xl border border-gray-800 shadow-xl space-y-3">
-                            <h3 className="text-xs font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3 uppercase tracking-wider">
-                                <span>📊</span> Ringkasan Timeline Spensia Ready Render
-                            </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
-                                <div className="space-y-2">
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-400">Total Klip Visual:</span>
-                                        <span className="text-emerald-400 font-bold">{timeline.video_clips?.length || 0} segmen</span>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <NumberInput label="Fade In Audio" value={config.bgm.fadeInSec} min={0} max={10} onChange={(v) => updateBgm({ fadeInSec: v })} suffix="detik" />
+                                        <NumberInput label="Fade Out Audio" value={config.bgm.fadeOutSec} min={0} max={10} onChange={(v) => updateBgm({ fadeOutSec: v })} suffix="detik" />
                                     </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-400">Durasi Video Final:</span>
-                                        <span className="text-white font-bold">{formatDuration(timeline.total_duration_sec)}</span>
+                                </>
+                            )}
+                        </ConfigSection>
+
+                        {/* ─── 6. Output & Quality Presets ─── */}
+                        <ConfigSection title="⚙️ Parameter Ekspor Video" icon="⚙️" subtitle="Format 16:9 YouTube Longform">
+                            <SelectRow
+                                label="Kualitas & Kecepatan Enkoding"
+                                value={config.outputQuality}
+                                options={QUALITY_OPTIONS}
+                                onChange={(v) => updateConfig('outputQuality', v as SpensiaRenderConfig['outputQuality'])}
+                            />
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <NumberInput label="Resolusi Lebar (Width)" value={config.resolution.width} onChange={(v) => updateConfig('resolution', { ...config.resolution, width: v })} suffix="px" />
+                                <NumberInput label="Resolusi Tinggi (Height)" value={config.resolution.height} onChange={(v) => updateConfig('resolution', { ...config.resolution, height: v })} suffix="px" />
+                            </div>
+
+                            <NumberInput label="Framerate Video (FPS)" value={config.fps} min={15} max={60} onChange={(v) => updateConfig('fps', v)} suffix="fps" />
+                        </ConfigSection>
+
+                        {/* ─── 7. Timeline Summary Card ─── */}
+                        {timeline && (
+                            <div className="bg-gray-900/90 p-5 rounded-3xl border border-gray-800 shadow-xl space-y-3">
+                                <h3 className="text-xs font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3 uppercase tracking-wider">
+                                    <span>📊</span> Ringkasan Timeline Spensia Ready Render
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Total Klip Visual:</span>
+                                            <span className="text-emerald-400 font-bold">{timeline.video_clips?.length || 0} segmen</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Durasi Video Final:</span>
+                                            <span className="text-white font-bold">{formatDuration(timeline.total_duration_sec)}</span>
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-400">Track Audio VO:</span>
-                                        <span className="text-emerald-400 font-bold">{timeline.audio_tracks?.length || 1} track</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-400">Aspect Ratio:</span>
-                                        <span className="text-emerald-400 font-bold">16:9 Longform</span>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Track Audio VO:</span>
+                                            <span className="text-emerald-400 font-bold">{timeline.audio_tracks?.length || 1} track</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Aspect Ratio:</span>
+                                            <span className="text-emerald-400 font-bold">16:9 Longform</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

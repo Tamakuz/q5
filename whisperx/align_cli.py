@@ -207,13 +207,26 @@ def run_faster_whisper_pipeline(audio_path: str, raw_text: str, model_name: str 
         if end_sec <= start_sec:
             end_sec = round(start_sec + 1.5, 1)
 
+        sentence_words = [
+            {
+                "word": w["raw"],
+                "start": round(w["start"], 2),
+                "end": round(w["end"], 2)
+            }
+            for w in all_words[best_start_idx:best_end_idx + 1]
+        ]
+
         entries.append({
             "id": i + 1,
+            "sentence_id": i + 1,
             "start_seconds": start_sec,
             "end_seconds": end_sec,
+            "start": start_sec,
+            "end": end_sec,
             "timestamp_minute": f"{format_minute(start_sec)} - {format_minute(end_sec)}",
             "text": sent,
-            "speaker": "Narator"
+            "speaker": "Narator",
+            "words": sentence_words
         })
 
         current_word_idx = min(total_words - 1, best_end_idx + 1)
@@ -225,9 +238,11 @@ def run_faster_whisper_pipeline(audio_path: str, raw_text: str, model_name: str 
         if curr_end < next_start and (next_start - curr_end) <= 3.0:
             smooth_end = round(next_start, 1)
             entries[i]["end_seconds"] = smooth_end
+            entries[i]["start"] = entries[i]["start_seconds"]
+            entries[i]["end"] = smooth_end
             entries[i]["timestamp_minute"] = f"{format_minute(entries[i]['start_seconds'])} - {format_minute(smooth_end)}"
 
-    return entries
+    return entries, all_words
 
 
 def main():
@@ -247,16 +262,27 @@ def main():
     log(f"Durasi audio: {audio_dur:.1f}s")
 
     raw_text = load_narration_text(args.text)
-    entries = run_faster_whisper_pipeline(args.audio, raw_text, model_name=args.model, device=args.device)
+    entries, all_words = run_faster_whisper_pipeline(args.audio, raw_text, model_name=args.model, device=args.device)
 
     total_end = entries[-1]["end_seconds"] if entries else 0.0
     log(f"Selesai! {len(entries)} entri, total durasi transkrip {total_end:.1f}s / audio {audio_dur:.1f}s")
+
+    formatted_words = [
+        {
+            "word": w["raw"],
+            "start": round(w["start"], 2),
+            "end": round(w["end"], 2)
+        }
+        for w in all_words
+    ]
 
     output_data = {
         "mode": "faster-whisper-standalone",
         "audio_duration": round(audio_dur, 2),
         "entry_count": len(entries),
-        "transcript": entries
+        "sentences": entries,
+        "transcript": entries,
+        "words": formatted_words
     }
 
     if args.output:

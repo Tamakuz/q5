@@ -6,8 +6,8 @@
 export const SPENSIA_CAPTION_COLORS = {
   /** Active word highlight color (green-500). Was #FDE047 (yellow). */
   activeColorHex: '#22C55E',
-  /** Inactive word color (white). */
-  inactiveColorHex: '#FFFFFF',
+  /** Inactive subtitle text color (Slate-300 #CBD5E1). Was pure white #FFFFFF. */
+  inactiveColorHex: '#CBD5E1',
   /** Text outline color (black). */
   outlineColorHex: '#000000',
 } as const;

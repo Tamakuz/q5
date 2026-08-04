@@ -429,6 +429,8 @@ export interface ElectronAPI {
   onSpensiaImageLog?: (callback: (data: { segmentId: number; workerId?: number; text: string }) => void) => () => void;
   uploadSpensiaVoAudio: (segmentId?: number, sourcePath?: string, bufferArray?: ArrayBuffer | number[], topicId?: number) => Promise<{ segmentId?: number; filename: string; filePath: string; url: string }>;
   mergeSpensiaVoAudio: (audioPaths: string[], topicId?: number) => Promise<{ filename: string; filePath: string; url: string; duration: number }>;
+  runSpensiaFasterWhisperAlignment?: (data: { audioPath?: string; scriptText?: string; topicId?: number }) => Promise<{ success: boolean; jsonContent?: string; filePath?: string; error?: string }>;
+  onSpensiaFasterWhisperProgress?: (callback: (data: { stage: string; progress: number; message: string; log?: string; topicId?: number }) => void) => () => void;
 
   // Spensia Render Engine & Thumbnail Studio
   generateSpensiaTimeline: (topicId?: number) => Promise<{ timeline?: SpensiaTimelineStructure; saved?: boolean; error?: string }>;
@@ -476,7 +478,7 @@ export interface CaptionConfig {
   positionY: number;
   positionX: number;
   alignment: number;
-  displayMode: 'single-word' | 'phrase';
+  displayMode: 'single-word' | 'phrase' | 'sentence';
   timeOffsetSec: number;
 }
 

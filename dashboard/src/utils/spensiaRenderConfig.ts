@@ -28,7 +28,7 @@ export type WatermarkTextConfig = z.infer<typeof WatermarkTextConfigSchema>;
 // ─── Caption Configuration ────────────────────────────
 
 export const CaptionConfigSchema = z.object({
-    enabled: z.boolean().default(false),
+    enabled: z.boolean().default(true),
     fontName: z.string().default('Montserrat'),
     fontSize: z.number().default(48),
     activeColorHex: z.string().default(SPENSIA_CAPTION_COLORS.activeColorHex),
@@ -39,7 +39,7 @@ export const CaptionConfigSchema = z.object({
     positionY: z.number().default(160),
     positionX: z.number().default(40),
     alignment: z.number().min(1).max(9).default(2),
-    displayMode: z.enum(['single-word', 'phrase']).default('single-word'),
+    displayMode: z.enum(['single-word', 'phrase', 'sentence']).default('sentence'),
     timeOffsetSec: z.number().default(0.0),
 });
 
@@ -58,7 +58,7 @@ export type VoiceOverConfig = z.infer<typeof VoiceOverConfigSchema>;
 
 export const BgmConfigSchema = z.object({
     enabled: z.boolean().default(true),
-    path: z.string().default('assets/Edge Of Unknown.mp3'),
+    path: z.string().default("assets/'Hiraeth' [Emotional Classical CC-BY] - Scott Buckley.mp3"),
     volume: z.number().min(0).max(1).default(0.15),
     fadeInSec: z.number().min(0).default(1.0),
     fadeOutSec: z.number().min(0).default(2.0),

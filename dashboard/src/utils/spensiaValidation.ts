@@ -665,8 +665,17 @@ export interface SpensiaSegmentTimestamp {
   duration_sec: number;
 }
 
+export interface SpensiaSentenceTimestamp {
+  sentence_id: number;
+  text: string;
+  start: number;
+  end: number;
+  words: SpensiaWordTimestamp[];
+}
+
 export interface SpensiaTranscriptData {
   transcript_full: string;
+  sentences?: SpensiaSentenceTimestamp[];
   segments?: SpensiaSegmentTimestamp[];
   chunks?: SpensiaChunkTimestamp[];
   words: SpensiaWordTimestamp[];
@@ -682,10 +691,11 @@ export interface SpensiaTranscriptValidationReport {
 }
 
 /**
- * Validate and normalize Hierarchical Chunk-Level & Word-Level Audio Transcript output from AI
+ * Validate and normalize Hierarchical Sentence-Level, Chunk-Level & Word-Level Audio Transcript output from AI/Faster-Whisper
  */
 export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptValidationReport {
   const issues: SpensiaValidationIssue[] = [];
+  const sentencesList: SpensiaSentenceTimestamp[] = [];
   const wordsList: SpensiaWordTimestamp[] = [];
   const chunksList: SpensiaChunkTimestamp[] = [];
   const segmentsList: SpensiaSegmentTimestamp[] = [];
@@ -744,7 +754,49 @@ export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptV
       fullTexts.push(String(dataObj.transcript_full).trim());
     }
 
-    // 1. Process Chunks if present
+    // 1. Process Sentences if present (top-level sentences array or transcript array)
+    const rawSentences = Array.isArray(dataObj.sentences)
+      ? dataObj.sentences
+      : (Array.isArray(dataObj.transcript) ? dataObj.transcript : null);
+
+    if (rawSentences && rawSentences.length > 0) {
+      rawSentences.forEach((s: any, idx: number) => {
+        if (!s || typeof s !== 'object') return;
+        const sentId = Number(s.sentence_id || s.id) || idx + 1;
+        const sentText = String(s.text || s.sentence || s.quote || '').trim();
+        const sStart = parseSec(s.start !== undefined ? s.start : (s.start_seconds !== undefined ? s.start_seconds : s.start_sec), 0);
+        const sEnd = parseSec(s.end !== undefined ? s.end : (s.end_seconds !== undefined ? s.end_seconds : s.end_sec), sStart + 2.0);
+
+        const sentWords: SpensiaWordTimestamp[] = [];
+        const rawWords = Array.isArray(s.words) ? s.words : [];
+
+        rawWords.forEach((w: any) => {
+          if (typeof w.word === 'string' && w.word.trim()) {
+            const wStart = parseSec(w.start, sStart);
+            const wEnd = parseSec(w.end, wStart + 0.3);
+            const wordObj: SpensiaWordTimestamp = {
+              word: w.word.trim(),
+              start: wStart,
+              end: wEnd > wStart ? wEnd : wStart + 0.3,
+            };
+            sentWords.push(wordObj);
+            wordsList.push(wordObj);
+          }
+        });
+
+        if (sentText) {
+          sentencesList.push({
+            sentence_id: sentId,
+            text: sentText,
+            start: sStart,
+            end: sEnd > sStart ? sEnd : sStart + 1.0,
+            words: sentWords,
+          });
+        }
+      });
+    }
+
+    // 2. Process Chunks if present
     const cList = Array.isArray(dataObj.chunks)
       ? dataObj.chunks
       : Array.isArray(dataObj.phrases)
@@ -767,7 +819,7 @@ export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptV
               end: eSec > sSec ? eSec : sSec + 0.3,
             };
             chunkWords.push(wordObj);
-            wordsList.push(wordObj);
+            if (!rawSentences) wordsList.push(wordObj);
           }
         });
 
@@ -788,9 +840,9 @@ export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptV
       });
     }
 
-    // 2. Process standalone words if top-level "words" array exists
+    // 3. Process standalone words if top-level "words" array exists
     const wList = Array.isArray(dataObj.words) ? dataObj.words : null;
-    if (wList && cList === null) {
+    if (wList && !rawSentences && cList === null) {
       wList.forEach((w: any) => {
         if (typeof w.word === 'string' && w.word.trim()) {
           const sSec = parseSec(w.start, 0);
@@ -803,7 +855,8 @@ export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptV
         }
       });
     }
-    // 3. Process Segments if top-level "segments" array exists
+
+    // 4. Process Segments if top-level "segments" array exists
     const segs = Array.isArray(dataObj.segments) ? dataObj.segments : null;
     if (segs && segs.length > 0) {
       segs.forEach((s: any, idx: number) => {
@@ -824,12 +877,52 @@ export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptV
     }
   });
 
+  // Re-index sentence_id sequentially
+  sentencesList.forEach((s, idx) => {
+    s.sentence_id = idx + 1;
+  });
+
   // Re-index chunk_id sequentially
   chunksList.forEach((c, idx) => {
     c.chunk_id = idx + 1;
   });
 
-  // Fallback: If chunks are empty but words exist, auto-generate 3-word chunks
+  // Fallback 1: If sentences are empty but words exist, auto-group words into sentences
+  if (sentencesList.length === 0 && wordsList.length > 0) {
+    let currentGroup: SpensiaWordTimestamp[] = [];
+    wordsList.forEach((w, idx) => {
+      currentGroup.push(w);
+      const isEndPunct = /[.!?…]$/.test(w.word);
+      const nextWord = wordsList[idx + 1];
+      const hasPause = nextWord ? (nextWord.start - w.end) > 0.6 : true;
+
+      if (isEndPunct || hasPause || currentGroup.length >= 15) {
+        const sStart = currentGroup[0].start;
+        const sEnd = currentGroup[currentGroup.length - 1].end;
+        sentencesList.push({
+          sentence_id: sentencesList.length + 1,
+          text: currentGroup.map((gw) => gw.word).join(' '),
+          start: sStart,
+          end: sEnd,
+          words: [...currentGroup],
+        });
+        currentGroup = [];
+      }
+    });
+    if (currentGroup.length > 0) {
+      const sStart = currentGroup[0].start;
+      const sEnd = currentGroup[currentGroup.length - 1].end;
+      sentencesList.push({
+        sentence_id: sentencesList.length + 1,
+        text: currentGroup.map((gw) => gw.word).join(' '),
+        start: sStart,
+        end: sEnd,
+        words: [...currentGroup],
+      });
+    }
+  }
+
+  // Fallback 2: If chunks are empty but words exist, auto-generate 3-word chunks
   if (chunksList.length === 0 && wordsList.length > 0) {
     const CHUNK_SIZE = 3;
     for (let i = 0; i < wordsList.length; i += CHUNK_SIZE) {
@@ -847,18 +940,20 @@ export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptV
   }
 
   let transcriptFull = fullTexts.join(' ').trim();
-  if (!transcriptFull && wordsList.length > 0) {
+  if (!transcriptFull && sentencesList.length > 0) {
+    transcriptFull = sentencesList.map((s) => s.text).join(' ');
+  } else if (!transcriptFull && wordsList.length > 0) {
     transcriptFull = wordsList.map((w) => w.word).join(' ');
   } else if (!transcriptFull && segmentsList.length > 0) {
     transcriptFull = segmentsList.map((s) => s.quote).join(' ');
   }
 
-  if (wordsList.length === 0 && segmentsList.length === 0 && !transcriptFull) {
+  if (wordsList.length === 0 && sentencesList.length === 0 && segmentsList.length === 0 && !transcriptFull) {
     issues.push({
       id: 'EMPTY_TRANSCRIPT',
       severity: 'error',
       field: 'words',
-      message: 'Tidak ada kata atau segmen transkrip audio yang berhasil di-parse.',
+      message: 'Tidak ada kalimat, kata, atau segmen transkrip audio yang berhasil di-parse.',
     });
   }
 
@@ -873,13 +968,16 @@ export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptV
     normalizedData: isValid
       ? {
           transcript_full: transcriptFull,
+          sentences: sentencesList.length > 0 ? sentencesList : undefined,
           segments: segmentsList.length > 0 ? segmentsList : undefined,
           chunks: chunksList,
           words: wordsList,
         }
       : null,
     summaryText: isValid
-      ? segmentsList.length > 0
+      ? sentencesList.length > 0
+        ? `Valid Sentence Transcript (${sentencesList.length} Kalimat / ${wordsList.length} Kata)`
+        : segmentsList.length > 0
         ? `Valid Audio Mapping (${segmentsList.length} Segmen Adegan)`
         : `Valid Transcript (${chunksList.length} Chunks / ${wordsList.length} Kata)`
       : `Transcript Validation Failed: ${errors.map((e) => e.message).join('; ')}`,

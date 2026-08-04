@@ -209,6 +209,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('upload-spensia-vo-audio', { segmentId, sourcePath, bufferArray, topicId }),
   mergeSpensiaVoAudio: (audioPaths, topicId) =>
     ipcRenderer.invoke('merge-spensia-vo-audio', { audioPaths, topicId }),
+  runSpensiaFasterWhisperAlignment: (data) =>
+    ipcRenderer.invoke('run-spensia-faster-whisper-alignment', data),
+  onSpensiaFasterWhisperProgress: (handler) => {
+    const listener = (_e, data) => handler(data);
+    ipcRenderer.on('spensia-faster-whisper-progress', listener);
+    return () => ipcRenderer.removeListener('spensia-faster-whisper-progress', listener);
+  },
   saveToProject: (subPath, data) => ipcRenderer.invoke('save-to-project', { subPath, data }),
   readFromProject: (subPath) => ipcRenderer.invoke('read-from-project', subPath),
 

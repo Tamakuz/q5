@@ -102,6 +102,28 @@ Panduan praktis ini diambil dari pengamatan channel-channel alur cerita film yan
 
 ---
 
+## 🏛️ Formula Thumbnail Spensia "High-Contrast Light Mode" (Fakta & Sejarah)
+
+Khusus untuk Spensia (Fakta Unik, Sejarah & Psikologi), thumbnail dirancang dengan pendekatan **Light Mode Pure White Background & Comic Illustration** yang terbukti menghentikan jempol (*scroll stopper*) di YouTube mobile:
+
+### 1. ⚪ Background Putih Polos (Solid Pure White Background)
+- **Wajib Background Putih Polos**: Menggunakan `solid pure white background` tanpa gradasi gelap atau detail latar yang ramai.
+- **Tujuan CTR**: Memberikan kontras visual instan yang sangat mencolok (*pop out*) di antara puluhan video YouTube bertema gelap di feed mobile (<0.5 detik).
+
+### 2. 🎨 Gaya Ilustrasi & Garis Tinta Hitam Tebal (Comic Book Lineart)
+- **Visual Subject**: Karakter komik / novel grafik dengan **garis outline hitam tebal (thick black lineart)** dan pewarnaan *cel-shading* yang kaya dan kontras tinggi.
+- **Ekspresi Ekstrem**: Wajah karakter dengan emosi berlebihan (misal: panik/teriak dengan keringat & air mata, tersenyum sinister/menyeringai dengan gigi emas, atau topeng tengkorak bersimbah darah).
+- **Posisi Karakter**: Ditempatkan bersih di sisi kiri atau tengah tanpa latar belakang yang menghalangi.
+
+### 3. 🔤 Teks Marker 2-4 Kata + Highlight Merah Menyala
+- **Formulasi Kata**: 2 hingga 4 KATA MAKSIMAL yang memicu *Curiosity Gap* mendalam atau pernyataan provokatif (contoh: *Neraka Pun Menolak Mereka*, *LAHIR UNTUK MATI*, *KAMU DIANGGAP PELAC*R*).
+- **Warna Font**: **Teks marker hitam tebal** dengan **1 KATA UTAMA EMOSI/ANCAMAN DI-HIGHLIGHT MERAH BRIGHT RED** (misal: "Neraka" atau "MATI" berwarna merah menyala).
+
+### 4. ↗️ Panah Penunjuk Tulisan Tangan (Curved Pointer Arrow)
+- Panah melengkung (hitam atau merah) yang digambar dari arah teks langsung menunjuk ke wajah karakter atau detail unik fokus visual.
+
+---
+
 ## 🎯 Formula Judul Alur Film (Terbukti Viral & CTR Tinggi)
 
 Dari pengamatan puluhan channel *faceless* yang viral, terdapat satu formula struktur judul yang terus berulang dan terbukti menghasilkan tingkat klik (CTR) sangat tinggi:

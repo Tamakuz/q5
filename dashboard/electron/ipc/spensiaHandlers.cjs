@@ -8,20 +8,33 @@ const { hexToAssColor, assTime, cleanPunct } = require('../shared/subtitle-utils
 function buildAssSubtitleFile(captions, capCfg, width, height) {
   const fn = capCfg.fontName || 'Montserrat';
   const fs2 = capCfg.fontSize || 48;
-  const activeColor = hexToAssColor(capCfg.activeColorHex || '#22C55E'); // green-500 (was #FDE047 yellow)
-  const inactiveColor = hexToAssColor(capCfg.inactiveColorHex || '#FFFFFF');
+  const activeColor = hexToAssColor(capCfg.activeColorHex || '#22C55E'); // green-500
+  const inactiveColor = hexToAssColor(capCfg.inactiveColorHex || '#CBD5E1'); // Slate-300 (#CBD5E1)
   const outlineColor = hexToAssColor(capCfg.outlineColorHex || '#000000');
   const ow = capCfg.outlineWidth || 3;
   const sd = capCfg.shadowDistance || 2;
   const posY = capCfg.positionY || 160;
   const posX = capCfg.positionX || 40;
   const align = capCfg.alignment || 2;
-  const displayMode = capCfg.displayMode || 'single-word';
+  const displayMode = capCfg.displayMode || 'sentence';
 
   const lines = [];
-  lines.push('[Script Info]', 'Title: Spensia CapCut Word-Level Sync Subtitles', 'ScriptType: v4.00+', 'WrapStyle: 2', 'ScaledBorderAndShadow: yes');
-  lines.push(`Style: Default,${fn},${fs2},${activeColor},${inactiveColor},${outlineColor},&H80000000,-1,0,0,0,100,100,1,0,1,${ow},${sd},${align},${posX},${posX},${posY},1`);
-  lines.push('', '[Events]', 'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text');
+  lines.push(
+    '[Script Info]',
+    'Title: Spensia CapCut Word-Level Sync Subtitles',
+    'ScriptType: v4.00+',
+    'WrapStyle: 2',
+    `PlayResX: ${width || 1920}`,
+    `PlayResY: ${height || 1080}`,
+    'ScaledBorderAndShadow: yes',
+    '',
+    '[V4+ Styles]',
+    'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+    `Style: Default,${fn},${fs2},${inactiveColor},${activeColor},${outlineColor},&H80000000,-1,0,0,0,100,100,0,0,1,${ow},${sd},${align},${posX},${posX},${posY},1`,
+    '',
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text'
+  );
 
   if (!captions || captions.length === 0) return lines.join('\n');
 
@@ -31,26 +44,69 @@ function buildAssSubtitleFile(captions, capCfg, width, height) {
   if (displayMode === 'single-word') {
     sorted.forEach((w, idx) => {
       const nextW = sorted[idx + 1];
-      let startSec = Math.max(0, w.start_sec), endSec = w.end_sec;
-      if (nextW) { const ns = Math.max(0, nextW.start_sec); if (ns > startSec && ns <= endSec + 0.2) endSec = ns; }
+      let startSec = Math.max(0, w.start_sec);
+      let endSec = w.end_sec;
+      if (nextW) {
+        const ns = Math.max(0, nextW.start_sec);
+        if (ns > startSec) endSec = Math.min(endSec, ns);
+      }
       if (endSec <= startSec) endSec = startSec + 0.25;
-      lines.push(`Dialogue: 0,${assTime(startSec)},${assTime(endSec)},Default,,0,0,0,,{\\c${activeColor}\\fscx115\\fscy115\\b1}${w.word}`);
+      lines.push(`Dialogue: 0,${assTime(startSec)},${assTime(endSec)},Default,,0,0,0,,{\\1c${activeColor}\\3c${outlineColor}\\fscx115\\fscy115\\b1}${w.word}`);
+    });
+  } else if (displayMode === 'sentence') {
+    const MAX_SENTENCE_WORDS = 10;
+    const sentenceGroups = [];
+    let currentGroup = [];
+
+    sorted.forEach((w, idx) => {
+      currentGroup.push(w);
+      const prevW = currentGroup[currentGroup.length - 2];
+      const gap = prevW ? w.start_sec - prevW.end_sec : 0;
+      if (currentGroup.length >= MAX_SENTENCE_WORDS || gap > 1.2 || idx === sorted.length - 1) {
+        sentenceGroups.push(currentGroup);
+        currentGroup = [];
+      }
+    });
+
+    sentenceGroups.forEach((group, gIdx) => {
+      if (group.length === 0) return;
+      const startSec = Math.max(0, group[0].start_sec);
+      const lastWord = group[group.length - 1];
+      const nextGroup = sentenceGroups[gIdx + 1];
+
+      let endSec = Math.max(startSec + 0.3, lastWord.end_sec);
+      if (nextGroup && nextGroup.length > 0) {
+        const nextStart = Math.max(0, nextGroup[0].start_sec);
+        if (nextStart > startSec) {
+          endSec = Math.min(endSec, nextStart);
+        }
+      }
+      if (endSec <= startSec) endSec = startSec + 0.3;
+
+      const fullText = group.map((w) => w.word).join(' ');
+      lines.push(`Dialogue: 0,${assTime(startSec)},${assTime(endSec)},Default,,0,0,0,,{\\1c${inactiveColor}\\3c${outlineColor}\\b1}${fullText}`);
     });
   } else {
     const MAX = 3;
     const groups = [];
     for (let i = 0; i < sorted.length; i += MAX) groups.push(sorted.slice(i, i + MAX));
     groups.forEach((group, gIdx) => {
+      if (group.length === 0) return;
+      const startSec = Math.max(0, group[0].start_sec);
+      const lastWord = group[group.length - 1];
       const nextGroup = groups[gIdx + 1];
-      group.forEach((tw, idx) => {
-        let ws = Math.max(0, tw.start_sec), we = tw.end_sec;
-        if (idx < group.length - 1) we = Math.max(ws + 0.15, group[idx + 1].start_sec);
-        else if (nextGroup && nextGroup.length > 0) we = Math.max(ws + 0.15, nextGroup[0].start_sec);
-        else we = ws + 0.5;
-        if (we <= ws) we = ws + 0.25;
-        const phrase = group.map((w) => w === tw ? `{\\c${activeColor}\\fscx112\\fscy112\\b1}${w.word}{\\r}` : w.word).join(' ');
-        lines.push(`Dialogue: 0,${assTime(ws)},${assTime(we)},Default,,0,0,0,,${phrase}`);
-      });
+
+      let endSec = Math.max(startSec + 0.3, lastWord.end_sec);
+      if (nextGroup && nextGroup.length > 0) {
+        const nextStart = Math.max(0, nextGroup[0].start_sec);
+        if (nextStart > startSec) {
+          endSec = Math.min(endSec, nextStart);
+        }
+      }
+      if (endSec <= startSec) endSec = startSec + 0.3;
+
+      const phrase = group.map((w) => w.word).join(' ');
+      lines.push(`Dialogue: 0,${assTime(startSec)},${assTime(endSec)},Default,,0,0,0,,{\\1c${inactiveColor}\\3c${outlineColor}\\b1}${phrase}`);
     });
   }
 
@@ -647,6 +703,131 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return { filename: 'merged_narration.mp3', filePath: destPath, url: media.mediaUrl(destPath), duration };
   });
 
+  ipcMain.handle('run-spensia-faster-whisper-alignment', async (event, { audioPath, scriptText, topicId }) => {
+    const sendProgress = (stage, progress, message, logText) => {
+      try {
+        if (event && event.sender && !event.sender.isDestroyed()) {
+          event.sender.send('spensia-faster-whisper-progress', { stage, progress, message, log: logText || message, topicId });
+        }
+      } catch (err) {
+        console.warn('[Spensia Faster-Whisper] Failed to send progress:', err.message);
+      }
+    };
+
+    try {
+      sendProgress('preparing', 5, 'Memulai proses transkrip otomatis Faster-Whisper Spensia...');
+      
+      let audioToUse = audioPath;
+      if (audioToUse && !path.isAbsolute(audioToUse)) {
+        audioToUse = path.resolve(p.PROJECT_ROOT, audioToUse);
+      }
+
+      const topId = topicId || 1;
+      if (!audioToUse || !fs.existsSync(audioToUse)) {
+        const dirCandidates = [
+          path.join(p.PROJECT_ROOT, 'input', 'spensia', 'audio', `topic_${topId}`),
+          p.SPENSIA_AUDIO_DIR,
+          path.join(p.PROJECT_ROOT, 'input', 'spensia', 'audio'),
+        ];
+
+        for (const dir of dirCandidates) {
+          if (fs.existsSync(dir)) {
+            const files = fs.readdirSync(dir);
+            const found = files.find((f) => /\.(mp3|wav|m4a|aac|flac|ogg)$/i.test(f));
+            if (found) {
+              audioToUse = path.join(dir, found);
+              break;
+            }
+          }
+        }
+      }
+
+      if (!audioToUse || !fs.existsSync(audioToUse)) {
+        throw new Error(`File audio narasi tidak ditemukan. Harap upload file audio narasi terlebih dahulu.`);
+      }
+
+      const scriptToUse = scriptText || '';
+      const tmpDir = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'transcripts');
+      await fs.promises.mkdir(tmpDir, { recursive: true });
+
+      const tmpScriptPath = path.join(tmpDir, `tmp_script_topic_${topId}.txt`);
+      await fs.promises.writeFile(tmpScriptPath, scriptToUse, 'utf-8');
+
+      const outJsonPath = path.join(tmpDir, `merged_transcript_topic_${topId}.json`);
+
+      const pythonBin = path.join(p.PROJECT_ROOT, 'whisperx', 'venv', 'bin', 'python3');
+      const alignCli = path.join(p.PROJECT_ROOT, 'whisperx', 'align_cli.py');
+
+      if (!fs.existsSync(pythonBin)) {
+        throw new Error(`Python venv tidak ditemukan di: ${pythonBin}`);
+      }
+      if (!fs.existsSync(alignCli)) {
+        throw new Error(`Align CLI script tidak ditemukan di: ${alignCli}`);
+      }
+
+      sendProgress('loading_model', 15, `Target Audio: ${path.basename(audioToUse)}. Memuat engine Faster-Whisper...`);
+
+      await new Promise((resolve, reject) => {
+        const child = spawn(pythonBin, [alignCli, '--audio', audioToUse, '--text', tmpScriptPath, '--output', outJsonPath, '--model', 'small'], {
+          cwd: p.PROJECT_ROOT,
+          env: { ...process.env, PYTHONSAFEPATH: '1' },
+        });
+
+        let currentProgress = 15;
+        let currentStage = 'loading_model';
+
+        function processLine(rawLine) {
+          const line = rawLine.replace(/^\[faster-whisper\]\s*/, '').replace(/^\[log\]\s*/, '').trim();
+          if (!line) return;
+
+          if (line.includes('Checking local cache')) { currentProgress = 10; currentStage = 'loading_model'; }
+          else if (line.includes('Initializing CTranslate2')) { currentProgress = 18; currentStage = 'loading_model'; }
+          else if (line.includes('Loaded Faster-Whisper model')) { currentProgress = 25; currentStage = 'loading_model'; }
+          else if (line.includes('Audio Target:')) { currentProgress = 28; currentStage = 'preparing'; }
+          else if (line.includes('Starting Silero VAD')) { currentProgress = 30; currentStage = 'transcribing'; }
+          else if (line.includes('Perform Fuzzy Text-Matching Alignment')) { currentProgress = 85; currentStage = 'aligning'; }
+          else if (line.includes('Selesai!')) { currentProgress = 95; currentStage = 'done'; }
+
+          const pctMatch = line.match(/\[(\d+)%\]/);
+          if (pctMatch) {
+            const rawPct = parseInt(pctMatch[1], 10);
+            if (!isNaN(rawPct)) {
+              currentProgress = Math.min(80, 30 + Math.floor((rawPct / 100) * 50));
+              currentStage = 'transcribing';
+            }
+          }
+
+          sendProgress(currentStage, currentProgress, line, line);
+        }
+
+        child.stdout.on('data', (data) => {
+          const lines = data.toString().split('\n');
+          lines.forEach(processLine);
+        });
+
+        child.stderr.on('data', (data) => {
+          const lines = data.toString().split('\n');
+          lines.forEach(processLine);
+        });
+
+        child.on('close', (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`Proses Faster-Whisper selesai dengan exit code ${code}`));
+        });
+
+        child.on('error', (err) => reject(err));
+      });
+
+      sendProgress('completed', 100, 'Transkrip otomatis kalimat & kata berhasil dibuat!', '✨ Transkrip otomatis kalimat & kata berhasil dibuat!');
+      const jsonStr = await fs.promises.readFile(outJsonPath, 'utf-8');
+      return { success: true, jsonContent: jsonStr, filePath: outJsonPath };
+    } catch (err) {
+      console.error('[Spensia Whisper Error]', err);
+      sendProgress('error', 0, `Gagal: ${err.message}`, `❌ Gagal: ${err.message}`);
+      return { success: false, error: err.message };
+    }
+  });
+
   // ══════════════════════════════════════════════════════
   // Get Spensia Render Result
   // ══════════════════════════════════════════════════════
@@ -711,10 +892,10 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       for (const smp of spensiaMappingPaths) { if (fs.existsSync(smp)) { try { const raw = JSON.parse(fs.readFileSync(smp, 'utf-8')); mappingSegments = raw.segments || []; if (mappingSegments.length > 0) break; } catch {} } }
 
       const clipDurations = clips.map((clip, i) => {
-        const matched = mappingSegments.find((s) => s.segment_id === clip.segment_id) || mappingSegments[i];
-        if (matched && typeof matched.duration_sec === 'number' && matched.duration_sec > 0) return matched.duration_sec;
         if (typeof clip.duration_sec === 'number' && clip.duration_sec > 0) return clip.duration_sec;
         if (typeof clip.end_sec === 'number' && typeof clip.start_sec === 'number' && clip.end_sec > clip.start_sec) return clip.end_sec - clip.start_sec;
+        const matched = mappingSegments.find((s) => s.segment_id === clip.segment_id) || mappingSegments[i];
+        if (matched && typeof matched.duration_sec === 'number' && matched.duration_sec > 0) return matched.duration_sec;
         return 3.0;
       });
 
@@ -736,7 +917,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       send('clips', 0.05, `🖼️ Memulai pre-rendering ${clips.length} segmen dengan zoom-in presisi (${totalDur.toFixed(1)}s)...`);
 
       const cpuCores = os.cpus().length || 4;
-      const CONCURRENCY = 1;
+      const CONCURRENCY = Math.min(8, Math.max(4, Math.floor(cpuCores / 2)));
       const clipFiles = new Array(clips.length);
       let completedClips = 0;
 
@@ -756,7 +937,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
           const clipFrames = Math.max(1, Math.round(dur * fps));
           const vf = `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},zoompan=z='1+0.08*(on/${clipFrames})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${w}x${h}:fps=${fps},format=yuv420p`;
 
-          const args = ['-y', '-loop', '1', '-r', String(fps), '-t', String(dur.toFixed(3)), '-i', imgPath, '-vf', vf, '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', '-threads', '2', '-an', '-pix_fmt', 'yuv420p', outFile];
+          const args = ['-y', '-loop', '1', '-r', String(fps), '-t', String(dur.toFixed(3)), '-i', imgPath, '-vf', vf, '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-crf', '20', '-threads', '2', '-an', '-pix_fmt', 'yuv420p', outFile];
 
           return new Promise((resolve, reject) => {
             const child = spawn(ffmpeg.ffmpegPath, args, { cwd: p.PROJECT_ROOT });
@@ -867,9 +1048,12 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       if (aMap) finalArgs.push('-map', aMap);
 
       const q = config?.outputQuality || 'balanced';
-      const qMap = { fast: ['-preset', 'ultrafast', '-crf', '22'], balanced: ['-preset', 'ultrafast', '-crf', '18'], high: ['-preset', 'fast', '-crf', '16'] };
-      const encThreads = Math.min(4, Math.max(2, Math.floor(cpuCores / 2)));
-      finalArgs.push('-c:v', 'libx264', ...qMap[q] || qMap.balanced, '-threads', String(encThreads), '-pix_fmt', 'yuv420p');
+      const qMap = {
+        fast: ['-preset', 'ultrafast', '-tune', 'zerolatency', '-bf', '0', '-crf', '23'],
+        balanced: ['-preset', 'ultrafast', '-tune', 'zerolatency', '-crf', '19'],
+        high: ['-preset', 'superfast', '-crf', '17']
+      };
+      finalArgs.push('-c:v', 'libx264', ...(qMap[q] || qMap.balanced), '-threads', '0', '-pix_fmt', 'yuv420p');
       if (aMap) finalArgs.push('-c:a', 'aac', '-b:a', '192k');
       finalArgs.push('-movflags', '+faststart', '-t', String(totalDur.toFixed(2)), resolvedOutput);
 
@@ -1043,41 +1227,84 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
       const buildClips = (segs, partId, partStartOffset, partDuration, transcriptData) => {
         const transcriptWords = transcriptData?.words || [];
-        let wordSearchIdx = 0, currentOffset = partStartOffset;
-        const totalChars = segs.reduce((acc, s) => acc + (s.text || s.quote || '').length, 0);
+        let wordSearchIdx = 0;
 
-        segs.forEach((seg, idx) => {
-          const img = images.find((i) => i.segment_id === (seg.segment_id || seg.id || idx + 1));
-          let segStartSec = -1, segEndSec = -1;
-
+        // Pass 1: Extract start timestamps for all segments from transcript word alignment
+        const rawStarts = segs.map((seg, idx) => {
+          let segStartSec = -1;
           if (transcriptWords.length > 0) {
             const rawSegText = (seg.text || seg.quote || '').trim();
             const segWords = rawSegText.split(/\s+/).map(cleanWordForMatch).filter(Boolean);
             if (segWords.length > 0) {
-              const firstTargetWord = segWords[0], lastTargetWord = segWords[segWords.length - 1];
-              let matchStartIdx = -1;
-              for (let i = wordSearchIdx; i < transcriptWords.length; i++) { const tw = cleanWordForMatch(transcriptWords[i].word || transcriptWords[i].text); if (tw === firstTargetWord || tw.includes(firstTargetWord) || firstTargetWord.includes(tw)) { matchStartIdx = i; break; } }
-              if (matchStartIdx >= 0) {
-                let matchEndIdx = -1;
-                for (let j = Math.min(transcriptWords.length - 1, matchStartIdx + segWords.length + 5); j >= matchStartIdx; j--) { const tw = cleanWordForMatch(transcriptWords[j].word || transcriptWords[j].text); if (tw === lastTargetWord || tw.includes(lastTargetWord) || lastTargetWord.includes(tw)) { matchEndIdx = j; break; } }
-                const parseN = (v) => (typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.]/g, '')));
-                const startVal = parseN(transcriptWords[matchStartIdx].start);
-                const endVal = matchEndIdx >= 0 ? parseN(transcriptWords[matchEndIdx].end) : parseN(transcriptWords[matchStartIdx].end) + 2.0;
-                if (!isNaN(startVal) && !isNaN(endVal) && endVal > startVal) { segStartSec = partStartOffset + startVal; segEndSec = partStartOffset + endVal; wordSearchIdx = (matchEndIdx >= 0 ? matchEndIdx : matchStartIdx) + 1; }
+              const firstTargetWord = segWords[0];
+              for (let i = wordSearchIdx; i < transcriptWords.length; i++) {
+                const tw = cleanWordForMatch(transcriptWords[i].word || transcriptWords[i].text);
+                if (tw === firstTargetWord || tw.includes(firstTargetWord) || firstTargetWord.includes(tw)) {
+                  const parseN = (v) => (typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.]/g, '')));
+                  const startVal = parseN(transcriptWords[i].start);
+                  if (!isNaN(startVal) && startVal >= 0) {
+                    segStartSec = partStartOffset + startVal;
+                    wordSearchIdx = i + 1;
+                    break;
+                  }
+                }
               }
             }
           }
+          return segStartSec;
+        });
 
-          let segDurationSec = 0;
-          if (segStartSec >= 0 && segEndSec > segStartSec) { segDurationSec = segEndSec - segStartSec; currentOffset = segStartSec; }
-          else { const textLen = (seg.text || seg.quote || '').length || 10; segDurationSec = (textLen / Math.max(1, totalChars)) * partDuration; }
-          if (idx === segs.length - 1) segDurationSec = Math.max(1.0, partStartOffset + partDuration - currentOffset);
-          else segDurationSec = Math.max(1.0, segDurationSec);
+        // Segment 0 always starts at part start (0.00s)
+        rawStarts[0] = partStartOffset;
 
-          const startSec = currentOffset, endSec = startSec + segDurationSec;
-          currentOffset = endSec;
+        // Interpolate any missing start timestamps proportionally
+        segs.forEach((seg, idx) => {
+          if (rawStarts[idx] < 0) {
+            let prevKnownIdx = idx - 1;
+            while (prevKnownIdx >= 0 && rawStarts[prevKnownIdx] < 0) prevKnownIdx--;
+            const prevStart = prevKnownIdx >= 0 ? rawStarts[prevKnownIdx] : partStartOffset;
 
-          videoClips.push({ clip_id: clipId++, segment_id: seg.segment_id || seg.id || idx + 1, part_id: partId, quote: seg.text || seg.quote || '', image_path: img?.filePath || '', image_url: img?.url || '', start_sec: Number(startSec.toFixed(2)), end_sec: Number(endSec.toFixed(2)), duration_sec: Number(segDurationSec.toFixed(2)), start_frame: Math.round(startSec * fps), end_frame: Math.round(endSec * fps), transition: 'crossfade' });
+            let nextKnownIdx = idx + 1;
+            while (nextKnownIdx < segs.length && rawStarts[nextKnownIdx] < 0) nextKnownIdx++;
+            const nextStart = nextKnownIdx < segs.length ? rawStarts[nextKnownIdx] : (partStartOffset + partDuration);
+
+            const gapDuration = Math.max(1.0, nextStart - prevStart);
+            const subSegs = segs.slice(prevKnownIdx >= 0 ? prevKnownIdx : 0, nextKnownIdx);
+            const subTotalChars = subSegs.reduce((acc, s) => acc + (s.text || s.quote || '').length, 0);
+
+            let subCharAcc = 0;
+            const startCheck = prevKnownIdx >= 0 ? prevKnownIdx : 0;
+            for (let k = startCheck; k < idx; k++) {
+              subCharAcc += (segs[k].text || segs[k].quote || '').length;
+            }
+            const ratio = subTotalChars > 0 ? (subCharAcc / subTotalChars) : ((idx - startCheck) / (nextKnownIdx - startCheck));
+            rawStarts[idx] = Number((prevStart + (ratio * gapDuration)).toFixed(2));
+          }
+        });
+
+        // Pass 2: Generate 100% contiguous visual clips where end_sec(i) === start_sec(i+1)
+        segs.forEach((seg, idx) => {
+          const img = images.find((i) => i.segment_id === (seg.segment_id || seg.id || idx + 1));
+          const startSec = Number(rawStarts[idx].toFixed(2));
+          let endSec = (idx < segs.length - 1) ? Number(rawStarts[idx + 1].toFixed(2)) : Number((partStartOffset + partDuration).toFixed(2));
+
+          if (endSec <= startSec) endSec = Number((startSec + 1.5).toFixed(2));
+          const segDurationSec = Number((endSec - startSec).toFixed(2));
+
+          videoClips.push({
+            clip_id: clipId++,
+            segment_id: seg.segment_id || seg.id || idx + 1,
+            part_id: partId,
+            quote: seg.text || seg.quote || '',
+            image_path: img?.filePath || '',
+            image_url: img?.url || '',
+            start_sec: startSec,
+            end_sec: endSec,
+            duration_sec: segDurationSec,
+            start_frame: Math.round(startSec * fps),
+            end_frame: Math.round(endSec * fps),
+            transition: 'crossfade'
+          });
         });
       };
 
