@@ -23,7 +23,7 @@ const SpensiaImagePromptStep: React.FC = () => {
   const [segmentsListStr, setSegmentsListStr] = useState<string>('');
   const [segmentsCount, setSegmentsCount] = useState<number>(0);
   const [videoTitle, setVideoTitle] = useState<string>('');
-  const [selectedModel, setSelectedModel] = useState<string>('ag/gemini-3-flash-agent');
+  const [selectedModel, setSelectedModel] = useState<string>('cx/gpt-5.5');
   const [masterPrompt, setMasterPrompt] = useState<string>('');
   const [showPromptEditor, setShowPromptEditor] = useState<boolean>(false);
 

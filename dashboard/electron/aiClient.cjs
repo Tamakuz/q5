@@ -5,10 +5,10 @@
 
 const NINEROUTER_BASE_URL = process.env.AI_BASE_URL || 'https://9router.riztama.my.id/v1';
 const NINEROUTER_API_KEY = process.env.AI_API_KEY || 'sk-6b3ac6ef8e3b70c9-eyxuxt-7adfd291';
-const DEFAULT_MODEL = 'cx/gpt-5.5';
+const DEFAULT_MODEL = 'ag/gemini-3-flash-agent';
 
 function resolveModelName(model) {
-  if (!model) return 'ag/gemini-3-flash-agent';
+  if (!model) return DEFAULT_MODEL;
   return model;
 }
 
@@ -52,8 +52,10 @@ async function chatCompletion({
   const targetModel = resolveModelName(model);
   const messages = [];
 
-  if (systemPrompt) {
-    messages.push({ role: 'system', content: systemPrompt });
+  const effectiveSystemPrompt = systemPrompt || (jsonMode ? 'You are a strict JSON data generator API. You MUST respond ONLY with a single valid JSON object matching the requested schema. Do NOT output markdown code blocks, conversational filler, greetings, or questions such as "What is the task?".' : undefined);
+
+  if (effectiveSystemPrompt) {
+    messages.push({ role: 'system', content: effectiveSystemPrompt });
   }
 
   messages.push({ role: 'user', content: prompt });
@@ -113,8 +115,10 @@ async function streamChatCompletion({
   const targetModel = resolveModelName(model);
   const messages = [];
 
-  if (systemPrompt) {
-    messages.push({ role: 'system', content: systemPrompt });
+  const effectiveSystemPrompt = systemPrompt || (jsonMode ? 'You are a strict JSON data generator API. You MUST respond ONLY with a single valid JSON object matching the requested schema. Do NOT output markdown code blocks, conversational filler, greetings, or questions such as "What is the task?".' : undefined);
+
+  if (effectiveSystemPrompt) {
+    messages.push({ role: 'system', content: effectiveSystemPrompt });
   }
 
   messages.push({ role: 'user', content: prompt });
@@ -218,7 +222,8 @@ async function generateSpensiaTopics({ promptText, model = DEFAULT_MODEL, onChun
 
   let parsed = null;
   try {
-    parsed = JSON.parse(rawText);
+    const cleanJson = extractCleanJsonObject(rawText);
+    parsed = JSON.parse(cleanJson);
   } catch (e) {}
 
   return {
@@ -237,7 +242,8 @@ async function generateYoutubeTitles({ fullPrompt, model = DEFAULT_MODEL }) {
     model,
     jsonMode: true,
   });
-  return JSON.parse(rawText);
+  const cleanJson = extractCleanJsonObject(rawText);
+  return JSON.parse(cleanJson);
 }
 
 /**
@@ -253,7 +259,8 @@ async function generateSpensiaScript({ promptText, model = DEFAULT_MODEL, onChun
 
   let parsed = null;
   try {
-    parsed = JSON.parse(rawText);
+    const cleanJson = extractCleanJsonObject(rawText);
+    parsed = JSON.parse(cleanJson);
   } catch (e) {}
 
   return {
@@ -275,7 +282,8 @@ async function generateSpensiaBreakdown({ promptText, model = DEFAULT_MODEL, onC
 
   let parsed = null;
   try {
-    parsed = JSON.parse(rawText);
+    const cleanJson = extractCleanJsonObject(rawText);
+    parsed = JSON.parse(cleanJson);
   } catch (e) {}
 
   return {
@@ -297,7 +305,8 @@ async function generateSpensiaImagePrompts({ promptText, model = DEFAULT_MODEL, 
 
   let parsed = null;
   try {
-    parsed = JSON.parse(rawText);
+    const cleanJson = extractCleanJsonObject(rawText);
+    parsed = JSON.parse(cleanJson);
   } catch (e) {}
 
   return {

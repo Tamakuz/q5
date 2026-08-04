@@ -1,6 +1,6 @@
 // dashboard/src/utils/wakuRenderConfig.ts
 import { z } from 'zod';
-import { WAKU_CAPTION_COLORS } from './wakuTheme';
+import { WAKU_CAPTION_COLORS } from './vannTheme';
 
 // ─── Watermark Text Configuration ─────────────────────
 

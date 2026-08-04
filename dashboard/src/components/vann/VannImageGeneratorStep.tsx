@@ -635,14 +635,14 @@ const WakuImageGeneratorStep: React.FC = () => {
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold uppercase tracking-wider">
-                ✨ Waku AI Workflow — Step 5
+                ✨ Vann AI Workflow — Step 5
               </span>
             </div>
             <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              <span>🖼️</span> Image Generator (Google Flow Playwright Service)
+              <span>🖼️</span> Image Generator (Google Flow Playwright Service — Vann)
             </h1>
             <p className="text-xs text-gray-400 max-w-2xl leading-relaxed">
-              Generate ilustrasi adegan Waku secara otomatis via Google Flow (Nano Banana Pro, x1 count, Mode Agen OFF).
+              Generate ilustrasi adegan Vann secara otomatis via Google Flow (Nano Banana Pro, x1 count, Mode Agen OFF).
             </p>
           </div>
 

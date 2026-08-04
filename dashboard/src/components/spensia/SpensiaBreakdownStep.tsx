@@ -22,7 +22,7 @@ export interface BatchTopicItem {
 const SpensiaBreakdownStep: React.FC = () => {
   const [fullScript, setFullScript] = useState<string>('');
   const [videoTitle, setVideoTitle] = useState<string>('');
-  const [selectedModel, setSelectedModel] = useState<string>('ag/gemini-3-flash-agent');
+  const [selectedModel, setSelectedModel] = useState<string>('cx/gpt-5.5');
   const [masterPrompt, setMasterPrompt] = useState<string>('');
   const [showPromptEditor, setShowPromptEditor] = useState<boolean>(false);
 

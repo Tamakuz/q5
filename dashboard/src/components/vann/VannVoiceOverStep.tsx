@@ -6,7 +6,7 @@ import {
   WakuChunkTimestamp,
   WakuTranscriptData,
   WakuTranscriptValidationReport,
-} from '../../utils/wakuValidation';
+} from '../../utils/vannValidation';
 
 const api = window.electronAPI;
 
@@ -811,7 +811,7 @@ const WakuVoiceOverStep: React.FC = () => {
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold uppercase tracking-wider">
-                ✨ Waku AI Workflow — Step 6
+                ✨ Vann AI Workflow — Step 6
               </span>
               {pipelineStage !== 'idle' && (
                 <span

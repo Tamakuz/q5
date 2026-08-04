@@ -13,6 +13,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
     const isLongform = mode === 'longform';
     const isSpensia = mode === 'spensia';
+    const isWaku = mode === 'waku' || mode === 'shortform';
     try {
       const outputDir = path.join(p.PROJECT_ROOT, 'output');
       const inputDir = path.join(p.PROJECT_ROOT, 'input');
@@ -23,7 +24,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
       const randStr = Math.random().toString(36).substring(2, 6).toUpperCase();
-      const prefix = isSpensia ? 'WV-SPENSIA' : isLongform ? 'WV-FILM' : 'WV';
+      const prefix = isSpensia ? 'WV-SPENSIA' : isLongform ? 'WV-FILM' : 'WV-VANN';
       const newId = `${prefix}-${dateStr}-${randStr}`;
 
       if (isSpensia) {
@@ -96,37 +97,37 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       }
 
       if (isWaku) {
-        console.log(`🧹 [Reset Waku] Clearing all Waku workspace files & setting new Content ID: ${newId}`);
-        const wakuInputDir = path.join(inputDir, 'waku');
-        const wakuOutputDir = path.join(outputDir, 'waku');
+        console.log(`🧹 [Reset Vann] Clearing all Vann workspace files & setting new Content ID: ${newId}`);
+        const vannInputDir = path.join(inputDir, 'vann');
+        const vannOutputDir = path.join(outputDir, 'vann');
 
-        // Clear input/waku directory completely
-        if (fs.existsSync(wakuInputDir)) {
+        // Clear input/vann directory completely
+        if (fs.existsSync(vannInputDir)) {
           try {
-            const items = fs.readdirSync(wakuInputDir);
+            const items = fs.readdirSync(vannInputDir);
             for (const item of items) {
-              try { fs.rmSync(path.join(wakuInputDir, item), { recursive: true, force: true }); } catch (err) {
-                console.error(`[Reset Waku] Failed to delete input item ${item}:`, err);
+              try { fs.rmSync(path.join(vannInputDir, item), { recursive: true, force: true }); } catch (err) {
+                console.error(`[Reset Vann] Failed to delete input item ${item}:`, err);
               }
             }
           } catch (e) {
-            console.error('[Reset Waku] Error reading input/waku:', e);
+            console.error('[Reset Vann] Error reading input/vann:', e);
           }
-        } else { fs.mkdirSync(wakuInputDir, { recursive: true }); }
+        } else { fs.mkdirSync(vannInputDir, { recursive: true }); }
 
-        // Clear output/waku directory completely
-        if (fs.existsSync(wakuOutputDir)) {
+        // Clear output/vann directory completely
+        if (fs.existsSync(vannOutputDir)) {
           try {
-            const items = fs.readdirSync(wakuOutputDir);
+            const items = fs.readdirSync(vannOutputDir);
             for (const item of items) {
-              try { fs.rmSync(path.join(wakuOutputDir, item), { recursive: true, force: true }); } catch (err) {
-                console.error(`[Reset Waku] Failed to delete output item ${item}:`, err);
+              try { fs.rmSync(path.join(vannOutputDir, item), { recursive: true, force: true }); } catch (err) {
+                console.error(`[Reset Vann] Failed to delete output item ${item}:`, err);
               }
             }
           } catch (e) {
-            console.error('[Reset Waku] Error reading output/waku:', e);
+            console.error('[Reset Vann] Error reading output/vann:', e);
           }
-        } else { fs.mkdirSync(wakuOutputDir, { recursive: true }); }
+        } else { fs.mkdirSync(vannOutputDir, { recursive: true }); }
 
         // Clear legacy root input files if any exist
         const legacyFiles = [
@@ -145,14 +146,14 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
           if (fs.existsSync(lf)) { try { fs.unlinkSync(lf); } catch {} }
         }
 
-        // Initialize new Content ID & waku_mapping.json
-        const mappingFile = path.join(wakuInputDir, 'waku_mapping.json');
+        // Initialize new Content ID & vann_mapping.json
+        const mappingFile = path.join(vannInputDir, 'vann_mapping.json');
         const mapping = {
           settings: { fps: 30, format: "16:9", fg_aspect: "16:9", bgm: "random", content_id: newId },
           timeline: []
         };
         fs.writeFileSync(mappingFile, JSON.stringify(mapping, null, 2), 'utf-8');
-        fs.writeFileSync(path.join(wakuInputDir, '.current_content_id'), newId, 'utf-8');
+        fs.writeFileSync(path.join(vannInputDir, '.current_content_id'), newId, 'utf-8');
         return { success: true, content_id: newId };
       }
 

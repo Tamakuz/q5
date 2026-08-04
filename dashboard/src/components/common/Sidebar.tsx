@@ -12,13 +12,13 @@ interface Step {
   shortLabel?: string;
 }
 
-const WAKU_STEPS: Step[] = [
+const VANN_STEPS: Step[] = [
   { id: 'source', icon: '💡', label: '1. Topics Generator', subText: 'Ide topik & fakta kontraintuitif' },
-  { id: 'analyze', icon: '⚡', label: '2. Script Generator', subText: 'Naskah voiceover Style DNA Waku' },
+  { id: 'analyze', icon: '⚡', label: '2. Script Generator', subText: 'Naskah voiceover Style DNA Vann' },
   { id: 'audio', icon: '✂️', label: '3. Scene Splitter', subText: 'Breakdown segmen visual adegan' },
-  { id: 'mapping', icon: '🎨', label: '4. Image Prompt Generator', subText: 'Visual Style DNA Waku prompts' },
+  { id: 'mapping', icon: '🎨', label: '4. Image Prompt Generator', subText: 'Visual Style DNA Vann prompts' },
   { id: 'render', icon: '🖼️', label: '5. Image Generator', subText: 'Generate ilustrasi adegan Google Flow' },
-  { id: 'publish', icon: '🎙️', label: '6. Voice Over Generator', subText: 'Prompt TTS & Upload Audio Waku' },
+  { id: 'publish', icon: '🎙️', label: '6. Voice Over Generator', subText: 'Prompt TTS & Upload Audio Vann' },
   { id: 'transcript', icon: '🎯', label: '7. Timeline & Mapping Studio', subText: 'Build timeline mapping & JSON sync' },
   { id: 'upload', icon: '🎬', label: '8. Render Studio (16:9)', subText: 'Watermark, caption, BGM & export' },
   { id: 'thumbnail', icon: '🚀', label: '9. Publish Hub & Thumbnail', subText: 'AI SEO Title, Tags, Description & 3x Thumbnail' },
@@ -63,7 +63,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode, onModeChange }) => {
   const activeStepsList =
     contentMode === 'waku' || contentMode === 'shortform'
-      ? WAKU_STEPS
+      ? VANN_STEPS
       : contentMode === 'longform'
         ? LONGFORM_STEPS
         : contentMode === 'spensia'
@@ -86,7 +86,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
                 }`}
             >
-              <span>📱</span> Waku
+              <span>📱</span> Vann
             </button>
             <button
               onClick={() => onModeChange('longform')}
@@ -134,7 +134,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
               }
             >
               {contentMode === 'waku' || contentMode === 'shortform'
-                ? 'Waku Workflow'
+                ? 'Vann Workflow'
                 : contentMode === 'longform'
                   ? '16:9 Alur Film'
                   : contentMode === 'spensia'

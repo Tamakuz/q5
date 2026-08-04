@@ -1,8 +1,8 @@
 // dashboard/src/utils/wakuAssGenerator.ts
-import { TimelineCaptionItem } from './wakuTimelineGenerator';
+import { TimelineCaptionItem } from './vannTimelineGenerator';
 // @ts-ignore
 import { hexToAssColor, assTime, cleanPunct } from '../../electron/shared/subtitle-utils.cjs';
-import { WAKU_CAPTION_COLORS } from './wakuTheme';
+import { WAKU_CAPTION_COLORS } from './vannTheme';
 
 export interface CaptionStyleOptions {
   fontName?: string;

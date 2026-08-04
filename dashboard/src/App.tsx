@@ -6,16 +6,16 @@ import type { StepId, ContentMode } from './components/common/Sidebar';
 import MediaPreviewDrawer from './components/common/MediaPreviewDrawer';
 import StatusBar from './components/common/StatusBar';
 
-// Waku Feature Components
-import WakuTopicsStep from './components/waku/WakuTopicsStep';
-import WakuScriptStep from './components/waku/WakuScriptStep';
-import WakuBreakdownStep from './components/waku/WakuBreakdownStep';
-import WakuImagePromptStep from './components/waku/WakuImagePromptStep';
-import WakuImageGeneratorStep from './components/waku/WakuImageGeneratorStep';
-import WakuVoiceOverStep from './components/waku/WakuVoiceOverStep';
-import WakuTimelineMappingStep from './components/waku/WakuTimelineMappingStep';
-import WakuRenderStep from './components/waku/WakuRenderStep';
-import WakuThumbnailStep from './components/waku/WakuThumbnailStep';
+// Vann Feature Components
+import VannTopicsStep from './components/vann/VannTopicsStep';
+import VannScriptStep from './components/vann/VannScriptStep';
+import VannBreakdownStep from './components/vann/VannBreakdownStep';
+import VannImagePromptStep from './components/vann/VannImagePromptStep';
+import VannImageGeneratorStep from './components/vann/VannImageGeneratorStep';
+import VannVoiceOverStep from './components/vann/VannVoiceOverStep';
+import VannTimelineMappingStep from './components/vann/VannTimelineMappingStep';
+import VannRenderStep from './components/vann/VannRenderStep';
+import VannThumbnailStep from './components/vann/VannThumbnailStep';
 
 // Longform (Alur Film) Feature Components
 import AlurfilmSplitterStep from './components/longform/AlurfilmSplitterStep';
@@ -116,23 +116,23 @@ const App: React.FC = () => {
         <main className="flex-1 p-6 overflow-auto bg-gradient-to-br from-gray-950 via-gray-950 to-gray-900">
           {contentMode === 'waku' || contentMode === 'shortform' ? (
             activeStep === 'source' ? (
-              <WakuTopicsStep key={`waku-topics-${wakuResetKey}`} />
+              <VannTopicsStep key={`waku-topics-${wakuResetKey}`} />
             ) : activeStep === 'analyze' ? (
-              <WakuScriptStep key={`waku-script-${wakuResetKey}`} />
+              <VannScriptStep key={`waku-script-${wakuResetKey}`} />
             ) : activeStep === 'audio' ? (
-              <WakuBreakdownStep key={`waku-breakdown-${wakuResetKey}`} />
+              <VannBreakdownStep key={`waku-breakdown-${wakuResetKey}`} />
             ) : activeStep === 'mapping' ? (
-              <WakuImagePromptStep key={`waku-image-prompts-${wakuResetKey}`} />
+              <VannImagePromptStep key={`waku-image-prompts-${wakuResetKey}`} />
             ) : activeStep === 'render' ? (
-              <WakuImageGeneratorStep key={`waku-image-generator-${wakuResetKey}`} />
+              <VannImageGeneratorStep key={`waku-image-generator-${wakuResetKey}`} />
             ) : activeStep === 'publish' ? (
-              <WakuVoiceOverStep key={`waku-voice-over-${wakuResetKey}`} />
+              <VannVoiceOverStep key={`waku-voice-over-${wakuResetKey}`} />
             ) : activeStep === 'transcript' ? (
-              <WakuTimelineMappingStep key={`waku-timeline-mapping-${wakuResetKey}`} onStepChange={setActiveStep} />
+              <VannTimelineMappingStep key={`waku-timeline-mapping-${wakuResetKey}`} onStepChange={setActiveStep} />
             ) : activeStep === 'upload' ? (
-              <WakuRenderStep key={`waku-render-studio-${wakuResetKey}`} />
+              <VannRenderStep key={`waku-render-studio-${wakuResetKey}`} />
             ) : activeStep === 'thumbnail' ? (
-              <WakuThumbnailStep key={`waku-thumbnail-studio-${wakuResetKey}`} />
+              <VannThumbnailStep key={`waku-thumbnail-studio-${wakuResetKey}`} />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
                 <div className="w-20 h-20 bg-blue-600/10 text-blue-400 rounded-3xl flex items-center justify-center text-4xl border border-blue-500/20 shadow-xl shadow-blue-950/40">
@@ -141,12 +141,12 @@ const App: React.FC = () => {
                 <div className="max-w-md space-y-2">
                   <div className="flex items-center justify-center gap-2">
                     <span className="px-3 py-1 rounded-full bg-blue-950 text-blue-300 border border-blue-800 text-xs font-mono font-bold uppercase tracking-wider">
-                      Workflow Waku
+                      Workflow Vann
                     </span>
                   </div>
                   <h2 className="text-lg font-bold text-white pt-1">Workflow Step Belum Ada</h2>
                   <p className="text-xs text-gray-400 leading-relaxed">
-                    Langkah ini belum dikonfigurasi untuk Waku.
+                    Langkah ini belum dikonfigurasi untuk Vann.
                   </p>
                 </div>
               </div>

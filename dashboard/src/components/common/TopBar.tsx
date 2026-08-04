@@ -83,7 +83,7 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
               : 'bg-cyan-950/80 text-cyan-300 border-cyan-800/80'
           }`}>
             {contentMode === 'waku' || contentMode === 'shortform'
-              ? '📱 Waku Mode'
+              ? '📱 Vann Mode'
               : contentMode === 'longform'
               ? '🍿 Alur Film Mode'
               : contentMode === 'spensia'
@@ -121,7 +121,7 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
           className="px-3 py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/50 rounded-lg text-xs font-semibold shadow-md transition-all flex items-center gap-1.5"
         >
           <span>🔄</span>
-          <span>New Content / Reset ID ({contentMode === 'waku' || contentMode === 'shortform' ? 'Waku' : contentMode === 'longform' ? 'Alur Film' : 'Spensia'})</span>
+          <span>New Content / Reset ID ({contentMode === 'waku' || contentMode === 'shortform' ? 'Vann' : contentMode === 'longform' ? 'Alur Film' : 'Spensia'})</span>
         </button>
       </header>
 

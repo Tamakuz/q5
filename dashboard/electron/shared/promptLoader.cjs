@@ -18,8 +18,8 @@ function loadPrompt(promptFileName) {
     throw new Error(`Prompt file not found: ${filePath}`);
   }
 
-  // Search priority: waku → spensia → longform → shortform
-  const searchDirs = ['waku', 'spensia', 'longform', 'shortform'];
+  // Search priority: vann → spensia → longform → shortform
+  const searchDirs = ['vann', 'spensia', 'longform', 'shortform'];
   for (const dir of searchDirs) {
     const filePath = path.join(PROMPTS_DIR, dir, promptFileName);
     if (fs.existsSync(filePath)) {
@@ -27,7 +27,7 @@ function loadPrompt(promptFileName) {
     }
   }
 
-  throw new Error(`Prompt file not found: ${promptFileName} (searched in waku/, spensia/, longform/, shortform/)`);
+  throw new Error(`Prompt file not found: ${promptFileName} (searched in vann/, spensia/, longform/, shortform/)`);
 }
 
 module.exports = { loadPrompt };

@@ -1,6 +1,6 @@
 // dashboard/src/components/waku/WakuScriptStep.tsx
 import React, { useState, useEffect } from 'react';
-import { validateWakuScript, WakuScriptData, WakuScriptValidationReport } from '../../utils/wakuValidation';
+import { validateWakuScript, WakuScriptData, WakuScriptValidationReport } from '../../utils/vannValidation';
 
 const api = window.electronAPI;
 
@@ -414,14 +414,14 @@ const WakuScriptStep: React.FC = () => {
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold uppercase tracking-wider">
-                ✨ Waku AI Workflow — Step 2
+                ✨ Vann AI Workflow — Step 2
               </span>
             </div>
             <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              <span>⚡</span> Script Generator (Waku)
+              <span>⚡</span> Script Generator (Vann)
             </h1>
             <p className="text-xs text-gray-400 max-w-2xl leading-relaxed">
-              Generate naskah voiceover edukasi kontraintuitif dengan ritme kalimat tajam & Style DNA Waku siap pakai.
+              Generate naskah voiceover edukasi kontraintuitif dengan ritme kalimat tajam & Style DNA Vann siap pakai.
             </p>
           </div>
 
