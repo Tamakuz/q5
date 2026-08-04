@@ -48,7 +48,7 @@ const WakuThumbnailStep: React.FC = () => {
   const [renderedThumbnails, setRenderedThumbnails] = useState<WakuThumbnailConcept[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const [aiModel, setAiModel] = useState<string>('ag/gemini-3-flash-agent');
+  const [aiModel, setAiModel] = useState<string>('cx/gpt-5.5');
   const [imageModel, setImageModel] = useState<string>('Nano Banana Pro');
   const [imageSize, setImageSize] = useState<string>('1280x720');
 
@@ -665,7 +665,7 @@ const WakuThumbnailStep: React.FC = () => {
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-mono font-bold tracking-wider uppercase">
-                🚀 STEP 9: PUBLISH HUB & THUMBNAIL STUDIO
+                🚀 VANN WORKFLOW — STEP 9: PUBLISH HUB & THUMBNAIL STUDIO
               </span>
               <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-mono font-bold">
                 🔥 SEO Titles, Description, Tags & 3x Thumbnail

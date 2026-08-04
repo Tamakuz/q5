@@ -1,6 +1,6 @@
 // dashboard/src/components/waku/WakuBreakdownStep.tsx
 import React, { useState, useEffect } from 'react';
-import { validateWakuBreakdown, WakuSegmentItem, WakuBreakdownValidationReport } from '../../utils/wakuValidation';
+import { validateWakuBreakdown, WakuSegmentItem, WakuBreakdownValidationReport } from '../../utils/vannValidation';
 
 const api = window.electronAPI;
 
@@ -22,7 +22,7 @@ export interface BatchTopicItem {
 const WakuBreakdownStep: React.FC = () => {
   const [fullScript, setFullScript] = useState<string>('');
   const [videoTitle, setVideoTitle] = useState<string>('');
-  const [selectedModel, setSelectedModel] = useState<string>('ag/gemini-3-flash-agent');
+  const [selectedModel, setSelectedModel] = useState<string>('cx/gpt-5.5');
   const [masterPrompt, setMasterPrompt] = useState<string>('');
   const [showPromptEditor, setShowPromptEditor] = useState<boolean>(false);
 
@@ -460,14 +460,14 @@ const WakuBreakdownStep: React.FC = () => {
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold uppercase tracking-wider">
-                ✨ Waku AI Workflow — Step 3
+                ✨ Vann AI Workflow — Step 3
               </span>
             </div>
             <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              <span>✂️</span> Scene Splitter (Script Breakdown)
+              <span>✂️</span> Scene Splitter (Vann Script Breakdown)
             </h1>
             <p className="text-xs text-gray-400 max-w-2xl leading-relaxed">
-              Pecah naskah voiceover menjadi segmen-segmen adegan visual yang jelas sesuai pergeseran gambaran narasi Waku.
+              Pecah naskah voiceover menjadi segmen-segmen adegan visual yang jelas sesuai pergeseran gambaran narasi Vann.
             </p>
           </div>
 

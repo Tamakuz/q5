@@ -1,6 +1,6 @@
 // dashboard/src/components/waku/WakuImagePromptStep.tsx
 import React, { useState, useEffect } from 'react';
-import { validateWakuImagePrompts, WakuImagePromptItem, WakuImagePromptsValidationReport } from '../../utils/wakuValidation';
+import { validateWakuImagePrompts, WakuImagePromptItem, WakuImagePromptsValidationReport } from '../../utils/vannValidation';
 
 const api = window.electronAPI;
 
@@ -23,7 +23,7 @@ const WakuImagePromptStep: React.FC = () => {
   const [segmentsListStr, setSegmentsListStr] = useState<string>('');
   const [segmentsCount, setSegmentsCount] = useState<number>(0);
   const [videoTitle, setVideoTitle] = useState<string>('');
-  const [selectedModel, setSelectedModel] = useState<string>('ag/gemini-3-flash-agent');
+  const [selectedModel, setSelectedModel] = useState<string>('cx/gpt-5.5');
   const [masterPrompt, setMasterPrompt] = useState<string>('');
   const [showPromptEditor, setShowPromptEditor] = useState<boolean>(false);
 
@@ -445,14 +445,14 @@ const WakuImagePromptStep: React.FC = () => {
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold uppercase tracking-wider">
-                ✨ Waku AI Workflow — Step 4
+                ✨ Vann AI Workflow — Step 4
               </span>
             </div>
             <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              <span>🎨</span> Image Prompt Generator (Waku)
+              <span>🎨</span> Image Prompt Generator (Vann)
             </h1>
             <p className="text-xs text-gray-400 max-w-2xl leading-relaxed">
-              Generate prompt gambar ber-style Flat 2D illustration, warm earthy color palette, & stick-figure background unik untuk setiap segmen adegan.
+              Generate prompt gambar ber-style Gritty Graphic Novel Dark Anime, desaturated cool blue-grey chiaroscuro, & first-person POV storytelling unik untuk setiap segmen adegan Vann.
             </p>
           </div>
 

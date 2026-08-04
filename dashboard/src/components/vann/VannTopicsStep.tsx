@@ -1,6 +1,6 @@
 // dashboard/src/components/waku/WakuTopicsStep.tsx
 import React, { useState, useEffect } from 'react';
-import { validateWakuTopics, WakuTopicsValidationReport } from '../../utils/wakuValidation';
+import { validateWakuTopics, WakuTopicsValidationReport } from '../../utils/vannValidation';
 
 const api = window.electronAPI;
 
@@ -25,11 +25,11 @@ export interface TopicItem {
 }
 
 const MODEL_OPTIONS = [
-  { id: 'ag/gemini-3-flash-agent', name: 'ag/gemini-3-flash-agent (Recommended)' },
-  { id: 'cx/gpt-5.5', name: 'cx/gpt-5.5' },
+  { id: 'ag/gemini-3-flash-agent', name: 'ag/gemini-3-flash-agent' },
+  { id: 'cx/gpt-5.5', name: 'cx/gpt-5.5 (Recommended)' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
   { id: 'cmc/deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
 ];
 
 const WakuTopicsStep: React.FC = () => {
@@ -419,14 +419,14 @@ const WakuTopicsStep: React.FC = () => {
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 text-[10px] font-mono font-bold uppercase tracking-wider">
-                ✨ Waku AI Workflow — Step 1
+                ✨ Vann AI Workflow — Step 1
               </span>
             </div>
             <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              <span>💡</span> Topics Generator (Waku)
+              <span>💡</span> Topics Generator (Vann)
             </h1>
             <p className="text-xs text-gray-400 max-w-2xl leading-relaxed">
-              Generate ide topik video edukasi provokatif dengan fakta kontraintuitif & detail kehidupan kuno vs modern ala Lumensia / Waku.
+              Generate ide topik video edukasi provokatif dengan fakta kontraintuitif & detail kehidupan kuno vs modern ala Lumensia / Vann.
             </p>
           </div>
 
@@ -514,7 +514,7 @@ const WakuTopicsStep: React.FC = () => {
           <div className="p-3.5 bg-emerald-950/40 border border-emerald-800/60 rounded-2xl space-y-1.5 shadow-md">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-bold flex items-center gap-1.5">
-                <span>📺</span> Channel DNA (Waku Profile)
+                <span>📺</span> Channel DNA (Vann Profile)
               </span>
               <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-900/80 text-emerald-300 font-bold">
                 Auto Mode
