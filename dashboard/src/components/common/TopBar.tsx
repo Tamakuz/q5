@@ -74,16 +74,16 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
 
           {/* Mode Indicator Badge */}
           <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
-            contentMode === 'shortform'
-              ? 'bg-indigo-950/80 text-indigo-300 border-indigo-800/80'
+            contentMode === 'waku' || contentMode === 'shortform'
+              ? 'bg-blue-950/80 text-blue-300 border-blue-800/80'
               : contentMode === 'longform'
               ? 'bg-purple-950/80 text-purple-300 border-purple-800/80'
               : contentMode === 'spensia'
               ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/80'
               : 'bg-cyan-950/80 text-cyan-300 border-cyan-800/80'
           }`}>
-            {contentMode === 'shortform'
-              ? '📱 Shorts Mode'
+            {contentMode === 'waku' || contentMode === 'shortform'
+              ? '📱 Waku Mode'
               : contentMode === 'longform'
               ? '🍿 Alur Film Mode'
               : contentMode === 'spensia'
@@ -97,8 +97,8 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
               onClick={handleCopyId}
               title={`Click to copy Content ID for ${contentMode}`}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all text-xs font-mono border ml-1 ${
-                contentMode === 'shortform'
-                  ? 'bg-indigo-950/60 hover:bg-indigo-900/80 border-indigo-700/50 text-indigo-300'
+                contentMode === 'waku' || contentMode === 'shortform'
+                  ? 'bg-blue-950/60 hover:bg-blue-900/80 border-blue-700/50 text-blue-300'
                   : contentMode === 'longform'
                   ? 'bg-purple-950/60 hover:bg-purple-900/80 border-purple-700/50 text-purple-300'
                   : contentMode === 'spensia'
@@ -121,7 +121,7 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
           className="px-3 py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/50 rounded-lg text-xs font-semibold shadow-md transition-all flex items-center gap-1.5"
         >
           <span>🔄</span>
-          <span>New Content / Reset ID ({contentMode === 'shortform' ? 'Shorts' : contentMode === 'longform' ? 'Alur Film' : 'Spensia'})</span>
+          <span>New Content / Reset ID ({contentMode === 'waku' || contentMode === 'shortform' ? 'Waku' : contentMode === 'longform' ? 'Alur Film' : 'Spensia'})</span>
         </button>
       </header>
 

@@ -1,4 +1,4 @@
-// dashboard/src/components/spensia/SpensiaImageGeneratorStep.tsx
+// dashboard/src/components/waku/WakuImageGeneratorStep.tsx
 import React, { useState, useEffect } from 'react';
 
 const api = window.electronAPI;
@@ -33,7 +33,7 @@ export interface BatchTopicItem {
   totalPromptsCount?: number;
 }
 
-const SpensiaImageGeneratorStep: React.FC = () => {
+const WakuImageGeneratorStep: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<string>('Nano Banana Pro');
   const [selectedSize, setSelectedSize] = useState<string>('1280x720');
   const [selectedQuality, setSelectedQuality] = useState<string>('low');
@@ -67,7 +67,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
       try {
         if (api?.readFromProject) {
           // 1. Load selected topics from Step 1
-          const savedTopicsJson = await api.readFromProject('input/spensia/topics.json');
+          const savedTopicsJson = await api.readFromProject('input/waku/topics.json');
           let selectedId: number | null = null;
           let loadedTopics: BatchTopicItem[] = [];
 
@@ -93,7 +93,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
           const checkedTopics = await Promise.all(
             loadedTopics.map(async (top) => {
               try {
-                const specificGen = (await api.readFromProject(`input/spensia/images/generated_images_topic_${top.id}.json`)) || '';
+                const specificGen = (await api.readFromProject(`input/waku/images/generated_images_topic_${top.id}.json`)) || '';
                 let successCount = 0;
                 let totalPrompts = 0;
                 if (specificGen) {
@@ -136,11 +136,11 @@ const SpensiaImageGeneratorStep: React.FC = () => {
     const targetId = topicId || 1;
 
     // Load image prompts for this topic
-    const promptFile = `input/spensia/prompts/image_prompts_topic_${targetId}.json`;
+    const promptFile = `input/waku/prompts/image_prompts_topic_${targetId}.json`;
 
     let promptsJsonStr = (await api.readFromProject(promptFile)) || '';
     if (!promptsJsonStr && targetId === 1) {
-      promptsJsonStr = (await api.readFromProject('input/spensia/image_prompts.json')) || '';
+      promptsJsonStr = (await api.readFromProject('input/waku/image_prompts.json')) || '';
     }
 
     let parsedPrompts: any[] = [];
@@ -152,11 +152,11 @@ const SpensiaImageGeneratorStep: React.FC = () => {
     }
 
     // Load generated images state strictly for this topic
-    const genFile = `input/spensia/images/generated_images_topic_${targetId}.json`;
+    const genFile = `input/waku/images/generated_images_topic_${targetId}.json`;
 
     let savedGenJson = (await api.readFromProject(genFile)) || '';
     if (!savedGenJson && targetId === 1) {
-      savedGenJson = (await api.readFromProject('input/spensia/generated_images.json')) || '';
+      savedGenJson = (await api.readFromProject('input/waku/generated_images.json')) || '';
     }
 
     let savedGenMap: Record<number, any> = {};
@@ -219,8 +219,8 @@ const SpensiaImageGeneratorStep: React.FC = () => {
     let unsubChunk: (() => void) | null = null;
     let unsubLog: (() => void) | null = null;
 
-    if (api?.onSpensiaImageProgress) {
-      unsubProgress = api.onSpensiaImageProgress((progress) => {
+    if (api?.onWakuImageProgress) {
+      unsubProgress = api.onWakuImageProgress((progress) => {
         setBatchProgress({ current: progress.current, total: progress.total });
         if (!progress.topicId || progress.topicId === activeTopicId) {
           setItems((prev) => {
@@ -277,8 +277,8 @@ const SpensiaImageGeneratorStep: React.FC = () => {
       });
     }
 
-    if (api?.onSpensiaImageChunkStart) {
-      unsubChunk = api.onSpensiaImageChunkStart(({ segmentIds, topicId }) => {
+    if (api?.onWakuImageChunkStart) {
+      unsubChunk = api.onWakuImageChunkStart(({ segmentIds, topicId }) => {
         if (!topicId || topicId === activeTopicId) {
           setItems((prev) =>
             prev.map((item) => {
@@ -292,8 +292,8 @@ const SpensiaImageGeneratorStep: React.FC = () => {
       });
     }
 
-    if (api?.onSpensiaImageLog) {
-      unsubLog = api.onSpensiaImageLog(({ segmentId, workerId, text }) => {
+    if (api?.onWakuImageLog) {
+      unsubLog = api.onWakuImageLog(({ segmentId, workerId, text }) => {
         setItems((prev) =>
           prev.map((item) => {
             if (item.segment_id === segmentId) {
@@ -317,13 +317,13 @@ const SpensiaImageGeneratorStep: React.FC = () => {
       const targetId = topicId || activeTopicId || 1;
       if (api?.saveToProject) {
         await api.saveToProject(
-          `input/spensia/images/generated_images_topic_${targetId}.json`,
+          `input/waku/images/generated_images_topic_${targetId}.json`,
           JSON.stringify({ total_images: updatedItems.length, images: updatedItems }, null, 2)
         );
 
         if (targetId === 1) {
           await api.saveToProject(
-            'input/spensia/generated_images.json',
+            'input/waku/generated_images.json',
             JSON.stringify({ total_images: updatedItems.length, images: updatedItems }, null, 2)
           );
         }
@@ -360,7 +360,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
       // Load prompts for this topic
       let topicItems: GeneratedImageItem[] = [];
       if (api?.readFromProject) {
-        const promptsJsonStr = (await api.readFromProject(`input/spensia/prompts/image_prompts_topic_${topic.id}.json`)) || '';
+        const promptsJsonStr = (await api.readFromProject(`input/waku/prompts/image_prompts_topic_${topic.id}.json`)) || '';
         let parsedPrompts: any[] = [];
         if (promptsJsonStr) {
           try {
@@ -369,7 +369,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
           } catch {}
         }
 
-        const savedGenJson = (await api.readFromProject(`input/spensia/images/generated_images_topic_${topic.id}.json`)) || '';
+        const savedGenJson = (await api.readFromProject(`input/waku/images/generated_images_topic_${topic.id}.json`)) || '';
         let savedGenMap: Record<number, any> = {};
         if (savedGenJson) {
           try {
@@ -406,7 +406,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
       }
 
       try {
-        if (api?.generateSpensiaBatchImages) {
+        if (api?.generateWakuBatchImages) {
           setBatchProgress({ current: 0, total: pendingItems.length });
 
           // INSTANT UI FEEDBACK: Mark FIRST concurrency items as generating (rolling window)
@@ -427,7 +427,7 @@ const SpensiaImageGeneratorStep: React.FC = () => {
             })
           );
 
-          const results = await api.generateSpensiaBatchImages(
+          const results = await api.generateWakuBatchImages(
             pendingItems.map((i) => ({ segment_id: i.segment_id, prompt: i.prompt })),
             selectedModel,
             selectedSize,
@@ -470,11 +470,11 @@ const SpensiaImageGeneratorStep: React.FC = () => {
     setItems((prev) => prev.map((i) => (i.segment_id === segmentId ? { ...i, status: 'generating' } : i)));
 
     try {
-      if (!api?.generateSpensiaSingleImage) {
-        throw new Error('API generateSpensiaSingleImage tidak tersedia pada Electron preload.');
+      if (!api?.generateWakuSingleImage) {
+        throw new Error('API generateWakuSingleImage tidak tersedia pada Electron preload.');
       }
 
-      const res = await api.generateSpensiaSingleImage(
+      const res = await api.generateWakuSingleImage(
         segmentId,
         targetItem.prompt,
         selectedModel,
@@ -546,11 +546,11 @@ const SpensiaImageGeneratorStep: React.FC = () => {
     );
 
     try {
-      if (!api?.generateSpensiaBatchImages) {
-        throw new Error('API generateSpensiaBatchImages tidak tersedia pada Electron preload.');
+      if (!api?.generateWakuBatchImages) {
+        throw new Error('API generateWakuBatchImages tidak tersedia pada Electron preload.');
       }
 
-      const results = await api.generateSpensiaBatchImages(
+      const results = await api.generateWakuBatchImages(
         pendingItems.map((i) => ({ segment_id: i.segment_id, prompt: i.prompt })),
         selectedModel,
         selectedSize,
@@ -635,14 +635,14 @@ const SpensiaImageGeneratorStep: React.FC = () => {
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold uppercase tracking-wider">
-                ✨ Spensia AI Workflow — Step 5
+                ✨ Waku AI Workflow — Step 5
               </span>
             </div>
             <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
               <span>🖼️</span> Image Generator (Google Flow Playwright Service)
             </h1>
             <p className="text-xs text-gray-400 max-w-2xl leading-relaxed">
-              Generate ilustrasi adegan Spensia secara otomatis via Google Flow (Nano Banana Pro, x1 count, Mode Agen OFF).
+              Generate ilustrasi adegan Waku secara otomatis via Google Flow (Nano Banana Pro, x1 count, Mode Agen OFF).
             </p>
           </div>
 
@@ -1162,4 +1162,4 @@ const SpensiaImageGeneratorStep: React.FC = () => {
   );
 };
 
-export default SpensiaImageGeneratorStep;
+export default WakuImageGeneratorStep;

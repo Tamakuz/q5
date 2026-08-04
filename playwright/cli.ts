@@ -129,6 +129,7 @@ program
   .option('--models <list>', 'Comma-separated model names for auto-failover', 'Nano Banana Pro,Banana 2')
   .option('--headed', 'Run browser in visible GUI mode', true)
   .option('--no-headed', 'Run browser in headless mode')
+  .option('--keep-open', 'Keep browser open after execution completes or fails', false)
   .action(async (options) => {
     try {
       const items = JSON.parse(options.itemsJson || '[]');
@@ -142,6 +143,7 @@ program
         profiles,
         models,
         headed: options.headed,
+        keepBrowserOpen: Boolean(options.keepOpen),
         onItemStart: (segmentId) => {
           console.log(`[ITEM_START] ${segmentId}`);
         },

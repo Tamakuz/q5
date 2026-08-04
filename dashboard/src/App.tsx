@@ -6,12 +6,16 @@ import type { StepId, ContentMode } from './components/common/Sidebar';
 import MediaPreviewDrawer from './components/common/MediaPreviewDrawer';
 import StatusBar from './components/common/StatusBar';
 
-// Shortform Feature Components
-import ShortformBuildStep from './components/shortform/ShortformBuildStep';
-import ShortformAnalyzeStep from './components/shortform/ShortformAnalyzeStep';
-import ShortformTranscriptStep from './components/shortform/ShortformTranscriptStep';
-import ShortformRenderStep from './components/shortform/ShortformRenderStep';
-import ShortformUploadStep from './components/shortform/ShortformUploadStep';
+// Waku Feature Components
+import WakuTopicsStep from './components/waku/WakuTopicsStep';
+import WakuScriptStep from './components/waku/WakuScriptStep';
+import WakuBreakdownStep from './components/waku/WakuBreakdownStep';
+import WakuImagePromptStep from './components/waku/WakuImagePromptStep';
+import WakuImageGeneratorStep from './components/waku/WakuImageGeneratorStep';
+import WakuVoiceOverStep from './components/waku/WakuVoiceOverStep';
+import WakuTimelineMappingStep from './components/waku/WakuTimelineMappingStep';
+import WakuRenderStep from './components/waku/WakuRenderStep';
+import WakuThumbnailStep from './components/waku/WakuThumbnailStep';
 
 // Longform (Alur Film) Feature Components
 import AlurfilmSplitterStep from './components/longform/AlurfilmSplitterStep';
@@ -41,27 +45,14 @@ import UGCRenderStudioStep from './components/ugc/UGCRenderStudioStep';
 
 type Status = 'ready' | 'rendering' | 'error';
 
-interface StepProps {
-  onStepChange?: (step: StepId) => void;
-}
-
-const SHORTFORM_PLACEHOLDERS: Partial<Record<StepId, React.FC<StepProps>>> = {
-  source: ShortformBuildStep,
-  analyze: ShortformAnalyzeStep,
-  audio: ShortformAnalyzeStep,
-  transcript: ShortformTranscriptStep,
-  mapping: ShortformRenderStep,
-  render: ShortformRenderStep,
-  upload: ShortformUploadStep,
-};
-
 const App: React.FC = () => {
   const [activeStep, setActiveStep] = useState<StepId>('source');
-  const [contentMode, setContentMode] = useState<ContentMode>('shortform');
+  const [contentMode, setContentMode] = useState<ContentMode>('waku');
   const [status] = useState<Status>('ready');
   const [longformId, setLongformId] = useState<string | null>(null);
 
   const [spensiaResetKey, setSpensiaResetKey] = useState<number>(0);
+  const [wakuResetKey, setWakuResetKey] = useState<number>(0);
 
   // Global Media Preview Drawer state
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
@@ -90,6 +81,15 @@ const App: React.FC = () => {
           }
         });
       } catch {}
+    } else if (contentMode === 'waku' || contentMode === 'shortform') {
+      setWakuResetKey((prev) => prev + 1);
+      try {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.toLowerCase().includes('waku')) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch {}
     }
     try {
       if (window.electronAPI?.getContentId) {
@@ -100,8 +100,6 @@ const App: React.FC = () => {
       }
     } catch { }
   };
-
-  const ActiveShortformStep = SHORTFORM_PLACEHOLDERS[activeStep] || ShortformBuildStep;
 
   return (
     <div className="flex flex-col h-screen bg-gray-950 font-sans overflow-hidden">
@@ -116,7 +114,44 @@ const App: React.FC = () => {
         />
 
         <main className="flex-1 p-6 overflow-auto bg-gradient-to-br from-gray-950 via-gray-950 to-gray-900">
-          {contentMode === 'ugc' ? (
+          {contentMode === 'waku' || contentMode === 'shortform' ? (
+            activeStep === 'source' ? (
+              <WakuTopicsStep key={`waku-topics-${wakuResetKey}`} />
+            ) : activeStep === 'analyze' ? (
+              <WakuScriptStep key={`waku-script-${wakuResetKey}`} />
+            ) : activeStep === 'audio' ? (
+              <WakuBreakdownStep key={`waku-breakdown-${wakuResetKey}`} />
+            ) : activeStep === 'mapping' ? (
+              <WakuImagePromptStep key={`waku-image-prompts-${wakuResetKey}`} />
+            ) : activeStep === 'render' ? (
+              <WakuImageGeneratorStep key={`waku-image-generator-${wakuResetKey}`} />
+            ) : activeStep === 'publish' ? (
+              <WakuVoiceOverStep key={`waku-voice-over-${wakuResetKey}`} />
+            ) : activeStep === 'transcript' ? (
+              <WakuTimelineMappingStep key={`waku-timeline-mapping-${wakuResetKey}`} onStepChange={setActiveStep} />
+            ) : activeStep === 'upload' ? (
+              <WakuRenderStep key={`waku-render-studio-${wakuResetKey}`} />
+            ) : activeStep === 'thumbnail' ? (
+              <WakuThumbnailStep key={`waku-thumbnail-studio-${wakuResetKey}`} />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
+                <div className="w-20 h-20 bg-blue-600/10 text-blue-400 rounded-3xl flex items-center justify-center text-4xl border border-blue-500/20 shadow-xl shadow-blue-950/40">
+                  📱
+                </div>
+                <div className="max-w-md space-y-2">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="px-3 py-1 rounded-full bg-blue-950 text-blue-300 border border-blue-800 text-xs font-mono font-bold uppercase tracking-wider">
+                      Workflow Waku
+                    </span>
+                  </div>
+                  <h2 className="text-lg font-bold text-white pt-1">Workflow Step Belum Ada</h2>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Langkah ini belum dikonfigurasi untuk Waku.
+                  </p>
+                </div>
+              </div>
+            )
+          ) : contentMode === 'ugc' ? (
             activeStep === 'source' ? (
               <UGCStudioStep key="ugc-studio" />
             ) : activeStep === 'analyze' ? (
@@ -186,8 +221,6 @@ const App: React.FC = () => {
                 </div>
               </div>
             )
-          ) : contentMode === 'shortform' ? (
-            <ActiveShortformStep key={`shortform-${activeStep}`} onStepChange={setActiveStep} />
           ) : activeStep === 'source' ? (
             <AlurfilmSplitterStep key={`longform-source-${longformId}`} />
           ) : activeStep === 'analyze' ? (

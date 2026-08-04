@@ -1,4 +1,4 @@
-// dashboard/electron/ipc/spensiaHandlers.cjs
+// dashboard/electron/ipc/wakuHandlers.cjs
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -21,7 +21,7 @@ function buildAssSubtitleFile(captions, capCfg, width, height) {
   const lines = [];
   lines.push(
     '[Script Info]',
-    'Title: Spensia CapCut Word-Level Sync Subtitles',
+    'Title: Waku CapCut Word-Level Sync Subtitles',
     'ScriptType: v4.00+',
     'WrapStyle: 2',
     `PlayResX: ${width || 1920}`,
@@ -122,43 +122,43 @@ function spawnTsxProcessForRoot(projectRoot, cliArgs, options = {}) {
 }
 
 function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getMainWindow }) {
-  // Ensure spensia dirs
-  if (!fs.existsSync(p.SPENSIA_IMAGES_DIR)) fs.mkdirSync(p.SPENSIA_IMAGES_DIR, { recursive: true });
-  if (!fs.existsSync(p.SPENSIA_THUMBNAILS_DIR)) fs.mkdirSync(p.SPENSIA_THUMBNAILS_DIR, { recursive: true });
-  if (!fs.existsSync(p.SPENSIA_AUDIO_DIR)) fs.mkdirSync(p.SPENSIA_AUDIO_DIR, { recursive: true });
+  // Ensure waku dirs
+  if (!fs.existsSync(p.WAKU_IMAGES_DIR)) fs.mkdirSync(p.WAKU_IMAGES_DIR, { recursive: true });
+  if (!fs.existsSync(p.WAKU_THUMBNAILS_DIR)) fs.mkdirSync(p.WAKU_THUMBNAILS_DIR, { recursive: true });
+  if (!fs.existsSync(p.WAKU_AUDIO_DIR)) fs.mkdirSync(p.WAKU_AUDIO_DIR, { recursive: true });
 
-  // ─── Spensia AI generation handlers ───────────────────
-  ipcMain.handle('generate-spensia-topics', async (event, { promptText, model }) => {
-    return aiClient.generateSpensiaTopics({ promptText, model, onChunk: (chunk, fullText) => {
-      try { event.sender.send('spensia-topics-chunk', { chunk, fullText }); } catch { }
+  // ─── Waku AI generation handlers ───────────────────
+  ipcMain.handle('generate-waku-topics', async (event, { promptText, model }) => {
+    return aiClient.generateWakuTopics({ promptText, model, onChunk: (chunk, fullText) => {
+      try { event.sender.send('waku-topics-chunk', { chunk, fullText }); } catch { }
     }});
   });
 
-  ipcMain.handle('generate-spensia-script', async (event, { promptText, model }) => {
-    return aiClient.generateSpensiaScript({ promptText, model, onChunk: (chunk, fullText) => {
-      try { event.sender.send('spensia-script-chunk', { chunk, fullText }); } catch { }
+  ipcMain.handle('generate-waku-script', async (event, { promptText, model }) => {
+    return aiClient.generateWakuScript({ promptText, model, onChunk: (chunk, fullText) => {
+      try { event.sender.send('waku-script-chunk', { chunk, fullText }); } catch { }
     }});
   });
 
-  ipcMain.handle('generate-spensia-breakdown', async (event, { promptText, model }) => {
-    return aiClient.generateSpensiaBreakdown({ promptText, model, onChunk: (chunk, fullText) => {
-      try { event.sender.send('spensia-breakdown-chunk', { chunk, fullText }); } catch { }
+  ipcMain.handle('generate-waku-breakdown', async (event, { promptText, model }) => {
+    return aiClient.generateWakuBreakdown({ promptText, model, onChunk: (chunk, fullText) => {
+      try { event.sender.send('waku-breakdown-chunk', { chunk, fullText }); } catch { }
     }});
   });
 
-  ipcMain.handle('generate-spensia-image-prompts', async (event, { promptText, model }) => {
-    return aiClient.generateSpensiaImagePrompts({ promptText, model, onChunk: (chunk, fullText) => {
-      try { event.sender.send('spensia-image-prompts-chunk', { chunk, fullText }); } catch { }
+  ipcMain.handle('generate-waku-image-prompts', async (event, { promptText, model }) => {
+    return aiClient.generateWakuImagePrompts({ promptText, model, onChunk: (chunk, fullText) => {
+      try { event.sender.send('waku-image-prompts-chunk', { chunk, fullText }); } catch { }
     }});
   });
 
   // ─── Persist & save image ─────────────────────────────
 
-  async function persistSpensiaImageToDisk(segmentId, savedObj, topicId) {
+  async function persistWakuImageToDisk(segmentId, savedObj, topicId) {
     try {
       const topId = topicId || 1;
-      const jsonPaths = [path.join(p.PROJECT_ROOT, 'input', 'spensia', 'images', `generated_images_topic_${topId}.json`)];
-      if (topId === 1) jsonPaths.push(path.join(p.PROJECT_ROOT, 'input', 'spensia', 'generated_images.json'));
+      const jsonPaths = [path.join(p.PROJECT_ROOT, 'input', 'waku', 'images', `generated_images_topic_${topId}.json`)];
+      if (topId === 1) jsonPaths.push(path.join(p.PROJECT_ROOT, 'input', 'waku', 'generated_images.json'));
 
       for (const jsonPath of jsonPaths) {
         let existingData = { total_images: 0, images: [] };
@@ -180,8 +180,8 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     }
   }
 
-  async function saveSpensiaImageFile(segmentId, res, topicId) {
-    const targetDir = topicId ? path.join(p.PROJECT_ROOT, 'input', 'spensia', 'images', `topic_${topicId}`) : p.SPENSIA_IMAGES_DIR;
+  async function saveWakuImageFile(segmentId, res, topicId) {
+    const targetDir = topicId ? path.join(p.PROJECT_ROOT, 'input', 'waku', 'images', `topic_${topicId}`) : p.WAKU_IMAGES_DIR;
     await fs.promises.mkdir(targetDir, { recursive: true });
     const destPath = path.join(targetDir, `segment_${segmentId}.png`);
     let resultObj;
@@ -207,7 +207,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       resultObj = { segmentId, topicId: topicId || null, filePath: destPath, url: media.mediaUrl(destPath), originalUrl: null };
     }
 
-    await persistSpensiaImageToDisk(segmentId, resultObj, topicId);
+    await persistWakuImageToDisk(segmentId, resultObj, topicId);
     return resultObj;
   }
 
@@ -243,14 +243,14 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return res;
   }
 
-  ipcMain.handle('generate-spensia-single-image', async (event, { segmentId, prompt, model, size, quality, image_detail, topicId }) => {
-    const res = await generateGoogleFlowImageDirect({ prompt, segmentId, workerId: 1, onLog: (logData) => { try { event.sender.send('spensia-image-log', logData); } catch {} } });
-    return saveSpensiaImageFile(segmentId, res, topicId);
+  ipcMain.handle('generate-waku-single-image', async (event, { segmentId, prompt, model, size, quality, image_detail, topicId }) => {
+    const res = await generateGoogleFlowImageDirect({ prompt, segmentId, workerId: 1, onLog: (logData) => { try { event.sender.send('waku-image-log', logData); } catch {} } });
+    return saveWakuImageFile(segmentId, res, topicId);
   });
 
   // ─── Batch image generation ────────────────────────────
 
-  ipcMain.handle('generate-spensia-batch-images', async (event, { items, model, size, quality, image_detail, topicId, concurrency, keepOpen }) => {
+  ipcMain.handle('generate-waku-batch-images', async (event, { items, model, size, quality, image_detail, topicId, concurrency, keepOpen }) => {
     const results = [];
     const total = items.length;
     let completedCount = 0;
@@ -262,7 +262,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     try {
       const conc = concurrency || 5;
       const initialBatch = items.slice(0, conc).map((i) => i.segment_id);
-      event.sender.send('spensia-image-chunk-start', { segmentIds: initialBatch, topicId: topicId || null });
+      event.sender.send('waku-image-chunk-start', { segmentIds: initialBatch, topicId: topicId || null });
     } catch {}
 
     await new Promise((resolve) => {
@@ -288,23 +288,23 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
           if (!line.trim()) continue;
           if (line.includes('[ITEM_START]')) {
             const segId = Number(line.split('[ITEM_START]')[1].trim());
-            try { event.sender.send('spensia-image-chunk-start', { segmentIds: [segId], topicId: topicId || null }); } catch {}
+            try { event.sender.send('waku-image-chunk-start', { segmentIds: [segId], topicId: topicId || null }); } catch {}
           } else if (line.includes('[ITEM_LOG]')) {
             const parts = line.split('[ITEM_LOG]')[1].split('|');
             const segId = Number(parts[0].trim());
             const text = parts.slice(1).join('|').trim();
-            try { event.sender.send('spensia-image-log', { segmentId: segId, workerId: 1, text }); } catch {}
+            try { event.sender.send('waku-image-log', { segmentId: segId, workerId: 1, text }); } catch {}
           } else if (line.includes('[ITEM_SUCCESS]')) {
             const parts = line.split('[ITEM_SUCCESS]')[1].split('|');
             const segId = Number(parts[0].trim());
             const jsonStr = parts.slice(1).join('|').trim();
             try {
               const imgObj = JSON.parse(jsonStr);
-              saveSpensiaImageFile(segId, imgObj, topicId).then((saved) => {
+              saveWakuImageFile(segId, imgObj, topicId).then((saved) => {
                 completedCount++;
                 const resultObj = { ...saved, status: 'success', topicId: topicId || null };
                 results.push(resultObj);
-                event.sender.send('spensia-image-progress', { current: completedCount, total, segmentId: segId, topicId: topicId || null, saved, status: 'success' });
+                event.sender.send('waku-image-progress', { current: completedCount, total, segmentId: segId, topicId: topicId || null, saved, status: 'success' });
               });
             } catch (e) { console.warn('[main.cjs] Error parsing ITEM_SUCCESS JSON:', e); }
           } else if (line.includes('[ITEM_ERROR]')) {
@@ -314,8 +314,8 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
             completedCount++;
             const resultObj = { segmentId: segId, topicId: topicId || null, error: errorMsg, status: 'error' };
             results.push(resultObj);
-            persistSpensiaImageToDisk(segId, resultObj, topicId).catch(() => {});
-            try { event.sender.send('spensia-image-progress', { current: completedCount, total, segmentId: segId, topicId: topicId || null, error: errorMsg, status: 'error' }); } catch {}
+            persistWakuImageToDisk(segId, resultObj, topicId).catch(() => {});
+            try { event.sender.send('waku-image-progress', { current: completedCount, total, segmentId: segId, topicId: topicId || null, error: errorMsg, status: 'error' }); } catch {}
           }
         }
       });
@@ -328,37 +328,37 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   });
 
   // ══════════════════════════════════════════════════════
-  // Spensia Thumbnail Studio
+  // Waku Thumbnail Studio
   // ══════════════════════════════════════════════════════
 
-  ipcMain.handle('generate-spensia-thumbnail-prompts', async (event, { scriptContent, topicTitle, selectedTitle, metadata, model, topicId }) => {
+  ipcMain.handle('generate-waku-thumbnail-prompts', async (event, { scriptContent, topicTitle, selectedTitle, metadata, model, topicId }) => {
     const topId = topicId || 1;
     let contextText = scriptContent || '';
     if (!contextText) {
-      const scriptPath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'scripts', `full_script_topic_${topId}.txt`);
+      const scriptPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'scripts', `full_script_topic_${topId}.txt`);
       if (fs.existsSync(scriptPath)) contextText = fs.readFileSync(scriptPath, 'utf-8');
       else {
-        const fallbackPath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'full_script.txt');
+        const fallbackPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'full_script.txt');
         if (fs.existsSync(fallbackPath)) contextText = fs.readFileSync(fallbackPath, 'utf-8');
       }
     }
 
     let activeMetadata = metadata;
     if (!activeMetadata) {
-      const metaPath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'metadata', `upload_metadata_topic_${topId}.json`);
+      const metaPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'metadata', `upload_metadata_topic_${topId}.json`);
       if (fs.existsSync(metaPath)) { try { activeMetadata = JSON.parse(fs.readFileSync(metaPath, 'utf-8')); } catch {} }
     }
 
     const systemPrompt = loadPrompt('thumbnail-prompts-generator-prompt.md');
-    const decidedTitle = selectedTitle || activeMetadata?.analysis?.superior_title || activeMetadata?.recommended_title || topicTitle || 'Fakta Spensia';
+    const decidedTitle = selectedTitle || activeMetadata?.analysis?.superior_title || activeMetadata?.recommended_title || topicTitle || 'Fakta Waku';
 
     const prompt = `JUDUL UTAMA VIDEO TERPILIH & SUDAH DIANALISA (TARGET UTAMA VISUAL & TEKS):\n"${decidedTitle}"\n\nMETADATA LENGKAP HASIL KEPUTUSAN ANALISIS AI:\n- Superior Title: ${activeMetadata?.analysis?.superior_title || decidedTitle}\n- Alasan Keunggulan: ${activeMetadata?.analysis?.superior_reason || 'Kuriositas tinggi penonton Indonesia.'}\n- Analisis Psikologis: ${activeMetadata?.analysis?.psychological_analysis || 'Memicu curiosity gap kognitif.'}\n- Dampak Doom Scrolling: ${activeMetadata?.analysis?.doom_scroll_impact || 'Thumb-stopping effect <0.5 detik.'}\n- Hook Deskripsi: ${activeMetadata?.description ? activeMetadata.description.slice(0, 200) + '...' : ''}\n- Top Tags: ${activeMetadata?.tags ? activeMetadata.tags.slice(0, 10).join(', ') : ''}\n\nNaskah / Detail Konten Video:\n${contextText || 'Fakta unik dan kontraintuitif tentang kehidupan purba vs modern.'}\n\nINSTRUKSI UTAMA:\nHasilkan 3 konsep thumbnail visual (beserta prompt bahasa Inggris untuk image generator) yang 100% selaras dengan JUDUL TERPILIH DI ATAS ("${decidedTitle}"). Terapkan 4 Core Triggers (Kontras, Emosi Ekstrem, Hal Aneh, Pemicu Curiosity) dan 4 Pola Visual dari Blueprint Mentor!`;
 
-    const rawJson = await aiClient.streamChatCompletion({ systemPrompt, prompt, model: model || 'ag/gemini-3-flash-agent', jsonMode: true, temperature: 0.8, onChunk: (chunk, fullText) => { try { event.sender.send('spensia-thumbnail-prompts-chunk', { chunk, fullText }); } catch {} } });
+    const rawJson = await aiClient.streamChatCompletion({ systemPrompt, prompt, model: model || 'ag/gemini-3-flash-agent', jsonMode: true, temperature: 0.8, onChunk: (chunk, fullText) => { try { event.sender.send('waku-thumbnail-prompts-chunk', { chunk, fullText }); } catch {} } });
 
     const cleanJsonStr = aiClient.extractCleanJsonObject(rawJson);
     const parsed = JSON.parse(cleanJsonStr);
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_prompts_topic_${topId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_prompts_topic_${topId}.json`);
     const dir = path.dirname(savePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(savePath, JSON.stringify(parsed, null, 2), 'utf-8');
@@ -366,19 +366,19 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return parsed;
   });
 
-  ipcMain.handle('generate-spensia-thumbnail-images', async (event, { concepts, model, size, topicId }) => {
+  ipcMain.handle('generate-waku-thumbnail-images', async (event, { concepts, model, size, topicId }) => {
     if (!Array.isArray(concepts) || concepts.length === 0) throw new Error('Concepts list is empty.');
 
     const topId = topicId || 1;
-    const targetThumbDir = path.join(p.SPENSIA_THUMBNAILS_DIR, `topic_${topId}`);
+    const targetThumbDir = path.join(p.WAKU_THUMBNAILS_DIR, `topic_${topId}`);
     if (fs.existsSync(targetThumbDir)) {
       try { const files = fs.readdirSync(targetThumbDir); for (const file of files) fs.unlinkSync(path.join(targetThumbDir, file)); } catch {}
     } else { fs.mkdirSync(targetThumbDir, { recursive: true }); }
 
     const prevFiles = [
-      path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnails_rendered_topic_${topId}.json`),
-      path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_selected_topic_${topId}.json`),
-      path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_topic_${topId}.png`),
+      path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnails_rendered_topic_${topId}.json`),
+      path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_selected_topic_${topId}.json`),
+      path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_topic_${topId}.png`),
     ];
     for (const fp of prevFiles) { if (fs.existsSync(fp)) { try { fs.unlinkSync(fp); } catch {} } }
 
@@ -406,7 +406,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
           if (line.includes('[ITEM_START]')) {
             const segId = Number(line.split('[ITEM_START]')[1].trim());
             const conceptObj = concepts.find((c, idx) => (c.id || (idx + 1)) === segId) || {};
-            try { event.sender.send('spensia-thumbnail-image-progress', { current: results.length + 1, total, conceptId: segId, title: conceptObj.title || `Thumbnail #${segId}`, message: `🎨 Generating Thumbnail ${results.length + 1}/${total}`, status: 'generating' }); } catch {}
+            try { event.sender.send('waku-thumbnail-image-progress', { current: results.length + 1, total, conceptId: segId, title: conceptObj.title || `Thumbnail #${segId}`, message: `🎨 Generating Thumbnail ${results.length + 1}/${total}`, status: 'generating' }); } catch {}
           } else if (line.includes('[ITEM_SUCCESS]')) {
             const parts = line.split('[ITEM_SUCCESS]')[1].split('|');
             const segId = Number(parts[0].trim());
@@ -426,7 +426,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
               completedCount++;
               const item = { id: segId, title: conceptObj.title || `Thumbnail #${segId}`, text_overlay: conceptObj.text_overlay, badge_text: conceptObj.badge_text, viral_score: conceptObj.viral_score, viral_reason: conceptObj.viral_reason, prompt: conceptObj.prompt, filePath: destPath, url: localUrl || `${media.mediaUrl(destPath)}?t=${Date.now()}`, generatedAt: new Date().toISOString() };
               results.push(item);
-              event.sender.send('spensia-thumbnail-image-progress', { current: completedCount, total, conceptId: segId, title: item.title, item, message: `✓ Thumbnail ${completedCount}/${total}`, status: 'success' });
+              event.sender.send('waku-thumbnail-image-progress', { current: completedCount, total, conceptId: segId, title: item.title, item, message: `✓ Thumbnail ${completedCount}/${total}`, status: 'success' });
             } catch (e) {}
           } else if (line.includes('[ITEM_ERROR]')) {
             const parts = line.split('[ITEM_ERROR]')[1].split('|');
@@ -436,7 +436,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
             completedCount++;
             const errItem = { id: segId, title: conceptObj.title || `Thumbnail #${segId}`, text_overlay: conceptObj.text_overlay, badge_text: conceptObj.badge_text, viral_score: conceptObj.viral_score, viral_reason: conceptObj.viral_reason, prompt: conceptObj.prompt, error: errorMsg };
             results.push(errItem);
-            try { event.sender.send('spensia-thumbnail-image-progress', { current: completedCount, total, conceptId: segId, title: errItem.title, error: errorMsg, message: `❌ Thumbnail ${completedCount}/${total}`, status: 'error' }); } catch {}
+            try { event.sender.send('waku-thumbnail-image-progress', { current: completedCount, total, conceptId: segId, title: errItem.title, error: errorMsg, message: `❌ Thumbnail ${completedCount}/${total}`, status: 'error' }); } catch {}
           }
         }
       });
@@ -444,7 +444,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       child.on('close', () => resolve());
     });
 
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnails_rendered_topic_${topId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnails_rendered_topic_${topId}.json`);
     const dir = path.dirname(savePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(savePath, JSON.stringify(results, null, 2), 'utf-8');
@@ -453,9 +453,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   });
 
   // ─── Analyze thumbnails with vision ────────────────────
-  ipcMain.handle('analyze-spensia-thumbnail-images', async (event, { topicTitle, selectedTitle, thumbnails, model, topicId }) => {
+  ipcMain.handle('analyze-waku-thumbnail-images', async (event, { topicTitle, selectedTitle, thumbnails, model, topicId }) => {
     const topId = topicId || 1;
-    const targetThumbDir = path.join(p.SPENSIA_THUMBNAILS_DIR, `topic_${topId}`);
+    const targetThumbDir = path.join(p.WAKU_THUMBNAILS_DIR, `topic_${topId}`);
 
     const images = [];
     let sharp = null;
@@ -477,13 +477,13 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     if (images.length === 0) throw new Error('Tidak ada file gambar thumbnail PNG yang dapat ditemukan.');
 
     const systemPrompt = loadPrompt('analyze-thumbnails-vision-prompt.md');
-    const prompt = `Target Video Title: "${selectedTitle || topicTitle || 'Fakta Spensia'}"\n\nAttached Files: ${images.length} rendered thumbnails.\n\nPerform a ruthless human eye-tracking & thumb-stopping behavioral audit. Pick the winner_id and provide detailed objective evaluations.`;
+    const prompt = `Target Video Title: "${selectedTitle || topicTitle || 'Fakta Waku'}"\n\nAttached Files: ${images.length} rendered thumbnails.\n\nPerform a ruthless human eye-tracking & thumb-stopping behavioral audit. Pick the winner_id and provide detailed objective evaluations.`;
 
     const rawJson = await aiClient.visionChatCompletion({ systemPrompt, prompt, images, model: model || 'ag/gemini-3-flash-agent', jsonMode: true, temperature: 0.7 });
     const cleanJsonStr = aiClient.extractCleanJsonObject(rawJson);
     const analysisResult = JSON.parse(cleanJsonStr);
 
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnails_vision_analysis_topic_${topId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnails_vision_analysis_topic_${topId}.json`);
     const dir = path.dirname(savePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(savePath, JSON.stringify(analysisResult, null, 2), 'utf-8');
@@ -491,7 +491,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     if (analysisResult?.winner_id && Array.isArray(thumbnails)) {
       const winnerThumb = thumbnails.find((t) => t.id === analysisResult.winner_id);
       if (winnerThumb) {
-        const selPath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_selected_topic_${topId}.json`);
+        const selPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_selected_topic_${topId}.json`);
         fs.writeFileSync(selPath, JSON.stringify({ selectedId: winnerThumb.id, concept: winnerThumb, topicId: topId }, null, 2), 'utf-8');
       }
     }
@@ -500,14 +500,14 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   });
 
   // ─── Get/save thumbnails ───────────────────────────────
-  ipcMain.handle('get-spensia-thumbnails', async (_event, args) => {
+  ipcMain.handle('get-waku-thumbnails', async (_event, args) => {
     const topicId = (typeof args === 'number' ? args : args?.topicId) || 1;
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnails_rendered_topic_${topicId}.json`);
-    const promptsPath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_prompts_topic_${topicId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnails_rendered_topic_${topicId}.json`);
+    const promptsPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_prompts_topic_${topicId}.json`);
 
     let finalSavePath = savePath, finalPromptsPath = promptsPath;
-    if (topicId === 1 && !fs.existsSync(savePath)) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnails_rendered.json'); if (fs.existsSync(legacy)) finalSavePath = legacy; }
-    if (topicId === 1 && !fs.existsSync(promptsPath)) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnail_prompts.json'); if (fs.existsSync(legacy)) finalPromptsPath = legacy; }
+    if (topicId === 1 && !fs.existsSync(savePath)) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails_rendered.json'); if (fs.existsSync(legacy)) finalSavePath = legacy; }
+    if (topicId === 1 && !fs.existsSync(promptsPath)) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnail_prompts.json'); if (fs.existsSync(legacy)) finalPromptsPath = legacy; }
 
     let concepts = [];
     if (fs.existsSync(finalPromptsPath)) { try { const data = JSON.parse(fs.readFileSync(finalPromptsPath, 'utf-8')); concepts = data.concepts || []; } catch {} }
@@ -521,23 +521,23 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     }
 
     let selected = null;
-    const selPath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_selected_topic_${topicId}.json`);
+    const selPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_selected_topic_${topicId}.json`);
     let finalSelPath = selPath;
-    if (topicId === 1 && !fs.existsSync(selPath)) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnail_selected.json'); if (fs.existsSync(legacy)) finalSelPath = legacy; }
+    if (topicId === 1 && !fs.existsSync(selPath)) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnail_selected.json'); if (fs.existsSync(legacy)) finalSelPath = legacy; }
     if (fs.existsSync(finalSelPath)) { try { selected = JSON.parse(fs.readFileSync(finalSelPath, 'utf-8')); } catch {} }
 
     return { concepts, rendered, selected };
   });
 
-  ipcMain.handle('save-spensia-thumbnail-selection', async (_event, { selectedId, concept, topicId }) => {
+  ipcMain.handle('save-waku-thumbnail-selection', async (_event, { selectedId, concept, topicId }) => {
     const topId = topicId || 1;
-    const selPath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_selected_topic_${topId}.json`);
+    const selPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_selected_topic_${topId}.json`);
     const sdir = path.dirname(selPath);
     if (!fs.existsSync(sdir)) fs.mkdirSync(sdir, { recursive: true });
     const data = { selectedId, concept, updatedAt: new Date().toISOString() };
     fs.writeFileSync(selPath, JSON.stringify(data, null, 2), 'utf-8');
     if (concept?.filePath && fs.existsSync(concept.filePath)) {
-      const mainThumbPath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_topic_${topId}.png`);
+      const mainThumbPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_topic_${topId}.png`);
       const tdir = path.dirname(mainThumbPath);
       if (!fs.existsSync(tdir)) fs.mkdirSync(tdir, { recursive: true });
       try { fs.copyFileSync(concept.filePath, mainThumbPath); } catch {}
@@ -549,19 +549,19 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   // Upload Metadata
   // ══════════════════════════════════════════════════════
 
-  ipcMain.handle('generate-spensia-upload-metadata', async (event, { scriptContent, topicTitle, model, topicId }) => {
+  ipcMain.handle('generate-waku-upload-metadata', async (event, { scriptContent, topicTitle, model, topicId }) => {
     const topId = topicId || 1;
     let contextText = scriptContent || '';
     if (!contextText) {
-      const scriptPath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'scripts', `full_script_topic_${topId}.txt`);
+      const scriptPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'scripts', `full_script_topic_${topId}.txt`);
       if (fs.existsSync(scriptPath)) contextText = fs.readFileSync(scriptPath, 'utf-8');
-      else { const fallback = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'full_script.txt'); if (fs.existsSync(fallback)) contextText = fs.readFileSync(fallback, 'utf-8'); }
+      else { const fallback = path.join(p.PROJECT_ROOT, 'input', 'waku', 'full_script.txt'); if (fs.existsSync(fallback)) contextText = fs.readFileSync(fallback, 'utf-8'); }
     }
 
     let chaptersText = '';
-    const mappingPath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'mappings', `spensia_mapping_topic_${topId}.json`);
+    const mappingPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'mappings', `waku_mapping_topic_${topId}.json`);
     let finalMapPath = mappingPath;
-    if (!fs.existsSync(mappingPath)) { const fallbackMap = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'spensia_mapping.json'); if (fs.existsSync(fallbackMap)) finalMapPath = fallbackMap; }
+    if (!fs.existsSync(mappingPath)) { const fallbackMap = path.join(p.PROJECT_ROOT, 'input', 'waku', 'waku_mapping.json'); if (fs.existsSync(fallbackMap)) finalMapPath = fallbackMap; }
 
     if (fs.existsSync(finalMapPath)) {
       try {
@@ -583,12 +583,12 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     }
 
     const systemPrompt = loadPrompt('upload-metadata-prompt.md');
-    const prompt = `Judul Topik / Konten: "${topicTitle || 'Fakta Spensia'}"\n\nNaskah / Detail Konten:\n${contextText || 'Fakta unik dan kontraintuitif tentang kehidupan purba vs modern.'}\n\n${chaptersText ? `Catatan Timestamps Rencana:\n${chaptersText}` : ''}`;
+    const prompt = `Judul Topik / Konten: "${topicTitle || 'Fakta Waku'}"\n\nNaskah / Detail Konten:\n${contextText || 'Fakta unik dan kontraintuitif tentang kehidupan purba vs modern.'}\n\n${chaptersText ? `Catatan Timestamps Rencana:\n${chaptersText}` : ''}`;
 
-    const rawJson = await aiClient.streamChatCompletion({ systemPrompt, prompt, model: model || 'ag/gemini-3-flash-agent', jsonMode: true, temperature: 0.7, onChunk: (chunk, fullText) => { try { event.sender.send('spensia-upload-metadata-chunk', { chunk, fullText }); } catch {} } });
+    const rawJson = await aiClient.streamChatCompletion({ systemPrompt, prompt, model: model || 'ag/gemini-3-flash-agent', jsonMode: true, temperature: 0.7, onChunk: (chunk, fullText) => { try { event.sender.send('waku-upload-metadata-chunk', { chunk, fullText }); } catch {} } });
 
     const parsed = JSON.parse(rawJson);
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'metadata', `upload_metadata_topic_${topId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'metadata', `upload_metadata_topic_${topId}.json`);
     const dir = path.dirname(savePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(savePath, JSON.stringify(parsed, null, 2), 'utf-8');
@@ -596,39 +596,39 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return parsed;
   });
 
-  ipcMain.handle('get-spensia-upload-metadata', async (_event, args) => {
+  ipcMain.handle('get-waku-upload-metadata', async (_event, args) => {
     const topicId = (typeof args === 'number' ? args : args?.topicId) || 1;
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'metadata', `upload_metadata_topic_${topicId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'metadata', `upload_metadata_topic_${topicId}.json`);
     if (fs.existsSync(savePath)) { try { return JSON.parse(fs.readFileSync(savePath, 'utf-8')); } catch {} }
-    else if (topicId === 1) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'upload_metadata.json'); if (fs.existsSync(legacy)) { try { return JSON.parse(fs.readFileSync(legacy, 'utf-8')); } catch {} } }
+    else if (topicId === 1) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'waku', 'upload_metadata.json'); if (fs.existsSync(legacy)) { try { return JSON.parse(fs.readFileSync(legacy, 'utf-8')); } catch {} } }
     return null;
   });
 
-  ipcMain.handle('analyze-spensia-metadata', async (event, { topicTitle, metadata, model, topicId }) => {
+  ipcMain.handle('analyze-waku-metadata', async (event, { topicTitle, metadata, model, topicId }) => {
     const topId = topicId || 1;
     const systemPrompt = loadPrompt('analyze-metadata-prompt.md');
-    const prompt = `Topic Title: "${topicTitle || 'Spensia Educational Facts'}"\n\nGenerated Metadata to Analyze:\n${JSON.stringify(metadata, null, 2)}`;
+    const prompt = `Topic Title: "${topicTitle || 'Waku Educational Facts'}"\n\nGenerated Metadata to Analyze:\n${JSON.stringify(metadata, null, 2)}`;
 
     const rawJson = await aiClient.streamChatCompletion({ systemPrompt, prompt, model: model || 'ag/gemini-3-flash-agent', jsonMode: true, temperature: 0.7 });
     const analysis = JSON.parse(rawJson);
 
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'metadata', `upload_metadata_topic_${topId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'metadata', `upload_metadata_topic_${topId}.json`);
     if (fs.existsSync(savePath)) {
       try { const existing = JSON.parse(fs.readFileSync(savePath, 'utf-8')); existing.analysis = analysis; if (analysis.superior_title) existing.recommended_title = analysis.superior_title; fs.writeFileSync(savePath, JSON.stringify(existing, null, 2), 'utf-8'); } catch {}
     }
     return analysis;
   });
 
-  ipcMain.handle('fix-spensia-metadata', async (event, { topicTitle, metadata, analysis, model, topicId }) => {
+  ipcMain.handle('fix-waku-metadata', async (event, { topicTitle, metadata, analysis, model, topicId }) => {
     const topId = topicId || 1;
     const systemPrompt = loadPrompt('fix-metadata-prompt.md');
-    const prompt = `Topic Title: "${topicTitle || 'Spensia Educational Facts'}"\n\nCurrent Metadata:\n${JSON.stringify(metadata, null, 2)}\n\nAI Analysis & Areas to Fix:\n${JSON.stringify(analysis || {}, null, 2)}`;
+    const prompt = `Topic Title: "${topicTitle || 'Waku Educational Facts'}"\n\nCurrent Metadata:\n${JSON.stringify(metadata, null, 2)}\n\nAI Analysis & Areas to Fix:\n${JSON.stringify(analysis || {}, null, 2)}`;
 
     const rawJson = await aiClient.streamChatCompletion({ systemPrompt, prompt, model: model || 'ag/gemini-3-flash-agent', jsonMode: true, temperature: 0.7 });
     const fixedMetadata = JSON.parse(rawJson);
     if (analysis) fixedMetadata.analysis = analysis;
 
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'metadata', `upload_metadata_topic_${topId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'metadata', `upload_metadata_topic_${topId}.json`);
     const dir = path.dirname(savePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(savePath, JSON.stringify(fixedMetadata, null, 2), 'utf-8');
@@ -640,8 +640,8 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   // VO Audio Upload & Merge
   // ══════════════════════════════════════════════════════
 
-  ipcMain.handle('upload-spensia-vo-audio', async (_event, { segmentId, sourcePath, bufferArray, topicId }) => {
-    const targetAudioDir = topicId ? path.join(p.PROJECT_ROOT, 'input', 'spensia', 'audio', `topic_${topicId}`) : p.SPENSIA_AUDIO_DIR;
+  ipcMain.handle('upload-waku-vo-audio', async (_event, { segmentId, sourcePath, bufferArray, topicId }) => {
+    const targetAudioDir = topicId ? path.join(p.PROJECT_ROOT, 'input', 'waku', 'audio', `topic_${topicId}`) : p.WAKU_AUDIO_DIR;
     await fs.promises.mkdir(targetAudioDir, { recursive: true });
     const ext = sourcePath ? path.extname(sourcePath) || '.mp3' : '.mp3';
     const filename = topicId ? `full_narration_topic_${topicId}${ext}` : (segmentId !== undefined ? `segment_${segmentId}${ext}` : `full_narration${ext}`);
@@ -655,12 +655,12 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return { segmentId, filename, filePath: destPath, url: media.mediaUrl(destPath), duration };
   });
 
-  ipcMain.handle('merge-spensia-vo-audio', async (_event, { audioPaths, topicId }) => {
+  ipcMain.handle('merge-waku-vo-audio', async (_event, { audioPaths, topicId }) => {
     if (!Array.isArray(audioPaths) || audioPaths.length === 0) throw new Error('Daftar file audio tidak boleh kosong.');
     const validPaths = audioPaths.filter((p) => p && fs.existsSync(p));
     if (validPaths.length === 0) throw new Error('Tidak ada file audio valid yang ditemukan.');
 
-    const targetAudioDir = topicId ? path.join(p.PROJECT_ROOT, 'input', 'spensia', 'audio', `topic_${topicId}`) : p.SPENSIA_AUDIO_DIR;
+    const targetAudioDir = topicId ? path.join(p.PROJECT_ROOT, 'input', 'waku', 'audio', `topic_${topicId}`) : p.WAKU_AUDIO_DIR;
     await fs.promises.mkdir(targetAudioDir, { recursive: true });
     const destPath = path.join(targetAudioDir, 'merged_narration.mp3');
 
@@ -670,7 +670,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       return { filename: 'merged_narration.mp3', filePath: destPath, url: media.mediaUrl(destPath), duration };
     }
 
-    const listFilePath = path.join(p.TMP_DIR, `spensia_vo_concat_${Date.now()}.txt`);
+    const listFilePath = path.join(p.TMP_DIR, `waku_vo_concat_${Date.now()}.txt`);
     const fileContent = validPaths.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join('\n');
     await fs.promises.writeFile(listFilePath, fileContent, 'utf-8');
 
@@ -711,19 +711,19 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return { filename: 'merged_narration.mp3', filePath: destPath, url: media.mediaUrl(destPath), duration };
   });
 
-  ipcMain.handle('run-spensia-faster-whisper-alignment', async (event, { audioPath, scriptText, topicId }) => {
+  ipcMain.handle('run-waku-faster-whisper-alignment', async (event, { audioPath, scriptText, topicId }) => {
     const sendProgress = (stage, progress, message, logText) => {
       try {
         if (event && event.sender && !event.sender.isDestroyed()) {
-          event.sender.send('spensia-faster-whisper-progress', { stage, progress, message, log: logText || message, topicId });
+          event.sender.send('waku-faster-whisper-progress', { stage, progress, message, log: logText || message, topicId });
         }
       } catch (err) {
-        console.warn('[Spensia Faster-Whisper] Failed to send progress:', err.message);
+        console.warn('[Waku Faster-Whisper] Failed to send progress:', err.message);
       }
     };
 
     try {
-      sendProgress('preparing', 5, 'Memulai proses transkrip otomatis Faster-Whisper Spensia...');
+      sendProgress('preparing', 5, 'Memulai proses transkrip otomatis Faster-Whisper Waku...');
       
       let audioToUse = audioPath;
       if (audioToUse && !path.isAbsolute(audioToUse)) {
@@ -733,9 +733,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       const topId = topicId || 1;
       if (!audioToUse || !fs.existsSync(audioToUse)) {
         const dirCandidates = [
-          path.join(p.PROJECT_ROOT, 'input', 'spensia', 'audio', `topic_${topId}`),
-          p.SPENSIA_AUDIO_DIR,
-          path.join(p.PROJECT_ROOT, 'input', 'spensia', 'audio'),
+          path.join(p.PROJECT_ROOT, 'input', 'waku', 'audio', `topic_${topId}`),
+          p.WAKU_AUDIO_DIR,
+          path.join(p.PROJECT_ROOT, 'input', 'waku', 'audio'),
         ];
 
         for (const dir of dirCandidates) {
@@ -755,7 +755,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       }
 
       const scriptToUse = scriptText || '';
-      const tmpDir = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'transcripts');
+      const tmpDir = path.join(p.PROJECT_ROOT, 'input', 'waku', 'transcripts');
       await fs.promises.mkdir(tmpDir, { recursive: true });
 
       const tmpScriptPath = path.join(tmpDir, `tmp_script_topic_${topId}.txt`);
@@ -830,26 +830,26 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       const jsonStr = await fs.promises.readFile(outJsonPath, 'utf-8');
       return { success: true, jsonContent: jsonStr, filePath: outJsonPath };
     } catch (err) {
-      console.error('[Spensia Whisper Error]', err);
+      console.error('[Waku Whisper Error]', err);
       sendProgress('error', 0, `Gagal: ${err.message}`, `❌ Gagal: ${err.message}`);
       return { success: false, error: err.message };
     }
   });
 
   // ══════════════════════════════════════════════════════
-  // Get Spensia Render Result
+  // Get Waku Render Result
   // ══════════════════════════════════════════════════════
 
-  ipcMain.handle('get-spensia-render-result', async (_event, args) => {
+  ipcMain.handle('get-waku-render-result', async (_event, args) => {
     const topId = (typeof args === 'number' ? args : args?.topicId) || 1;
-    const topicFolder = path.join(p.SPENSIA_OUTPUT_DIR, `topic_${topId}`);
-    const topicMp4InFolder = path.join(topicFolder, `spensia_topic_${topId}.mp4`);
-    if (fs.existsSync(topicMp4InFolder)) return { outputPath: topicMp4InFolder, mediaUrl: media.mediaUrl(topicMp4InFolder), fileName: `spensia_topic_${topId}.mp4` };
+    const topicFolder = path.join(p.WAKU_OUTPUT_DIR, `topic_${topId}`);
+    const topicMp4InFolder = path.join(topicFolder, `waku_topic_${topId}.mp4`);
+    if (fs.existsSync(topicMp4InFolder)) return { outputPath: topicMp4InFolder, mediaUrl: media.mediaUrl(topicMp4InFolder), fileName: `waku_topic_${topId}.mp4` };
 
-    const topicMp4Root = path.join(p.SPENSIA_OUTPUT_DIR, `spensia_topic_${topId}.mp4`);
-    if (fs.existsSync(topicMp4Root)) return { outputPath: topicMp4Root, mediaUrl: media.mediaUrl(topicMp4Root), fileName: `spensia_topic_${topId}.mp4` };
+    const topicMp4Root = path.join(p.WAKU_OUTPUT_DIR, `waku_topic_${topId}.mp4`);
+    if (fs.existsSync(topicMp4Root)) return { outputPath: topicMp4Root, mediaUrl: media.mediaUrl(topicMp4Root), fileName: `waku_topic_${topId}.mp4` };
 
-    const infoPath = path.join(p.PROJECT_ROOT, 'input', 'spensia', `last_render_topic_${topId}.json`);
+    const infoPath = path.join(p.PROJECT_ROOT, 'input', 'waku', `last_render_topic_${topId}.json`);
     if (fs.existsSync(infoPath)) {
       try { const info = JSON.parse(fs.readFileSync(infoPath, 'utf-8')); if (info?.outputPath && fs.existsSync(info.outputPath)) return { outputPath: info.outputPath, mediaUrl: media.mediaUrl(info.outputPath), fileName: info.fileName || path.basename(info.outputPath), renderedAt: info.renderedAt }; } catch {}
     }
@@ -857,26 +857,26 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   });
 
   // ══════════════════════════════════════════════════════
-  // Spensia Render Engine
+  // Waku Render Engine
   // ══════════════════════════════════════════════════════
 
-  ipcMain.handle('render-spensia-video', async (event, { config, timeline, outputPath, topicId }) => {
+  ipcMain.handle('render-waku-video', async (event, { config, timeline, outputPath, topicId }) => {
     const topId = topicId || timeline?.topic_id || 1;
-    const targetTopicFolder = path.join(p.SPENSIA_OUTPUT_DIR, `topic_${topId}`);
+    const targetTopicFolder = path.join(p.WAKU_OUTPUT_DIR, `topic_${topId}`);
     if (!fs.existsSync(targetTopicFolder)) fs.mkdirSync(targetTopicFolder, { recursive: true });
 
-    const destFileName = `spensia_topic_${topId}.mp4`;
+    const destFileName = `waku_topic_${topId}.mp4`;
     const defaultOutputPath = path.join(targetTopicFolder, destFileName);
     const resolvedOutput = outputPath ? (path.isAbsolute(outputPath) ? outputPath : path.join(p.PROJECT_ROOT, outputPath)) : defaultOutputPath;
 
     if (fs.existsSync(resolvedOutput)) { try { fs.unlinkSync(resolvedOutput); } catch {} }
-    const rootTopicOutput = path.join(p.SPENSIA_OUTPUT_DIR, destFileName);
+    const rootTopicOutput = path.join(p.WAKU_OUTPUT_DIR, destFileName);
     if (fs.existsSync(rootTopicOutput)) { try { fs.unlinkSync(rootTopicOutput); } catch {} }
 
     const outDir = path.dirname(resolvedOutput);
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-    const tmpDir = path.join(p.TMP_DIR, `spensia-render-topic_${topId}-${Date.now()}`);
+    const tmpDir = path.join(p.TMP_DIR, `waku-render-topic_${topId}-${Date.now()}`);
     fs.mkdirSync(tmpDir, { recursive: true });
 
     const mainWindow = getMainWindow();
@@ -886,7 +886,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
     try {
       const w = config?.resolution?.width || 1920, h = config?.resolution?.height || 1080, fps = config?.fps || 30;
-      send('init', 0, `Initializing Spensia Render Engine for Topic #${topId}...`);
+      send('init', 0, `Initializing Waku Render Engine for Topic #${topId}...`);
 
       const clips = timeline?.video_clips || [];
       if (clips.length === 0) { send('error', 0, `No video clips in timeline for Topic #${topId}.`); return { error: `No video clips in timeline for Topic #${topId}.` }; }
@@ -895,9 +895,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       const validAudioTracks = audioTracks.filter((t) => t.filePath && fs.existsSync(t.filePath));
 
       let mappingSegments = [];
-      const spensiaMappingPaths = [path.join(p.PROJECT_ROOT, 'input', 'spensia', `spensia_mapping_topic_${topId}.json`), path.join(p.PROJECT_ROOT, 'input', 'spensia', 'transcripts', `merged_transcript_topic_${topId}.json`)];
-      if (topId === 1) spensiaMappingPaths.push(path.join(p.PROJECT_ROOT, 'input', 'spensia', 'spensia_mapping.json'));
-      for (const smp of spensiaMappingPaths) { if (fs.existsSync(smp)) { try { const raw = JSON.parse(fs.readFileSync(smp, 'utf-8')); mappingSegments = raw.segments || []; if (mappingSegments.length > 0) break; } catch {} } }
+      const wakuMappingPaths = [path.join(p.PROJECT_ROOT, 'input', 'waku', `waku_mapping_topic_${topId}.json`), path.join(p.PROJECT_ROOT, 'input', 'waku', 'transcripts', `merged_transcript_topic_${topId}.json`)];
+      if (topId === 1) wakuMappingPaths.push(path.join(p.PROJECT_ROOT, 'input', 'waku', 'waku_mapping.json'));
+      for (const smp of wakuMappingPaths) { if (fs.existsSync(smp)) { try { const raw = JSON.parse(fs.readFileSync(smp, 'utf-8')); mappingSegments = raw.segments || []; if (mappingSegments.length > 0) break; } catch {} } }
 
       const clipDurations = clips.map((clip, i) => {
         if (typeof clip.duration_sec === 'number' && clip.duration_sec > 0) return clip.duration_sec;
@@ -1087,23 +1087,23 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
       const resultObj = { outputPath: resolvedOutput, mediaUrl: media.mediaUrl(resolvedOutput), fileName: path.basename(resolvedOutput), topicId: topId, renderedAt: new Date().toISOString() };
       try {
-        fs.writeFileSync(path.join(p.PROJECT_ROOT, 'input', 'spensia', `last_render_topic_${topId}.json`), JSON.stringify(resultObj, null, 2), 'utf-8');
-        if (topId === 1) fs.writeFileSync(path.join(p.PROJECT_ROOT, 'input', 'spensia', 'last_render.json'), JSON.stringify(resultObj, null, 2), 'utf-8');
+        fs.writeFileSync(path.join(p.PROJECT_ROOT, 'input', 'waku', `last_render_topic_${topId}.json`), JSON.stringify(resultObj, null, 2), 'utf-8');
+        if (topId === 1) fs.writeFileSync(path.join(p.PROJECT_ROOT, 'input', 'waku', 'last_render.json'), JSON.stringify(resultObj, null, 2), 'utf-8');
       } catch {}
       return resultObj;
     } catch (err) {
       try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-      send('error', 0, `❌ Spensia Render Error: ${err.message}`);
+      send('error', 0, `❌ Waku Render Error: ${err.message}`);
       return { error: err.message };
     }
   });
 
-  // ─── Render Spensia Preview Frame ──────────────────────
-  ipcMain.handle('render-spensia-preview-frame', async (_event, { config, imagePath }) => {
+  // ─── Render Waku Preview Frame ──────────────────────
+  ipcMain.handle('render-waku-preview-frame', async (_event, { config, imagePath }) => {
     if (!imagePath || !fs.existsSync(imagePath)) return { error: 'Preview image not found.' };
 
     const w = config?.resolution?.width || 1920, h = config?.resolution?.height || 1080;
-    const previewPath = path.join(p.TMP_DIR, `spensia_preview_${Date.now()}.png`);
+    const previewPath = path.join(p.TMP_DIR, `waku_preview_${Date.now()}.png`);
 
     try {
       let vf = `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`;
@@ -1148,32 +1148,32 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   });
 
   // ══════════════════════════════════════════════════════
-  // Spensia Timeline Generator
+  // Waku Timeline Generator
   // ══════════════════════════════════════════════════════
 
-  ipcMain.handle('generate-spensia-timeline', async (_event, args) => {
+  ipcMain.handle('generate-waku-timeline', async (_event, args) => {
     try {
       const topicId = (typeof args === 'number' ? args : args?.topicId) || 1;
-      const spensiaDir = path.join(p.PROJECT_ROOT, 'input', 'spensia');
-      const transcriptsDir = path.join(spensiaDir, 'transcripts');
+      const wakuDir = path.join(p.PROJECT_ROOT, 'input', 'waku');
+      const transcriptsDir = path.join(wakuDir, 'transcripts');
 
       let segments = [];
       const breakdownPaths = topicId === 1
-        ? [path.join(spensiaDir, 'breakdowns', `breakdown_topic_1.json`), path.join(spensiaDir, `breakdown_topic_1.json`), path.join(spensiaDir, 'breakdown.json')]
-        : [path.join(spensiaDir, 'breakdowns', `breakdown_topic_${topicId}.json`), path.join(spensiaDir, `breakdown_topic_${topicId}.json`)];
+        ? [path.join(wakuDir, 'breakdowns', `breakdown_topic_1.json`), path.join(wakuDir, `breakdown_topic_1.json`), path.join(wakuDir, 'breakdown.json')]
+        : [path.join(wakuDir, 'breakdowns', `breakdown_topic_${topicId}.json`), path.join(wakuDir, `breakdown_topic_${topicId}.json`)];
 
       for (const bp of breakdownPaths) { if (fs.existsSync(bp)) { try { const raw = JSON.parse(fs.readFileSync(bp, 'utf-8')); const segs = Array.isArray(raw) ? raw : (raw.segments || raw.breakdown || []); if (segs.length > 0) { segments = segs; break; } } catch {} } }
       if (segments.length === 0) return { error: `No breakdown data found for Topic #${topicId}. Jalankan step Scene Splitter dulu.` };
 
       const images = [];
-      const genImgJsonPath = path.join(spensiaDir, 'images', `generated_images_topic_${topicId}.json`);
+      const genImgJsonPath = path.join(wakuDir, 'images', `generated_images_topic_${topicId}.json`);
       if (fs.existsSync(genImgJsonPath)) {
         try {
           const genData = JSON.parse(fs.readFileSync(genImgJsonPath, 'utf-8'));
           const genSegs = Array.isArray(genData) ? genData : (genData.segments || genData.images || []);
           genSegs.forEach((s) => {
             const segId = Number(s.segment_id || s.id);
-            const topicSubfile = path.join(spensiaDir, 'images', `topic_${topicId}`, `segment_${segId}.png`);
+            const topicSubfile = path.join(wakuDir, 'images', `topic_${topicId}`, `segment_${segId}.png`);
             if (fs.existsSync(topicSubfile)) images.push({ segment_id: segId, filePath: topicSubfile, url: media.mediaUrl(topicSubfile) });
             else if (s.filePath && s.filePath.includes(`topic_${topicId}`) && fs.existsSync(s.filePath)) images.push({ segment_id: segId, filePath: s.filePath, url: media.mediaUrl(s.filePath) });
             else if (topicId === 1 && s.filePath && !s.filePath.includes('topic_') && fs.existsSync(s.filePath)) images.push({ segment_id: segId, filePath: s.filePath, url: media.mediaUrl(s.filePath) });
@@ -1181,9 +1181,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
         } catch {}
       }
 
-      const topicImgDir = path.join(spensiaDir, 'images', `topic_${topicId}`);
+      const topicImgDir = path.join(wakuDir, 'images', `topic_${topicId}`);
       const searchImgDirs = [topicImgDir];
-      if (topicId === 1) searchImgDirs.push(path.join(spensiaDir, 'images', 'topic_1'));
+      if (topicId === 1) searchImgDirs.push(path.join(wakuDir, 'images', 'topic_1'));
       for (const d of searchImgDirs) {
         if (fs.existsSync(d)) {
           const files = fs.readdirSync(d).filter(f => /^segment_\d+\.(png|jpg|jpeg|webp)$/i.test(f));
@@ -1195,8 +1195,8 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       }
 
       let singleAudio = null, part1Audio = null, part2Audio = null;
-      const topicAudDir = path.join(spensiaDir, 'audio', `topic_${topicId}`);
-      const searchAudDirs = topicId === 1 ? [topicAudDir, path.join(spensiaDir, 'audio')] : [topicAudDir];
+      const topicAudDir = path.join(wakuDir, 'audio', `topic_${topicId}`);
+      const searchAudDirs = topicId === 1 ? [topicAudDir, path.join(wakuDir, 'audio')] : [topicAudDir];
 
       for (const d of searchAudDirs) {
         if (fs.existsSync(d)) {
@@ -1218,11 +1218,11 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       }
 
       let mergedTranscript = null;
-      const spensiaMappingPaths = topicId === 1
-        ? [path.join(spensiaDir, 'mappings', `spensia_mapping_topic_1.json`), path.join(spensiaDir, `spensia_mapping_topic_1.json`), path.join(transcriptsDir, `merged_transcript_topic_1.json`), path.join(spensiaDir, 'mappings', 'spensia_mapping.json'), path.join(spensiaDir, 'spensia_mapping.json')]
-        : [path.join(spensiaDir, 'mappings', `spensia_mapping_topic_${topicId}.json`), path.join(spensiaDir, `spensia_mapping_topic_${topicId}.json`), path.join(transcriptsDir, `merged_transcript_topic_${topicId}.json`)];
+      const wakuMappingPaths = topicId === 1
+        ? [path.join(wakuDir, 'mappings', `waku_mapping_topic_1.json`), path.join(wakuDir, `waku_mapping_topic_1.json`), path.join(transcriptsDir, `merged_transcript_topic_1.json`), path.join(wakuDir, 'mappings', 'waku_mapping.json'), path.join(wakuDir, 'waku_mapping.json')]
+        : [path.join(wakuDir, 'mappings', `waku_mapping_topic_${topicId}.json`), path.join(wakuDir, `waku_mapping_topic_${topicId}.json`), path.join(transcriptsDir, `merged_transcript_topic_${topicId}.json`)];
 
-      for (const smp of spensiaMappingPaths) {
+      for (const smp of wakuMappingPaths) {
         if (fs.existsSync(smp)) { try { const rawMap = JSON.parse(fs.readFileSync(smp, 'utf-8')); const words = rawMap.words || []; const segs = rawMap.segments || []; if (words.length > 0 || segs.length > 0) { mergedTranscript = { words, segments: segs, transcript_full: rawMap.transcript_full || '' }; break; } } catch {} }
       }
 
@@ -1346,15 +1346,15 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
         addCaptions(mergedTranscript, 1, 0);
       }
 
-      const timeline = { title: `Spensia Timeline Topic #${topicId}`, topic_id: topicId, fps, resolution: { width, height, aspect_ratio: '16:9' }, total_duration_sec: Math.round(totalDur * 100) / 100, total_frames: Math.round(totalDur * fps), audio_tracks: audioTracks, video_clips: videoClips, captions, generated_at: new Date().toISOString() };
+      const timeline = { title: `Waku Timeline Topic #${topicId}`, topic_id: topicId, fps, resolution: { width, height, aspect_ratio: '16:9' }, total_duration_sec: Math.round(totalDur * 100) / 100, total_frames: Math.round(totalDur * fps), audio_tracks: audioTracks, video_clips: videoClips, captions, generated_at: new Date().toISOString() };
 
-      const timelinesDir = path.join(spensiaDir, 'timelines');
+      const timelinesDir = path.join(wakuDir, 'timelines');
       if (!fs.existsSync(timelinesDir)) fs.mkdirSync(timelinesDir, { recursive: true });
       const timelineFolderFile = path.join(timelinesDir, `timeline_topic_${topicId}.json`);
       fs.writeFileSync(timelineFolderFile, JSON.stringify(timeline, null, 2), 'utf-8');
-      const topicTimelinePath = path.join(spensiaDir, `spensia_timeline_topic_${topicId}.json`);
+      const topicTimelinePath = path.join(wakuDir, `waku_timeline_topic_${topicId}.json`);
       fs.writeFileSync(topicTimelinePath, JSON.stringify(timeline, null, 2), 'utf-8');
-      if (topicId === 1) { const globalTimelinePath = path.join(spensiaDir, 'spensia_timeline.json'); fs.writeFileSync(globalTimelinePath, JSON.stringify(timeline, null, 2), 'utf-8'); }
+      if (topicId === 1) { const globalTimelinePath = path.join(wakuDir, 'waku_timeline.json'); fs.writeFileSync(globalTimelinePath, JSON.stringify(timeline, null, 2), 'utf-8'); }
 
       return { timeline, saved: true };
     } catch (err) { return { error: err.message }; }

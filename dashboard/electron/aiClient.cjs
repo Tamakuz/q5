@@ -15,13 +15,26 @@ function resolveModelName(model) {
 function extractCleanJsonObject(raw) {
   if (!raw) return '';
   let str = raw.trim();
-  if (str.startsWith('```')) {
-    str = str.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+  if (str.includes('```')) {
+    const match = str.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (match && match[1]) {
+      str = match[1].trim();
+    } else {
+      str = str.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/g, '').trim();
+    }
   }
-  const firstBrace = str.indexOf('{');
-  const lastBrace = str.lastIndexOf('}');
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    return str.slice(firstBrace, lastBrace + 1);
+  const firstObj = str.indexOf('{');
+  const firstArr = str.indexOf('[');
+  if (firstObj !== -1 && (firstArr === -1 || firstObj < firstArr)) {
+    const lastObj = str.lastIndexOf('}');
+    if (lastObj > firstObj) {
+      return str.substring(firstObj, lastObj + 1).trim();
+    }
+  } else if (firstArr !== -1) {
+    const lastArr = str.lastIndexOf(']');
+    if (lastArr > firstArr) {
+      return str.substring(firstArr, lastArr + 1).trim();
+    }
   }
   return str;
 }
@@ -468,6 +481,10 @@ module.exports = {
   generateSpensiaScript,
   generateSpensiaBreakdown,
   generateSpensiaImagePrompts,
+  generateWakuTopics: generateSpensiaTopics,
+  generateWakuScript: generateSpensiaScript,
+  generateWakuBreakdown: generateSpensiaBreakdown,
+  generateWakuImagePrompts: generateSpensiaImagePrompts,
   generateImage,
   generateYoutubeTitles,
   NINEROUTER_BASE_URL,

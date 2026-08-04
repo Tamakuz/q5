@@ -1,6 +1,6 @@
-// dashboard/src/utils/spensiaValidation.ts
+// dashboard/src/utils/wakuValidation.ts
 
-export interface SpensiaTopicItem {
+export interface WakuTopicItem {
   id: number;
   title: string;
   summary: string;
@@ -20,19 +20,19 @@ export interface SpensiaTopicItem {
   selected?: boolean;
 }
 
-export interface SpensiaTopicsData {
+export interface WakuTopicsData {
   theme?: string;
-  topics: SpensiaTopicItem[];
+  topics: WakuTopicItem[];
 }
 
-export interface SpensiaScriptSection {
+export interface WakuScriptSection {
   section_number: number;
   section_title: string;
   transition_phrase?: string;
   content: string;
 }
 
-export interface SpensiaScriptData {
+export interface WakuScriptData {
   video_title: string;
   target_duration: string;
   estimated_word_count?: number;
@@ -42,33 +42,33 @@ export interface SpensiaScriptData {
     surprising_detail?: string;
     philosophical_closing?: string;
   };
-  sections: SpensiaScriptSection[];
+  sections: WakuScriptSection[];
   closing_reflection?: string;
   full_script: string;
 }
 
-export interface SpensiaValidationIssue {
+export interface WakuValidationIssue {
   id: string;
   severity: 'error' | 'warning';
   field: string;
   message: string;
 }
 
-export interface SpensiaTopicsValidationReport {
+export interface WakuTopicsValidationReport {
   isValid: boolean;
-  issues: SpensiaValidationIssue[];
+  issues: WakuValidationIssue[];
   errorCount: number;
   warningCount: number;
-  normalizedData: SpensiaTopicsData | null;
+  normalizedData: WakuTopicsData | null;
   summaryText: string;
 }
 
-export interface SpensiaScriptValidationReport {
+export interface WakuScriptValidationReport {
   isValid: boolean;
-  issues: SpensiaValidationIssue[];
+  issues: WakuValidationIssue[];
   errorCount: number;
   warningCount: number;
-  normalizedData: SpensiaScriptData | null;
+  normalizedData: WakuScriptData | null;
   summaryText: string;
 }
 
@@ -108,10 +108,10 @@ export function extractCleanJsonString(raw: string): string {
 }
 
 /**
- * Perform strict JSON validation and normalization for Spensia Topics output
+ * Perform strict JSON validation and normalization for Waku Topics output
  */
-export function validateSpensiaTopics(rawInput: any): SpensiaTopicsValidationReport {
-  const issues: SpensiaValidationIssue[] = [];
+export function validateWakuTopics(rawInput: any): WakuTopicsValidationReport {
+  const issues: WakuValidationIssue[] = [];
   let data: any = rawInput;
 
   // 1. Handle JSON syntax parsing if string
@@ -199,7 +199,7 @@ export function validateSpensiaTopics(rawInput: any): SpensiaTopicsValidationRep
   }
 
   // 3. Strict Validation of Each Topic Item
-  const normalizedTopics: SpensiaTopicItem[] = [];
+  const normalizedTopics: WakuTopicItem[] = [];
 
   if (topicsArray.length === 0) {
     issues.push({
@@ -303,16 +303,16 @@ export function validateSpensiaTopics(rawInput: any): SpensiaTopicsValidationRep
     warningCount: warnings.length,
     normalizedData: isValid ? { theme: themeStr, topics: normalizedTopics } : null,
     summaryText: isValid
-      ? `Valid Spensia Topics JSON (${normalizedTopics.length} Topik)`
+      ? `Valid Waku Topics JSON (${normalizedTopics.length} Topik)`
       : `Strict Validation Failed: ${errors.map((e) => e.message).join('; ')}`,
   };
 }
 
 /**
- * Perform strict JSON validation and normalization for Spensia Script Generator output
+ * Perform strict JSON validation and normalization for Waku Script Generator output
  */
-export function validateSpensiaScript(rawInput: any, targetWordCount?: number): SpensiaScriptValidationReport {
-  const issues: SpensiaValidationIssue[] = [];
+export function validateWakuScript(rawInput: any, targetWordCount?: number): WakuScriptValidationReport {
+  const issues: WakuValidationIssue[] = [];
   let data: any = rawInput;
 
   if (typeof rawInput === 'string') {
@@ -345,7 +345,7 @@ export function validateSpensiaScript(rawInput: any, targetWordCount?: number): 
   // Validate full_script or construct it from sections
   let fullScriptStr = typeof data.full_script === 'string' ? data.full_script.trim() : '';
 
-  const sectionsList: SpensiaScriptSection[] = [];
+  const sectionsList: WakuScriptSection[] = [];
   if (Array.isArray(data.sections)) {
     data.sections.forEach((sec: any, idx: number) => {
       if (sec && typeof sec === 'object') {
@@ -401,8 +401,8 @@ export function validateSpensiaScript(rawInput: any, targetWordCount?: number): 
     }
   }
 
-  const normalized: SpensiaScriptData = {
-    video_title: String(data.video_title || 'Judul Video Spensia').trim(),
+  const normalized: WakuScriptData = {
+    video_title: String(data.video_title || 'Judul Video Waku').trim(),
     target_duration: String(data.target_duration || '10 menit').trim(),
     estimated_word_count: Number(data.estimated_word_count) || 1500,
     actual_word_count: words,
@@ -422,36 +422,36 @@ export function validateSpensiaScript(rawInput: any, targetWordCount?: number): 
     warningCount: issues.filter((i) => i.severity === 'warning').length,
     normalizedData: isValid ? normalized : null,
     summaryText: isValid
-      ? `Valid Spensia Script (${words} Kata)`
+      ? `Valid Waku Script (${words} Kata)`
       : `Script Validation Failed: ${errors.map((e) => e.message).join('; ')}`,
   };
 }
 
-export interface SpensiaSegmentItem {
+export interface WakuSegmentItem {
   segment_id: number;
   text: string;
 }
 
-export interface SpensiaBreakdownData {
+export interface WakuBreakdownData {
   total_segments: number;
-  segments: SpensiaSegmentItem[];
+  segments: WakuSegmentItem[];
 }
 
-export interface SpensiaBreakdownValidationReport {
+export interface WakuBreakdownValidationReport {
   isValid: boolean;
-  issues: SpensiaValidationIssue[];
+  issues: WakuValidationIssue[];
   errorCount: number;
   warningCount: number;
-  normalizedData: SpensiaBreakdownData | null;
+  normalizedData: WakuBreakdownData | null;
   summaryText: string;
 }
 
 /**
- * Perform strict JSON / Text validation and normalization for Spensia Scene Splitter output
+ * Perform strict JSON / Text validation and normalization for Waku Scene Splitter output
  */
-export function validateSpensiaBreakdown(rawInput: any): SpensiaBreakdownValidationReport {
-  const issues: SpensiaValidationIssue[] = [];
-  const segmentsList: SpensiaSegmentItem[] = [];
+export function validateWakuBreakdown(rawInput: any): WakuBreakdownValidationReport {
+  const issues: WakuValidationIssue[] = [];
+  const segmentsList: WakuSegmentItem[] = [];
 
   let textContent = typeof rawInput === 'string' ? rawInput.trim() : '';
 
@@ -534,32 +534,32 @@ export function validateSpensiaBreakdown(rawInput: any): SpensiaBreakdownValidat
   };
 }
 
-export interface SpensiaImagePromptItem {
+export interface WakuImagePromptItem {
   segment_id: number;
   segment_quote: string;
   prompt: string;
 }
 
-export interface SpensiaImagePromptsData {
+export interface WakuImagePromptsData {
   total_prompts: number;
-  image_prompts: SpensiaImagePromptItem[];
+  image_prompts: WakuImagePromptItem[];
 }
 
-export interface SpensiaImagePromptsValidationReport {
+export interface WakuImagePromptsValidationReport {
   isValid: boolean;
-  issues: SpensiaValidationIssue[];
+  issues: WakuValidationIssue[];
   errorCount: number;
   warningCount: number;
-  normalizedData: SpensiaImagePromptsData | null;
+  normalizedData: WakuImagePromptsData | null;
   summaryText: string;
 }
 
 /**
- * Perform strict JSON / Text validation and normalization for Spensia Image Prompt Generator output
+ * Perform strict JSON / Text validation and normalization for Waku Image Prompt Generator output
  */
-export function validateSpensiaImagePrompts(rawInput: any): SpensiaImagePromptsValidationReport {
-  const issues: SpensiaValidationIssue[] = [];
-  const promptsList: SpensiaImagePromptItem[] = [];
+export function validateWakuImagePrompts(rawInput: any): WakuImagePromptsValidationReport {
+  const issues: WakuValidationIssue[] = [];
+  const promptsList: WakuImagePromptItem[] = [];
 
   let textContent = typeof rawInput === 'string' ? rawInput.trim() : '';
 
@@ -648,21 +648,21 @@ export function validateSpensiaImagePrompts(rawInput: any): SpensiaImagePromptsV
   };
 }
 
-export interface SpensiaWordTimestamp {
+export interface WakuWordTimestamp {
   word: string;
   start: number;
   end: number;
 }
 
-export interface SpensiaChunkTimestamp {
+export interface WakuChunkTimestamp {
   chunk_id: number;
   text: string;
   start: number;
   end: number;
-  words: SpensiaWordTimestamp[];
+  words: WakuWordTimestamp[];
 }
 
-export interface SpensiaSegmentTimestamp {
+export interface WakuSegmentTimestamp {
   segment_id: number;
   quote: string;
   start_sec: number;
@@ -670,40 +670,40 @@ export interface SpensiaSegmentTimestamp {
   duration_sec: number;
 }
 
-export interface SpensiaSentenceTimestamp {
+export interface WakuSentenceTimestamp {
   sentence_id: number;
   text: string;
   start: number;
   end: number;
-  words: SpensiaWordTimestamp[];
+  words: WakuWordTimestamp[];
 }
 
-export interface SpensiaTranscriptData {
+export interface WakuTranscriptData {
   transcript_full: string;
-  sentences?: SpensiaSentenceTimestamp[];
-  segments?: SpensiaSegmentTimestamp[];
-  chunks?: SpensiaChunkTimestamp[];
-  words: SpensiaWordTimestamp[];
+  sentences?: WakuSentenceTimestamp[];
+  segments?: WakuSegmentTimestamp[];
+  chunks?: WakuChunkTimestamp[];
+  words: WakuWordTimestamp[];
 }
 
-export interface SpensiaTranscriptValidationReport {
+export interface WakuTranscriptValidationReport {
   isValid: boolean;
-  issues: SpensiaValidationIssue[];
+  issues: WakuValidationIssue[];
   errorCount: number;
   warningCount: number;
-  normalizedData: SpensiaTranscriptData | null;
+  normalizedData: WakuTranscriptData | null;
   summaryText: string;
 }
 
 /**
  * Validate and normalize Hierarchical Sentence-Level, Chunk-Level & Word-Level Audio Transcript output from AI/Faster-Whisper
  */
-export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptValidationReport {
-  const issues: SpensiaValidationIssue[] = [];
-  const sentencesList: SpensiaSentenceTimestamp[] = [];
-  const wordsList: SpensiaWordTimestamp[] = [];
-  const chunksList: SpensiaChunkTimestamp[] = [];
-  const segmentsList: SpensiaSegmentTimestamp[] = [];
+export function validateWakuWordTranscript(rawInput: any): WakuTranscriptValidationReport {
+  const issues: WakuValidationIssue[] = [];
+  const sentencesList: WakuSentenceTimestamp[] = [];
+  const wordsList: WakuWordTimestamp[] = [];
+  const chunksList: WakuChunkTimestamp[] = [];
+  const segmentsList: WakuSegmentTimestamp[] = [];
   const fullTexts: string[] = [];
 
   const parseSec = (val: any, defaultVal: number = 0): number => {
@@ -772,14 +772,14 @@ export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptV
         const sStart = parseSec(s.start !== undefined ? s.start : (s.start_seconds !== undefined ? s.start_seconds : s.start_sec), 0);
         const sEnd = parseSec(s.end !== undefined ? s.end : (s.end_seconds !== undefined ? s.end_seconds : s.end_sec), sStart + 2.0);
 
-        const sentWords: SpensiaWordTimestamp[] = [];
+        const sentWords: WakuWordTimestamp[] = [];
         const rawWords = Array.isArray(s.words) ? s.words : [];
 
         rawWords.forEach((w: any) => {
           if (typeof w.word === 'string' && w.word.trim()) {
             const wStart = parseSec(w.start, sStart);
             const wEnd = parseSec(w.end, wStart + 0.3);
-            const wordObj: SpensiaWordTimestamp = {
+            const wordObj: WakuWordTimestamp = {
               word: w.word.trim(),
               start: wStart,
               end: wEnd > wStart ? wEnd : wStart + 0.3,
@@ -811,14 +811,14 @@ export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptV
     if (cList && cList.length > 0) {
       cList.forEach((c: any) => {
         if (!c || typeof c !== 'object') return;
-        const chunkWords: SpensiaWordTimestamp[] = [];
+        const chunkWords: WakuWordTimestamp[] = [];
         const rawChunkWords = Array.isArray(c.words) ? c.words : [];
 
         rawChunkWords.forEach((w: any) => {
           if (typeof w.word === 'string' && w.word.trim()) {
             const sSec = parseSec(w.start, 0);
             const eSec = parseSec(w.end, sSec + 0.3);
-            const wordObj: SpensiaWordTimestamp = {
+            const wordObj: WakuWordTimestamp = {
               word: w.word.trim(),
               start: sSec,
               end: eSec > sSec ? eSec : sSec + 0.3,
@@ -894,7 +894,7 @@ export function validateSpensiaWordTranscript(rawInput: any): SpensiaTranscriptV
 
   // Fallback 1: If sentences are empty but words exist, auto-group words into sentences
   if (sentencesList.length === 0 && wordsList.length > 0) {
-    let currentGroup: SpensiaWordTimestamp[] = [];
+    let currentGroup: WakuWordTimestamp[] = [];
     wordsList.forEach((w, idx) => {
       currentGroup.push(w);
       const isEndPunct = /[.!?…]$/.test(w.word);

@@ -262,6 +262,99 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fixSpensiaMetadata: (topicTitle, metadata, analysis, model, topicId) =>
     ipcRenderer.invoke('fix-spensia-metadata', { topicTitle, metadata, analysis, model, topicId }),
 
+  // Waku Core IPC Helpers
+  generateWakuTopics: (promptText, model) => ipcRenderer.invoke('generate-waku-topics', { promptText, model }),
+  generateWakuScript: (promptText, model) => ipcRenderer.invoke('generate-waku-script', { promptText, model }),
+  generateWakuBreakdown: (promptText, model) => ipcRenderer.invoke('generate-waku-breakdown', { promptText, model }),
+  generateWakuImagePrompts: (promptText, model) => ipcRenderer.invoke('generate-waku-image-prompts', { promptText, model }),
+  onWakuTopicsChunk: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('waku-topics-chunk', handler);
+    return () => ipcRenderer.removeListener('waku-topics-chunk', handler);
+  },
+  onWakuScriptChunk: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('waku-script-chunk', handler);
+    return () => ipcRenderer.removeListener('waku-script-chunk', handler);
+  },
+  onWakuBreakdownChunk: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('waku-breakdown-chunk', handler);
+    return () => ipcRenderer.removeListener('waku-breakdown-chunk', handler);
+  },
+  onWakuImagePromptsChunk: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('waku-image-prompts-chunk', handler);
+    return () => ipcRenderer.removeListener('waku-image-prompts-chunk', handler);
+  },
+  generateWakuSingleImage: (segmentId, prompt, model, size, quality, imageDetail, topicId) =>
+    ipcRenderer.invoke('generate-waku-single-image', { segmentId, prompt, model, size, quality, image_detail: imageDetail, topicId }),
+  generateWakuBatchImages: (items, model, size, quality, imageDetail, concurrency = 5, topicId) =>
+    ipcRenderer.invoke('generate-waku-batch-images', { items, model, size, quality, image_detail: imageDetail, concurrency, topicId }),
+  onWakuImageProgress: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('waku-image-progress', handler);
+    return () => ipcRenderer.removeListener('waku-image-progress', handler);
+  },
+  onWakuImageChunkStart: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('waku-image-chunk-start', handler);
+    return () => ipcRenderer.removeListener('waku-image-chunk-start', handler);
+  },
+  onWakuImageLog: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('waku-image-log', handler);
+    return () => ipcRenderer.removeListener('waku-image-log', handler);
+  },
+  uploadWakuVoAudio: (segmentId, sourcePath, bufferArray, topicId) =>
+    ipcRenderer.invoke('upload-waku-vo-audio', { segmentId, sourcePath, bufferArray, topicId }),
+  mergeWakuVoAudio: (audioPaths, topicId) =>
+    ipcRenderer.invoke('merge-waku-vo-audio', { audioPaths, topicId }),
+  runWakuFasterWhisperAlignment: (data) =>
+    ipcRenderer.invoke('run-waku-faster-whisper-alignment', data),
+  onWakuFasterWhisperProgress: (handler) => {
+    const listener = (_e, data) => handler(data);
+    ipcRenderer.on('waku-faster-whisper-progress', listener);
+    return () => ipcRenderer.removeListener('waku-faster-whisper-progress', listener);
+  },
+  generateWakuTimeline: (topicId) => ipcRenderer.invoke('generate-waku-timeline', { topicId }),
+  getWakuRenderResult: (topicId) => ipcRenderer.invoke('get-waku-render-result', { topicId }),
+  renderWakuVideo: (config, timeline, outputPath, topicId) =>
+    ipcRenderer.invoke('render-waku-video', { config, timeline, outputPath, topicId }),
+  renderWakuPreviewFrame: (config, imagePath) =>
+    ipcRenderer.invoke('render-waku-preview-frame', { config, imagePath }),
+  generateWakuThumbnailPrompts: (scriptContent, topicTitle, selectedTitle, metadata, model, topicId) =>
+    ipcRenderer.invoke('generate-waku-thumbnail-prompts', { scriptContent, topicTitle, selectedTitle, metadata, model, topicId }),
+  onWakuThumbnailPromptsChunk: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('waku-thumbnail-prompts-chunk', handler);
+    return () => ipcRenderer.removeListener('waku-thumbnail-prompts-chunk', handler);
+  },
+  generateWakuThumbnailImages: (concepts, model, size, topicId) =>
+    ipcRenderer.invoke('generate-waku-thumbnail-images', { concepts, model, size, topicId }),
+  onWakuThumbnailImageProgress: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('waku-thumbnail-image-progress', handler);
+    return () => ipcRenderer.removeListener('waku-thumbnail-image-progress', handler);
+  },
+  getWakuThumbnails: (topicId) => ipcRenderer.invoke('get-waku-thumbnails', { topicId }),
+  saveWakuThumbnailSelection: (selectedId, concept, topicId) =>
+    ipcRenderer.invoke('save-waku-thumbnail-selection', { selectedId, concept, topicId }),
+  analyzeWakuThumbnailImages: (topicTitle, selectedTitle, thumbnails, model, topicId) =>
+    ipcRenderer.invoke('analyze-waku-thumbnail-images', { topicTitle, selectedTitle, thumbnails, model, topicId }),
+  generateWakuUploadMetadata: (scriptContent, topicTitle, model, topicId) =>
+    ipcRenderer.invoke('generate-waku-upload-metadata', { scriptContent, topicTitle, model, topicId }),
+  onWakuUploadMetadataChunk: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('waku-upload-metadata-chunk', handler);
+    return () => ipcRenderer.removeListener('waku-upload-metadata-chunk', handler);
+  },
+  getWakuUploadMetadata: (topicId) => ipcRenderer.invoke('get-waku-upload-metadata', { topicId }),
+  analyzeWakuMetadata: (topicTitle, metadata, model, topicId) =>
+    ipcRenderer.invoke('analyze-waku-metadata', { topicTitle, metadata, model, topicId }),
+  fixWakuMetadata: (topicTitle, metadata, analysis, model, topicId) =>
+    ipcRenderer.invoke('fix-waku-metadata', { topicTitle, metadata, analysis, model, topicId }),
+
   // UGC Character Profiles
   selectUGCImageFile: () => ipcRenderer.invoke('ugc:select-image-file'),
   getUGCProfiles: () => ipcRenderer.invoke('ugc:get-profiles'),

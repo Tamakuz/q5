@@ -423,7 +423,7 @@ export interface ElectronAPI {
   onSpensiaBreakdownChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
   onSpensiaImagePromptsChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
   generateSpensiaSingleImage: (segmentId: number, prompt: string, model?: string, size?: string, quality?: string, imageDetail?: string, topicId?: number) => Promise<{ segmentId: number; topicId?: number; filePath: string; url: string; originalUrl?: string }>;
-  generateSpensiaBatchImages: (items: Array<{ segment_id: number; prompt: string }>, model?: string, size?: string, quality?: string, imageDetail?: string, concurrency?: number, topicId?: number) => Promise<Array<any>>;
+  generateSpensiaBatchImages: (items: Array<{ segment_id: number; prompt: string }>, model?: string, size?: string, quality?: string, imageDetail?: string, concurrency?: number, topicId?: number, keepOpen?: boolean) => Promise<Array<any>>;
   onSpensiaImageProgress: (callback: (data: { current: number; total: number; segmentId: number; topicId?: number; saved?: any; error?: string; status: string }) => void) => () => void;
   onSpensiaImageChunkStart: (callback: (data: { segmentIds: number[]; topicId?: number }) => void) => () => void;
   onSpensiaImageLog?: (callback: (data: { segmentId: number; workerId?: number; text: string }) => void) => () => void;
@@ -452,7 +452,59 @@ export interface ElectronAPI {
   getSpensiaUploadMetadata?: (topicId?: number) => Promise<SpensiaUploadMetadata | null>;
   analyzeSpensiaMetadata?: (topicTitle?: string, metadata?: SpensiaUploadMetadata, model?: string, topicId?: number) => Promise<SpensiaMetadataAnalysis>;
   fixSpensiaMetadata?: (topicTitle?: string, metadata?: SpensiaUploadMetadata, analysis?: SpensiaMetadataAnalysis, model?: string, topicId?: number) => Promise<SpensiaUploadMetadata>;
+
+  // Waku Core IPC Helpers
+  generateWakuTopics: (promptText: string, model?: string) => Promise<{ rawText: string; topics?: Array<{ id: number; title: string; summary: string }> | null; theme?: string | null }>;
+  generateWakuScript: (promptText: string, model?: string) => Promise<{ rawText: string; scriptData?: any }>;
+  generateWakuBreakdown: (promptText: string, model?: string) => Promise<{ rawText: string; breakdownData?: any }>;
+  generateWakuImagePrompts: (promptText: string, model?: string) => Promise<{ rawText: string; imagePromptsData?: any }>;
+  onWakuTopicsChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  onWakuScriptChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  onWakuBreakdownChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  onWakuImagePromptsChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  generateWakuSingleImage: (segmentId: number, prompt: string, model?: string, size?: string, quality?: string, imageDetail?: string, topicId?: number) => Promise<{ segmentId: number; topicId?: number; filePath: string; url: string; originalUrl?: string }>;
+  generateWakuBatchImages: (items: Array<{ segment_id: number; prompt: string }>, model?: string, size?: string, quality?: string, imageDetail?: string, concurrency?: number, topicId?: number, keepOpen?: boolean) => Promise<Array<any>>;
+  onWakuImageProgress: (callback: (data: { current: number; total: number; segmentId: number; topicId?: number; saved?: any; error?: string; status: string }) => void) => () => void;
+  onWakuImageChunkStart: (callback: (data: { segmentIds: number[]; topicId?: number }) => void) => () => void;
+  onWakuImageLog?: (callback: (data: { segmentId: number; workerId?: number; text: string }) => void) => () => void;
+  uploadWakuVoAudio: (segmentId?: number, sourcePath?: string, bufferArray?: ArrayBuffer | number[], topicId?: number) => Promise<{ segmentId?: number; filename: string; filePath: string; url: string }>;
+  mergeWakuVoAudio: (audioPaths: string[], topicId?: number) => Promise<{ filename: string; filePath: string; url: string; duration: number }>;
+  runWakuFasterWhisperAlignment?: (data: { audioPath?: string; scriptText?: string; topicId?: number }) => Promise<{ success: boolean; jsonContent?: string; filePath?: string; error?: string }>;
+  onWakuFasterWhisperProgress?: (callback: (data: { stage: string; progress: number; message: string; log?: string; topicId?: number }) => void) => () => void;
+
+  // Waku Render Engine & Thumbnail Studio
+  generateWakuTimeline: (topicId?: number) => Promise<{ timeline?: WakuTimelineStructure; saved?: boolean; error?: string }>;
+  getWakuRenderResult?: (topicId?: number) => Promise<WakuRenderResult | null>;
+  renderWakuVideo: (config: WakuRenderConfig, timeline: WakuTimelineStructure, outputPath?: string, topicId?: number) => Promise<WakuRenderResult>;
+  renderWakuPreviewFrame: (config: WakuRenderConfig, imagePath: string) => Promise<{ filePath?: string; url?: string; error?: string }>;
+
+  // Thumbnail Studio & Publish Hub SEO
+  generateWakuThumbnailPrompts?: (scriptContent?: string, topicTitle?: string, selectedTitle?: string, metadata?: WakuUploadMetadata | null, model?: string, topicId?: number) => Promise<{ concepts: WakuThumbnailConcept[] }>;
+  onWakuThumbnailPromptsChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  generateWakuThumbnailImages?: (concepts: WakuThumbnailConcept[], model?: string, size?: string, topicId?: number) => Promise<WakuThumbnailConcept[]>;
+  onWakuThumbnailImageProgress?: (callback: (data: { current: number; total: number; conceptId: number; title: string; item?: WakuThumbnailConcept; error?: string; message: string; status: string }) => void) => () => void;
+  getWakuThumbnails?: (topicId?: number) => Promise<WakuThumbnailResult>;
+  saveWakuThumbnailSelection?: (selectedId: number, concept: WakuThumbnailConcept, topicId?: number) => Promise<any>;
+  analyzeWakuThumbnailImages?: (topicTitle?: string, selectedTitle?: string, thumbnails?: WakuThumbnailConcept[], model?: string, topicId?: number) => Promise<WakuThumbnailVisionAnalysis>;
+
+  generateWakuUploadMetadata?: (scriptContent?: string, topicTitle?: string, model?: string, topicId?: number) => Promise<WakuUploadMetadata>;
+  onWakuUploadMetadataChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  getWakuUploadMetadata?: (topicId?: number) => Promise<WakuUploadMetadata | null>;
+  analyzeWakuMetadata?: (topicTitle?: string, metadata?: WakuUploadMetadata, model?: string, topicId?: number) => Promise<WakuMetadataAnalysis>;
+  fixWakuMetadata?: (topicTitle?: string, metadata?: WakuUploadMetadata, analysis?: WakuMetadataAnalysis, model?: string, topicId?: number) => Promise<WakuUploadMetadata>;
 }
+
+export type WakuRenderConfig = SpensiaRenderConfig;
+export type WakuRenderResult = SpensiaRenderResult;
+export type WakuTimelineStructure = SpensiaTimelineStructure;
+export type WakuThumbnailConcept = SpensiaThumbnailConcept;
+export type WakuThumbnailVisionEvaluation = SpensiaThumbnailVisionEvaluation;
+export type WakuThumbnailVisionAnalysis = SpensiaThumbnailVisionAnalysis;
+export type WakuThumbnailResult = SpensiaThumbnailResult;
+export type WakuUploadTitleItem = SpensiaUploadTitleItem;
+export type WakuMetadataImprovementItem = SpensiaMetadataImprovementItem;
+export type WakuMetadataAnalysis = SpensiaMetadataAnalysis;
+export type WakuUploadMetadata = SpensiaUploadMetadata;
 
 export interface WatermarkTextConfig {
   enabled: boolean;

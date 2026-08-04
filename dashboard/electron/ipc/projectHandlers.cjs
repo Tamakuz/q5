@@ -92,32 +92,68 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
         fs.writeFileSync(mappingFile, JSON.stringify(defaultMapping, null, 2), 'utf-8');
         if (!fs.existsSync(alurfilmDir)) fs.mkdirSync(alurfilmDir, { recursive: true });
         fs.writeFileSync(path.join(alurfilmDir, '.current_content_id'), newId, 'utf-8');
-      } else {
-        console.log(`🧹 [Reset Shortform] Clearing all shortform files and setting new Content ID: ${newId}`);
-        if (fs.existsSync(outputDir)) {
-          const files = fs.readdirSync(outputDir);
-          for (const f of files) { try { fs.unlinkSync(path.join(outputDir, f)); } catch { } }
+        return { success: true, content_id: newId };
+      }
+
+      if (isWaku) {
+        console.log(`🧹 [Reset Waku] Clearing all Waku workspace files & setting new Content ID: ${newId}`);
+        const wakuInputDir = path.join(inputDir, 'waku');
+        const wakuOutputDir = path.join(outputDir, 'waku');
+
+        // Clear input/waku directory completely
+        if (fs.existsSync(wakuInputDir)) {
+          try {
+            const items = fs.readdirSync(wakuInputDir);
+            for (const item of items) {
+              try { fs.rmSync(path.join(wakuInputDir, item), { recursive: true, force: true }); } catch (err) {
+                console.error(`[Reset Waku] Failed to delete input item ${item}:`, err);
+              }
+            }
+          } catch (e) {
+            console.error('[Reset Waku] Error reading input/waku:', e);
+          }
+        } else { fs.mkdirSync(wakuInputDir, { recursive: true }); }
+
+        // Clear output/waku directory completely
+        if (fs.existsSync(wakuOutputDir)) {
+          try {
+            const items = fs.readdirSync(wakuOutputDir);
+            for (const item of items) {
+              try { fs.rmSync(path.join(wakuOutputDir, item), { recursive: true, force: true }); } catch (err) {
+                console.error(`[Reset Waku] Failed to delete output item ${item}:`, err);
+              }
+            }
+          } catch (e) {
+            console.error('[Reset Waku] Error reading output/waku:', e);
+          }
+        } else { fs.mkdirSync(wakuOutputDir, { recursive: true }); }
+
+        // Clear legacy root input files if any exist
+        const legacyFiles = [
+          path.join(inputDir, 'mapping.json'),
+          path.join(inputDir, 'transcript.json'),
+          path.join(inputDir, 'analysis.json'),
+          path.join(inputDir, 'voiceover.json'),
+          path.join(inputDir, 'topics.json'),
+          path.join(inputDir, 'script.json'),
+          path.join(inputDir, 'breakdown.json'),
+          path.join(inputDir, 'segments.json'),
+          path.join(inputDir, 'image_prompts.json'),
+          path.join(inputDir, 'generated_images.json')
+        ];
+        for (const lf of legacyFiles) {
+          if (fs.existsSync(lf)) { try { fs.unlinkSync(lf); } catch {} }
         }
-        if (fs.existsSync(assetsDir)) {
-          const files = fs.readdirSync(assetsDir);
-          for (const f of files) { try { fs.unlinkSync(path.join(assetsDir, f)); } catch { } }
-        }
-        if (fs.existsSync(tmpDir)) {
-          const files = fs.readdirSync(tmpDir);
-          for (const f of files) { try { fs.unlinkSync(path.join(tmpDir, f)); } catch { } }
-        }
-        const mappingFile = path.join(inputDir, 'mapping.json');
-        const defaultMapping = {
-          settings: { fps: 30, format: "9:16", fg_aspect: "4:5", bgm: "random", content_id: newId },
+
+        // Initialize new Content ID & waku_mapping.json
+        const mappingFile = path.join(wakuInputDir, 'waku_mapping.json');
+        const mapping = {
+          settings: { fps: 30, format: "16:9", fg_aspect: "16:9", bgm: "random", content_id: newId },
           timeline: []
         };
-        fs.writeFileSync(mappingFile, JSON.stringify(defaultMapping, null, 2), 'utf-8');
-        const transcriptFile = path.join(inputDir, 'transcript.json');
-        fs.writeFileSync(transcriptFile, '[]', 'utf-8');
-        const analysisFile = path.join(inputDir, 'analysis.json');
-        if (fs.existsSync(analysisFile)) { try { fs.unlinkSync(analysisFile); } catch { } }
-        const voiceoverFile = path.join(inputDir, 'voiceover.json');
-        if (fs.existsSync(voiceoverFile)) { try { fs.unlinkSync(voiceoverFile); } catch { } }
+        fs.writeFileSync(mappingFile, JSON.stringify(mapping, null, 2), 'utf-8');
+        fs.writeFileSync(path.join(wakuInputDir, '.current_content_id'), newId, 'utf-8');
+        return { success: true, content_id: newId };
       }
 
       return { success: true, content_id: newId };

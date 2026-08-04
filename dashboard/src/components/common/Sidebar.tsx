@@ -2,7 +2,7 @@
 import React from 'react';
 
 export type StepId = 'source' | 'analyze' | 'audio' | 'transcript' | 'mapping' | 'render' | 'upload' | 'publish' | 'thumbnail';
-export type ContentMode = 'shortform' | 'longform' | 'spensia' | 'ugc';
+export type ContentMode = 'waku' | 'longform' | 'spensia' | 'ugc' | 'shortform';
 
 interface Step {
   id: StepId;
@@ -12,12 +12,16 @@ interface Step {
   shortLabel?: string;
 }
 
-const SHORTFORM_STEPS: Step[] = [
-  { id: 'source', icon: '📁', label: '1. Source Assets', subText: 'Upload master raw video' },
-  { id: 'analyze', icon: '⚡', label: '2. Video Analysis', subText: 'AI scene & hook analysis' },
-  { id: 'transcript', icon: '📝', label: '3. Audio Transcript', subText: 'Subtitles & speech sync' },
-  { id: 'render', icon: '🎬', label: '4. Render Video', shortLabel: 'Render', subText: '9:16 Shorts export' },
-  { id: 'upload', icon: '🚀', label: '5. Publish Hub', subText: 'TikTok & Shorts metadata' },
+const WAKU_STEPS: Step[] = [
+  { id: 'source', icon: '💡', label: '1. Topics Generator', subText: 'Ide topik & fakta kontraintuitif' },
+  { id: 'analyze', icon: '⚡', label: '2. Script Generator', subText: 'Naskah voiceover Style DNA Waku' },
+  { id: 'audio', icon: '✂️', label: '3. Scene Splitter', subText: 'Breakdown segmen visual adegan' },
+  { id: 'mapping', icon: '🎨', label: '4. Image Prompt Generator', subText: 'Visual Style DNA Waku prompts' },
+  { id: 'render', icon: '🖼️', label: '5. Image Generator', subText: 'Generate ilustrasi adegan Google Flow' },
+  { id: 'publish', icon: '🎙️', label: '6. Voice Over Generator', subText: 'Prompt TTS & Upload Audio Waku' },
+  { id: 'transcript', icon: '🎯', label: '7. Timeline & Mapping Studio', subText: 'Build timeline mapping & JSON sync' },
+  { id: 'upload', icon: '🎬', label: '8. Render Studio (16:9)', subText: 'Watermark, caption, BGM & export' },
+  { id: 'thumbnail', icon: '🚀', label: '9. Publish Hub & Thumbnail', subText: 'AI SEO Title, Tags, Description & 3x Thumbnail' },
 ];
 
 const LONGFORM_STEPS: Step[] = [
@@ -58,8 +62,8 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode, onModeChange }) => {
   const activeStepsList =
-    contentMode === 'shortform'
-      ? SHORTFORM_STEPS
+    contentMode === 'waku' || contentMode === 'shortform'
+      ? WAKU_STEPS
       : contentMode === 'longform'
         ? LONGFORM_STEPS
         : contentMode === 'spensia'
@@ -76,13 +80,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
           </span>
           <div className="grid grid-cols-4 gap-1 bg-gray-950 p-1 rounded-xl border border-gray-800">
             <button
-              onClick={() => onModeChange('shortform')}
-              className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all text-center flex items-center justify-center gap-0.5 ${contentMode === 'shortform'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+              onClick={() => onModeChange('waku')}
+              className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all text-center flex items-center justify-center gap-0.5 ${contentMode === 'waku' || contentMode === 'shortform'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
                 }`}
             >
-              <span>📱</span> Shorts
+              <span>📱</span> Waku
             </button>
             <button
               onClick={() => onModeChange('longform')}
@@ -120,8 +124,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
             <span>WORKFLOW STEPS</span>
             <span
               className={
-                contentMode === 'shortform'
-                  ? 'text-indigo-400 font-bold'
+                contentMode === 'waku' || contentMode === 'shortform'
+                  ? 'text-blue-400 font-bold'
                   : contentMode === 'longform'
                     ? 'text-purple-400 font-bold'
                     : contentMode === 'spensia'
@@ -129,8 +133,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
                       : 'text-cyan-400 font-bold'
               }
             >
-              {contentMode === 'shortform'
-                ? '9:16 Shorts'
+              {contentMode === 'waku' || contentMode === 'shortform'
+                ? 'Waku Workflow'
                 : contentMode === 'longform'
                   ? '16:9 Alur Film'
                   : contentMode === 'spensia'
@@ -154,8 +158,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
                     group flex items-start gap-3 px-3.5 py-2.5 mx-2 rounded-xl text-xs font-semibold
                     transition-all duration-150 text-left w-[calc(100%-16px)] border
                     ${isActive
-                      ? contentMode === 'shortform'
-                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30'
+                      ? contentMode === 'waku' || contentMode === 'shortform'
+                        ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/30'
                         : contentMode === 'longform'
                           ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/30'
                           : contentMode === 'spensia'
@@ -193,8 +197,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
             ACTIVE WORKFLOW MODE
           </span>
           <span
-            className={`text-xs font-bold block ${contentMode === 'shortform'
-              ? 'text-indigo-400'
+            className={`text-xs font-bold block ${contentMode === 'waku' || contentMode === 'shortform'
+              ? 'text-blue-400'
               : contentMode === 'longform'
                 ? 'text-purple-400'
                 : contentMode === 'spensia'
@@ -202,8 +206,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
                   : 'text-cyan-400'
               }`}
           >
-            {contentMode === 'shortform'
-              ? '📱 Shorts / TikTok (9:16)'
+            {contentMode === 'waku' || contentMode === 'shortform'
+              ? '📱 Waku Workflow'
               : contentMode === 'longform'
                 ? '🍿 Alur Cerita Film (16:9)'
                 : contentMode === 'spensia'

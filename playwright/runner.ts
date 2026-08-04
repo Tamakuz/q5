@@ -19,6 +19,7 @@ export interface BatchRunnerOptions {
   profiles?: string[];
   models?: string[];
   headed?: boolean;
+  keepBrowserOpen?: boolean;
   onItemStart?: (segmentId: number) => void;
   onItemLog?: (segmentId: number, text: string) => void;
   onItemSuccess?: (segmentId: number, result: any) => void;
@@ -28,26 +29,122 @@ export interface BatchRunnerOptions {
 async function detectDailyLimit(page: Page): Promise<boolean> {
   try {
     if (page.isClosed()) return false;
-    const limitTexts = ['batas harian', 'daily limit', 'reach the daily limit', 'telah mencapai batas', 'gunakan model lain', 'use another model'];
+    if ((page as any).__dailyLimitHit) {
+      (page as any).__dailyLimitHit = false;
+      return true;
+    }
+    const limitTexts = ['batas harian', 'daily limit', 'reach the daily limit', 'telah mencapai batas', 'gunakan model lain', 'use another model', 'quota_reached'];
     return await page.evaluate((texts) => {
-      const pageText = document.body.innerText.toLowerCase();
-      return texts.some(t => pageText.includes(t));
+      // 1. Check modal dialogs, alert popups, or toasts (avoiding main document body text & input fields)
+      const modalElements = Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="alert"], div.modal, div.dialog, div.toast, [aria-modal="true"]'));
+      for (const el of modalElements) {
+        const txt = el.textContent?.toLowerCase() || '';
+        if (texts.some(t => txt.includes(t))) return true;
+      }
+      // 2. Check explicit banner cards with limit text
+      const bannerElements = Array.from(document.querySelectorAll('div, section, article'));
+      for (const el of bannerElements) {
+        const txt = (el.textContent || '').toLowerCase();
+        if (txt.length < 500 && txt.includes('gagal') && texts.some(t => txt.includes(t))) return true;
+      }
+      return false;
     }, limitTexts);
   } catch {
     return false;
   }
 }
 
+function extractUniqueSceneSignature(promptText: string): string {
+  let cleaned = promptText.toLowerCase()
+    .replace(/\[seg#\d+\]/gi, '')
+    .replace(/\[segment\s*\d+\]/gi, '')
+    .replace(/full canvas 16:9[^\n,]*/gi, '')
+    .replace(/canvas: 1280x720px[^\n,]*/gi, '')
+    .replace(/negative constraints:[^\n,]*/gi, '')
+    .trim();
+
+  const sceneMatch = cleaned.match(/scene & action:\s*([^.\n]{15,70})/i);
+  if (sceneMatch && sceneMatch[1]) {
+    return sceneMatch[1].trim();
+  }
+  if (cleaned.length > 40) {
+    const start = Math.floor(cleaned.length / 4);
+    return cleaned.substring(start, start + 40).trim();
+  }
+  return cleaned;
+}
+
+async function detectSafetyPolicyErrorCards(page: Page, activeSlots: Map<number, ActiveSlot>): Promise<number[]> {
+  const failedSegIds: number[] = [];
+  try {
+    if (page.isClosed() || activeSlots.size === 0) return failedSegIds;
+
+    const detected = await page.evaluate(() => {
+      // Find leaf error elements to prevent matching parent container elements that wrap historical prompts
+      const elements = Array.from(document.querySelectorAll('div, article, section, p, span'));
+      const ids: number[] = [];
+      for (const c of elements) {
+        if (c.children.length > 5) continue;
+        const text = c.textContent || '';
+        if (text.length > 1000) continue;
+
+        if (text.includes('Gagal') && (text.includes('kebijakan') || text.includes('berbahaya') || text.includes('policy') || text.includes('perintah ini mungkin melanggar') || text.includes('tidak dapat membuat'))) {
+          // Extract tag ONLY from within this localized card text
+          const matches = text.match(/\[SEG#(\d+)\]/gi) || text.match(/\[Segment\s*(\d+)\]/gi);
+          if (matches && matches.length === 1) {
+            const singleMatch = matches[0].match(/(\d+)/);
+            if (singleMatch && singleMatch[1]) {
+              ids.push(Number(singleMatch[1]));
+            }
+          }
+        }
+      }
+      return ids;
+    });
+
+    for (const segId of detected) {
+      if (activeSlots.has(segId) && !failedSegIds.includes(segId)) {
+        failedSegIds.push(segId);
+      }
+    }
+
+    // Fallback: Check unique scene signature instead of generic boilerplate prefix/suffix
+    if (failedSegIds.length === 0) {
+      const cardTexts = await page.evaluate(() => {
+        const elements = Array.from(document.querySelectorAll('div, article, section, p, span'));
+        return elements.filter(c => {
+          if (c.children.length > 5) return false;
+          const t = c.textContent || '';
+          return t.length < 1000 && t.includes('Gagal') && (t.includes('kebijakan') || t.includes('berbahaya') || t.includes('policy') || t.includes('perintah ini mungkin melanggar'));
+        }).map(c => c.textContent || '');
+      });
+
+      for (const cardText of cardTexts) {
+        const lowerCard = cardText.toLowerCase();
+        for (const [segId, slot] of activeSlots.entries()) {
+          const uniqueSignature = extractUniqueSceneSignature(slot.cleanedText);
+          if (uniqueSignature && uniqueSignature.length >= 15 && lowerCard.includes(uniqueSignature)) {
+            if (!failedSegIds.includes(segId)) {
+              failedSegIds.push(segId);
+            }
+          }
+        }
+      }
+    }
+  } catch {}
+  return failedSegIds;
+}
+
 async function deleteFailedLimitCards(page: Page): Promise<void> {
-  console.log('[Batch Engine] Locating and deleting failed limit card...');
+  console.log('[Batch Engine] Locating and deleting failed limit / error card...');
   try {
     if (page.isClosed()) return;
-    const card = page.locator('div').filter({ hasText: /batas harian|daily limit|telah mencapai batas/i }).first();
+    const card = page.locator('div').filter({ hasText: /batas harian|daily limit|telah mencapai batas|gagal|kebijakan/i }).first();
     if (await card.isVisible({ timeout: 1500 })) {
       const buttons = card.locator('button');
       const count = await buttons.count();
       if (count > 0) {
-        await buttons.last().click({ timeout: 1500 });
+        await buttons.last().click({ timeout: 1500, force: true });
         console.log('[Batch Engine] Clicked delete button on failed card.');
         await page.waitForTimeout(500);
       }
@@ -61,9 +158,20 @@ async function ensureModelInUi(page: Page, targetModel: string): Promise<void> {
   console.log(`[Batch Engine] Ensuring model is set to: "${targetModel}" and count to "x1"...`);
   try {
     if (page.isClosed()) return;
-    const pillBtn = await page.$('button[aria-haspopup="menu"]:has-text("Banana"), button[aria-haspopup="menu"]:has-text("x1"), button[aria-haspopup="menu"]:has-text("x2"), button:has-text("Banana")');
+    await dismissOverlayModals(page);
+    await deleteFailedLimitCards(page);
+
+    let pillBtn = await page.$('button[aria-haspopup="menu"]:has-text("Banana"), button[aria-haspopup="menu"]:has-text("x1"), button[aria-haspopup="menu"]:has-text("x2"), button:has-text("Banana")');
     if (!pillBtn) {
-      console.warn('[Batch Engine] Settings pill button not found.');
+      console.warn('[Batch Engine] Settings pill button not found initially. Retrying after modal dismissal...');
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(500);
+      await dismissOverlayModals(page);
+      pillBtn = await page.$('button[aria-haspopup="menu"]:has-text("Banana"), button[aria-haspopup="menu"]:has-text("x1"), button[aria-haspopup="menu"]:has-text("x2"), button:has-text("Banana")');
+    }
+
+    if (!pillBtn) {
+      console.warn('[Batch Engine] Settings pill button still not found after retry.');
       return;
     }
 
@@ -127,6 +235,8 @@ interface ActiveSlot {
   segment_id: number;
   prompt: string;
   cleanedText: string;
+  taggedPrompt: string;
+  submissionOrder: number;
   item: BatchRunnerItem;
   resolve: (url: string) => void;
   reject: (err: Error) => void;
@@ -217,8 +327,69 @@ async function initSessionForProfile(profileName: string, options: BatchRunnerOp
   // Setup network response listener for image generation
   page.on('response', async (response: Response) => {
     const url = response.url();
-    if ((url.includes('flowMedia:batchGenerateImages') || url.includes('batchGenerateImages')) && response.status() === 200) {
+    if (url.includes('flowMedia:batchGenerateImages') || url.includes('batchGenerateImages')) {
       try {
+        const status = response.status();
+        const postData = response.request().postData();
+        let reqPromptText = '';
+        if (postData) {
+          try {
+            const reqJson = JSON.parse(postData);
+            if (reqJson?.requests?.[0]?.structuredPrompt?.parts?.[0]?.text) {
+              reqPromptText = reqJson.requests[0].structuredPrompt.parts[0].text;
+            }
+          } catch {}
+        }
+
+        // Extract segment ID from request payload prompt tag [SEG#ID]
+        let reqSegId: number | null = null;
+        if (reqPromptText) {
+          const tagMatch = reqPromptText.match(/\[SEG#(\d+)\]/i);
+          if (tagMatch && tagMatch[1]) {
+            reqSegId = Number(tagMatch[1]);
+          }
+        }
+
+        // Handle Network Level Error Responses (e.g. HTTP 400 PUBLIC_ERROR_UNSAFE_GENERATION / Safety policy filter)
+        if (status !== 200) {
+          let errorMsg = `HTTP Error ${status}`;
+          let isDailyLimitError = status === 429;
+          try {
+            const errJson = await response.json();
+            const reason = String(errJson?.error?.details?.[0]?.reason || errJson?.error?.message || errJson?.error?.status || '');
+            if (reason) {
+              if (reason.includes('QUOTA') || reason.includes('RESOURCE_EXHAUSTED') || reason.includes('DAILY')) {
+                isDailyLimitError = true;
+              }
+              errorMsg = reason.includes('UNSAFE')
+                ? '⚠️ Kebijakan Konten: Google Flow menolak prompt karena aturan keamanan (PUBLIC_ERROR_UNSAFE_GENERATION).'
+                : `⚠️ Google Flow Error (${reason})`;
+            }
+          } catch {}
+
+          if (isDailyLimitError) {
+            if ((page as any).__isSwitchingModel) {
+              console.warn(`[Batch Engine] 🛑 Discarded trailing HTTP ${status} limit error for segment #${reqSegId} (Model switch ALREADY in progress).`);
+              return;
+            }
+            console.warn(`[Batch Engine] 🛑 Daily limit HTTP ${status} intercepted for segment #${reqSegId}. Preserving item in activeSlots for model/profile switch...`);
+            (page as any).__dailyLimitHit = true;
+            return;
+          }
+
+          if (reqSegId !== null && activeSlots.has(reqSegId)) {
+            const slot = activeSlots.get(reqSegId);
+            if (slot) {
+              console.warn(`[Batch Engine] 🛑 Network payload intercepted HTTP ${status} error for segment #${reqSegId}: ${errorMsg}`);
+              activeSlots.delete(reqSegId);
+              clearTimeout(slot.timeoutId);
+              slot.reject(new Error(errorMsg));
+            }
+          }
+          return;
+        }
+
+        // Handle HTTP 200 OK Successful Image Generation Payload
         const json = await response.json();
         if (json?.media && Array.isArray(json.media)) {
           for (const mediaItem of json.media) {
@@ -227,20 +398,44 @@ async function initSessionForProfile(profileName: string, options: BatchRunnerOp
             const respPrompt = (genImg?.prompt || '').trim().toLowerCase();
 
             if (fifeUrl && activeSlots.size > 0) {
-              let matchedSegId: number | null = null;
-              for (const [segId, slot] of activeSlots.entries()) {
-                const cleaned = slot.cleanedText.toLowerCase();
-                if (cleaned.includes(respPrompt) || respPrompt.includes(cleaned.slice(0, 30)) || respPrompt.includes(cleaned.slice(-30))) {
-                  matchedSegId = segId;
-                  break;
+              let matchedSegId: number | null = reqSegId;
+              
+              // 1. Precise Tag matching from request payload tag or response prompt tag
+              if (matchedSegId === null || !activeSlots.has(matchedSegId)) {
+                const tagMatch = respPrompt.match(/\[SEG#(\d+)\]/i);
+                if (tagMatch && tagMatch[1]) {
+                  const segIdFromTag = Number(tagMatch[1]);
+                  if (activeSlots.has(segIdFromTag)) {
+                    matchedSegId = segIdFromTag;
+                  }
                 }
               }
 
+              // 2. Substring matching if tag wasn't returned in response
               if (matchedSegId === null) {
+                for (const [segId, slot] of activeSlots.entries()) {
+                  const cleaned = slot.cleanedText.toLowerCase();
+                  if (!respPrompt) continue;
+                  const pHead = respPrompt.slice(0, 25);
+                  const pTail = respPrompt.slice(-25);
+                  if (
+                    cleaned.includes(respPrompt) ||
+                    respPrompt.includes(cleaned.slice(0, 25)) ||
+                    (pHead && cleaned.includes(pHead)) ||
+                    (pTail && cleaned.includes(pTail))
+                  ) {
+                    matchedSegId = segId;
+                    break;
+                  }
+                }
+              }
+
+              // 3. Safe Fallback ONLY if activeSlots has exactly 1 item (unambiguous)
+              if (matchedSegId === null && activeSlots.size === 1) {
                 matchedSegId = activeSlots.keys().next().value;
               }
 
-              if (matchedSegId !== null) {
+              if (matchedSegId !== null && matchedSegId !== undefined && activeSlots.has(matchedSegId)) {
                 const slot = activeSlots.get(matchedSegId);
                 if (slot) {
                   console.log(`[Batch Engine] Intercepted 200 OK image response for segment #${matchedSegId}: "${respPrompt.substring(0, 30)}..."`);
@@ -248,6 +443,8 @@ async function initSessionForProfile(profileName: string, options: BatchRunnerOp
                   clearTimeout(slot.timeoutId);
                   slot.resolve(fifeUrl);
                 }
+              } else {
+                console.warn(`[Batch Engine] ⚠️ Received image response that did not match active slots unambiguously. Skipping assignment to prevent segment swapping. (Prompt: "${respPrompt.substring(0, 30)}...")`);
               }
             }
           }
@@ -259,6 +456,15 @@ async function initSessionForProfile(profileName: string, options: BatchRunnerOp
   });
 
   return { context, page, INPUT_SELECTOR };
+}
+
+function extractProjectIdFromUrl(urlStr: string): string | null {
+  try {
+    const match = urlStr.match(/\/project\/([a-f0-9\-]+)/i);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -278,6 +484,8 @@ export async function runBatchPersistentQueue(options: BatchRunnerOptions): Prom
   const targetConcurrency = Math.max(1, concurrency);
   let profileIdx = 0;
   let modelIdx = 0;
+  let globalSubmissionCounter = 0;
+  const processedFailedSegIds = new Set<number>();
 
   console.log(
     `[Batch Engine] Starting batch generation for ${items.length} item(s) (Concurrency: ${targetConcurrency}, Profiles: ${profiles.join(', ')}, Models: ${models.join(', ')})...`
@@ -305,10 +513,35 @@ export async function runBatchPersistentQueue(options: BatchRunnerOptions): Prom
     }
 
     while (pendingQueue.length > 0 || activeSlots.size > 0) {
+      // Check active page for Safety Policy Error Cards on DOM with precise segment tag matching
+      if (page && !page.isClosed() && activeSlots.size > 0) {
+        const failedIds = await detectSafetyPolicyErrorCards(page, activeSlots);
+        for (const segId of failedIds) {
+          if (!processedFailedSegIds.has(segId)) {
+            processedFailedSegIds.add(segId);
+            const slot = activeSlots.get(segId);
+            if (slot) {
+              console.warn(`[Batch Engine] 🛑 Safety policy / DOM error detected on Google Flow for Segment #${segId}`);
+              activeSlots.delete(segId);
+              clearTimeout(slot.timeoutId);
+              slot.reject(new Error('⚠️ Kebijakan Konten: Google Flow menolak prompt karena aturan keamanan.'));
+              await deleteFailedLimitCards(page);
+            }
+          }
+        }
+      }
+
       // Check daily limit on active page
       if (page && !page.isClosed()) {
         const isLimit = await detectDailyLimit(page);
         if (isLimit) {
+          if ((page as any).__isSwitchingModel) {
+            console.warn('[Batch Engine] 🛑 Limit check ignored because model/profile switch is ALREADY in progress.');
+            continue;
+          }
+          (page as any).__isSwitchingModel = true;
+          (page as any).__dailyLimitHit = false;
+
           console.warn(`[Batch Engine] 🛑 Daily limit detected on profile "${currentProfile}" (Model: ${currentModel})!`);
           await deleteFailedLimitCards(page);
 
@@ -337,6 +570,7 @@ export async function runBatchPersistentQueue(options: BatchRunnerOptions): Prom
               if (page && !page.isClosed()) {
                 await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
                 await dismissOverlayModals(page);
+                await deleteFailedLimitCards(page);
               }
             } catch (err: any) {
               console.warn('[Batch Engine] Warning: Page reload failed, continuing with model switch:', err.message);
@@ -344,8 +578,12 @@ export async function runBatchPersistentQueue(options: BatchRunnerOptions): Prom
 
             if (page && !page.isClosed()) {
               await ensureModelInUi(page, currentModel);
-              await page.waitForTimeout(1000);
+              await page.waitForTimeout(1500);
             }
+
+            // Clear any trailing limit flags that arrived during reload
+            (page as any).__dailyLimitHit = false;
+            (page as any).__isSwitchingModel = false;
             continue;
           }
 
@@ -376,6 +614,10 @@ export async function runBatchPersistentQueue(options: BatchRunnerOptions): Prom
             INPUT_SELECTOR = newSession.INPUT_SELECTOR;
             await ensureModelInUi(page, currentModel);
             await page.waitForTimeout(1500);
+
+            // Clear any trailing limit flags
+            (page as any).__dailyLimitHit = false;
+            (page as any).__isSwitchingModel = false;
             continue;
           } else {
             console.error(`[Batch Engine] ❌ All profiles (${profiles.join(', ')}) and models (${models.join(', ')}) reached daily limit!`);
@@ -388,6 +630,7 @@ export async function runBatchPersistentQueue(options: BatchRunnerOptions): Prom
               }
             }
             pendingQueue = [];
+            (page as any).__isSwitchingModel = false;
             break;
           }
         }
@@ -399,6 +642,10 @@ export async function runBatchPersistentQueue(options: BatchRunnerOptions): Prom
         if (!item || !item.prompt) continue;
 
         const cleanedText = item.prompt.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
+        const hasTag = /^\[SEG#\d+\]/i.test(cleanedText) || /^\[Segment\s*\d+\]/i.test(cleanedText);
+        const taggedPrompt = hasTag ? cleanedText : `[SEG#${item.segment_id}] ${cleanedText}`;
+        globalSubmissionCounter++;
+        const currentOrder = globalSubmissionCounter;
 
         if (options.onItemStart) {
           options.onItemStart(item.segment_id);
@@ -415,6 +662,8 @@ export async function runBatchPersistentQueue(options: BatchRunnerOptions): Prom
             segment_id: item.segment_id,
             prompt: item.prompt,
             cleanedText,
+            taggedPrompt,
+            submissionOrder: currentOrder,
             item,
             resolve: (url: string) => {
               clearTimeout(timeoutId);
@@ -442,7 +691,7 @@ export async function runBatchPersistentQueue(options: BatchRunnerOptions): Prom
           }
         );
 
-        // Submit prompt into Google Flow textbox (Instant Paste)
+        // Submit prompt into Google Flow textbox (Instant Paste with Tagged Prompt)
         isTyping = true;
         try {
           if (options.onItemLog) options.onItemLog(item.segment_id, '✍️ Preparing prompt...');
@@ -460,8 +709,8 @@ export async function runBatchPersistentQueue(options: BatchRunnerOptions): Prom
             options.onItemLog(item.segment_id, `📋 Instant pasting prompt #${item.segment_id} [${currentProfile} — ${currentModel}] (active pool: ${activeSlots.size}/${targetConcurrency})...`);
           }
 
-          // Instant paste insertion without key-by-key delay:
-          await page.keyboard.insertText(cleanedText);
+          // Instant paste insertion of tagged prompt:
+          await page.keyboard.insertText(taggedPrompt);
           await page.waitForTimeout(100);
 
           // Fallback check: if text is empty, set textContent & dispatch events
@@ -479,11 +728,11 @@ export async function runBatchPersistentQueue(options: BatchRunnerOptions): Prom
                 el.dispatchEvent(new InputEvent('input', { bubbles: true }));
                 el.dispatchEvent(new Event('change', { bubbles: true }));
               }
-            }, { sel: INPUT_SELECTOR, text: cleanedText });
+            }, { sel: INPUT_SELECTOR, text: taggedPrompt });
             await page.waitForTimeout(100);
           }
 
-          console.log(`[Batch Engine] Submitting prompt #${item.segment_id} to Google AI [${currentProfile} — ${currentModel}] (Active slots: ${activeSlots.size})...`);
+          console.log(`[Batch Engine] Submitting prompt #${item.segment_id} [SEG#${item.segment_id}] to Google AI [${currentProfile} — ${currentModel}] (Active slots: ${activeSlots.size})...`);
           const arrowBtn = await page.$('button:has(i:has-text("arrow_forward"))');
           if (arrowBtn && (await arrowBtn.isVisible())) {
             await arrowBtn.click({ force: true });
@@ -516,11 +765,14 @@ export async function runBatchPersistentQueue(options: BatchRunnerOptions): Prom
     console.error('[Batch Engine] Global Exception:', err);
   } finally {
     if (context) {
-      console.log('[Batch Engine] Queue complete. Closing browser context...');
-      try {
-        await context.close();
-      } catch { }
+      if (options.keepBrowserOpen) {
+        console.log('[Batch Engine] 👁️ Batch runner completed/paused. Keeping Chromium browser OPEN for inspection.');
+      } else {
+        console.log('[Batch Engine] Queue complete. Closing browser context...');
+        try {
+          await context.close();
+        } catch { }
+      }
     }
   }
 }
-
