@@ -2,7 +2,7 @@
 import React from 'react';
 
 export type StepId = 'source' | 'analyze' | 'audio' | 'transcript' | 'mapping' | 'render' | 'upload' | 'publish' | 'thumbnail';
-export type ContentMode = 'waku' | 'longform' | 'spensia' | 'ugc' | 'shortform';
+export type ContentMode = 'vann' | 'waku' | 'longform' | 'spensia' | 'ugc' | 'shortform';
 
 interface Step {
   id: StepId;
@@ -18,10 +18,9 @@ const VANN_STEPS: Step[] = [
   { id: 'audio', icon: '✂️', label: '3. Scene Splitter', subText: 'Breakdown segmen visual adegan' },
   { id: 'mapping', icon: '🎨', label: '4. Image Prompt Generator', subText: 'Visual Style DNA Vann prompts' },
   { id: 'render', icon: '🖼️', label: '5. Image Generator', subText: 'Generate ilustrasi adegan Google Flow' },
-  { id: 'publish', icon: '🎙️', label: '6. Voice Over Generator', subText: 'Prompt TTS & Upload Audio Vann' },
-  { id: 'transcript', icon: '🎯', label: '7. Timeline & Mapping Studio', subText: 'Build timeline mapping & JSON sync' },
-  { id: 'upload', icon: '🎬', label: '8. Render Studio (16:9)', subText: 'Watermark, caption, BGM & export' },
-  { id: 'thumbnail', icon: '🚀', label: '9. Publish Hub & Thumbnail', subText: 'AI SEO Title, Tags, Description & 3x Thumbnail' },
+  { id: 'publish', icon: '🎙️', label: '6. Voice & Timeline Studio', subText: 'Transkrip, auto timeline & visual sync' },
+  { id: 'upload', icon: '🎬', label: '7. Render Studio (16:9)', subText: 'Watermark, caption, BGM & export' },
+  { id: 'thumbnail', icon: '🚀', label: '8. Publish Hub & Thumbnail', subText: 'AI SEO Title, Tags, Description & 3x Thumbnail' },
 ];
 
 const LONGFORM_STEPS: Step[] = [
@@ -40,10 +39,9 @@ const SPENSIA_STEPS: Step[] = [
   { id: 'audio', icon: '✂️', label: '3. Scene Splitter', subText: 'Breakdown segmen visual adegan' },
   { id: 'mapping', icon: '🎨', label: '4. Image Prompt Generator', subText: 'Visual Style DNA Spensia prompts' },
   { id: 'render', icon: '🖼️', label: '5. Image Generator', subText: 'Generate ilustrasi adegan Google Flow' },
-  { id: 'publish', icon: '🎙️', label: '6. Voice Over Generator', subText: 'Prompt TTS & Upload Audio Spensia' },
-  { id: 'transcript', icon: '🎯', label: '7. Timeline & Mapping Studio', subText: 'Build timeline mapping & JSON sync' },
-  { id: 'upload', icon: '🎬', label: '8. Render Studio (16:9)', subText: 'Watermark, caption, BGM & export' },
-  { id: 'thumbnail', icon: '🚀', label: '9. Publish Hub & Thumbnail', subText: 'AI SEO Title, Tags, Description & 3x Thumbnail' },
+  { id: 'publish', icon: '🎙️', label: '6. Voice & Timeline Studio', subText: 'Transkrip, auto timeline & visual sync' },
+  { id: 'upload', icon: '🎬', label: '7. Render Studio (16:9)', subText: 'Watermark, caption, BGM & export' },
+  { id: 'thumbnail', icon: '🚀', label: '8. Publish Hub & Thumbnail', subText: 'AI SEO Title, Tags, Description & 3x Thumbnail' },
 ];
 
 const UGC_STEPS: Step[] = [
@@ -62,7 +60,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode, onModeChange }) => {
   const activeStepsList =
-    contentMode === 'waku' || contentMode === 'shortform'
+    contentMode === 'vann' || contentMode === 'waku' || contentMode === 'shortform'
       ? VANN_STEPS
       : contentMode === 'longform'
         ? LONGFORM_STEPS
@@ -80,8 +78,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
           </span>
           <div className="grid grid-cols-4 gap-1 bg-gray-950 p-1 rounded-xl border border-gray-800">
             <button
-              onClick={() => onModeChange('waku')}
-              className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all text-center flex items-center justify-center gap-0.5 ${contentMode === 'waku' || contentMode === 'shortform'
+              onClick={() => onModeChange('vann')}
+              className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all text-center flex items-center justify-center gap-0.5 ${contentMode === 'vann' || contentMode === 'waku' || contentMode === 'shortform'
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
                 }`}

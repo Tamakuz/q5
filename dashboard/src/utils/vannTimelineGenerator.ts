@@ -143,9 +143,72 @@ export function generateWakuTimeline(params: GenerateTimelineParams): WakuTimeli
   ): TimelineVideoClip[] => {
     if (segList.length === 0) return [];
 
+    const rawTx = params.mergedTranscript || params.part1Transcript || params.part2Transcript;
+    let mappedSegs = rawTx?.segments;
+
+    const txAny = rawTx as any;
+    if ((!mappedSegs || mappedSegs.length === 0) && txAny?.sentences && txAny.sentences.length > 0) {
+      mappedSegs = txAny.sentences.map((s: any, idx: number) => ({
+        segment_id: s.sentence_id || idx + 1,
+        quote: s.text,
+        start_sec: typeof s.start === 'number' ? s.start : parseFloat(s.start || 0),
+        end_sec: typeof s.end === 'number' ? s.end : parseFloat(s.end || 0),
+        duration_sec: Math.max(0.1, (s.end || 0) - (s.start || 0)),
+      }));
+    }
+
+    // Direct 1:1 Copy-Paste from Transcript Segments Output
+    if (Array.isArray(mappedSegs) && mappedSegs.length > 0) {
+      const fps = params.fps || 30;
+
+      return mappedSegs.map((txSeg: any, idx: number) => {
+        const segId = Number(txSeg.segment_id || txSeg.id || idx + 1);
+        const parseN = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v || '').replace(/[^0-9.]/g, '')));
+
+        let sSec = parseN(txSeg.start_sec !== undefined ? txSeg.start_sec : txSeg.start);
+        let eSec = parseN(txSeg.end_sec !== undefined ? txSeg.end_sec : txSeg.end);
+
+        if (isNaN(sSec) || sSec < 0) sSec = idx * 4.0;
+        if (isNaN(eSec) || eSec <= sSec) {
+          if (idx < mappedSegs.length - 1) {
+            const nextVal = parseN((mappedSegs[idx + 1] as any).start_sec !== undefined ? (mappedSegs[idx + 1] as any).start_sec : (mappedSegs[idx + 1] as any).start);
+            eSec = !isNaN(nextVal) && nextVal > sSec ? nextVal : sSec + 4.0;
+          } else {
+            eSec = partDurationSec;
+          }
+        }
+
+        const startSec = Number((partStartOffsetSec + sSec).toFixed(2));
+        const endSec = Number((partStartOffsetSec + eSec).toFixed(2));
+        const segDurationSec = Number((endSec - startSec).toFixed(2));
+
+        const segImg = params.images.find((img) => Number(img.segment_id) === segId);
+        const breakdownMatch = segList ? segList.find((b: any) => Number(b.segment_id || b.id) === segId) : null;
+        const quoteText = txSeg.quote || txSeg.text || (breakdownMatch as any)?.quote || (breakdownMatch as any)?.text || `Segmen #${segId}`;
+
+        const sFrame = Math.round(startSec * fps);
+        const eFrame = Math.round(endSec * fps);
+
+        return {
+          clip_id: idx + 1,
+          segment_id: segId,
+          part_id: partId,
+          quote: quoteText,
+          image_path: segImg?.filePath || '',
+          image_url: segImg?.url || '',
+          start_sec: startSec,
+          end_sec: endSec,
+          duration_sec: segDurationSec,
+          start_frame: sFrame,
+          end_frame: eFrame,
+          duration_frames: Math.max(1, eFrame - sFrame),
+          transition: 'crossfade'
+        };
+      });
+    }
+
     const clips: TimelineVideoClip[] = [];
     const totalChars = segList.reduce((acc, s) => acc + (s.text ? s.text.length : 10), 0);
-
     let currentOffsetSec = partStartOffsetSec;
     let wordSearchIdx = 0;
 
@@ -153,55 +216,41 @@ export function generateWakuTimeline(params: GenerateTimelineParams): WakuTimeli
       const segImg = params.images.find((img) => img.segment_id === seg.segment_id);
       let segStartSec = -1;
       let segEndSec = -1;
+      const rawWords = (seg.text || (seg as any).quote || '').split(/\s+/).map(cleanWordForMatch).filter(Boolean);
+      if (transcriptWords && transcriptWords.length > 0 && wordSearchIdx < transcriptWords.length && rawWords.length > 0) {
+        const firstWord = rawWords[0];
+        const lastWord = rawWords[rawWords.length - 1];
 
-      // Mode 0: Explicit Segment Mapping Timestamps (start_sec & end_sec from AI audio-mapping)
-      const mappedSegs = params.mergedTranscript?.segments || params.part1Transcript?.segments || params.part2Transcript?.segments;
-      const explicitSeg = mappedSegs?.find((s: any) => Number(s.segment_id || s.id) === Number(seg.segment_id));
-      if (
-        explicitSeg &&
-        typeof explicitSeg.start_sec === 'number' &&
-        typeof explicitSeg.end_sec === 'number' &&
-        explicitSeg.end_sec > explicitSeg.start_sec
-      ) {
-        segStartSec = partStartOffsetSec + explicitSeg.start_sec;
-        segEndSec = partStartOffsetSec + explicitSeg.end_sec;
-      } else if (transcriptWords && transcriptWords.length > 0 && wordSearchIdx < transcriptWords.length) {
-        const rawWords = (seg.text || '').split(/\s+/).map(cleanWordForMatch).filter(Boolean);
-        if (rawWords.length > 0) {
-          const firstWord = rawWords[0];
-          const lastWord = rawWords[rawWords.length - 1];
-
-          // Find first word occurrence after wordSearchIdx
-          let matchStartIdx = -1;
-          for (let i = wordSearchIdx; i < transcriptWords.length; i++) {
-            const tw = cleanWordForMatch(transcriptWords[i].word);
-            if (tw && (tw.includes(firstWord) || firstWord.includes(tw))) {
-              matchStartIdx = i;
-              break;
-            }
+        // Find first word occurrence after wordSearchIdx
+        let matchStartIdx = -1;
+        for (let i = wordSearchIdx; i < transcriptWords.length; i++) {
+          const tw = cleanWordForMatch(transcriptWords[i].word);
+          if (tw && (tw.includes(firstWord) || firstWord.includes(tw))) {
+            matchStartIdx = i;
+            break;
           }
+        }
 
-          // Find last word occurrence after matchStartIdx
-          let matchEndIdx = -1;
-          const searchFrom = matchStartIdx >= 0 ? matchStartIdx : wordSearchIdx;
-          for (let i = Math.min(transcriptWords.length - 1, searchFrom + rawWords.length + 5); i >= searchFrom; i--) {
-            const tw = cleanWordForMatch(transcriptWords[i].word);
-            if (tw && (tw.includes(lastWord) || lastWord.includes(tw))) {
-              matchEndIdx = i;
-              break;
-            }
+        // Find last word occurrence after matchStartIdx
+        let matchEndIdx = -1;
+        const searchFrom = matchStartIdx >= 0 ? matchStartIdx : wordSearchIdx;
+        for (let i = Math.min(transcriptWords.length - 1, searchFrom + rawWords.length + 5); i >= searchFrom; i--) {
+          const tw = cleanWordForMatch(transcriptWords[i].word);
+          if (tw && (tw.includes(lastWord) || lastWord.includes(tw))) {
+            matchEndIdx = i;
+            break;
           }
+        }
 
-          if (matchStartIdx >= 0) {
-            const parseN = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.]/g, '')));
-            const startVal = parseN(transcriptWords[matchStartIdx].start);
-            const endVal = matchEndIdx >= 0 ? parseN(transcriptWords[matchEndIdx].end) : parseN(transcriptWords[matchStartIdx].end) + 2.0;
+        if (matchStartIdx >= 0) {
+          const parseN = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.]/g, '')));
+          const startVal = parseN(transcriptWords[matchStartIdx].start);
+          const endVal = matchEndIdx >= 0 ? parseN(transcriptWords[matchEndIdx].end) : parseN(transcriptWords[matchStartIdx].end) + 2.0;
 
-            if (!isNaN(startVal) && !isNaN(endVal) && endVal > startVal) {
-              segStartSec = partStartOffsetSec + startVal;
-              segEndSec = partStartOffsetSec + endVal;
-              wordSearchIdx = (matchEndIdx >= 0 ? matchEndIdx : matchStartIdx) + 1;
-            }
+          if (!isNaN(startVal) && !isNaN(endVal) && endVal > startVal) {
+            segStartSec = partStartOffsetSec + startVal;
+            segEndSec = partStartOffsetSec + endVal;
+            wordSearchIdx = (matchEndIdx >= 0 ? matchEndIdx : matchStartIdx) + 1;
           }
         }
       }
@@ -235,7 +284,7 @@ export function generateWakuTimeline(params: GenerateTimelineParams): WakuTimeli
         clip_id: seg.segment_id,
         segment_id: seg.segment_id,
         part_id: partId,
-        quote: seg.text,
+        quote: seg.text || (seg as any).quote || '',
         image_path: segImg?.filePath,
         image_url: segImg?.url,
         start_sec: Number(startSec.toFixed(2)),
@@ -324,7 +373,7 @@ export function generateWakuTimeline(params: GenerateTimelineParams): WakuTimeli
   }
 
   return {
-    title: 'Waku Longform Video',
+    title: 'Vann Longform Video',
     fps,
     resolution: {
       width,
@@ -339,3 +388,8 @@ export function generateWakuTimeline(params: GenerateTimelineParams): WakuTimeli
     generated_at: new Date().toISOString(),
   };
 }
+
+export const generateVannTimeline = generateWakuTimeline;
+export type GenerateVannTimelineParams = GenerateTimelineParams;
+export type VannTimelineParams = GenerateTimelineParams;
+export type WakuTimelineParams = GenerateTimelineParams;

@@ -32,7 +32,7 @@ const MODEL_OPTIONS = [
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
 ];
 
-const WakuTopicsStep: React.FC = () => {
+const VannTopicsStep: React.FC = () => {
   const [topicTheme, setTopicTheme] = useState<string>('');
   const [itemCount, setItemCount] = useState<number>(5);
   const [masterPrompt, setMasterPrompt] = useState<string>('');
@@ -55,14 +55,17 @@ const WakuTopicsStep: React.FC = () => {
   const loadPromptFromFile = async () => {
     try {
       if (api?.readFromProject) {
-        const loadedPrompt = await api.readFromProject('dashboard/prompts/waku/topics-prompt.md');
+        let loadedPrompt = await api.readFromProject('dashboard/prompts/vann/topics-prompt.md');
+        if (!loadedPrompt || !loadedPrompt.trim()) {
+          loadedPrompt = await api.readFromProject('dashboard/prompts/vann/topics-prompt.md');
+        }
         if (loadedPrompt && loadedPrompt.trim().length > 0) {
           setMasterPrompt(loadedPrompt);
           return loadedPrompt;
         }
       }
     } catch (err) {
-      console.error('Error reading prompt file dashboard/prompts/waku/topics-prompt.md:', err);
+      console.error('Error reading prompt file dashboard/prompts/vann/topics-prompt.md:', err);
     }
     return '';
   };
@@ -73,7 +76,10 @@ const WakuTopicsStep: React.FC = () => {
       await loadPromptFromFile();
       try {
         if (api?.readFromProject) {
-          const savedTopicsJson = await api.readFromProject('input/waku/topics.json');
+          let savedTopicsJson = await api.readFromProject('input/vann/topics.json');
+          if (!savedTopicsJson) {
+            savedTopicsJson = await api.readFromProject('input/vann/topics.json');
+          }
           if (savedTopicsJson) {
             const data = JSON.parse(savedTopicsJson);
             if (Array.isArray(data.topics)) {
@@ -92,7 +98,7 @@ const WakuTopicsStep: React.FC = () => {
           }
         }
       } catch (err) {
-        console.error('Error loading Waku topics state:', err);
+        console.error('Error loading Vann topics state:', err);
       }
     })();
   }, []);
@@ -124,12 +130,14 @@ const WakuTopicsStep: React.FC = () => {
 
       let templatePrompt: string = '';
       if (api?.readFromProject) {
-        const loaded = await api.readFromProject('dashboard/prompts/waku/demand-keyphrases-prompt.md');
-        if (loaded) templatePrompt = loaded;
+        templatePrompt = (await api.readFromProject('dashboard/prompts/vann/demand-keyphrases-prompt.md')) || '';
+        if (!templatePrompt) {
+          templatePrompt = (await api.readFromProject('dashboard/prompts/vann/demand-keyphrases-prompt.md')) || '';
+        }
       }
 
       if (!templatePrompt || !templatePrompt.trim()) {
-        throw new Error('File prompt dashboard/prompts/waku/demand-keyphrases-prompt.md tidak ditemukan atau kosong.');
+        throw new Error('File prompt dashboard/prompts/vann/demand-keyphrases-prompt.md tidak ditemukan atau kosong.');
       }
 
       const keyphrasePrompt = templatePrompt
@@ -211,11 +219,18 @@ const WakuTopicsStep: React.FC = () => {
 
     try {
       let currentPrompt = masterPrompt;
-      if (!currentPrompt) {
+      if (!currentPrompt || !currentPrompt.trim()) {
         currentPrompt = await loadPromptFromFile();
       }
 
       const computed = getComputedPrompt(currentPrompt);
+      if (!computed || !computed.trim()) {
+        showToast('❌ Prompt kosong! Memuat ulang prompt default...');
+        currentPrompt = await loadPromptFromFile();
+        if (!currentPrompt || !currentPrompt.trim()) {
+          throw new Error('Master prompt tidak dapat dimuat dari dashboard/prompts/vann/topics-prompt.md');
+        }
+      }
 
       if (!api?.generateWakuTopics) {
         throw new Error('API generateWakuTopics tidak tersedia pada Electron preload.');
@@ -271,7 +286,8 @@ const WakuTopicsStep: React.FC = () => {
   const handleSavePrompt = async () => {
     try {
       if (api?.saveToProject) {
-        await api.saveToProject('dashboard/prompts/waku/topics-prompt.md', masterPrompt);
+        await api.saveToProject('dashboard/prompts/vann/topics-prompt.md', masterPrompt);
+        await api.saveToProject('dashboard/prompts/vann/topics-prompt.md', masterPrompt);
         showToast('💾 Master prompt disimpan ke topics-prompt.md!');
       }
     } catch (err) {
@@ -304,21 +320,20 @@ const WakuTopicsStep: React.FC = () => {
     try {
       if (api?.saveToProject) {
         const selectedTopicsList = topicsList.filter((t) => activeIds.includes(t.id));
-        await api.saveToProject(
-          'input/waku/topics.json',
-          JSON.stringify(
-            {
-              topics: topicsList,
-              theme: themeStr,
-              selectedTopicId: activeIds[0] || null,
-              selectedTopicIds: activeIds,
-              selectedTopics: selectedTopicsList,
-              updatedAt: new Date().toISOString()
-            },
-            null,
-            2
-          )
+        const payload = JSON.stringify(
+          {
+            topics: topicsList,
+            theme: themeStr,
+            selectedTopicId: activeIds[0] || null,
+            selectedTopicIds: activeIds,
+            selectedTopics: selectedTopicsList,
+            updatedAt: new Date().toISOString()
+          },
+          null,
+          2
         );
+        await api.saveToProject('input/vann/topics.json', payload);
+        await api.saveToProject('input/vann/topics.json', payload);
       }
     } catch (err) {
       console.error(err);
@@ -657,13 +672,18 @@ const WakuTopicsStep: React.FC = () => {
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-white flex items-center gap-2">
                 <span className="p-1 bg-emerald-950 text-emerald-400 rounded-lg text-xs">📥</span>
-                Hasil Respon AI (Auto / Manual Paste)
+                Hasil Respon AI (Raw Output / Auto / Manual Paste)
               </h2>
               <div className="flex items-center gap-2">
+                {pastedOutput.trim() && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-gray-950 text-gray-400 border border-gray-800 font-semibold">
+                    Raw AI Response ({pastedOutput.length} char)
+                  </span>
+                )}
                 {isGenerating && (
                   <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-md bg-emerald-950/90 text-emerald-300 border border-emerald-700/80 font-bold animate-pulse flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    <span>🔴 Streaming Response Live... ({pastedOutput.length} char)</span>
+                    <span>🔴 Streaming Live... ({pastedOutput.length} char)</span>
                   </span>
                 )}
                 {!isGenerating && validationReport && (
@@ -688,10 +708,26 @@ const WakuTopicsStep: React.FC = () => {
             <textarea
               value={pastedOutput}
               onChange={(e) => setPastedOutput(e.target.value)}
-              rows={5}
-              placeholder='Teks/JSON hasil dari AI akan otomatis terisi di sini, atau Anda bisa menempel (paste) hasil manual di sini...'
+              rows={6}
+              placeholder='Raw output / teks JSON hasil dari AI akan otomatis terisi di sini. Anda juga bisa menempel (paste) hasil manual AI di sini...'
               className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-3.5 text-xs text-gray-200 focus:outline-none focus:border-emerald-500 transition-all placeholder-gray-600 leading-relaxed font-mono"
             />
+
+            {/* Diagnostic Information for JSON Syntax Error */}
+            {validationReport && !validationReport.isValid && (
+              <div className="p-3.5 bg-red-950/40 border border-red-900/60 rounded-2xl space-y-2 text-xs">
+                <div className="flex items-center gap-2 font-bold text-red-300">
+                  <span>🚨</span>
+                  <span>Analisis Penyebab JSON Syntax Error:</span>
+                </div>
+                <p className="text-[11px] text-gray-300 leading-relaxed">
+                  Respon AI di atas berisi teks percakapan biasa alih-alih format JSON (seperti <code className="text-amber-300 bg-gray-900 px-1 py-0.5 rounded font-mono">"What are we building..."</code>). Hal ini terjadi sebelumnya karena file prompt dibaca dari path lama <code className="text-red-300 bg-gray-900 px-1 py-0.5 rounded font-mono">dashboard/prompts/vann/topics-prompt.md</code> yang tidak ada, sehingga AI menerima prompt kosong.
+                </p>
+                <div className="text-[11px] text-emerald-300 bg-emerald-950/60 p-2 rounded-xl border border-emerald-800/80 font-mono">
+                  ✅ Solusi: Jalur prompt telah diperbaiki ke <code className="font-bold underline">dashboard/prompts/vann/topics-prompt.md</code>. Silakan klik tombol <strong>"Auto Generate AI"</strong> lagi untuk me-generate ulang.
+                </div>
+              </div>
+            )}
 
             {/* Validation Issues Display if any */}
             {validationReport && validationReport.issues.length > 0 && (
@@ -994,7 +1030,7 @@ const WakuTopicsStep: React.FC = () => {
                     </h4>
                   </div>
                   <p className="text-[11px] text-gray-400">
-                    Semua topik terpilih tersimpan di <code className="text-emerald-300 font-mono">input/waku/topics.json</code>.
+                    Semua topik terpilih tersimpan di <code className="text-emerald-300 font-mono">input/vann/topics.json</code>.
                   </p>
                 </div>
 
@@ -1040,4 +1076,4 @@ const WakuTopicsStep: React.FC = () => {
   );
 };
 
-export default WakuTopicsStep;
+export default VannTopicsStep;

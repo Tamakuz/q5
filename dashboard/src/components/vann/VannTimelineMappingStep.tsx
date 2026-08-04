@@ -158,16 +158,16 @@ const WakuTimelineMappingStep: React.FC<WakuTimelineMappingStepProps> = ({ onSte
     if (!api?.readFromProject) return;
 
     // 1. Load script
-    let loadedScript = await api.readFromProject(`input/waku/scripts/full_script_topic_${topicId}.txt`);
-    if (!loadedScript) loadedScript = await api.readFromProject(`input/waku/full_script_topic_${topicId}.txt`);
-    if (!loadedScript && topicId === 1) loadedScript = await api.readFromProject('input/waku/full_script.txt');
+    let loadedScript = await api.readFromProject(`input/vann/scripts/full_script_topic_${topicId}.txt`);
+    if (!loadedScript) loadedScript = await api.readFromProject(`input/vann/full_script_topic_${topicId}.txt`);
+    if (!loadedScript && topicId === 1) loadedScript = await api.readFromProject('input/vann/full_script.txt');
     if (loadedScript) setFullScript(loadedScript);
     else setFullScript('');
 
     // 2. Load breakdown
-    let bJson = await api.readFromProject(`input/waku/breakdowns/breakdown_topic_${topicId}.json`);
-    if (!bJson) bJson = await api.readFromProject(`input/waku/breakdown_topic_${topicId}.json`);
-    if (!bJson && topicId === 1) bJson = await api.readFromProject('input/waku/breakdown.json');
+    let bJson = await api.readFromProject(`input/vann/breakdowns/breakdown_topic_${topicId}.json`);
+    if (!bJson) bJson = await api.readFromProject(`input/vann/breakdown_topic_${topicId}.json`);
+    if (!bJson && topicId === 1) bJson = await api.readFromProject('input/vann/breakdown.json');
     if (bJson) {
       try {
         const parsedB = JSON.parse(bJson);
@@ -180,14 +180,14 @@ const WakuTimelineMappingStep: React.FC<WakuTimelineMappingStepProps> = ({ onSte
 
     // 3. Load audio final URL for this topic
     let foundAudioUrl: string | null = null;
-    let savedVo2Json = await api.readFromProject(`input/waku/mappings/vo_2parts_state_topic_${topicId}.json`);
+    let savedVo2Json = await api.readFromProject(`input/vann/mappings/vo_2parts_state_topic_${topicId}.json`);
     if (!savedVo2Json) {
-      savedVo2Json = await api.readFromProject(`input/waku/vo_2parts_state_topic_${topicId}.json`);
+      savedVo2Json = await api.readFromProject(`input/vann/vo_2parts_state_topic_${topicId}.json`);
     }
     if (!savedVo2Json && topicId === 1) {
-      savedVo2Json = await api.readFromProject('input/waku/mappings/vo_2parts_state.json');
+      savedVo2Json = await api.readFromProject('input/vann/mappings/vo_2parts_state.json');
       if (!savedVo2Json) {
-        savedVo2Json = await api.readFromProject('input/waku/vo_2parts_state.json');
+        savedVo2Json = await api.readFromProject('input/vann/vo_2parts_state.json');
       }
     }
 
@@ -206,19 +206,19 @@ const WakuTimelineMappingStep: React.FC<WakuTimelineMappingStepProps> = ({ onSte
     }
 
     if (!foundAudioUrl) {
-      const topicAudioPath = `/home/jovan/project/content-auto/input/waku/audio/topic_${topicId}/full_narration_topic_${topicId}.wav`;
+      const topicAudioPath = `/home/jovan/project/content-auto/input/vann/audio/topic_${topicId}/full_narration_topic_${topicId}.wav`;
       foundAudioUrl = `media://content-auto/${encodeURIComponent(topicAudioPath)}`;
     }
 
     setAudioUrl(foundAudioUrl);
 
-    // 4. Load timeline JSON from timelines/ folder or waku_timeline_topic_${topicId}.json
-    let timelineJson = await api.readFromProject(`input/waku/timelines/timeline_topic_${topicId}.json`);
+    // 4. Load timeline JSON from timelines/ folder or vann_timeline_topic_${topicId}.json
+    let timelineJson = await api.readFromProject(`input/vann/timelines/timeline_topic_${topicId}.json`);
     if (!timelineJson) {
-      timelineJson = await api.readFromProject(`input/waku/waku_timeline_topic_${topicId}.json`);
+      timelineJson = await api.readFromProject(`input/vann/vann_timeline_topic_${topicId}.json`);
     }
     if (!timelineJson && topicId === 1) {
-      timelineJson = await api.readFromProject('input/waku/waku_timeline.json');
+      timelineJson = await api.readFromProject('input/vann/vann_timeline.json');
     }
 
     if (timelineJson) {
@@ -233,15 +233,15 @@ const WakuTimelineMappingStep: React.FC<WakuTimelineMappingStepProps> = ({ onSte
       setTimelineData(null);
     }
 
-    // Fallback: load waku_mapping_topic_${topicId}.json
-    let mappingJson = await api.readFromProject(`input/waku/mappings/waku_mapping_topic_${topicId}.json`);
+    // Fallback: load vann_mapping_topic_${topicId}.json
+    let mappingJson = await api.readFromProject(`input/vann/mappings/vann_mapping_topic_${topicId}.json`);
     if (!mappingJson) {
-      mappingJson = await api.readFromProject(`input/waku/waku_mapping_topic_${topicId}.json`);
+      mappingJson = await api.readFromProject(`input/vann/vann_mapping_topic_${topicId}.json`);
     }
     if (!mappingJson && topicId === 1) {
-      mappingJson = await api.readFromProject('input/waku/mappings/waku_mapping.json');
+      mappingJson = await api.readFromProject('input/vann/mappings/vann_mapping.json');
       if (!mappingJson) {
-        mappingJson = await api.readFromProject('input/waku/waku_mapping.json');
+        mappingJson = await api.readFromProject('input/vann/vann_mapping.json');
       }
     }
 
@@ -258,14 +258,14 @@ const WakuTimelineMappingStep: React.FC<WakuTimelineMappingStepProps> = ({ onSte
       try {
         if (api?.readFromProject) {
           // 1. Load prompt template
-          let loadedPrompt = await api.readFromProject('dashboard/prompts/waku/audio-mapping-prompt.md');
+          let loadedPrompt = await api.readFromProject('dashboard/prompts/vann/audio-mapping-prompt.md');
           if (!loadedPrompt || !loadedPrompt.trim()) {
-            loadedPrompt = await api.readFromProject('dashboard/prompts/waku/audio-transcription-prompt.md');
+            loadedPrompt = await api.readFromProject('dashboard/prompts/vann/audio-transcription-prompt.md');
           }
           if (loadedPrompt) setTranscriptionPrompt(loadedPrompt);
 
           // 2. Load topics from Step 1
-          const savedTopicsJson = await api.readFromProject('input/waku/topics.json');
+          const savedTopicsJson = await api.readFromProject('input/vann/topics.json');
           let selectedId: number | null = null;
           let loadedTopics: BatchTopicItem[] = [];
 
@@ -291,12 +291,12 @@ const WakuTimelineMappingStep: React.FC<WakuTimelineMappingStepProps> = ({ onSte
           const checkedTopics = await Promise.all(
             loadedTopics.map(async (top) => {
               try {
-                let specificTl = await api.readFromProject(`input/waku/timelines/timeline_topic_${top.id}.json`);
+                let specificTl = await api.readFromProject(`input/vann/timelines/timeline_topic_${top.id}.json`);
                 if (!specificTl) {
-                  specificTl = await api.readFromProject(`input/waku/waku_timeline_topic_${top.id}.json`);
+                  specificTl = await api.readFromProject(`input/vann/vann_timeline_topic_${top.id}.json`);
                 }
                 if (!specificTl && top.id === 1) {
-                  specificTl = await api.readFromProject('input/waku/waku_timeline.json');
+                  specificTl = await api.readFromProject('input/vann/vann_timeline.json');
                 }
                 return { ...top, hasTimeline: Boolean(specificTl && specificTl.trim()) };
               } catch {
@@ -415,12 +415,12 @@ const WakuTimelineMappingStep: React.FC<WakuTimelineMappingStepProps> = ({ onSte
     try {
       if (api?.saveToProject) {
         const topId = activeTopicId || 1;
-        await api.saveToProject(`input/waku/mappings/waku_mapping_topic_${topId}.json`, JSON.stringify(report.normalizedData, null, 2));
-        await api.saveToProject(`input/waku/transcripts/merged_transcript_topic_${topId}.json`, JSON.stringify(report.normalizedData, null, 2));
+        await api.saveToProject(`input/vann/mappings/vann_mapping_topic_${topId}.json`, JSON.stringify(report.normalizedData, null, 2));
+        await api.saveToProject(`input/vann/transcripts/merged_transcript_topic_${topId}.json`, JSON.stringify(report.normalizedData, null, 2));
 
         if (topId === 1) {
-          await api.saveToProject('input/waku/mappings/waku_mapping.json', JSON.stringify(report.normalizedData, null, 2));
-          await api.saveToProject('input/waku/transcripts/merged_transcript.json', JSON.stringify(report.normalizedData, null, 2));
+          await api.saveToProject('input/vann/mappings/vann_mapping.json', JSON.stringify(report.normalizedData, null, 2));
+          await api.saveToProject('input/vann/transcripts/merged_transcript.json', JSON.stringify(report.normalizedData, null, 2));
         }
       }
 
@@ -509,7 +509,7 @@ const WakuTimelineMappingStep: React.FC<WakuTimelineMappingStepProps> = ({ onSte
               </span>
             </div>
             <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              <span>🎯</span> Timeline & Mapping Studio (`waku_mapping.json`)
+              <span>🎯</span> Timeline & Mapping Studio (`vann_mapping.json`)
             </h1>
             <p className="text-xs text-gray-400 max-w-2xl leading-relaxed">
               Memeta rentang detik desimal per segmen adegan (`start_sec` ➔ `end_sec`), menginspeksi durasi tiap gambar, dan menyiapkan file mapping JSON utuh sebelum masuk ke Step 8 Render Studio (FFmpeg).
@@ -616,7 +616,7 @@ const WakuTimelineMappingStep: React.FC<WakuTimelineMappingStepProps> = ({ onSte
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-4">
           <div>
             <h2 className="text-sm font-extrabold text-white flex items-center gap-2">
-              <span>🗺️</span> Visual Timeline Mapping Adegan Video (`waku_timeline.json`)
+              <span>🗺️</span> Visual Timeline Mapping Adegan Video (`vann_timeline.json`)
             </h2>
             <p className="text-xs text-gray-400 mt-0.5">
               Daftar segmen adegan lengkap dengan gambar ilustrasi, rentang detik awal/akhir, dan durasi klip untuk rendering FFmpeg.

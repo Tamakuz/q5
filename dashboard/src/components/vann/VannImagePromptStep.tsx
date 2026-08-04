@@ -50,7 +50,7 @@ const WakuImagePromptStep: React.FC = () => {
   const loadPromptFromFile = async () => {
     try {
       if (api?.readFromProject) {
-        const loadedPrompt = await api.readFromProject('dashboard/prompts/waku/image-prompt-generator-prompt.md');
+        const loadedPrompt = await api.readFromProject('dashboard/prompts/vann/image-prompt-generator-prompt.md');
         if (loadedPrompt && loadedPrompt.trim().length > 0) {
           setMasterPrompt(loadedPrompt);
           return loadedPrompt;
@@ -69,7 +69,7 @@ const WakuImagePromptStep: React.FC = () => {
       try {
         if (api?.readFromProject) {
           // 1. Load selected topics from Step 1
-          const savedTopicsJson = await api.readFromProject('input/waku/topics.json');
+          const savedTopicsJson = await api.readFromProject('input/vann/topics.json');
           let selectedId: number | null = null;
           let loadedTopics: BatchTopicItem[] = [];
 
@@ -95,7 +95,7 @@ const WakuImagePromptStep: React.FC = () => {
           const checkedTopics = await Promise.all(
             loadedTopics.map(async (top) => {
               try {
-                const specificPrompts = await api.readFromProject(`input/waku/prompts/image_prompts_topic_${top.id}.json`);
+                const specificPrompts = await api.readFromProject(`input/vann/prompts/image_prompts_topic_${top.id}.json`);
                 return { ...top, hasPrompts: Boolean(specificPrompts && specificPrompts.trim()) };
               } catch {
                 return top;
@@ -126,7 +126,7 @@ const WakuImagePromptStep: React.FC = () => {
     let segmentsText = '';
     let count = 0;
     if (topicId) {
-      const segFileStr = (await api.readFromProject(`input/waku/breakdowns/segments_topic_${topicId}.json`)) || '';
+      const segFileStr = (await api.readFromProject(`input/vann/breakdowns/segments_topic_${topicId}.json`)) || '';
       if (segFileStr) {
         try {
           const parsed = JSON.parse(segFileStr);
@@ -137,12 +137,12 @@ const WakuImagePromptStep: React.FC = () => {
         } catch {}
       }
       if (!segmentsText) {
-        segmentsText = (await api.readFromProject(`input/waku/breakdowns/breakdown_topic_${topicId}.json`)) || '';
+        segmentsText = (await api.readFromProject(`input/vann/breakdowns/breakdown_topic_${topicId}.json`)) || '';
       }
     }
 
     if (!segmentsText) {
-      const segmentsJsonStr = (await api.readFromProject('input/waku/segments.json')) || '';
+      const segmentsJsonStr = (await api.readFromProject('input/vann/segments.json')) || '';
       if (segmentsJsonStr) {
         try {
           const parsed = JSON.parse(segmentsJsonStr);
@@ -154,7 +154,7 @@ const WakuImagePromptStep: React.FC = () => {
       }
     }
     if (!segmentsText) {
-      segmentsText = (await api.readFromProject('input/waku/breakdown.json')) || '';
+      segmentsText = (await api.readFromProject('input/vann/breakdown.json')) || '';
     }
 
     setSegmentsCount(count);
@@ -162,12 +162,12 @@ const WakuImagePromptStep: React.FC = () => {
 
     // Load image prompts for this topic
     const promptFile = topicId
-      ? `input/waku/prompts/image_prompts_topic_${topicId}.json`
-      : 'input/waku/image_prompts.json';
+      ? `input/vann/prompts/image_prompts_topic_${topicId}.json`
+      : 'input/vann/image_prompts.json';
 
     let promptsJson = (await api.readFromProject(promptFile)) || '';
     if (!promptsJson && topicId) {
-      promptsJson = (await api.readFromProject('input/waku/image_prompts.json')) || '';
+      promptsJson = (await api.readFromProject('input/vann/image_prompts.json')) || '';
     }
 
     if (promptsJson) {
@@ -277,7 +277,7 @@ const WakuImagePromptStep: React.FC = () => {
   const handleSavePrompt = async () => {
     try {
       if (api?.saveToProject) {
-        await api.saveToProject('dashboard/prompts/waku/image-prompt-generator-prompt.md', masterPrompt);
+        await api.saveToProject('dashboard/prompts/vann/image-prompt-generator-prompt.md', masterPrompt);
         showToast('💾 Master prompt disimpan ke image-prompt-generator-prompt.md!');
       }
     } catch (err) {
@@ -309,13 +309,13 @@ const WakuImagePromptStep: React.FC = () => {
     try {
       const targetId = topicId || activeTopicId;
       if (api?.saveToProject) {
-        await api.saveToProject('input/waku/image_prompts.json', rawStr);
+        await api.saveToProject('input/vann/image_prompts.json', rawStr);
         const formattedTxt = prompts.map((p) => `Segmen ${p.segment_id}: "${p.segment_quote}"\nPrompt:\n${p.prompt}`).join('\n\n---\n\n');
-        await api.saveToProject('input/waku/prompts.txt', formattedTxt);
+        await api.saveToProject('input/vann/prompts.txt', formattedTxt);
 
         if (targetId) {
-          await api.saveToProject(`input/waku/prompts/image_prompts_topic_${targetId}.json`, rawStr);
-          await api.saveToProject(`input/waku/prompts/prompts_topic_${targetId}.txt`, formattedTxt);
+          await api.saveToProject(`input/vann/prompts/image_prompts_topic_${targetId}.json`, rawStr);
+          await api.saveToProject(`input/vann/prompts/prompts_topic_${targetId}.txt`, formattedTxt);
         }
       }
       if (targetId) {
@@ -354,7 +354,7 @@ const WakuImagePromptStep: React.FC = () => {
         // Load segments for this topic
         let segmentsText = '';
         if (api?.readFromProject) {
-          const segFileStr = (await api.readFromProject(`input/waku/breakdowns/segments_topic_${topic.id}.json`)) || '';
+          const segFileStr = (await api.readFromProject(`input/vann/breakdowns/segments_topic_${topic.id}.json`)) || '';
           if (segFileStr) {
             try {
               const parsed = JSON.parse(segFileStr);
@@ -364,7 +364,7 @@ const WakuImagePromptStep: React.FC = () => {
             } catch {}
           }
           if (!segmentsText) {
-            segmentsText = (await api.readFromProject(`input/waku/breakdowns/breakdown_topic_${topic.id}.json`)) || '';
+            segmentsText = (await api.readFromProject(`input/vann/breakdowns/breakdown_topic_${topic.id}.json`)) || '';
           }
         }
         if (!segmentsText) segmentsText = segmentsListStr;

@@ -122,33 +122,54 @@ function spawnTsxProcessForRoot(projectRoot, cliArgs, options = {}) {
 }
 
 function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getMainWindow }) {
-  // Ensure waku dirs
-  if (!fs.existsSync(p.WAKU_IMAGES_DIR)) fs.mkdirSync(p.WAKU_IMAGES_DIR, { recursive: true });
-  if (!fs.existsSync(p.WAKU_THUMBNAILS_DIR)) fs.mkdirSync(p.WAKU_THUMBNAILS_DIR, { recursive: true });
-  if (!fs.existsSync(p.WAKU_AUDIO_DIR)) fs.mkdirSync(p.WAKU_AUDIO_DIR, { recursive: true });
+  // Ensure vann dirs
+  if (!fs.existsSync(p.VANN_IMAGES_DIR)) fs.mkdirSync(p.VANN_IMAGES_DIR, { recursive: true });
+  if (!fs.existsSync(p.VANN_THUMBNAILS_DIR)) fs.mkdirSync(p.VANN_THUMBNAILS_DIR, { recursive: true });
+  if (!fs.existsSync(p.VANN_AUDIO_DIR)) fs.mkdirSync(p.VANN_AUDIO_DIR, { recursive: true });
 
-  // ─── Waku AI generation handlers ───────────────────
-  ipcMain.handle('generate-waku-topics', async (event, { promptText, model }) => {
+  // Helper to register both generate-vann-X and generate-waku-X for seamless compatibility
+  const handleVann = (channelName, handlerFn) => {
+    ipcMain.handle(channelName, handlerFn);
+    const legacyChannel = channelName.replace('-vann-', '-waku-');
+    if (legacyChannel !== channelName) {
+      try { ipcMain.handle(legacyChannel, handlerFn); } catch {}
+    }
+  };
+
+  // ─── Vann AI generation handlers ───────────────────
+  handleVann('generate-vann-topics', async (event, { promptText, model }) => {
     return aiClient.generateWakuTopics({ promptText, model, onChunk: (chunk, fullText) => {
-      try { event.sender.send('waku-topics-chunk', { chunk, fullText }); } catch { }
+      try {
+        event.sender.send('vann-topics-chunk', { chunk, fullText });
+        event.sender.send('waku-topics-chunk', { chunk, fullText });
+      } catch { }
     }});
   });
 
-  ipcMain.handle('generate-waku-script', async (event, { promptText, model }) => {
+  handleVann('generate-vann-script', async (event, { promptText, model }) => {
     return aiClient.generateWakuScript({ promptText, model, onChunk: (chunk, fullText) => {
-      try { event.sender.send('waku-script-chunk', { chunk, fullText }); } catch { }
+      try {
+        event.sender.send('vann-script-chunk', { chunk, fullText });
+        event.sender.send('waku-script-chunk', { chunk, fullText });
+      } catch { }
     }});
   });
 
-  ipcMain.handle('generate-waku-breakdown', async (event, { promptText, model }) => {
+  handleVann('generate-vann-breakdown', async (event, { promptText, model }) => {
     return aiClient.generateWakuBreakdown({ promptText, model, onChunk: (chunk, fullText) => {
-      try { event.sender.send('waku-breakdown-chunk', { chunk, fullText }); } catch { }
+      try {
+        event.sender.send('vann-breakdown-chunk', { chunk, fullText });
+        event.sender.send('waku-breakdown-chunk', { chunk, fullText });
+      } catch { }
     }});
   });
 
-  ipcMain.handle('generate-waku-image-prompts', async (event, { promptText, model }) => {
+  handleVann('generate-vann-image-prompts', async (event, { promptText, model }) => {
     return aiClient.generateWakuImagePrompts({ promptText, model, onChunk: (chunk, fullText) => {
-      try { event.sender.send('waku-image-prompts-chunk', { chunk, fullText }); } catch { }
+      try {
+        event.sender.send('vann-image-prompts-chunk', { chunk, fullText });
+        event.sender.send('waku-image-prompts-chunk', { chunk, fullText });
+      } catch { }
     }});
   });
 
@@ -157,8 +178,8 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   async function persistWakuImageToDisk(segmentId, savedObj, topicId) {
     try {
       const topId = topicId || 1;
-      const jsonPaths = [path.join(p.PROJECT_ROOT, 'input', 'waku', 'images', `generated_images_topic_${topId}.json`)];
-      if (topId === 1) jsonPaths.push(path.join(p.PROJECT_ROOT, 'input', 'waku', 'generated_images.json'));
+      const jsonPaths = [path.join(p.PROJECT_ROOT, 'input', 'vann', 'images', `generated_images_topic_${topId}.json`)];
+      if (topId === 1) jsonPaths.push(path.join(p.PROJECT_ROOT, 'input', 'vann', 'generated_images.json'));
 
       for (const jsonPath of jsonPaths) {
         let existingData = { total_images: 0, images: [] };
@@ -181,7 +202,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   }
 
   async function saveWakuImageFile(segmentId, res, topicId) {
-    const targetDir = topicId ? path.join(p.PROJECT_ROOT, 'input', 'waku', 'images', `topic_${topicId}`) : p.WAKU_IMAGES_DIR;
+    const targetDir = topicId ? path.join(p.PROJECT_ROOT, 'input', 'vann', 'images', `topic_${topicId}`) : p.WAKU_IMAGES_DIR;
     await fs.promises.mkdir(targetDir, { recursive: true });
     const destPath = path.join(targetDir, `segment_${segmentId}.png`);
     let resultObj;
@@ -335,17 +356,17 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     const topId = topicId || 1;
     let contextText = scriptContent || '';
     if (!contextText) {
-      const scriptPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'scripts', `full_script_topic_${topId}.txt`);
+      const scriptPath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'scripts', `full_script_topic_${topId}.txt`);
       if (fs.existsSync(scriptPath)) contextText = fs.readFileSync(scriptPath, 'utf-8');
       else {
-        const fallbackPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'full_script.txt');
+        const fallbackPath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'full_script.txt');
         if (fs.existsSync(fallbackPath)) contextText = fs.readFileSync(fallbackPath, 'utf-8');
       }
     }
 
     let activeMetadata = metadata;
     if (!activeMetadata) {
-      const metaPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'metadata', `upload_metadata_topic_${topId}.json`);
+      const metaPath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'metadata', `upload_metadata_topic_${topId}.json`);
       if (fs.existsSync(metaPath)) { try { activeMetadata = JSON.parse(fs.readFileSync(metaPath, 'utf-8')); } catch {} }
     }
 
@@ -358,7 +379,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
     const cleanJsonStr = aiClient.extractCleanJsonObject(rawJson);
     const parsed = JSON.parse(cleanJsonStr);
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_prompts_topic_${topId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails', `thumbnail_prompts_topic_${topId}.json`);
     const dir = path.dirname(savePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(savePath, JSON.stringify(parsed, null, 2), 'utf-8');
@@ -376,9 +397,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     } else { fs.mkdirSync(targetThumbDir, { recursive: true }); }
 
     const prevFiles = [
-      path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnails_rendered_topic_${topId}.json`),
-      path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_selected_topic_${topId}.json`),
-      path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_topic_${topId}.png`),
+      path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails', `thumbnails_rendered_topic_${topId}.json`),
+      path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails', `thumbnail_selected_topic_${topId}.json`),
+      path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails', `thumbnail_topic_${topId}.png`),
     ];
     for (const fp of prevFiles) { if (fs.existsSync(fp)) { try { fs.unlinkSync(fp); } catch {} } }
 
@@ -444,7 +465,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       child.on('close', () => resolve());
     });
 
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnails_rendered_topic_${topId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails', `thumbnails_rendered_topic_${topId}.json`);
     const dir = path.dirname(savePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(savePath, JSON.stringify(results, null, 2), 'utf-8');
@@ -483,7 +504,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     const cleanJsonStr = aiClient.extractCleanJsonObject(rawJson);
     const analysisResult = JSON.parse(cleanJsonStr);
 
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnails_vision_analysis_topic_${topId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails', `thumbnails_vision_analysis_topic_${topId}.json`);
     const dir = path.dirname(savePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(savePath, JSON.stringify(analysisResult, null, 2), 'utf-8');
@@ -491,7 +512,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     if (analysisResult?.winner_id && Array.isArray(thumbnails)) {
       const winnerThumb = thumbnails.find((t) => t.id === analysisResult.winner_id);
       if (winnerThumb) {
-        const selPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_selected_topic_${topId}.json`);
+        const selPath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails', `thumbnail_selected_topic_${topId}.json`);
         fs.writeFileSync(selPath, JSON.stringify({ selectedId: winnerThumb.id, concept: winnerThumb, topicId: topId }, null, 2), 'utf-8');
       }
     }
@@ -502,12 +523,12 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   // ─── Get/save thumbnails ───────────────────────────────
   ipcMain.handle('get-waku-thumbnails', async (_event, args) => {
     const topicId = (typeof args === 'number' ? args : args?.topicId) || 1;
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnails_rendered_topic_${topicId}.json`);
-    const promptsPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_prompts_topic_${topicId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails', `thumbnails_rendered_topic_${topicId}.json`);
+    const promptsPath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails', `thumbnail_prompts_topic_${topicId}.json`);
 
     let finalSavePath = savePath, finalPromptsPath = promptsPath;
-    if (topicId === 1 && !fs.existsSync(savePath)) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails_rendered.json'); if (fs.existsSync(legacy)) finalSavePath = legacy; }
-    if (topicId === 1 && !fs.existsSync(promptsPath)) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnail_prompts.json'); if (fs.existsSync(legacy)) finalPromptsPath = legacy; }
+    if (topicId === 1 && !fs.existsSync(savePath)) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails_rendered.json'); if (fs.existsSync(legacy)) finalSavePath = legacy; }
+    if (topicId === 1 && !fs.existsSync(promptsPath)) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnail_prompts.json'); if (fs.existsSync(legacy)) finalPromptsPath = legacy; }
 
     let concepts = [];
     if (fs.existsSync(finalPromptsPath)) { try { const data = JSON.parse(fs.readFileSync(finalPromptsPath, 'utf-8')); concepts = data.concepts || []; } catch {} }
@@ -521,9 +542,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     }
 
     let selected = null;
-    const selPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_selected_topic_${topicId}.json`);
+    const selPath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails', `thumbnail_selected_topic_${topicId}.json`);
     let finalSelPath = selPath;
-    if (topicId === 1 && !fs.existsSync(selPath)) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnail_selected.json'); if (fs.existsSync(legacy)) finalSelPath = legacy; }
+    if (topicId === 1 && !fs.existsSync(selPath)) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnail_selected.json'); if (fs.existsSync(legacy)) finalSelPath = legacy; }
     if (fs.existsSync(finalSelPath)) { try { selected = JSON.parse(fs.readFileSync(finalSelPath, 'utf-8')); } catch {} }
 
     return { concepts, rendered, selected };
@@ -531,13 +552,13 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
   ipcMain.handle('save-waku-thumbnail-selection', async (_event, { selectedId, concept, topicId }) => {
     const topId = topicId || 1;
-    const selPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_selected_topic_${topId}.json`);
+    const selPath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails', `thumbnail_selected_topic_${topId}.json`);
     const sdir = path.dirname(selPath);
     if (!fs.existsSync(sdir)) fs.mkdirSync(sdir, { recursive: true });
     const data = { selectedId, concept, updatedAt: new Date().toISOString() };
     fs.writeFileSync(selPath, JSON.stringify(data, null, 2), 'utf-8');
     if (concept?.filePath && fs.existsSync(concept.filePath)) {
-      const mainThumbPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'thumbnails', `thumbnail_topic_${topId}.png`);
+      const mainThumbPath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails', `thumbnail_topic_${topId}.png`);
       const tdir = path.dirname(mainThumbPath);
       if (!fs.existsSync(tdir)) fs.mkdirSync(tdir, { recursive: true });
       try { fs.copyFileSync(concept.filePath, mainThumbPath); } catch {}
@@ -553,15 +574,15 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     const topId = topicId || 1;
     let contextText = scriptContent || '';
     if (!contextText) {
-      const scriptPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'scripts', `full_script_topic_${topId}.txt`);
+      const scriptPath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'scripts', `full_script_topic_${topId}.txt`);
       if (fs.existsSync(scriptPath)) contextText = fs.readFileSync(scriptPath, 'utf-8');
-      else { const fallback = path.join(p.PROJECT_ROOT, 'input', 'waku', 'full_script.txt'); if (fs.existsSync(fallback)) contextText = fs.readFileSync(fallback, 'utf-8'); }
+      else { const fallback = path.join(p.PROJECT_ROOT, 'input', 'vann', 'full_script.txt'); if (fs.existsSync(fallback)) contextText = fs.readFileSync(fallback, 'utf-8'); }
     }
 
     let chaptersText = '';
-    const mappingPath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'mappings', `waku_mapping_topic_${topId}.json`);
+    const mappingPath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'mappings', `vann_mapping_topic_${topId}.json`);
     let finalMapPath = mappingPath;
-    if (!fs.existsSync(mappingPath)) { const fallbackMap = path.join(p.PROJECT_ROOT, 'input', 'waku', 'waku_mapping.json'); if (fs.existsSync(fallbackMap)) finalMapPath = fallbackMap; }
+    if (!fs.existsSync(mappingPath)) { const fallbackMap = path.join(p.PROJECT_ROOT, 'input', 'vann', 'vann_mapping.json'); if (fs.existsSync(fallbackMap)) finalMapPath = fallbackMap; }
 
     if (fs.existsSync(finalMapPath)) {
       try {
@@ -588,7 +609,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     const rawJson = await aiClient.streamChatCompletion({ systemPrompt, prompt, model: model || 'ag/gemini-3-flash-agent', jsonMode: true, temperature: 0.7, onChunk: (chunk, fullText) => { try { event.sender.send('waku-upload-metadata-chunk', { chunk, fullText }); } catch {} } });
 
     const parsed = JSON.parse(rawJson);
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'metadata', `upload_metadata_topic_${topId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'metadata', `upload_metadata_topic_${topId}.json`);
     const dir = path.dirname(savePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(savePath, JSON.stringify(parsed, null, 2), 'utf-8');
@@ -598,9 +619,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
   ipcMain.handle('get-waku-upload-metadata', async (_event, args) => {
     const topicId = (typeof args === 'number' ? args : args?.topicId) || 1;
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'metadata', `upload_metadata_topic_${topicId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'metadata', `upload_metadata_topic_${topicId}.json`);
     if (fs.existsSync(savePath)) { try { return JSON.parse(fs.readFileSync(savePath, 'utf-8')); } catch {} }
-    else if (topicId === 1) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'waku', 'upload_metadata.json'); if (fs.existsSync(legacy)) { try { return JSON.parse(fs.readFileSync(legacy, 'utf-8')); } catch {} } }
+    else if (topicId === 1) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'vann', 'upload_metadata.json'); if (fs.existsSync(legacy)) { try { return JSON.parse(fs.readFileSync(legacy, 'utf-8')); } catch {} } }
     return null;
   });
 
@@ -612,7 +633,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     const rawJson = await aiClient.streamChatCompletion({ systemPrompt, prompt, model: model || 'ag/gemini-3-flash-agent', jsonMode: true, temperature: 0.7 });
     const analysis = JSON.parse(rawJson);
 
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'metadata', `upload_metadata_topic_${topId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'metadata', `upload_metadata_topic_${topId}.json`);
     if (fs.existsSync(savePath)) {
       try { const existing = JSON.parse(fs.readFileSync(savePath, 'utf-8')); existing.analysis = analysis; if (analysis.superior_title) existing.recommended_title = analysis.superior_title; fs.writeFileSync(savePath, JSON.stringify(existing, null, 2), 'utf-8'); } catch {}
     }
@@ -628,7 +649,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     const fixedMetadata = JSON.parse(rawJson);
     if (analysis) fixedMetadata.analysis = analysis;
 
-    const savePath = path.join(p.PROJECT_ROOT, 'input', 'waku', 'metadata', `upload_metadata_topic_${topId}.json`);
+    const savePath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'metadata', `upload_metadata_topic_${topId}.json`);
     const dir = path.dirname(savePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(savePath, JSON.stringify(fixedMetadata, null, 2), 'utf-8');
@@ -641,7 +662,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   // ══════════════════════════════════════════════════════
 
   ipcMain.handle('upload-waku-vo-audio', async (_event, { segmentId, sourcePath, bufferArray, topicId }) => {
-    const targetAudioDir = topicId ? path.join(p.PROJECT_ROOT, 'input', 'waku', 'audio', `topic_${topicId}`) : p.WAKU_AUDIO_DIR;
+    const targetAudioDir = topicId ? path.join(p.PROJECT_ROOT, 'input', 'vann', 'audio', `topic_${topicId}`) : p.WAKU_AUDIO_DIR;
     await fs.promises.mkdir(targetAudioDir, { recursive: true });
     const ext = sourcePath ? path.extname(sourcePath) || '.mp3' : '.mp3';
     const filename = topicId ? `full_narration_topic_${topicId}${ext}` : (segmentId !== undefined ? `segment_${segmentId}${ext}` : `full_narration${ext}`);
@@ -660,7 +681,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     const validPaths = audioPaths.filter((p) => p && fs.existsSync(p));
     if (validPaths.length === 0) throw new Error('Tidak ada file audio valid yang ditemukan.');
 
-    const targetAudioDir = topicId ? path.join(p.PROJECT_ROOT, 'input', 'waku', 'audio', `topic_${topicId}`) : p.WAKU_AUDIO_DIR;
+    const targetAudioDir = topicId ? path.join(p.PROJECT_ROOT, 'input', 'vann', 'audio', `topic_${topicId}`) : p.WAKU_AUDIO_DIR;
     await fs.promises.mkdir(targetAudioDir, { recursive: true });
     const destPath = path.join(targetAudioDir, 'merged_narration.mp3');
 
@@ -733,9 +754,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       const topId = topicId || 1;
       if (!audioToUse || !fs.existsSync(audioToUse)) {
         const dirCandidates = [
-          path.join(p.PROJECT_ROOT, 'input', 'waku', 'audio', `topic_${topId}`),
+          path.join(p.PROJECT_ROOT, 'input', 'vann', 'audio', `topic_${topId}`),
           p.WAKU_AUDIO_DIR,
-          path.join(p.PROJECT_ROOT, 'input', 'waku', 'audio'),
+          path.join(p.PROJECT_ROOT, 'input', 'vann', 'audio'),
         ];
 
         for (const dir of dirCandidates) {
@@ -755,7 +776,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       }
 
       const scriptToUse = scriptText || '';
-      const tmpDir = path.join(p.PROJECT_ROOT, 'input', 'waku', 'transcripts');
+      const tmpDir = path.join(p.PROJECT_ROOT, 'input', 'vann', 'transcripts');
       await fs.promises.mkdir(tmpDir, { recursive: true });
 
       const tmpScriptPath = path.join(tmpDir, `tmp_script_topic_${topId}.txt`);
@@ -849,7 +870,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     const topicMp4Root = path.join(p.WAKU_OUTPUT_DIR, `waku_topic_${topId}.mp4`);
     if (fs.existsSync(topicMp4Root)) return { outputPath: topicMp4Root, mediaUrl: media.mediaUrl(topicMp4Root), fileName: `waku_topic_${topId}.mp4` };
 
-    const infoPath = path.join(p.PROJECT_ROOT, 'input', 'waku', `last_render_topic_${topId}.json`);
+    const infoPath = path.join(p.PROJECT_ROOT, 'input', 'vann', `last_render_topic_${topId}.json`);
     if (fs.existsSync(infoPath)) {
       try { const info = JSON.parse(fs.readFileSync(infoPath, 'utf-8')); if (info?.outputPath && fs.existsSync(info.outputPath)) return { outputPath: info.outputPath, mediaUrl: media.mediaUrl(info.outputPath), fileName: info.fileName || path.basename(info.outputPath), renderedAt: info.renderedAt }; } catch {}
     }
@@ -895,8 +916,8 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       const validAudioTracks = audioTracks.filter((t) => t.filePath && fs.existsSync(t.filePath));
 
       let mappingSegments = [];
-      const wakuMappingPaths = [path.join(p.PROJECT_ROOT, 'input', 'waku', `waku_mapping_topic_${topId}.json`), path.join(p.PROJECT_ROOT, 'input', 'waku', 'transcripts', `merged_transcript_topic_${topId}.json`)];
-      if (topId === 1) wakuMappingPaths.push(path.join(p.PROJECT_ROOT, 'input', 'waku', 'waku_mapping.json'));
+      const wakuMappingPaths = [path.join(p.PROJECT_ROOT, 'input', 'vann', `vann_mapping_topic_${topId}.json`), path.join(p.PROJECT_ROOT, 'input', 'vann', 'transcripts', `merged_transcript_topic_${topId}.json`)];
+      if (topId === 1) wakuMappingPaths.push(path.join(p.PROJECT_ROOT, 'input', 'vann', 'vann_mapping.json'));
       for (const smp of wakuMappingPaths) { if (fs.existsSync(smp)) { try { const raw = JSON.parse(fs.readFileSync(smp, 'utf-8')); mappingSegments = raw.segments || []; if (mappingSegments.length > 0) break; } catch {} } }
 
       const clipDurations = clips.map((clip, i) => {
@@ -1087,8 +1108,8 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
       const resultObj = { outputPath: resolvedOutput, mediaUrl: media.mediaUrl(resolvedOutput), fileName: path.basename(resolvedOutput), topicId: topId, renderedAt: new Date().toISOString() };
       try {
-        fs.writeFileSync(path.join(p.PROJECT_ROOT, 'input', 'waku', `last_render_topic_${topId}.json`), JSON.stringify(resultObj, null, 2), 'utf-8');
-        if (topId === 1) fs.writeFileSync(path.join(p.PROJECT_ROOT, 'input', 'waku', 'last_render.json'), JSON.stringify(resultObj, null, 2), 'utf-8');
+        fs.writeFileSync(path.join(p.PROJECT_ROOT, 'input', 'vann', `last_render_topic_${topId}.json`), JSON.stringify(resultObj, null, 2), 'utf-8');
+        if (topId === 1) fs.writeFileSync(path.join(p.PROJECT_ROOT, 'input', 'vann', 'last_render.json'), JSON.stringify(resultObj, null, 2), 'utf-8');
       } catch {}
       return resultObj;
     } catch (err) {
@@ -1148,14 +1169,15 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   });
 
   // ══════════════════════════════════════════════════════
-  // Waku Timeline Generator
+  // Vann Timeline Generator
   // ══════════════════════════════════════════════════════
 
-  ipcMain.handle('generate-waku-timeline', async (_event, args) => {
+  handleVann('generate-vann-timeline', async (_event, args) => {
     try {
       const topicId = (typeof args === 'number' ? args : args?.topicId) || 1;
-      const wakuDir = path.join(p.PROJECT_ROOT, 'input', 'waku');
-      const transcriptsDir = path.join(wakuDir, 'transcripts');
+      const vannDir = path.join(p.PROJECT_ROOT, 'input', 'vann');
+      const wakuDir = vannDir;
+      const transcriptsDir = path.join(vannDir, 'transcripts');
 
       let segments = [];
       const breakdownPaths = topicId === 1
@@ -1219,11 +1241,49 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
       let mergedTranscript = null;
       const wakuMappingPaths = topicId === 1
-        ? [path.join(wakuDir, 'mappings', `waku_mapping_topic_1.json`), path.join(wakuDir, `waku_mapping_topic_1.json`), path.join(transcriptsDir, `merged_transcript_topic_1.json`), path.join(wakuDir, 'mappings', 'waku_mapping.json'), path.join(wakuDir, 'waku_mapping.json')]
-        : [path.join(wakuDir, 'mappings', `waku_mapping_topic_${topicId}.json`), path.join(wakuDir, `waku_mapping_topic_${topicId}.json`), path.join(transcriptsDir, `merged_transcript_topic_${topicId}.json`)];
+        ? [
+            path.join(transcriptsDir, `merged_transcript_topic_1.json`),
+            path.join(transcriptsDir, `merged_transcript.json`),
+            path.join(transcriptsDir, `transcript.json`),
+            path.join(wakuDir, 'transcripts', `merged_transcript_topic_1.json`),
+            path.join(wakuDir, 'transcripts', 'merged_transcript.json'),
+            path.join(wakuDir, 'mappings', `vann_mapping_topic_1.json`),
+            path.join(wakuDir, `vann_mapping_topic_1.json`),
+            path.join(wakuDir, 'mappings', 'vann_mapping.json'),
+            path.join(wakuDir, 'vann_mapping.json')
+          ]
+        : [
+            path.join(transcriptsDir, `merged_transcript_topic_${topicId}.json`),
+            path.join(wakuDir, 'transcripts', `merged_transcript_topic_${topicId}.json`),
+            path.join(wakuDir, 'mappings', `vann_mapping_topic_${topicId}.json`),
+            path.join(wakuDir, `vann_mapping_topic_${topicId}.json`)
+          ];
 
       for (const smp of wakuMappingPaths) {
-        if (fs.existsSync(smp)) { try { const rawMap = JSON.parse(fs.readFileSync(smp, 'utf-8')); const words = rawMap.words || []; const segs = rawMap.segments || []; if (words.length > 0 || segs.length > 0) { mergedTranscript = { words, segments: segs, transcript_full: rawMap.transcript_full || '' }; break; } } catch {} }
+        if (fs.existsSync(smp)) {
+          try {
+            const rawMap = JSON.parse(fs.readFileSync(smp, 'utf-8'));
+            const words = rawMap.words || [];
+            let segs = rawMap.segments || [];
+            const sents = rawMap.sentences || [];
+
+            // Auto-derive segments from sentences if segments array is missing
+            if ((!segs || segs.length === 0) && sents.length > 0) {
+              segs = sents.map((s, idx) => ({
+                segment_id: s.sentence_id || idx + 1,
+                quote: s.text,
+                start_sec: typeof s.start === 'number' ? s.start : parseFloat(s.start || 0),
+                end_sec: typeof s.end === 'number' ? s.end : parseFloat(s.end || 0),
+                duration_sec: Math.max(0.1, (s.end || 0) - (s.start || 0)),
+              }));
+            }
+
+            if (words.length > 0 || segs.length > 0 || sents.length > 0) {
+              mergedTranscript = { words, segments: segs, sentences: sents, transcript_full: rawMap.transcript_full || '' };
+              break;
+            }
+          } catch {}
+        }
       }
 
       const fps = 30, width = 1920, height = 1080;
@@ -1235,9 +1295,55 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
       const buildClips = (segs, partId, partStartOffset, partDuration, transcriptData) => {
         const transcriptWords = transcriptData?.words || [];
-        let wordSearchIdx = 0;
+        const transcriptSegs = transcriptData?.segments || [];
 
-        // Pass 1: Extract start timestamps for all segments from transcript word alignment
+        // Direct 1:1 Copy-Paste from Transcript Segments Output
+        if (Array.isArray(transcriptSegs) && transcriptSegs.length > 0) {
+          transcriptSegs.forEach((txSeg, idx) => {
+            const segId = Number(txSeg.segment_id || txSeg.id || idx + 1);
+            const parseN = (v) => (typeof v === 'number' ? v : parseFloat(String(v || '').replace(/[^0-9.]/g, '')));
+
+            let sVal = parseN(txSeg.start_sec !== undefined ? txSeg.start_sec : txSeg.start);
+            let eVal = parseN(txSeg.end_sec !== undefined ? txSeg.end_sec : txSeg.end);
+
+            if (isNaN(sVal) || sVal < 0) sVal = idx * 4.0;
+            if (isNaN(eVal) || eVal <= sVal) {
+              if (idx < transcriptSegs.length - 1) {
+                const nextVal = parseN(transcriptSegs[idx + 1].start_sec !== undefined ? transcriptSegs[idx + 1].start_sec : transcriptSegs[idx + 1].start);
+                eVal = !isNaN(nextVal) && nextVal > sVal ? nextVal : sVal + 4.0;
+              } else {
+                eVal = partDuration;
+              }
+            }
+
+            const startSec = Number((partStartOffset + sVal).toFixed(2));
+            const endSec = Number((partStartOffset + eVal).toFixed(2));
+            const segDurationSec = Number((endSec - startSec).toFixed(2));
+
+            const img = images.find((i) => Number(i.segment_id) === segId);
+            const breakdownMatch = Array.isArray(segs) ? segs.find((b) => Number(b.segment_id || b.id) === segId) : null;
+            const quoteText = txSeg.quote || txSeg.text || breakdownMatch?.quote || breakdownMatch?.text || `Segmen #${segId}`;
+
+            videoClips.push({
+              clip_id: clipId++,
+              segment_id: segId,
+              part_id: partId,
+              quote: quoteText,
+              image_path: img?.filePath || '',
+              image_url: img?.url || '',
+              start_sec: startSec,
+              end_sec: endSec,
+              duration_sec: segDurationSec,
+              start_frame: Math.round(startSec * fps),
+              end_frame: Math.round(endSec * fps),
+              transition: 'crossfade'
+            });
+          });
+          return;
+        }
+
+        // Fallback word matching mode if transcript.segments is absent
+        let wordSearchIdx = 0;
         const rawStarts = segs.map((seg, idx) => {
           let segStartSec = -1;
           if (transcriptWords.length > 0) {
@@ -1248,7 +1354,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
               for (let i = wordSearchIdx; i < transcriptWords.length; i++) {
                 const tw = cleanWordForMatch(transcriptWords[i].word || transcriptWords[i].text);
                 if (tw === firstTargetWord || tw.includes(firstTargetWord) || firstTargetWord.includes(tw)) {
-                  const parseN = (v) => (typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.]/g, '')));
+                  const parseN = (v) => (typeof v === 'number' ? v : parseFloat(String(v || '').replace(/[^0-9.]/g, '')));
                   const startVal = parseN(transcriptWords[i].start);
                   if (!isNaN(startVal) && startVal >= 0) {
                     segStartSec = partStartOffset + startVal;
@@ -1262,10 +1368,8 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
           return segStartSec;
         });
 
-        // Segment 0 always starts at part start (0.00s)
         rawStarts[0] = partStartOffset;
 
-        // Interpolate any missing start timestamps proportionally
         segs.forEach((seg, idx) => {
           if (rawStarts[idx] < 0) {
             let prevKnownIdx = idx - 1;
@@ -1274,7 +1378,8 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
             let nextKnownIdx = idx + 1;
             while (nextKnownIdx < segs.length && rawStarts[nextKnownIdx] < 0) nextKnownIdx++;
-            const nextStart = nextKnownIdx < segs.length ? rawStarts[nextKnownIdx] : (partStartOffset + partDuration);
+            const maxAllowedEnd = prevStart + Math.min(partDuration - prevStart, (nextKnownIdx - idx) * 8.0);
+            const nextStart = nextKnownIdx < segs.length ? rawStarts[nextKnownIdx] : maxAllowedEnd;
 
             const gapDuration = Math.max(1.0, nextStart - prevStart);
             const subSegs = segs.slice(prevKnownIdx >= 0 ? prevKnownIdx : 0, nextKnownIdx);
@@ -1290,12 +1395,11 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
           }
         });
 
-        // Pass 2: Generate 100% contiguous visual clips where end_sec(i) === start_sec(i+1)
         segs.forEach((seg, idx) => {
           const img = images.find((i) => i.segment_id === (seg.segment_id || seg.id || idx + 1));
           const startSec = Number(rawStarts[idx].toFixed(2));
-          let endSec = (idx < segs.length - 1) ? Number(rawStarts[idx + 1].toFixed(2)) : Number((partStartOffset + partDuration).toFixed(2));
 
+          let endSec = (idx < segs.length - 1) ? Number(rawStarts[idx + 1].toFixed(2)) : Number((partStartOffset + partDuration).toFixed(2));
           if (endSec <= startSec) endSec = Number((startSec + 1.5).toFixed(2));
           const segDurationSec = Number((endSec - startSec).toFixed(2));
 
@@ -1352,9 +1456,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       if (!fs.existsSync(timelinesDir)) fs.mkdirSync(timelinesDir, { recursive: true });
       const timelineFolderFile = path.join(timelinesDir, `timeline_topic_${topicId}.json`);
       fs.writeFileSync(timelineFolderFile, JSON.stringify(timeline, null, 2), 'utf-8');
-      const topicTimelinePath = path.join(wakuDir, `waku_timeline_topic_${topicId}.json`);
+      const topicTimelinePath = path.join(wakuDir, `vann_timeline_topic_${topicId}.json`);
       fs.writeFileSync(topicTimelinePath, JSON.stringify(timeline, null, 2), 'utf-8');
-      if (topicId === 1) { const globalTimelinePath = path.join(wakuDir, 'waku_timeline.json'); fs.writeFileSync(globalTimelinePath, JSON.stringify(timeline, null, 2), 'utf-8'); }
+      if (topicId === 1) { const globalTimelinePath = path.join(wakuDir, 'vann_timeline.json'); fs.writeFileSync(globalTimelinePath, JSON.stringify(timeline, null, 2), 'utf-8'); }
 
       return { timeline, saved: true };
     } catch (err) { return { error: err.message }; }

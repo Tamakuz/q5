@@ -98,7 +98,7 @@ const WakuThumbnailStep: React.FC = () => {
         );
 
         if (api?.readFromProject && api?.saveToProject) {
-          const topicsJson = await api.readFromProject('input/waku/topics.json');
+          const topicsJson = await api.readFromProject('input/vann/topics.json');
           if (topicsJson) {
             const data = JSON.parse(topicsJson);
             if (Array.isArray(data.topics)) {
@@ -111,7 +111,7 @@ const WakuThumbnailStep: React.FC = () => {
                 t.id === activeTopicId ? { ...t, screenshot_path: base64Data } : t
               );
             }
-            await api.saveToProject('input/waku/topics.json', JSON.stringify(data, null, 2));
+            await api.saveToProject('input/vann/topics.json', JSON.stringify(data, null, 2));
           }
         }
         setSuccessMsg('📸 Screenshot bukti outlier berhasil disimpan!');
@@ -173,7 +173,7 @@ const WakuThumbnailStep: React.FC = () => {
       let loadedTopics: BatchTopicItem[] = [];
       if (api?.readFromProject) {
         try {
-          const topicsJson = await api.readFromProject('input/waku/topics.json');
+          const topicsJson = await api.readFromProject('input/vann/topics.json');
           let selectedId: number | null = null;
           if (topicsJson) {
             const topicState = JSON.parse(topicsJson);
@@ -267,11 +267,11 @@ const WakuThumbnailStep: React.FC = () => {
     try {
       let promptTemplate = '';
       if (api?.readFromProject) {
-        promptTemplate = (await api.readFromProject('dashboard/prompts/waku/demand-keyphrases-prompt.md')) || '';
+        promptTemplate = (await api.readFromProject('dashboard/prompts/vann/demand-keyphrases-prompt.md')) || '';
       }
 
       if (!promptTemplate || !promptTemplate.trim()) {
-        throw new Error('File prompt dashboard/prompts/waku/demand-keyphrases-prompt.md tidak ditemukan.');
+        throw new Error('File prompt dashboard/prompts/vann/demand-keyphrases-prompt.md tidak ditemukan.');
       }
 
       const topicSummaryList = `- ID ${activeItem.id}: "${activeItem.title}" (Ringkasan: ${activeItem.summary || ''})`;
@@ -318,7 +318,7 @@ const WakuThumbnailStep: React.FC = () => {
         );
 
         if (api?.readFromProject && api?.saveToProject) {
-          const topicsJson = await api.readFromProject('input/waku/topics.json');
+          const topicsJson = await api.readFromProject('input/vann/topics.json');
           if (topicsJson) {
             const data = JSON.parse(topicsJson);
             if (Array.isArray(data.topics)) {
@@ -345,7 +345,7 @@ const WakuThumbnailStep: React.FC = () => {
                   : t
               );
             }
-            await api.saveToProject('input/waku/topics.json', JSON.stringify(data, null, 2));
+            await api.saveToProject('input/vann/topics.json', JSON.stringify(data, null, 2));
           }
         }
         setSuccessMsg(`✨ Kata kunci pencarian berhasil dibuat untuk Topic #${activeItem.id}!`);
@@ -373,12 +373,12 @@ const WakuThumbnailStep: React.FC = () => {
 
       let scriptContent = '';
       if (api.readFromProject && activeTopicId) {
-        scriptContent = (await api.readFromProject(`input/waku/scripts/full_script_topic_${activeTopicId}.txt`)) || '';
+        scriptContent = (await api.readFromProject(`input/vann/scripts/full_script_topic_${activeTopicId}.txt`)) || '';
         if (!scriptContent) {
-          scriptContent = (await api.readFromProject(`input/waku/full_script_topic_${activeTopicId}.txt`)) || '';
+          scriptContent = (await api.readFromProject(`input/vann/full_script_topic_${activeTopicId}.txt`)) || '';
         }
         if (!scriptContent) {
-          scriptContent = (await api.readFromProject('input/waku/full_script.txt')) || '';
+          scriptContent = (await api.readFromProject('input/vann/full_script.txt')) || '';
         }
       }
 
@@ -503,12 +503,12 @@ const WakuThumbnailStep: React.FC = () => {
 
       let scriptContent = '';
       if (api.readFromProject && activeTopicId) {
-        scriptContent = (await api.readFromProject(`input/waku/scripts/full_script_topic_${activeTopicId}.txt`)) || '';
+        scriptContent = (await api.readFromProject(`input/vann/scripts/full_script_topic_${activeTopicId}.txt`)) || '';
         if (!scriptContent) {
-          scriptContent = (await api.readFromProject(`input/waku/full_script_topic_${activeTopicId}.txt`)) || '';
+          scriptContent = (await api.readFromProject(`input/vann/full_script_topic_${activeTopicId}.txt`)) || '';
         }
         if (!scriptContent) {
-          scriptContent = (await api.readFromProject('input/waku/full_script.txt')) || '';
+          scriptContent = (await api.readFromProject('input/vann/full_script.txt')) || '';
         }
       }
 

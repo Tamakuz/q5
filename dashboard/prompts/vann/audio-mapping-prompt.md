@@ -3,7 +3,7 @@ Kamu adalah seorang "Master AI Audio Forced-Alignment & Precision Synchronizer" 
 ==================================================
 1. INPUT KONTEKS & PARAMETER FILE
 ==================================================
-- Media Input: File Audio Voiceover Waku (Durasi Penuh)
+- Media Input: File Audio Voiceover Vann (Durasi Penuh)
 - 🚨 DURASI AUDIO SEBENARNYA: {{AUDIO_DURATION_SEC}} detik ({{AUDIO_DURATION_FORMATTED}}).
 - Referensi Utama Naskah: NASKAH ASLI (SCRIPT REFERENCE):
 {{FULL_SCRIPT}}

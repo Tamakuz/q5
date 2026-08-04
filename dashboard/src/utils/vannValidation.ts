@@ -944,6 +944,19 @@ export function validateWakuWordTranscript(rawInput: any): WakuTranscriptValidat
     }
   }
 
+  // Fallback 3: If segmentsList is empty but sentencesList exists, use sentencesList as segmentsList
+  if (segmentsList.length === 0 && sentencesList.length > 0) {
+    sentencesList.forEach((s, idx) => {
+      segmentsList.push({
+        segment_id: s.sentence_id || idx + 1,
+        quote: s.text,
+        start_sec: Number(s.start.toFixed(2)),
+        end_sec: Number(s.end.toFixed(2)),
+        duration_sec: Math.max(0.1, Number((s.end - s.start).toFixed(2))),
+      });
+    });
+  }
+
   let transcriptFull = fullTexts.join(' ').trim();
   if (!transcriptFull && sentencesList.length > 0) {
     transcriptFull = sentencesList.map((s) => s.text).join(' ');
@@ -988,6 +1001,34 @@ export function validateWakuWordTranscript(rawInput: any): WakuTranscriptValidat
       : `Transcript Validation Failed: ${errors.map((e) => e.message).join('; ')}`,
   };
 }
+
+export const validateVannTopics = validateWakuTopics;
+export const validateVannScript = validateWakuScript;
+export const validateVannBreakdown = validateWakuBreakdown;
+export const validateVannImagePrompts = validateWakuImagePrompts;
+export const validateVannWordTranscript = validateWakuWordTranscript;
+
+export type VannTopicItem = WakuTopicItem;
+export type VannTopicsData = WakuTopicsData;
+export type VannScriptSection = WakuScriptSection;
+export type VannScriptData = WakuScriptData;
+export type VannValidationIssue = WakuValidationIssue;
+export type VannTopicsValidationReport = WakuTopicsValidationReport;
+export type VannScriptValidationReport = WakuScriptValidationReport;
+export type VannSegmentItem = WakuSegmentItem;
+export type VannBreakdownSegment = WakuSegmentItem;
+export type WakuBreakdownSegment = WakuSegmentItem;
+export type VannBreakdownData = WakuBreakdownData;
+export type VannBreakdownValidationReport = WakuBreakdownValidationReport;
+export type VannImagePromptItem = WakuImagePromptItem;
+export type VannImagePromptsData = WakuImagePromptsData;
+export type VannImagePromptsValidationReport = WakuImagePromptsValidationReport;
+export type VannWordTimestamp = WakuWordTimestamp;
+export type VannSentenceTimestamp = WakuSentenceTimestamp;
+export type VannChunkTimestamp = WakuChunkTimestamp;
+export type VannSegmentTimestamp = WakuSegmentTimestamp;
+export type VannTranscriptData = WakuTranscriptData;
+export type VannTranscriptValidationReport = WakuTranscriptValidationReport;
 
 
 

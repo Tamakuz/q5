@@ -61,7 +61,10 @@ const WakuScriptStep: React.FC = () => {
   const loadPromptFromFile = async () => {
     try {
       if (api?.readFromProject) {
-        const loadedPrompt = await api.readFromProject('dashboard/prompts/waku/script-prompt.md');
+        let loadedPrompt = await api.readFromProject('dashboard/prompts/vann/script-prompt.md');
+        if (!loadedPrompt || !loadedPrompt.trim()) {
+          loadedPrompt = await api.readFromProject('dashboard/prompts/vann/script-prompt.md');
+        }
         if (loadedPrompt && loadedPrompt.trim().length > 0) {
           setMasterPrompt(loadedPrompt);
           return loadedPrompt;
@@ -80,7 +83,10 @@ const WakuScriptStep: React.FC = () => {
       try {
         if (api?.readFromProject) {
           // 1. Load selected topics from Step 1
-          const savedTopicsJson = await api.readFromProject('input/waku/topics.json');
+          let savedTopicsJson = await api.readFromProject('input/vann/topics.json');
+          if (!savedTopicsJson) {
+            savedTopicsJson = await api.readFromProject('input/vann/topics.json');
+          }
           let selectedId: number | null = null;
           let loadedTopics: BatchTopicItem[] = [];
 
@@ -106,7 +112,10 @@ const WakuScriptStep: React.FC = () => {
           const checkedTopics = await Promise.all(
             loadedTopics.map(async (top) => {
               try {
-                const specificScript = await api.readFromProject(`input/waku/scripts/script_topic_${top.id}.json`);
+                let specificScript = await api.readFromProject(`input/vann/scripts/script_topic_${top.id}.json`);
+                if (!specificScript) {
+                  specificScript = await api.readFromProject(`input/vann/scripts/script_topic_${top.id}.json`);
+                }
                 return { ...top, hasScript: Boolean(specificScript && specificScript.trim()) };
               } catch {
                 return top;
@@ -126,12 +135,18 @@ const WakuScriptStep: React.FC = () => {
 
           // 2. Load saved script for active topic or primary script
           const activeScriptFile = selectedId
-            ? `input/waku/scripts/script_topic_${selectedId}.json`
-            : 'input/waku/script.json';
+            ? `input/vann/scripts/script_topic_${selectedId}.json`
+            : 'input/vann/script.json';
 
           let savedScriptJson = await api.readFromProject(activeScriptFile);
           if (!savedScriptJson && selectedId) {
-            savedScriptJson = await api.readFromProject('input/waku/script.json');
+            savedScriptJson = await api.readFromProject(`input/vann/scripts/script_topic_${selectedId}.json`);
+          }
+          if (!savedScriptJson) {
+            savedScriptJson = await api.readFromProject('input/vann/script.json');
+          }
+          if (!savedScriptJson) {
+            savedScriptJson = await api.readFromProject('input/vann/script.json');
           }
 
           if (savedScriptJson) {
@@ -146,7 +161,7 @@ const WakuScriptStep: React.FC = () => {
           }
         }
       } catch (err) {
-        console.error('Error initializing Waku script step:', err);
+        console.error('Error initializing Vann script step:', err);
       }
     })();
   }, []);
@@ -162,9 +177,12 @@ const WakuScriptStep: React.FC = () => {
 
     try {
       if (api?.readFromProject) {
-        let specificScript = await api.readFromProject(`input/waku/scripts/script_topic_${topic.id}.json`);
+        let specificScript = await api.readFromProject(`input/vann/scripts/script_topic_${topic.id}.json`);
+        if (!specificScript) {
+          specificScript = await api.readFromProject(`input/vann/scripts/script_topic_${topic.id}.json`);
+        }
         if (!specificScript && batchTopics.length === 1) {
-          specificScript = await api.readFromProject('input/waku/script.json');
+          specificScript = await api.readFromProject('input/vann/script.json');
         }
 
         if (specificScript) {
@@ -285,7 +303,8 @@ const WakuScriptStep: React.FC = () => {
   const handleSavePrompt = async () => {
     try {
       if (api?.saveToProject) {
-        await api.saveToProject('dashboard/prompts/waku/script-prompt.md', masterPrompt);
+        await api.saveToProject('dashboard/prompts/vann/script-prompt.md', masterPrompt);
+        await api.saveToProject('dashboard/prompts/vann/script-prompt.md', masterPrompt);
         showToast('💾 Master script prompt disimpan ke script-prompt.md!');
       }
     } catch (err) {
@@ -317,12 +336,12 @@ const WakuScriptStep: React.FC = () => {
     try {
       const targetId = topicId || activeTopicId;
       if (api?.saveToProject) {
-        await api.saveToProject('input/waku/script.json', rawStr);
-        await api.saveToProject('input/waku/full_script.txt', data.full_script);
+        await api.saveToProject('input/vann/script.json', rawStr);
+        await api.saveToProject('input/vann/full_script.txt', data.full_script);
 
         if (targetId) {
-          await api.saveToProject(`input/waku/scripts/script_topic_${targetId}.json`, rawStr);
-          await api.saveToProject(`input/waku/scripts/full_script_topic_${targetId}.txt`, data.full_script);
+          await api.saveToProject(`input/vann/scripts/script_topic_${targetId}.json`, rawStr);
+          await api.saveToProject(`input/vann/scripts/full_script_topic_${targetId}.txt`, data.full_script);
         }
       }
       if (targetId) {

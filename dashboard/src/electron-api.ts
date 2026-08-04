@@ -492,7 +492,56 @@ export interface ElectronAPI {
   getWakuUploadMetadata?: (topicId?: number) => Promise<WakuUploadMetadata | null>;
   analyzeWakuMetadata?: (topicTitle?: string, metadata?: WakuUploadMetadata, model?: string, topicId?: number) => Promise<WakuMetadataAnalysis>;
   fixWakuMetadata?: (topicTitle?: string, metadata?: WakuUploadMetadata, analysis?: WakuMetadataAnalysis, model?: string, topicId?: number) => Promise<WakuUploadMetadata>;
+  // Vann Core IPC Helpers
+  generateVannTopics?: (promptText: string, model?: string) => Promise<{ rawText: string; topics?: Array<{ id: number; title: string; summary: string }> | null; theme?: string | null }>;
+  generateVannScript?: (promptText: string, model?: string) => Promise<{ rawText: string; scriptData?: any }>;
+  generateVannBreakdown?: (promptText: string, model?: string) => Promise<{ rawText: string; breakdownData?: any }>;
+  generateVannImagePrompts?: (promptText: string, model?: string) => Promise<{ rawText: string; imagePromptsData?: any }>;
+  onVannTopicsChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  onVannScriptChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  onVannBreakdownChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  onVannImagePromptsChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  generateVannSingleImage?: (segmentId: number, prompt: string, model?: string, size?: string, quality?: string, imageDetail?: string, topicId?: number) => Promise<{ segmentId: number; topicId?: number; filePath: string; url: string; originalUrl?: string }>;
+  generateVannBatchImages?: (items: Array<{ segment_id: number; prompt: string }>, model?: string, size?: string, quality?: string, imageDetail?: string, concurrency?: number, topicId?: number, keepOpen?: boolean) => Promise<Array<any>>;
+  onVannImageProgress?: (callback: (data: { current: number; total: number; segmentId: number; topicId?: number; saved?: any; error?: string; status: string }) => void) => () => void;
+  onVannImageChunkStart?: (callback: (data: { segmentIds: number[]; topicId?: number }) => void) => () => void;
+  onVannImageLog?: (callback: (data: { segmentId: number; workerId?: number; text: string }) => void) => () => void;
+  uploadVannVoAudio?: (segmentId?: number, sourcePath?: string, bufferArray?: ArrayBuffer | number[], topicId?: number) => Promise<{ segmentId?: number; filename: string; filePath: string; url: string }>;
+  mergeVannVoAudio?: (audioPaths: string[], topicId?: number) => Promise<{ filename: string; filePath: string; url: string; duration: number }>;
+  runVannFasterWhisperAlignment?: (data: { audioPath?: string; scriptText?: string; topicId?: number }) => Promise<{ success: boolean; jsonContent?: string; filePath?: string; error?: string }>;
+  onVannFasterWhisperProgress?: (callback: (data: { stage: string; progress: number; message: string; log?: string; topicId?: number }) => void) => () => void;
+
+  generateVannTimeline?: (topicId?: number) => Promise<{ timeline?: VannTimelineStructure; saved?: boolean; error?: string }>;
+  getVannRenderResult?: (topicId?: number) => Promise<VannRenderResult | null>;
+  renderVannVideo?: (config: VannRenderConfig, timeline: VannTimelineStructure, outputPath?: string, topicId?: number) => Promise<VannRenderResult>;
+  renderVannPreviewFrame?: (config: VannRenderConfig, imagePath: string) => Promise<{ filePath?: string; url?: string; error?: string }>;
+
+  generateVannThumbnailPrompts?: (scriptContent?: string, topicTitle?: string, selectedTitle?: string, metadata?: VannUploadMetadata | null, model?: string, topicId?: number) => Promise<{ concepts: VannThumbnailConcept[] }>;
+  onVannThumbnailPromptsChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  generateVannThumbnailImages?: (concepts: VannThumbnailConcept[], model?: string, size?: string, topicId?: number) => Promise<VannThumbnailConcept[]>;
+  onVannThumbnailImageProgress?: (callback: (data: { current: number; total: number; conceptId: number; title: string; item?: VannThumbnailConcept; error?: string; message: string; status: string }) => void) => () => void;
+  getVannThumbnails?: (topicId?: number) => Promise<VannThumbnailResult>;
+  saveVannThumbnailSelection?: (selectedId: number, concept: VannThumbnailConcept, topicId?: number) => Promise<any>;
+  analyzeVannThumbnailImages?: (topicTitle?: string, selectedTitle?: string, thumbnails?: VannThumbnailConcept[], model?: string, topicId?: number) => Promise<VannThumbnailVisionAnalysis>;
+
+  generateVannUploadMetadata?: (scriptContent?: string, topicTitle?: string, model?: string, topicId?: number) => Promise<VannUploadMetadata>;
+  onVannUploadMetadataChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  getVannUploadMetadata?: (topicId?: number) => Promise<VannUploadMetadata | null>;
+  analyzeVannMetadata?: (topicTitle?: string, metadata?: VannUploadMetadata, model?: string, topicId?: number) => Promise<VannMetadataAnalysis>;
+  fixVannMetadata?: (topicTitle?: string, metadata?: VannUploadMetadata, analysis?: VannMetadataAnalysis, model?: string, topicId?: number) => Promise<VannUploadMetadata>;
 }
+
+export type VannRenderConfig = SpensiaRenderConfig;
+export type VannRenderResult = SpensiaRenderResult;
+export type VannTimelineStructure = SpensiaTimelineStructure;
+export type VannThumbnailConcept = SpensiaThumbnailConcept;
+export type VannThumbnailVisionEvaluation = SpensiaThumbnailVisionEvaluation;
+export type VannThumbnailVisionAnalysis = SpensiaThumbnailVisionAnalysis;
+export type VannThumbnailResult = SpensiaThumbnailResult;
+export type VannUploadTitleItem = SpensiaUploadTitleItem;
+export type VannMetadataImprovementItem = SpensiaMetadataImprovementItem;
+export type VannMetadataAnalysis = SpensiaMetadataAnalysis;
+export type VannUploadMetadata = SpensiaUploadMetadata;
 
 export type WakuRenderConfig = SpensiaRenderConfig;
 export type WakuRenderResult = SpensiaRenderResult;

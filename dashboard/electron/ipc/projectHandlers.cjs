@@ -13,7 +13,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
     const isLongform = mode === 'longform';
     const isSpensia = mode === 'spensia';
-    const isWaku = mode === 'waku' || mode === 'shortform';
+    const isVann = mode === 'vann' || mode === 'waku' || mode === 'shortform';
     try {
       const outputDir = path.join(p.PROJECT_ROOT, 'output');
       const inputDir = path.join(p.PROJECT_ROOT, 'input');
@@ -96,7 +96,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
         return { success: true, content_id: newId };
       }
 
-      if (isWaku) {
+      if (isVann) {
         console.log(`🧹 [Reset Vann] Clearing all Vann workspace files & setting new Content ID: ${newId}`);
         const vannInputDir = path.join(inputDir, 'vann');
         const vannOutputDir = path.join(outputDir, 'vann');

@@ -47,7 +47,7 @@ type Status = 'ready' | 'rendering' | 'error';
 
 const App: React.FC = () => {
   const [activeStep, setActiveStep] = useState<StepId>('source');
-  const [contentMode, setContentMode] = useState<ContentMode>('waku');
+  const [contentMode, setContentMode] = useState<ContentMode>('vann');
   const [status] = useState<Status>('ready');
   const [longformId, setLongformId] = useState<string | null>(null);
 
@@ -81,11 +81,11 @@ const App: React.FC = () => {
           }
         });
       } catch {}
-    } else if (contentMode === 'waku' || contentMode === 'shortform') {
+    } else if (contentMode === 'vann' || contentMode === 'waku' || contentMode === 'shortform') {
       setWakuResetKey((prev) => prev + 1);
       try {
         Object.keys(localStorage).forEach((key) => {
-          if (key.toLowerCase().includes('waku')) {
+          if (key.toLowerCase().includes('waku') || key.toLowerCase().includes('vann')) {
             localStorage.removeItem(key);
           }
         });
@@ -114,7 +114,7 @@ const App: React.FC = () => {
         />
 
         <main className="flex-1 p-6 overflow-auto bg-gradient-to-br from-gray-950 via-gray-950 to-gray-900">
-          {contentMode === 'waku' || contentMode === 'shortform' ? (
+          {contentMode === 'vann' || contentMode === 'waku' || contentMode === 'shortform' ? (
             activeStep === 'source' ? (
               <VannTopicsStep key={`waku-topics-${wakuResetKey}`} />
             ) : activeStep === 'analyze' ? (
@@ -126,9 +126,7 @@ const App: React.FC = () => {
             ) : activeStep === 'render' ? (
               <VannImageGeneratorStep key={`waku-image-generator-${wakuResetKey}`} />
             ) : activeStep === 'publish' ? (
-              <VannVoiceOverStep key={`waku-voice-over-${wakuResetKey}`} />
-            ) : activeStep === 'transcript' ? (
-              <VannTimelineMappingStep key={`waku-timeline-mapping-${wakuResetKey}`} onStepChange={setActiveStep} />
+              <VannVoiceOverStep key={`waku-voice-over-${wakuResetKey}`} onStepChange={setActiveStep} />
             ) : activeStep === 'upload' ? (
               <VannRenderStep key={`waku-render-studio-${wakuResetKey}`} />
             ) : activeStep === 'thumbnail' ? (
@@ -196,9 +194,7 @@ const App: React.FC = () => {
             ) : activeStep === 'render' ? (
               <SpensiaImageGeneratorStep key={`spensia-image-generator-${spensiaResetKey}`} />
             ) : activeStep === 'publish' ? (
-              <SpensiaVoiceOverStep key={`spensia-voice-over-${spensiaResetKey}`} />
-            ) : activeStep === 'transcript' ? (
-              <SpensiaTimelineMappingStep key={`spensia-timeline-mapping-${spensiaResetKey}`} onStepChange={setActiveStep} />
+              <SpensiaVoiceOverStep key={`spensia-voice-over-${spensiaResetKey}`} onStepChange={setActiveStep} />
             ) : activeStep === 'upload' ? (
               <SpensiaRenderStep key={`spensia-render-studio-${spensiaResetKey}`} />
             ) : activeStep === 'thumbnail' ? (

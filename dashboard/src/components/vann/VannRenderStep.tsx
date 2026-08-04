@@ -404,12 +404,12 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
         let parsedT: WakuTimelineStructure | null = null;
 
         // 1. Load timeline data for this topic
-        let timelineJson = await api.readFromProject(`input/waku/timelines/timeline_topic_${topicId}.json`);
+        let timelineJson = await api.readFromProject(`input/vann/timelines/timeline_topic_${topicId}.json`);
         if (!timelineJson) {
-            timelineJson = await api.readFromProject(`input/waku/waku_timeline_topic_${topicId}.json`);
+            timelineJson = await api.readFromProject(`input/vann/vann_timeline_topic_${topicId}.json`);
         }
         if (!timelineJson && topicId === 1) {
-            timelineJson = await api.readFromProject('input/waku/waku_timeline.json');
+            timelineJson = await api.readFromProject('input/vann/vann_timeline.json');
         }
 
         if (timelineJson) {
@@ -432,9 +432,9 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
 
         // Fallback sample image check if timeline was missing preview
         if (!sampleImageUrl) {
-            let genImgJson = await api.readFromProject(`input/waku/images/generated_images_topic_${topicId}.json`);
+            let genImgJson = await api.readFromProject(`input/vann/images/generated_images_topic_${topicId}.json`);
             if (!genImgJson && topicId === 1) {
-                genImgJson = await api.readFromProject('input/waku/generated_images.json');
+                genImgJson = await api.readFromProject('input/vann/generated_images.json');
             }
             if (genImgJson) {
                 try {
@@ -474,7 +474,7 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
             try {
                 if (api?.readFromProject) {
                     // Load saved config if exists
-                    const savedJson = await api.readFromProject('input/waku/render_config.json');
+                    const savedJson = await api.readFromProject('input/vann/render_config.json');
                     if (savedJson) {
                         try {
                             const parsed = JSON.parse(savedJson);
@@ -488,7 +488,7 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
                     }
 
                     // Load topics from Step 1
-                    const savedTopicsJson = await api.readFromProject('input/waku/topics.json');
+                    const savedTopicsJson = await api.readFromProject('input/vann/topics.json');
                     let selectedId: number | null = null;
                     let loadedTopics: BatchTopicItem[] = [];
 
@@ -565,7 +565,7 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         saveTimerRef.current = setTimeout(() => {
             if (api?.saveToProject) {
-                api.saveToProject('input/waku/render_config.json', JSON.stringify(cfg, null, 2));
+                api.saveToProject('input/vann/render_config.json', JSON.stringify(cfg, null, 2));
             }
         }, 400);
     }, []);
@@ -622,7 +622,7 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
     const handleSaveConfig = async () => {
         try {
             if (api?.saveToProject) {
-                await api.saveToProject('input/waku/render_config.json', JSON.stringify(config, null, 2));
+                await api.saveToProject('input/vann/render_config.json', JSON.stringify(config, null, 2));
                 showToast('💾 Konfigurasi render berhasil disimpan!');
             }
         } catch (err: any) {
@@ -635,7 +635,7 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
         def.vignette.intensity = 0.75;
         setConfig(def);
         if (api?.saveToProject) {
-            api.saveToProject('input/waku/render_config.json', JSON.stringify(def, null, 2));
+            api.saveToProject('input/vann/render_config.json', JSON.stringify(def, null, 2));
         }
         showToast('🔄 Konfigurasi dikembalikan ke default.');
     };
@@ -660,7 +660,7 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
 
             // Always persist latest full config (including captions & audio) to JSON before render
             if (api?.saveToProject) {
-                await api.saveToProject('input/waku/render_config.json', JSON.stringify(config, null, 2));
+                await api.saveToProject('input/vann/render_config.json', JSON.stringify(config, null, 2));
             }
 
             showToast(`🎬 Memulai proses render Waku Video Topik #${activeTopicId || 1}...`);
@@ -711,7 +711,7 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
 
             // Always persist latest full config (including captions & audio) to JSON before render
             if (api?.saveToProject) {
-                await api.saveToProject('input/waku/render_config.json', JSON.stringify(config, null, 2));
+                await api.saveToProject('input/vann/render_config.json', JSON.stringify(config, null, 2));
             }
 
             let index = 0;

@@ -74,7 +74,7 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
 
           {/* Mode Indicator Badge */}
           <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
-            contentMode === 'waku' || contentMode === 'shortform'
+            contentMode === 'vann' || contentMode === 'waku' || contentMode === 'shortform'
               ? 'bg-blue-950/80 text-blue-300 border-blue-800/80'
               : contentMode === 'longform'
               ? 'bg-purple-950/80 text-purple-300 border-purple-800/80'
@@ -82,22 +82,22 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
               ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/80'
               : 'bg-cyan-950/80 text-cyan-300 border-cyan-800/80'
           }`}>
-            {contentMode === 'waku' || contentMode === 'shortform'
+            {contentMode === 'vann' || contentMode === 'waku' || contentMode === 'shortform'
               ? '📱 Vann Mode'
               : contentMode === 'longform'
               ? '🍿 Alur Film Mode'
               : contentMode === 'spensia'
               ? '✨ Spensia Mode'
-              : '⚡ UGC Mode'}
+              : '👤 UGC Mode'}
           </span>
 
-          {/* Content ID Badge */}
+          {/* Copyable Content ID */}
           {contentId && (
             <button
               onClick={handleCopyId}
-              title={`Click to copy Content ID for ${contentMode}`}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all text-xs font-mono border ml-1 ${
-                contentMode === 'waku' || contentMode === 'shortform'
+              title="Click to copy Content ID"
+              className={`px-2 py-0.5 rounded-md border text-[10px] font-mono font-semibold transition-all flex items-center gap-1.5 ${
+                contentMode === 'vann' || contentMode === 'waku' || contentMode === 'shortform'
                   ? 'bg-blue-950/60 hover:bg-blue-900/80 border-blue-700/50 text-blue-300'
                   : contentMode === 'longform'
                   ? 'bg-purple-950/60 hover:bg-purple-900/80 border-purple-700/50 text-purple-300'
@@ -121,7 +121,9 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
           className="px-3 py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/50 rounded-lg text-xs font-semibold shadow-md transition-all flex items-center gap-1.5"
         >
           <span>🔄</span>
-          <span>New Content / Reset ID ({contentMode === 'waku' || contentMode === 'shortform' ? 'Vann' : contentMode === 'longform' ? 'Alur Film' : 'Spensia'})</span>
+          <span>
+            New Content / Reset ID ({contentMode === 'vann' || contentMode === 'waku' || contentMode === 'shortform' ? 'Vann' : contentMode === 'longform' ? 'Alur Film' : contentMode === 'spensia' ? 'Spensia' : 'UGC'})
+          </span>
         </button>
       </header>
 

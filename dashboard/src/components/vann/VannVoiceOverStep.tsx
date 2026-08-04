@@ -41,14 +41,40 @@ const PART_CONFIGS = [
   { id: 2, title: 'Part 2: Babak Kedua (Isi Lanjutan & Closing)', subtitle: 'Lanjutan naskah — Detail realita sejarah, refleksi filosofis & penutup' },
 ];
 
+export interface TimelineClipItem {
+  clip_id: number;
+  segment_id: number;
+  part_id: number;
+  quote: string;
+  image_path?: string;
+  image_url?: string;
+  start_sec: number;
+  end_sec: number;
+  duration_sec: number;
+}
+
+export interface FullTimelineData {
+  title?: string;
+  total_duration_sec: number;
+  audio_tracks?: any[];
+  video_clips: TimelineClipItem[];
+  captions?: any[];
+  segments?: any[];
+}
+
 export interface BatchTopicItem {
   id: number;
   title: string;
   summary?: string;
   hasVo?: boolean;
+  hasTimeline?: boolean;
 }
 
-const WakuVoiceOverStep: React.FC = () => {
+interface VannVoiceOverStepProps {
+  onStepChange?: (step: 'upload') => void;
+}
+
+const WakuVoiceOverStep: React.FC<VannVoiceOverStepProps> = ({ onStepChange }) => {
   const [batchTopics, setBatchTopics] = useState<BatchTopicItem[]>([]);
   const [activeTopicId, setActiveTopicId] = useState<number | null>(null);
   const [videoTitle, setVideoTitle] = useState<string>('');
@@ -57,6 +83,9 @@ const WakuVoiceOverStep: React.FC = () => {
   const [sampleContext, setSampleContext] = useState<string>(DEFAULT_SAMPLE_CONTEXT);
   const [fullScript, setFullScript] = useState<string>('');
   const [breakdownSegments, setBreakdownSegments] = useState<any[]>([]);
+
+  const [timelineData, setTimelineData] = useState<FullTimelineData | null>(null);
+  const [isGeneratingTimeline, setIsGeneratingTimeline] = useState<boolean>(false);
 
   const [parts, setParts] = useState<VoPartItem[]>([
     { part_id: 1, part_title: PART_CONFIGS[0].title, sub_title: PART_CONFIGS[0].subtitle, text: '', status: 'pending' },
@@ -138,6 +167,7 @@ const WakuVoiceOverStep: React.FC = () => {
           setMergedVo((prev) => (prev ? { ...prev, rawTranscriptJson: res.jsonContent, transcript: report.normalizedData! } : prev));
           setTranscriptTab('sentences');
           showToast('✨ Transkrip otomatis Faster-Whisper berhasil dibuat!');
+          handleGenerateTimelineData(activeTopicId || 1);
         } else {
           showToast('⚠️ Transkrip dibuat tetapi gagal divalidasi secara sempurna.');
         }
@@ -167,9 +197,9 @@ const WakuVoiceOverStep: React.FC = () => {
   const loadTranscriptionPromptFromFile = async () => {
     try {
       if (api?.readFromProject) {
-        let loadedPrompt = await api.readFromProject('dashboard/prompts/waku/audio-mapping-prompt.md');
+        let loadedPrompt = await api.readFromProject('dashboard/prompts/vann/audio-mapping-prompt.md');
         if (!loadedPrompt || !loadedPrompt.trim()) {
-          loadedPrompt = await api.readFromProject('dashboard/prompts/waku/audio-transcription-prompt.md');
+          loadedPrompt = await api.readFromProject('dashboard/prompts/vann/audio-transcription-prompt.md');
         }
         if (loadedPrompt && loadedPrompt.trim().length > 0) {
           setTranscriptionPrompt(loadedPrompt);
@@ -239,9 +269,9 @@ const WakuVoiceOverStep: React.FC = () => {
 
     // 0. Load breakdown segments for this topic
     try {
-      let bJson = await api.readFromProject(`input/waku/breakdowns/breakdown_topic_${topicId}.json`);
-      if (!bJson) bJson = await api.readFromProject(`input/waku/breakdown_topic_${topicId}.json`);
-      if (!bJson) bJson = await api.readFromProject('input/waku/breakdown.json');
+      let bJson = await api.readFromProject(`input/vann/breakdowns/breakdown_topic_${topicId}.json`);
+      if (!bJson) bJson = await api.readFromProject(`input/vann/breakdown_topic_${topicId}.json`);
+      if (!bJson) bJson = await api.readFromProject('input/vann/breakdown.json');
 
       if (bJson) {
         const parsedB = JSON.parse(bJson);
@@ -251,12 +281,12 @@ const WakuVoiceOverStep: React.FC = () => {
     } catch {}
 
     // 1. Load full script for this topic
-    let loadedScript = await api.readFromProject(`input/waku/scripts/full_script_topic_${topicId}.txt`);
+    let loadedScript = await api.readFromProject(`input/vann/scripts/full_script_topic_${topicId}.txt`);
     if (!loadedScript) {
-      loadedScript = await api.readFromProject(`input/waku/full_script_topic_${topicId}.txt`);
+      loadedScript = await api.readFromProject(`input/vann/full_script_topic_${topicId}.txt`);
     }
     if (!loadedScript) {
-      loadedScript = await api.readFromProject('input/waku/full_script.txt');
+      loadedScript = await api.readFromProject('input/vann/full_script.txt');
     }
     const scriptStr = loadedScript && loadedScript.trim() ? loadedScript : '';
     setFullScript(scriptStr);
@@ -264,14 +294,14 @@ const WakuVoiceOverStep: React.FC = () => {
     const splitTextParts = splitScriptInto2Parts(scriptStr);
 
     // 2. Load existing 2-part VO state & Merged VO state for this topic
-    let savedVo2Json = await api.readFromProject(`input/waku/mappings/vo_2parts_state_topic_${topicId}.json`);
+    let savedVo2Json = await api.readFromProject(`input/vann/mappings/vo_2parts_state_topic_${topicId}.json`);
     if (!savedVo2Json) {
-      savedVo2Json = await api.readFromProject(`input/waku/vo_2parts_state_topic_${topicId}.json`);
+      savedVo2Json = await api.readFromProject(`input/vann/vo_2parts_state_topic_${topicId}.json`);
     }
     if (!savedVo2Json && topicId === 1) {
-      savedVo2Json = await api.readFromProject('input/waku/mappings/vo_2parts_state.json');
+      savedVo2Json = await api.readFromProject('input/vann/mappings/vo_2parts_state.json');
       if (!savedVo2Json) {
-        savedVo2Json = await api.readFromProject('input/waku/vo_2parts_state.json');
+        savedVo2Json = await api.readFromProject('input/vann/vo_2parts_state.json');
       }
     }
 
@@ -315,9 +345,9 @@ const WakuVoiceOverStep: React.FC = () => {
     setParts(initialParts);
 
     // Load merged transcript if saved independently for this topic
-    let savedMergedTranscriptJson = await api.readFromProject(`input/waku/transcripts/merged_transcript_topic_${topicId}.json`);
+    let savedMergedTranscriptJson = await api.readFromProject(`input/vann/transcripts/merged_transcript_topic_${topicId}.json`);
     if (!savedMergedTranscriptJson && topicId === 1) {
-      savedMergedTranscriptJson = await api.readFromProject('input/waku/transcripts/merged_transcript.json');
+      savedMergedTranscriptJson = await api.readFromProject('input/vann/transcripts/merged_transcript.json');
     }
     if (savedMergedTranscriptJson) {
       try {
@@ -354,20 +384,68 @@ const WakuVoiceOverStep: React.FC = () => {
       if (savedMergedVo.transcript) {
         setPipelineStage('completed');
         setPipelineStatusText('Transkrip Ready');
-      } else if (savedMergedVo.audioUrl) {
-        setPipelineStage('ready');
-        setPipelineStatusText('Audio Ready (Paste Hasil Gemini)');
       }
     } else {
       setMergedVo(null);
       setPipelineStage('idle');
       setPipelineStatusText('');
     }
+    // 3. Load timeline JSON for this topic
+    let timelineJson = await api.readFromProject(`input/vann/timelines/timeline_topic_${topicId}.json`);
+    if (!timelineJson) {
+      timelineJson = await api.readFromProject(`input/vann/vann_timeline_topic_${topicId}.json`);
+    }
+    if (!timelineJson && topicId === 1) {
+      timelineJson = await api.readFromProject('input/vann/vann_timeline.json');
+    }
+    if (timelineJson) {
+      try {
+        const parsed = JSON.parse(timelineJson);
+        if (parsed && Array.isArray(parsed.video_clips)) {
+          setTimelineData(parsed);
+        } else {
+          setTimelineData(null);
+        }
+      } catch {
+        setTimelineData(null);
+      }
+    } else {
+      setTimelineData(null);
+    }
 
     if (savedMergedVo?.audioUrl) {
       setActiveTab(0);
     } else {
       setActiveTab(1);
+    }
+  };
+
+  const handleGenerateTimelineData = async (targetTopicId?: number) => {
+    const topId = targetTopicId || activeTopicId || 1;
+    setIsGeneratingTimeline(true);
+    try {
+      const genTimelineFn = api?.generateVannTimeline || api?.generateWakuTimeline;
+      if (genTimelineFn) {
+        const res = await genTimelineFn(topId);
+        if (res?.error) {
+          showToast(`❌ Timeline Error: ${res.error}`);
+        } else if (res?.timeline) {
+          setTimelineData(res.timeline);
+          setBatchTopics((prev) =>
+            prev.map((t) => (t.id === topId ? { ...t, hasTimeline: true } : t))
+          );
+          showToast(
+            `✨ Timeline Mapping Topik #${topId} Berhasil Dibuat (${res.timeline.video_clips?.length || 0} Segmen, Total ${
+              res.timeline.total_duration_sec?.toFixed(1) || 0
+            }s)!`
+          );
+        }
+      }
+    } catch (err: any) {
+      console.error('Error generating timeline:', err);
+      showToast(`❌ Gagal membuat timeline: ${err?.message || err}`);
+    } finally {
+      setIsGeneratingTimeline(false);
     }
   };
 
@@ -378,7 +456,7 @@ const WakuVoiceOverStep: React.FC = () => {
       try {
         if (api?.readFromProject) {
           // 1. Load selected topics from Step 1
-          const savedTopicsJson = await api.readFromProject('input/waku/topics.json');
+          const savedTopicsJson = await api.readFromProject('input/vann/topics.json');
           let selectedId: number | null = null;
           let loadedTopics: BatchTopicItem[] = [];
 
@@ -404,7 +482,7 @@ const WakuVoiceOverStep: React.FC = () => {
           const checkedTopics = await Promise.all(
             loadedTopics.map(async (top) => {
               try {
-                const specificVo = await api.readFromProject(`input/waku/vo_2parts_state_topic_${top.id}.json`);
+                const specificVo = await api.readFromProject(`input/vann/vo_2parts_state_topic_${top.id}.json`);
                 return { ...top, hasVo: Boolean(specificVo && specificVo.trim()) };
               } catch {
                 return top;
@@ -449,14 +527,14 @@ const WakuVoiceOverStep: React.FC = () => {
       if (topId) {
         localStorage.setItem(`waku_vo_2parts_state_topic_${topId}`, payload);
         if (api?.saveToProject) {
-          await api.saveToProject(`input/waku/mappings/vo_2parts_state_topic_${topId}.json`, payload);
+          await api.saveToProject(`input/vann/mappings/vo_2parts_state_topic_${topId}.json`, payload);
         }
       }
 
       if (!topId || topId === 1) {
         localStorage.setItem('waku_vo_2parts_state', payload);
         if (api?.saveToProject) {
-          await api.saveToProject('input/waku/mappings/vo_2parts_state.json', payload);
+          await api.saveToProject('input/vann/mappings/vo_2parts_state.json', payload);
         }
       }
     } catch (err) {
@@ -712,25 +790,25 @@ const WakuVoiceOverStep: React.FC = () => {
         if (api?.saveToProject) {
           if (activeTopicId) {
             api.saveToProject(
-              `input/waku/transcripts/merged_transcript_topic_${activeTopicId}.json`,
+              `input/vann/transcripts/merged_transcript_topic_${activeTopicId}.json`,
               JSON.stringify(report.normalizedData, null, 2)
             );
             api.saveToProject(
-              `input/waku/mappings/waku_mapping_topic_${activeTopicId}.json`,
+              `input/vann/mappings/vann_mapping_topic_${activeTopicId}.json`,
               JSON.stringify(report.normalizedData, null, 2)
             );
           }
           if (!activeTopicId || activeTopicId === 1) {
             api.saveToProject(
-              'input/waku/transcripts/merged_transcript.json',
+              'input/vann/transcripts/merged_transcript.json',
               JSON.stringify(report.normalizedData, null, 2)
             );
             api.saveToProject(
-              'input/waku/transcripts/transcript.json',
+              'input/vann/transcripts/transcript.json',
               JSON.stringify(report.normalizedData, null, 2)
             );
             api.saveToProject(
-              'input/waku/mappings/waku_mapping.json',
+              'input/vann/mappings/vann_mapping.json',
               JSON.stringify(report.normalizedData, null, 2)
             );
           }
@@ -745,6 +823,7 @@ const WakuVoiceOverStep: React.FC = () => {
             ? `✨ Audio Mapping Gemini Berhasil Diproses (${segCount} Segmen Aligned)!`
             : `✨ Transkrip Gemini Berhasil Diproses (${wordCount} Kata Aligned)!`
         );
+        handleGenerateTimelineData(activeTopicId || 1);
       } else {
         const pId = Number(targetKey);
         setParts((prev) => {
@@ -1311,7 +1390,7 @@ const WakuVoiceOverStep: React.FC = () => {
               <div className="flex items-center gap-2">
                 <span className="p-1 bg-emerald-950 text-emerald-300 rounded-lg text-xs font-bold">🎬</span>
                 <h4 className="text-xs font-extrabold text-white tracking-wide">
-                  Timeline Mapping Segmen Adegan (`waku_mapping.json` — Ready for FFmpeg Render)
+                  Timeline Mapping Segmen Adegan (`vann_mapping.json` — Ready for FFmpeg Render)
                 </h4>
               </div>
               <span className="text-[11px] font-mono text-emerald-400 font-bold">
@@ -1654,6 +1733,149 @@ const WakuVoiceOverStep: React.FC = () => {
                 />
               </div>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* ─── VISUAL TIMELINE & SUBTITLE SYNC STUDIO SECTION ─── */}
+      <div className="bg-gray-900/90 p-6 rounded-3xl border border-emerald-800/60 shadow-2xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-extrabold text-white flex items-center gap-2">
+                <span>🗺️</span> Visual Timeline Mapping Adegan Video (`timeline.json`)
+              </h2>
+              {timelineData && (
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold">
+                  ✓ Timeline Sync Ready
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Daftar segmen adegan lengkap dengan gambar ilustrasi, rentang detik awal/akhir, dan durasi klip untuk rendering FFmpeg.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleGenerateTimelineData(activeTopicId || 1)}
+              disabled={isGeneratingTimeline}
+              className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg disabled:opacity-50"
+            >
+              <span>{isGeneratingTimeline ? '⚙️ Processing...' : '🔄 Re-Generate Timeline'}</span>
+            </button>
+
+            {onStepChange && (
+              <button
+                onClick={() => onStepChange('upload')}
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 shadow-lg shadow-purple-950/50"
+              >
+                <span>Lanjut ke Step 7: Render Studio 🎬</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {timelineData && timelineData.video_clips && timelineData.video_clips.length > 0 ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs font-mono font-bold text-gray-400 bg-gray-950/60 px-4 py-2 rounded-xl border border-gray-800">
+              <span>Total Segmen: <strong className="text-emerald-400">{timelineData.video_clips.length} Klip</strong></span>
+              <span>Total Durasi Video: <strong className="text-emerald-400">{timelineData.total_duration_sec?.toFixed(1)}s</strong></span>
+              <span>Audio Sync: <strong className="text-emerald-400">Merged Audio Aligned</strong></span>
+            </div>
+
+            <div className="overflow-x-auto border border-gray-800 rounded-2xl shadow-inner max-h-[500px] overflow-y-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-gray-950 text-gray-400 font-mono text-[11px] uppercase tracking-wider border-b border-gray-800 sticky top-0 z-20">
+                  <tr>
+                    <th className="py-3 px-4">Segmen</th>
+                    <th className="py-3 px-4">Gambar Adegan</th>
+                    <th className="py-3 px-4">Rentang Waktu (Start ➔ End)</th>
+                    <th className="py-3 px-4">Durasi</th>
+                    <th className="py-3 px-4">Naskah / Quote Adegan</th>
+                    <th className="py-3 px-4 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/70 font-mono text-gray-300 bg-gray-900/50">
+                  {timelineData.video_clips.map((clip) => {
+                    const curTime = audioCurrentTimes['merged'] || 0;
+                    const isActive = curTime >= clip.start_sec && curTime < clip.end_sec;
+                    return (
+                      <tr
+                        key={clip.clip_id}
+                        id={`segment-row-${clip.segment_id}`}
+                        className={`transition-all duration-300 ${
+                          isActive
+                            ? 'bg-gradient-to-r from-emerald-950 via-emerald-950/80 to-gray-900 border-l-4 border-l-emerald-400 shadow-xl shadow-emerald-950/40 text-white font-medium'
+                            : 'hover:bg-gray-800/60 text-gray-300'
+                        }`}
+                      >
+                        <td className="py-3 px-4 font-extrabold">
+                          <div className="flex flex-col gap-1">
+                            <span className={`text-sm ${isActive ? 'text-emerald-300 font-black' : 'text-emerald-400'}`}>
+                              #{clip.segment_id}
+                            </span>
+                            {isActive && (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-400 text-black text-[9px] font-black uppercase tracking-wider animate-pulse inline-flex items-center gap-1 shadow-md w-max">
+                                <span className="w-1.5 h-1.5 rounded-full bg-black animate-ping" />
+                                NOW PLAYING
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          {clip.image_url ? (
+                            <div className={`w-16 h-10 rounded-lg overflow-hidden border bg-black shrink-0 relative transition-all ${
+                              isActive ? 'border-emerald-400 ring-2 ring-emerald-500/40 shadow-lg scale-105' : 'border-gray-700'
+                            }`}>
+                              <img src={clip.image_url} alt={`Segmen #${clip.segment_id}`} className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-gray-500 italic">No image</span>
+                          )}
+                        </td>
+                        <td className={`py-3 px-4 font-bold ${isActive ? 'text-emerald-200 text-sm' : 'text-emerald-300'}`}>
+                          {clip.start_sec.toFixed(2)}s ➔ {clip.end_sec.toFixed(2)}s
+                        </td>
+                        <td className={`py-3 px-4 font-extrabold ${isActive ? 'text-emerald-200 text-sm' : 'text-emerald-300'}`}>
+                          {clip.duration_sec.toFixed(2)}s
+                        </td>
+                        <td className={`py-3 px-4 font-sans max-w-sm truncate ${isActive ? 'text-white font-semibold' : 'text-gray-300'}`} title={clip.quote}>
+                          {clip.quote}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={() => handleSeekAudioToTime('merged', clip.start_sec)}
+                            className={`px-3 py-1.5 rounded-xl text-[11px] font-extrabold border transition-all flex items-center gap-1 ml-auto ${
+                              isActive
+                                ? 'bg-emerald-500 hover:bg-emerald-400 text-black border-emerald-300 shadow-lg shadow-emerald-950/80 animate-pulse'
+                                : 'bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border-emerald-800'
+                            }`}
+                          >
+                            {isActive ? '🔊 Playing...' : `▶️ Play ${clip.start_sec.toFixed(1)}s`}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8 bg-gray-950/80 border border-dashed border-gray-800 rounded-2xl space-y-2">
+            <span className="text-2xl">🎬</span>
+            <h4 className="text-xs font-bold text-gray-300">Belum Ada Data Timeline Video</h4>
+            <p className="text-[11px] text-gray-500 max-w-md mx-auto">
+              Selesaikan proses transkrip otomatis Faster-Whisper atau paste JSON Gemini di atas untuk menghasilkan `timeline.json` secara otomatis.
+            </p>
+            <button
+              onClick={() => handleGenerateTimelineData(activeTopicId || 1)}
+              disabled={isGeneratingTimeline}
+              className="mt-2 px-4 py-2 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2"
+            >
+              <span>⚙️ Generate Timeline Sekarang</span>
+            </button>
           </div>
         )}
       </div>

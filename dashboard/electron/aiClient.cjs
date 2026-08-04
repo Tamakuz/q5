@@ -219,7 +219,12 @@ async function generateSpensiaTopics({ promptText, model = DEFAULT_MODEL, onChun
   let parsed = null;
   try {
     parsed = JSON.parse(rawText);
-  } catch (e) {}
+  } catch (e) {
+    try {
+      const cleanJson = extractCleanJsonObject(rawText);
+      if (cleanJson) parsed = JSON.parse(cleanJson);
+    } catch (e2) {}
+  }
 
   return {
     rawText,
@@ -237,7 +242,12 @@ async function generateYoutubeTitles({ fullPrompt, model = DEFAULT_MODEL }) {
     model,
     jsonMode: true,
   });
-  return JSON.parse(rawText);
+  try {
+    return JSON.parse(rawText);
+  } catch (e) {
+    const cleanJson = extractCleanJsonObject(rawText);
+    return JSON.parse(cleanJson);
+  }
 }
 
 /**
@@ -254,7 +264,12 @@ async function generateSpensiaScript({ promptText, model = DEFAULT_MODEL, onChun
   let parsed = null;
   try {
     parsed = JSON.parse(rawText);
-  } catch (e) {}
+  } catch (e) {
+    try {
+      const cleanJson = extractCleanJsonObject(rawText);
+      if (cleanJson) parsed = JSON.parse(cleanJson);
+    } catch (e2) {}
+  }
 
   return {
     rawText,
@@ -276,7 +291,12 @@ async function generateSpensiaBreakdown({ promptText, model = DEFAULT_MODEL, onC
   let parsed = null;
   try {
     parsed = JSON.parse(rawText);
-  } catch (e) {}
+  } catch (e) {
+    try {
+      const cleanJson = extractCleanJsonObject(rawText);
+      if (cleanJson) parsed = JSON.parse(cleanJson);
+    } catch (e2) {}
+  }
 
   return {
     rawText,
@@ -298,7 +318,12 @@ async function generateSpensiaImagePrompts({ promptText, model = DEFAULT_MODEL, 
   let parsed = null;
   try {
     parsed = JSON.parse(rawText);
-  } catch (e) {}
+  } catch (e) {
+    try {
+      const cleanJson = extractCleanJsonObject(rawText);
+      if (cleanJson) parsed = JSON.parse(cleanJson);
+    } catch (e2) {}
+  }
 
   return {
     rawText,

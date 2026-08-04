@@ -48,7 +48,11 @@ export interface BatchTopicItem {
   hasVo?: boolean;
 }
 
-const SpensiaVoiceOverStep: React.FC = () => {
+interface SpensiaVoiceOverStepProps {
+  onStepChange?: (step: 'upload') => void;
+}
+
+const SpensiaVoiceOverStep: React.FC<SpensiaVoiceOverStepProps> = ({ onStepChange }) => {
   const [batchTopics, setBatchTopics] = useState<BatchTopicItem[]>([]);
   const [activeTopicId, setActiveTopicId] = useState<number | null>(null);
   const [videoTitle, setVideoTitle] = useState<string>('');

@@ -67,7 +67,7 @@ const WakuImageGeneratorStep: React.FC = () => {
       try {
         if (api?.readFromProject) {
           // 1. Load selected topics from Step 1
-          const savedTopicsJson = await api.readFromProject('input/waku/topics.json');
+          const savedTopicsJson = await api.readFromProject('input/vann/topics.json');
           let selectedId: number | null = null;
           let loadedTopics: BatchTopicItem[] = [];
 
@@ -93,7 +93,7 @@ const WakuImageGeneratorStep: React.FC = () => {
           const checkedTopics = await Promise.all(
             loadedTopics.map(async (top) => {
               try {
-                const specificGen = (await api.readFromProject(`input/waku/images/generated_images_topic_${top.id}.json`)) || '';
+                const specificGen = (await api.readFromProject(`input/vann/images/generated_images_topic_${top.id}.json`)) || '';
                 let successCount = 0;
                 let totalPrompts = 0;
                 if (specificGen) {
@@ -136,11 +136,11 @@ const WakuImageGeneratorStep: React.FC = () => {
     const targetId = topicId || 1;
 
     // Load image prompts for this topic
-    const promptFile = `input/waku/prompts/image_prompts_topic_${targetId}.json`;
+    const promptFile = `input/vann/prompts/image_prompts_topic_${targetId}.json`;
 
     let promptsJsonStr = (await api.readFromProject(promptFile)) || '';
     if (!promptsJsonStr && targetId === 1) {
-      promptsJsonStr = (await api.readFromProject('input/waku/image_prompts.json')) || '';
+      promptsJsonStr = (await api.readFromProject('input/vann/image_prompts.json')) || '';
     }
 
     let parsedPrompts: any[] = [];
@@ -152,11 +152,11 @@ const WakuImageGeneratorStep: React.FC = () => {
     }
 
     // Load generated images state strictly for this topic
-    const genFile = `input/waku/images/generated_images_topic_${targetId}.json`;
+    const genFile = `input/vann/images/generated_images_topic_${targetId}.json`;
 
     let savedGenJson = (await api.readFromProject(genFile)) || '';
     if (!savedGenJson && targetId === 1) {
-      savedGenJson = (await api.readFromProject('input/waku/generated_images.json')) || '';
+      savedGenJson = (await api.readFromProject('input/vann/generated_images.json')) || '';
     }
 
     let savedGenMap: Record<number, any> = {};
@@ -317,13 +317,13 @@ const WakuImageGeneratorStep: React.FC = () => {
       const targetId = topicId || activeTopicId || 1;
       if (api?.saveToProject) {
         await api.saveToProject(
-          `input/waku/images/generated_images_topic_${targetId}.json`,
+          `input/vann/images/generated_images_topic_${targetId}.json`,
           JSON.stringify({ total_images: updatedItems.length, images: updatedItems }, null, 2)
         );
 
         if (targetId === 1) {
           await api.saveToProject(
-            'input/waku/generated_images.json',
+            'input/vann/generated_images.json',
             JSON.stringify({ total_images: updatedItems.length, images: updatedItems }, null, 2)
           );
         }
@@ -360,7 +360,7 @@ const WakuImageGeneratorStep: React.FC = () => {
       // Load prompts for this topic
       let topicItems: GeneratedImageItem[] = [];
       if (api?.readFromProject) {
-        const promptsJsonStr = (await api.readFromProject(`input/waku/prompts/image_prompts_topic_${topic.id}.json`)) || '';
+        const promptsJsonStr = (await api.readFromProject(`input/vann/prompts/image_prompts_topic_${topic.id}.json`)) || '';
         let parsedPrompts: any[] = [];
         if (promptsJsonStr) {
           try {
@@ -369,7 +369,7 @@ const WakuImageGeneratorStep: React.FC = () => {
           } catch {}
         }
 
-        const savedGenJson = (await api.readFromProject(`input/waku/images/generated_images_topic_${topic.id}.json`)) || '';
+        const savedGenJson = (await api.readFromProject(`input/vann/images/generated_images_topic_${topic.id}.json`)) || '';
         let savedGenMap: Record<number, any> = {};
         if (savedGenJson) {
           try {
