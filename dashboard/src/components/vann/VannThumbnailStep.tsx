@@ -48,7 +48,7 @@ const WakuThumbnailStep: React.FC = () => {
   const [renderedThumbnails, setRenderedThumbnails] = useState<WakuThumbnailConcept[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const [aiModel, setAiModel] = useState<string>('cx/gpt-5.5');
+  const [aiModel, setAiModel] = useState<string>('ag/gemini-3-flash-agent');
   const [imageModel, setImageModel] = useState<string>('Nano Banana Pro');
   const [imageSize, setImageSize] = useState<string>('1280x720');
 
