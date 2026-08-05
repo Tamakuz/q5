@@ -1,4 +1,4 @@
-// dashboard/src/components/waku/WakuBreakdownStep.tsx
+// dashboard/src/components/vann/VannBreakdownStep.tsx
 import React, { useState, useEffect } from 'react';
 import { validateWakuBreakdown, WakuSegmentItem, WakuBreakdownValidationReport } from '../../utils/vannValidation';
 
@@ -19,7 +19,7 @@ export interface BatchTopicItem {
   hasBreakdown?: boolean;
 }
 
-const WakuBreakdownStep: React.FC = () => {
+const VannBreakdownStep: React.FC = () => {
   const [fullScript, setFullScript] = useState<string>('');
   const [videoTitle, setVideoTitle] = useState<string>('');
   const [selectedModel, setSelectedModel] = useState<string>('ag/gemini-3-flash-agent');
@@ -49,7 +49,7 @@ const WakuBreakdownStep: React.FC = () => {
   const loadPromptFromFile = async () => {
     try {
       if (api?.readFromProject) {
-        const loadedPrompt = await api.readFromProject('dashboard/prompts/waku/breakdown-prompt.md');
+        const loadedPrompt = await api.readFromProject('dashboard/prompts/vann/breakdown-prompt.md');
         if (loadedPrompt && loadedPrompt.trim().length > 0) {
           setMasterPrompt(loadedPrompt);
           return loadedPrompt;
@@ -68,7 +68,7 @@ const WakuBreakdownStep: React.FC = () => {
       try {
         if (api?.readFromProject) {
           // 1. Load selected topics from Step 1
-          const savedTopicsJson = await api.readFromProject('input/waku/topics.json');
+          const savedTopicsJson = await api.readFromProject('input/vann/topics.json');
           let selectedId: number | null = null;
           let loadedTopics: BatchTopicItem[] = [];
 
@@ -94,7 +94,7 @@ const WakuBreakdownStep: React.FC = () => {
           const checkedTopics = await Promise.all(
             loadedTopics.map(async (top) => {
               try {
-                const specificBreakdown = await api.readFromProject(`input/waku/breakdowns/breakdown_topic_${top.id}.json`);
+                const specificBreakdown = await api.readFromProject(`input/vann/breakdowns/breakdown_topic_${top.id}.json`);
                 return { ...top, hasBreakdown: Boolean(specificBreakdown && specificBreakdown.trim()) };
               } catch {
                 return top;
@@ -124,9 +124,9 @@ const WakuBreakdownStep: React.FC = () => {
     // Load full script for this topic
     let scriptText = '';
     if (topicId) {
-      scriptText = (await api.readFromProject(`input/waku/scripts/full_script_topic_${topicId}.txt`)) || '';
+      scriptText = (await api.readFromProject(`input/vann/scripts/full_script_topic_${topicId}.txt`)) || '';
       if (!scriptText) {
-        const jsonScript = await api.readFromProject(`input/waku/scripts/script_topic_${topicId}.json`);
+        const jsonScript = await api.readFromProject(`input/vann/scripts/script_topic_${topicId}.json`);
         if (jsonScript) {
           try {
             const parsed = JSON.parse(jsonScript);
@@ -137,10 +137,10 @@ const WakuBreakdownStep: React.FC = () => {
       }
     }
     if (!scriptText) {
-      scriptText = (await api.readFromProject('input/waku/full_script.txt')) || '';
+      scriptText = (await api.readFromProject('input/vann/full_script.txt')) || '';
     }
     if (!scriptText) {
-      const scriptJsonStr = await api.readFromProject('input/waku/script.json');
+      const scriptJsonStr = await api.readFromProject('input/vann/script.json');
       if (scriptJsonStr) {
         try {
           const parsedScript = JSON.parse(scriptJsonStr);
@@ -153,12 +153,12 @@ const WakuBreakdownStep: React.FC = () => {
 
     // Load breakdown for this topic
     const breakdownFile = topicId
-      ? `input/waku/breakdowns/breakdown_topic_${topicId}.json`
-      : 'input/waku/breakdown.json';
+      ? `input/vann/breakdowns/breakdown_topic_${topicId}.json`
+      : 'input/vann/breakdown.json';
 
     let breakdownJson = await api.readFromProject(breakdownFile);
     if (!breakdownJson && topicId) {
-      breakdownJson = await api.readFromProject('input/waku/breakdown.json');
+      breakdownJson = await api.readFromProject('input/vann/breakdown.json');
     }
 
     if (breakdownJson) {
@@ -302,12 +302,12 @@ const WakuBreakdownStep: React.FC = () => {
     try {
       const targetId = topicId || activeTopicId;
       if (api?.saveToProject) {
-        await api.saveToProject('input/waku/breakdown.json', rawStr);
-        await api.saveToProject('input/waku/segments.json', JSON.stringify({ total_segments: segList.length, segments: segList }, null, 2));
+        await api.saveToProject('input/vann/breakdown.json', rawStr);
+        await api.saveToProject('input/vann/segments.json', JSON.stringify({ total_segments: segList.length, segments: segList }, null, 2));
 
         if (targetId) {
-          await api.saveToProject(`input/waku/breakdowns/breakdown_topic_${targetId}.json`, rawStr);
-          await api.saveToProject(`input/waku/breakdowns/segments_topic_${targetId}.json`, JSON.stringify({ total_segments: segList.length, segments: segList }, null, 2));
+          await api.saveToProject(`input/vann/breakdowns/breakdown_topic_${targetId}.json`, rawStr);
+          await api.saveToProject(`input/vann/breakdowns/segments_topic_${targetId}.json`, JSON.stringify({ total_segments: segList.length, segments: segList }, null, 2));
         }
       }
       if (targetId) {
@@ -346,9 +346,9 @@ const WakuBreakdownStep: React.FC = () => {
         // Load script for this topic
         let scriptText = '';
         if (api?.readFromProject) {
-          scriptText = (await api.readFromProject(`input/waku/scripts/full_script_topic_${topic.id}.txt`)) || '';
+          scriptText = (await api.readFromProject(`input/vann/scripts/full_script_topic_${topic.id}.txt`)) || '';
           if (!scriptText) {
-            const jsonScript = await api.readFromProject(`input/waku/scripts/script_topic_${topic.id}.json`);
+            const jsonScript = await api.readFromProject(`input/vann/scripts/script_topic_${topic.id}.json`);
             if (jsonScript) {
               try {
                 const parsed = JSON.parse(jsonScript);
@@ -964,4 +964,4 @@ const WakuBreakdownStep: React.FC = () => {
   );
 };
 
-export default WakuBreakdownStep;
+export default VannBreakdownStep;

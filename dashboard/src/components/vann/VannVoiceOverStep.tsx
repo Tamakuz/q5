@@ -1397,10 +1397,10 @@ const WakuVoiceOverStep: React.FC<VannVoiceOverStepProps> = ({ onStepChange }) =
                 </span>
                 {onStepChange && (
                   <button
-                    onClick={() => onStepChange('audio')}
+                  onClick={() => onStepChange('mapping')}
                     className="px-4 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 shadow-lg shadow-purple-950/50"
                   >
-                    <span>Lanjut ke Step 4: Scene Splitter ✂️</span>
+                  <span>Lanjut ke Step 4: Image Prompt Generator 🎨</span>
                   </button>
                 )}
               </div>

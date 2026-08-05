@@ -156,7 +156,7 @@ const WakuImageGeneratorStep: React.FC = () => {
 
     let savedGenJson = (await api.readFromProject(genFile)) || '';
     if (!savedGenJson && targetId === 1) {
-      savedGenJson = (await api.readFromProject('input/vann/generated_images.json')) || '';
+      savedGenJson = (await api.readFromProject('input/vann/images/generated_images.json')) || (await api.readFromProject('input/vann/generated_images.json')) || '';
     }
 
     let savedGenMap: Record<number, any> = {};
@@ -323,7 +323,7 @@ const WakuImageGeneratorStep: React.FC = () => {
 
         if (targetId === 1) {
           await api.saveToProject(
-            'input/vann/generated_images.json',
+            'input/vann/images/generated_images.json',
             JSON.stringify({ total_images: updatedItems.length, images: updatedItems }, null, 2)
           );
         }

@@ -98,7 +98,40 @@ program
       process.exit(1);
     }
 
-    const clips = mapping.timeline;
+    let clips = mapping.timeline;
+
+    // Adjust clip durations to remove gaps between consecutive segments.
+    // If clip i ends before next clip starts, extend clip.t to reach the next start
+    // so there's no gap/black frame between segments and visuals stay aligned with voiceover.
+    try {
+      for (let i = 0; i < clips.length; i++) {
+        const cur = clips[i];
+        const next = clips[i + 1];
+        const curStart = Number(cur.ss || 0);
+        const curDur = Number(cur.t || 0);
+        const curEnd = curStart + curDur;
+
+        if (next) {
+          const nextStart = Math.max(0, Number(next.ss || 0));
+          if (nextStart > curEnd + 1e-6) {
+            // Extend current clip duration up to next start
+            const newDur = parseFloat((nextStart - curStart).toFixed(3));
+            // Ensure a minimum reasonable duration
+            cur.t = Math.max(0.05, newDur);
+          } else if (cur.t <= 0) {
+            cur.t = Math.max(0.05, curDur || 0.25);
+          }
+        } else {
+          // Last clip: keep original duration but ensure positive
+          if (cur.t <= 0) cur.t = Math.max(0.05, curDur || 0.25);
+        }
+      }
+    } catch (err) {
+      // If something unexpected happens, fall back to original durations
+      console.warn('[Render] Warning adjusting clip durations:', err?.message || err);
+      clips = mapping.timeline;
+    }
+
     const totalDur = clips.reduce((s: number, c: Clip) => s + c.t, 0);
     const { width, height } = mapping.settings.format === '16:9'
       ? { width: 1920, height: 1080 }

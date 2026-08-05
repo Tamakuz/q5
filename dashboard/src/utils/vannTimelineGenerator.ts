@@ -166,16 +166,22 @@ export function generateWakuTimeline(params: GenerateTimelineParams): WakuTimeli
         const parseN = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v || '').replace(/[^0-9.]/g, '')));
 
         let sSec = parseN(txSeg.start_sec !== undefined ? txSeg.start_sec : txSeg.start);
-        let eSec = parseN(txSeg.end_sec !== undefined ? txSeg.end_sec : txSeg.end);
-
         if (isNaN(sSec) || sSec < 0) sSec = idx * 4.0;
-        if (isNaN(eSec) || eSec <= sSec) {
-          if (idx < mappedSegs.length - 1) {
-            const nextVal = parseN((mappedSegs[idx + 1] as any).start_sec !== undefined ? (mappedSegs[idx + 1] as any).start_sec : (mappedSegs[idx + 1] as any).start);
-            eSec = !isNaN(nextVal) && nextVal > sSec ? nextVal : sSec + 4.0;
+        if (idx === 0) sSec = 0;
+
+        let eSec = 0;
+        if (idx < mappedSegs.length - 1) {
+          const nextVal = parseN((mappedSegs[idx + 1] as any).start_sec !== undefined ? (mappedSegs[idx + 1] as any).start_sec : (mappedSegs[idx + 1] as any).start);
+          if (!isNaN(nextVal) && nextVal > sSec) {
+            eSec = nextVal;
           } else {
-            eSec = partDurationSec;
+            const rawEnd = parseN(txSeg.end_sec !== undefined ? txSeg.end_sec : txSeg.end);
+            eSec = !isNaN(rawEnd) && rawEnd > sSec ? rawEnd : sSec + 4.0;
           }
+        } else {
+          const rawEnd = parseN(txSeg.end_sec !== undefined ? txSeg.end_sec : txSeg.end);
+          const targetEnd = Math.max(!isNaN(rawEnd) ? rawEnd : 0, partDurationSec);
+          eSec = targetEnd > sSec ? targetEnd : sSec + 4.0;
         }
 
         const startSec = Number((partStartOffsetSec + sSec).toFixed(2));

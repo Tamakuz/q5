@@ -147,7 +147,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
         }
 
         // Initialize new Content ID & vann_mapping.json
-        const mappingFile = path.join(vannInputDir, 'vann_mapping.json');
+        const mappingsDir = path.join(vannInputDir, 'mappings');
+        if (!fs.existsSync(mappingsDir)) fs.mkdirSync(mappingsDir, { recursive: true });
+        const mappingFile = path.join(mappingsDir, 'vann_mapping.json');
         const mapping = {
           settings: { fps: 30, format: "16:9", fg_aspect: "16:9", bgm: "random", content_id: newId },
           timeline: []

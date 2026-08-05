@@ -10,12 +10,11 @@ interface StepItem {
 }
 
 const WAKU_STEPS: StepItem[] = [
-  { id: 'source', label: '1. Topics Generator', shortLabel: 'Topics', icon: '💡' },
-  { id: 'analyze', label: '2. Script Generator', shortLabel: 'Script', icon: '⚡' },
-  { id: 'publish', label: '3. Voice Over', shortLabel: 'Voice', icon: '🎙️' },
-  { id: 'audio', label: '4. Scene Splitter', shortLabel: 'Splitter', icon: '✂️' },
-  { id: 'mapping', label: '5. Image Prompts', shortLabel: 'Prompts', icon: '🎨' },
-  { id: 'render', label: '6. Image Generator', shortLabel: 'Images', icon: '🖼️' },
+{ id: 'source', label: '1. Topics Generator', shortLabel: 'Topics', icon: '💡' },
+{ id: 'analyze', label: '2. Script Generator', shortLabel: 'Script', icon: '⚡' },
+{ id: 'publish', label: '3. Voice Over', shortLabel: 'Voice', icon: '🎙️' },
+{ id: 'mapping', label: '4. Image Prompts', shortLabel: 'Prompts', icon: '🎨' },
+{ id: 'render', label: '5. Image Generator', shortLabel: 'Images', icon: '🖼️' },
 ];
 
 const LONGFORM_STEPS: StepItem[] = [

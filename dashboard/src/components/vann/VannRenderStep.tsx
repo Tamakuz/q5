@@ -434,7 +434,7 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
         if (!sampleImageUrl) {
             let genImgJson = await api.readFromProject(`input/vann/images/generated_images_topic_${topicId}.json`);
             if (!genImgJson && topicId === 1) {
-                genImgJson = await api.readFromProject('input/vann/generated_images.json');
+                genImgJson = (await api.readFromProject('input/vann/images/generated_images.json')) || (await api.readFromProject('input/vann/generated_images.json'));
             }
             if (genImgJson) {
                 try {
@@ -474,7 +474,7 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
             try {
                 if (api?.readFromProject) {
                     // Load saved config if exists
-                    const savedJson = await api.readFromProject('input/vann/render_config.json');
+                    const savedJson = (await api.readFromProject('input/vann/renders/render_config.json')) || (await api.readFromProject('input/vann/render_config.json'));
                     if (savedJson) {
                         try {
                             const parsed = JSON.parse(savedJson);
@@ -565,7 +565,7 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         saveTimerRef.current = setTimeout(() => {
             if (api?.saveToProject) {
-                api.saveToProject('input/vann/render_config.json', JSON.stringify(cfg, null, 2));
+                api.saveToProject('input/vann/renders/render_config.json', JSON.stringify(cfg, null, 2));
             }
         }, 400);
     }, []);
@@ -622,7 +622,7 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
     const handleSaveConfig = async () => {
         try {
             if (api?.saveToProject) {
-                await api.saveToProject('input/vann/render_config.json', JSON.stringify(config, null, 2));
+                await api.saveToProject('input/vann/renders/render_config.json', JSON.stringify(config, null, 2));
                 showToast('💾 Konfigurasi render berhasil disimpan!');
             }
         } catch (err: any) {
@@ -635,7 +635,7 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
         def.vignette.intensity = 0.75;
         setConfig(def);
         if (api?.saveToProject) {
-            api.saveToProject('input/vann/render_config.json', JSON.stringify(def, null, 2));
+            api.saveToProject('input/vann/renders/render_config.json', JSON.stringify(def, null, 2));
         }
         showToast('🔄 Konfigurasi dikembalikan ke default.');
     };
@@ -661,7 +661,7 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
 
             // Always persist latest full config (including captions & audio) to JSON before render
             if (api?.saveToProject) {
-                await api.saveToProject('input/vann/render_config.json', JSON.stringify(config, null, 2));
+                await api.saveToProject('input/vann/renders/render_config.json', JSON.stringify(config, null, 2));
             }
 
             showToast(`🎬 Memulai proses render Vann Video Topik #${activeTopicId || 1}...`);
@@ -713,7 +713,7 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
 
             // Always persist latest full config (including captions & audio) to JSON before render
             if (api?.saveToProject) {
-                await api.saveToProject('input/vann/render_config.json', JSON.stringify(config, null, 2));
+                await api.saveToProject('input/vann/renders/render_config.json', JSON.stringify(config, null, 2));
             }
 
             let index = 0;

@@ -197,11 +197,11 @@ const VannImagePromptStep: React.FC = () => {
     // Load image prompts for this topic
     const promptFile = topicId
       ? `input/vann/prompts/image_prompts_topic_${topicId}.json`
-      : 'input/vann/image_prompts.json';
+      : 'input/vann/prompts/image_prompts.json';
 
     let promptsJson = (await api.readFromProject(promptFile)) || '';
     if (!promptsJson && topicId) {
-      promptsJson = (await api.readFromProject('input/vann/image_prompts.json')) || '';
+      promptsJson = (await api.readFromProject(`input/vann/prompts/image_prompts_topic_${topicId}.json`)) || (await api.readFromProject('input/vann/prompts/image_prompts.json')) || (await api.readFromProject('input/vann/image_prompts.json')) || '';
     }
 
     if (promptsJson) {
@@ -452,9 +452,9 @@ The "prompt" field should be a single paragraph image prompt in the style define
     try {
       const targetId = topicId || activeTopicId;
       if (api?.saveToProject) {
-        await api.saveToProject('input/vann/image_prompts.json', rawStr);
+        await api.saveToProject('input/vann/prompts/image_prompts.json', rawStr);
         const formattedTxt = prompts.map((p) => `Segmen ${p.segment_id}: "${p.segment_quote}"\nPrompt:\n${p.prompt}`).join('\n\n---\n\n');
-        await api.saveToProject('input/vann/prompts.txt', formattedTxt);
+        await api.saveToProject('input/vann/prompts/prompts.txt', formattedTxt);
 
         if (targetId) {
           await api.saveToProject(`input/vann/prompts/image_prompts_topic_${targetId}.json`, rawStr);

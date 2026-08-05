@@ -66,7 +66,7 @@ function getOrGenerateContentId(mode = 'waku') {
   const isSpensia = mode === 'spensia';
   const isWaku = mode === 'waku' || mode === 'shortform';
   const mappingFile = isWaku
-    ? path.join(PROJECT_ROOT, 'input', 'vann', 'vann_mapping.json')
+    ? path.join(PROJECT_ROOT, 'input', 'vann', 'mappings', 'vann_mapping.json')
     : isSpensia
       ? path.join(PROJECT_ROOT, 'input', 'spensia', 'spensia_mapping.json')
       : isLongform

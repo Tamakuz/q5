@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { PlaywrightService } from './service';
+import * as fs from 'fs';
 import { runBatchPersistentQueue } from './runner';
 
 const program = new Command();
@@ -132,7 +133,13 @@ program
   .option('--keep-open', 'Keep browser open after execution completes or fails', false)
   .action(async (options) => {
     try {
-      const items = JSON.parse(options.itemsJson || '[]');
+      // Support @file notation: if options.itemsJson starts with '@', read JSON from that file to avoid huge CLI args
+      let itemsJsonRaw = options.itemsJson || '[]';
+      if (typeof itemsJsonRaw === 'string' && itemsJsonRaw.startsWith('@')) {
+        const fp = itemsJsonRaw.slice(1);
+        try { itemsJsonRaw = fs.readFileSync(fp, 'utf8'); } catch (e) { console.error('Failed to read items JSON file:', fp, e); process.exit(1); }
+      }
+      const items = JSON.parse(itemsJsonRaw || '[]');
       const concurrency = parseInt(options.concurrency || '5', 10);
       const profiles = (options.profiles || 'user_1,user_2').split(',').map((s: string) => s.trim()).filter(Boolean);
       const models = (options.models || 'Nano Banana Pro,Banana 2').split(',').map((s: string) => s.trim()).filter(Boolean);
