@@ -1,4 +1,4 @@
-// dashboard/src/components/waku/WakuImagePromptStep.tsx
+// dashboard/src/components/vann/VannImagePromptStep.tsx
 import React, { useState, useEffect } from 'react';
 import { validateWakuImagePrompts, WakuImagePromptItem, WakuImagePromptsValidationReport } from '../../utils/vannValidation';
 
@@ -19,13 +19,19 @@ export interface BatchTopicItem {
   hasPrompts?: boolean;
 }
 
-const WakuImagePromptStep: React.FC = () => {
+const VannImagePromptStep: React.FC = () => {
   const [segmentsListStr, setSegmentsListStr] = useState<string>('');
   const [segmentsCount, setSegmentsCount] = useState<number>(0);
   const [videoTitle, setVideoTitle] = useState<string>('');
   const [selectedModel, setSelectedModel] = useState<string>('ag/gemini-3-flash-agent');
   const [masterPrompt, setMasterPrompt] = useState<string>('');
   const [showPromptEditor, setShowPromptEditor] = useState<boolean>(false);
+
+  // Small config panel for generation behavior
+  const [showConfig, setShowConfig] = useState<boolean>(false);
+  const [concurrencyLimit, setConcurrencyLimit] = useState<number>(3); // parallel AI calls
+  const [enforceNoText, setEnforceNoText] = useState<boolean>(true);
+  const [continuityCount, setContinuityCount] = useState<number>(2); // number of keywords from previous segment to include
 
   const [batchTopics, setBatchTopics] = useState<BatchTopicItem[]>([]);
   const [activeTopicId, setActiveTopicId] = useState<number | null>(null);
@@ -50,7 +56,7 @@ const WakuImagePromptStep: React.FC = () => {
   const loadPromptFromFile = async () => {
     try {
       if (api?.readFromProject) {
-        const loadedPrompt = await api.readFromProject('dashboard/prompts/waku/image-prompt-generator-prompt.md');
+        const loadedPrompt = await api.readFromProject('dashboard/prompts/vann/image-prompt-generator-prompt.md');
         if (loadedPrompt && loadedPrompt.trim().length > 0) {
           setMasterPrompt(loadedPrompt);
           return loadedPrompt;
@@ -69,7 +75,7 @@ const WakuImagePromptStep: React.FC = () => {
       try {
         if (api?.readFromProject) {
           // 1. Load selected topics from Step 1
-          const savedTopicsJson = await api.readFromProject('input/waku/topics.json');
+          const savedTopicsJson = await api.readFromProject('input/vann/topics.json');
           let selectedId: number | null = null;
           let loadedTopics: BatchTopicItem[] = [];
 
@@ -95,7 +101,7 @@ const WakuImagePromptStep: React.FC = () => {
           const checkedTopics = await Promise.all(
             loadedTopics.map(async (top) => {
               try {
-                const specificPrompts = await api.readFromProject(`input/waku/prompts/image_prompts_topic_${top.id}.json`);
+                const specificPrompts = await api.readFromProject(`input/vann/prompts/image_prompts_topic_${top.id}.json`);
                 return { ...top, hasPrompts: Boolean(specificPrompts && specificPrompts.trim()) };
               } catch {
                 return top;
@@ -126,35 +132,63 @@ const WakuImagePromptStep: React.FC = () => {
     let segmentsText = '';
     let count = 0;
     if (topicId) {
-      const segFileStr = (await api.readFromProject(`input/waku/breakdowns/segments_topic_${topicId}.json`)) || '';
-      if (segFileStr) {
+      // Try Vann mapping/transcript files first (merged transcript created by Vann step)
+      const vannCandidates = [
+        `input/vann/transcripts/merged_transcript_topic_${topicId}.json`,
+        `input/vann/mappings/vann_mapping_topic_${topicId}.json`,
+        `input/vann/mappings/vann_mapping.json`,
+        `input/vann/vann_mapping.json`,
+        `input/vann/transcripts/merged_transcript.json`,
+      ];
+      let found = false;
+      for (const p of vannCandidates) {
+        const s = (await api.readFromProject(p)) || '';
+        if (!s) continue;
         try {
-          const parsed = JSON.parse(segFileStr);
-          if (Array.isArray(parsed.segments)) {
-            count = parsed.segments.length;
-            segmentsText = parsed.segments.map((s: any) => `Segmen ${s.segment_id}: "${s.text}"`).join('\n\n');
+          const parsed = JSON.parse(s);
+          const segs = Array.isArray(parsed.segments) ? parsed.segments : Array.isArray(parsed) ? parsed : null;
+          if (segs && segs.length > 0) {
+            count = segs.length;
+            segmentsText = segs.map((s: any) => `Segmen ${s.segment_id ?? s.id ?? '?'}: "${s.quote ?? s.text ?? ''}"`).join('\n\n');
+            found = true;
+            break;
           }
         } catch {}
       }
-      if (!segmentsText) {
-        segmentsText = (await api.readFromProject(`input/waku/breakdowns/breakdown_topic_${topicId}.json`)) || '';
+
+      // Fallback: read generic breakdown file
+      if (!found) {
+        segmentsText = (await api.readFromProject(`input/vann/breakdown_topic_${topicId}.json`)) || (await api.readFromProject('input/vann/breakdown.json')) || '';
+        if (segmentsText && segmentsText.trim()) {
+          // couldn't parse JSON; keep raw text
+          count = (segmentsText.match(/Segmen\s+\d+/g) || []).length || 0;
+        }
       }
     }
 
+    // Global fallback to any pre-existing files
     if (!segmentsText) {
-      const segmentsJsonStr = (await api.readFromProject('input/waku/segments.json')) || '';
-      if (segmentsJsonStr) {
+      const globalCandidates = [
+        'input/vann/mappings/vann_mapping.json',
+        'input/vann/vann_mapping.json',
+        'input/vann/segments.json',
+        'input/vann/breakdown.json',
+      ];
+      for (const p of globalCandidates) {
+        const s = (await api.readFromProject(p)) || '';
+        if (!s) continue;
         try {
-          const parsed = JSON.parse(segmentsJsonStr);
-          if (Array.isArray(parsed.segments)) {
-            count = parsed.segments.length;
-            segmentsText = parsed.segments.map((s: any) => `Segmen ${s.segment_id}: "${s.text}"`).join('\n\n');
+          const parsed = JSON.parse(s);
+          const segs = Array.isArray(parsed.segments) ? parsed.segments : Array.isArray(parsed) ? parsed : null;
+          if (segs && segs.length > 0) {
+            count = segs.length;
+            segmentsText = segs.map((s: any) => `Segmen ${s.segment_id ?? s.id ?? '?'}: "${s.quote ?? s.text ?? ''}"`).join('\n\n');
+            break;
           }
-        } catch {}
+        } catch (e) {
+          // ignore
+        }
       }
-    }
-    if (!segmentsText) {
-      segmentsText = (await api.readFromProject('input/waku/breakdown.json')) || '';
     }
 
     setSegmentsCount(count);
@@ -162,12 +196,12 @@ const WakuImagePromptStep: React.FC = () => {
 
     // Load image prompts for this topic
     const promptFile = topicId
-      ? `input/waku/prompts/image_prompts_topic_${topicId}.json`
-      : 'input/waku/image_prompts.json';
+      ? `input/vann/prompts/image_prompts_topic_${topicId}.json`
+      : 'input/vann/image_prompts.json';
 
     let promptsJson = (await api.readFromProject(promptFile)) || '';
     if (!promptsJson && topicId) {
-      promptsJson = (await api.readFromProject('input/waku/image_prompts.json')) || '';
+      promptsJson = (await api.readFromProject('input/vann/image_prompts.json')) || '';
     }
 
     if (promptsJson) {
@@ -204,7 +238,7 @@ const WakuImagePromptStep: React.FC = () => {
       .replace(/{list_segmen}/g, targetSegments || '[List Segmen]');
   };
 
-  // 🎨 Auto Generate Image Prompts via AI (Realtime SSE Streaming)
+  // 🎨 Auto Generate Image Prompts via AI (Per-segment, strict context + sanitization)
   const handleAutoGenerate = async () => {
     if (!segmentsListStr.trim()) {
       showToast('⚠️ Mohon pastikan segmen adegan dari Step 3 telah dibuat!');
@@ -216,42 +250,151 @@ const WakuImagePromptStep: React.FC = () => {
     setBatchCurrentIndex(1);
     setBatchTotalCount(1);
     setPastedOutput('');
-    let unsubscribeStream: (() => void) | null = null;
 
     try {
-      let currentPrompt = (await loadPromptFromFile()) || masterPrompt;
-
-      const computed = getComputedPrompt(currentPrompt);
+      const master = (await loadPromptFromFile()) || masterPrompt || '';
 
       if (!api?.generateWakuImagePrompts) {
         throw new Error('API generateWakuImagePrompts tidak tersedia pada Electron preload.');
       }
 
-      if (api?.onWakuImagePromptsChunk) {
-        unsubscribeStream = api.onWakuImagePromptsChunk(({ fullText }) => {
-          setPastedOutput(fullText);
+      // Fetch structured segments if possible (prefer Vann mapping/transcript files)
+      let segmentsArr: Array<any> = [];
+      if (activeTopicId) {
+        const candidates = [
+          `input/vann/transcripts/merged_transcript_topic_${activeTopicId}.json`,
+          `input/vann/mappings/vann_mapping_topic_${activeTopicId}.json`,
+          `input/vann/mappings/vann_mapping.json`,
+          `input/vann/vann_mapping.json`,
+        ];
+        for (const p of candidates) {
+          const s = (await api.readFromProject(p)) || '';
+          if (!s) continue;
+          try {
+            const parsed = JSON.parse(s);
+            const segs = Array.isArray(parsed.segments) ? parsed.segments : Array.isArray(parsed) ? parsed : null;
+            if (segs && segs.length > 0) {
+              segmentsArr = segs;
+              break;
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+
+      // Fallback: parse segmentsListStr into simple objects
+      if (segmentsArr.length === 0) {
+        const rawItems = segmentsListStr.split(/\n\n+/).map((r) => r.trim()).filter(Boolean);
+        segmentsArr = rawItems.map((txt, idx) => {
+          const m = txt.match(/Segmen\s*(\d+)\s*:\s*"?(.*)"?/i);
+          if (m) return { segment_id: Number(m[1]), quote: m[2].trim() };
+          return { segment_id: idx + 1, quote: txt };
         });
       }
 
-      const res = await api.generateWakuImagePrompts(computed, selectedModel);
-      const rawContent = res?.rawText || JSON.stringify(res);
-      setPastedOutput(rawContent);
-
-      const report = validateWakuImagePrompts(rawContent);
-      setValidationReport(report);
-
-      if (report.normalizedData && report.normalizedData.image_prompts.length > 0) {
-        setImagePrompts(report.normalizedData.image_prompts);
-        savePromptsState(report.normalizedData.image_prompts, rawContent);
-        showToast(`✨ Generasi Image Prompt Berhasil: ${report.normalizedData.image_prompts.length} prompt gambar dibuat!`);
-      } else {
-        showToast(`⚠️ Validasi Image Prompt Gagal: ${report.summaryText}`);
+      if (segmentsArr.length === 0) {
+        showToast('⚠️ Tidak ditemukan segmen terstruktur untuk diproses.');
+        setIsGenerating(false);
+        setGeneratingTopicId(null);
+        return;
       }
+
+      const results: Array<any> = [];
+
+      // Helper: simple continuity extractor (pick up to continuityCount words from previous quote)
+      const getContinuity = (prevQuote: string) => {
+        if (!prevQuote) return '';
+        const words = prevQuote.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(Boolean).filter((w) => w.length > 4);
+        return words.slice(0, Math.max(0, Number(continuityCount) || 0)).join(', ');
+      };
+
+      // Helper: sanitize prompt to forbid text/overlay instructions
+      const sanitizePromptInstructions = (str: string) => {
+        return str.replace(/floating text|floating|overlay text|caption|subtitle|overlay/gi, '');
+      };
+
+      // Process segments in chunks with concurrencyLimit
+      const chunkSize = Math.max(1, Number(concurrencyLimit) || 1);
+      for (let start = 0; start < segmentsArr.length; start += chunkSize) {
+        const chunk = segmentsArr.slice(start, start + chunkSize);
+
+        // Map to promises for parallel calls
+        const promises = chunk.map((seg, idx) => {
+          const i = start + idx;
+          const continuity = i > 0 ? getContinuity(segmentsArr[i - 1].quote || segmentsArr[i - 1].segment_quote || '') : '';
+
+          const perSegInstruction = `
+${master}
+
+${enforceNoText ? '// MANDATORY: DO NOT render any text inside the artwork. The prompt MUST NOT instruct placing floating text, captions, subtitles, or overlay graphics. Keep the image purely visual.' : ''}
+VIDEO TITLE: ${videoTitle || 'Unknown'}\nTOTAL SEGMENTS: ${segmentsArr.length}\n
+[SEG#${seg.segment_id}]\nSEGMENT_QUOTE: ${seg.quote || seg.segment_quote || ''}\nCONTINUITY: ${continuity}\n
+Please return ONLY a JSON object with the following exact structure (no extra text): { "segment_id": <number>, "segment_quote": "<original quote>", "prompt": "<the image prompt text>" }
+The "prompt" field should be a single paragraph image prompt in the style defined by the master template and must NOT request rendering any text inside the artwork.`;
+
+          const sanitized = enforceNoText ? sanitizePromptInstructions(perSegInstruction) : perSegInstruction;
+
+          return (async () => {
+            try {
+              const aiRes = await api.generateWakuImagePrompts(sanitized, selectedModel);
+              const raw = aiRes?.rawText || (typeof aiRes === 'string' ? aiRes : JSON.stringify(aiRes || ''));
+
+              // Try parse JSON first
+              try {
+                const parsed = JSON.parse(raw);
+                if (parsed && parsed.prompt) return { ok: true, data: { segment_id: seg.segment_id, segment_quote: seg.quote || seg.segment_quote || '', prompt: parsed.prompt } };
+                if (Array.isArray(parsed.image_prompts) && parsed.image_prompts.length > 0) return { ok: true, data: { segment_id: seg.segment_id, segment_quote: seg.quote || seg.segment_quote || '', prompt: parsed.image_prompts[0].prompt } };
+                if (parsed.prompt_text) return { ok: true, data: { segment_id: seg.segment_id, segment_quote: seg.quote || seg.segment_quote || '', prompt: parsed.prompt_text } };
+                return { ok: true, data: { segment_id: seg.segment_id, segment_quote: seg.quote || seg.segment_quote || '', prompt: typeof raw === 'string' ? raw : JSON.stringify(parsed) } };
+              } catch (e) {
+                // raw not JSON
+                return { ok: true, data: { segment_id: seg.segment_id, segment_quote: seg.quote || seg.segment_quote || '', prompt: raw } };
+              }
+            } catch (err) {
+              console.error('AI call failed for segment', seg.segment_id, err);
+              return { ok: false, error: err, segId: seg.segment_id };
+            }
+          })();
+        });
+
+        const settled = await Promise.all(promises);
+        for (const r of settled) {
+          if (r && r.ok && r.data) {
+            // final sanitize
+            let promptText = r.data.prompt || '';
+            if (enforceNoText) promptText = promptText.replace(/floating text|floating|overlay text|caption|subtitle|overlay/gi, '');
+            if (promptText.includes('Generative AI Prohibited Use policy') || promptText.includes('The prompt could not be submitted')) {
+              promptText = `[SEG#${r.data.segment_id}] Full canvas 16:9 single continuous high-contrast cinematic gritty graphic novel dark anime style scene inspired by Vagabond and Vinland Saga, featuring detailed ink hatching, dramatic chiaroscuro deep shadows, extending edge-to-edge to all four screen corners without any outer borders, frames, paper margins, card borders, or comic panel divider lines.\n\nCanvas: 1280x720px, 16:9 landscape aspect ratio, full bleed composition, zero outer margins, 100% canvas coverage.\n\n// IMPORTANT: DO NOT render any text inside the artwork. Keep the image purely visual.\n\nScene & Action: First-person POV inside a dark rustic medieval stone room; calloused hands in the foreground hold clean white linen wraps and a ceramic apothecary tincture jar on a wooden counter under dim flickering candlelight.\n\nCamera & Framing: First-person POV perspective looking down at hands and apothecary tools in foreground.\n\nMain Subject: Skilled apothecary hands working steadily in a solemn, atmospheric setting.\n\nLighting & Color Palette: Low somber candlelight, cool blue shadows, dramatic chiaroscuro.\n\nMood: Focused, atmospheric, restrained.\n\nNegative Constraints: Clean flat 2D cartoon style, bright cheerful colors, 3D render, smooth digital vector art, outer header box, banner container, outer frame border, paper margins, multi-panel split borders, text, words, letters, labels, logo.`;
+            }
+            promptText = promptText.replace(
+              /Negative Constraints:.*?(blood|gore|violence|underage|child|decapitation|blade|incision|scalpel|wounds?).*/gi,
+              'Negative Constraints: Clean flat 2D cartoon style, bright cheerful colors, 3D render, smooth digital vector art, outer header box, banner container, outer frame border, paper margins, multi-panel split borders, text, words, letters, labels, logo.'
+            );
+            results.push({ segment_id: r.data.segment_id, segment_quote: r.data.segment_quote, prompt: (promptText || '').trim() });
+          } else {
+            console.warn('Skipping segment due to AI failure:', r && r.segId);
+          }
+        }
+
+        // Progress update
+        setPastedOutput(JSON.stringify({ total_prompts: results.length, image_prompts: results }, null, 2));
+        setImagePrompts(results as any);
+        setBatchCurrentIndex(Math.min(start + chunkSize, segmentsArr.length));
+      }
+
+      // Save & validate
+      const finalRaw = JSON.stringify({ total_prompts: results.length, image_prompts: results }, null, 2);
+      setPastedOutput(finalRaw);
+      setValidationReport(null);
+      setImagePrompts(results as any);
+      savePromptsState(results as any, finalRaw);
+
+      showToast(`✨ Generasi Image Prompt Selesai: ${results.length} prompt dibuat.`);
     } catch (err: any) {
       console.error('Image prompt generate error:', err);
       showToast(`❌ Gagal me-generate prompt gambar: ${err?.message || err}`);
     } finally {
-      if (unsubscribeStream) unsubscribeStream();
       setIsGenerating(false);
       setGeneratingTopicId(null);
     }
@@ -277,7 +420,7 @@ const WakuImagePromptStep: React.FC = () => {
   const handleSavePrompt = async () => {
     try {
       if (api?.saveToProject) {
-        await api.saveToProject('dashboard/prompts/waku/image-prompt-generator-prompt.md', masterPrompt);
+        await api.saveToProject('dashboard/prompts/vann/image-prompt-generator-prompt.md', masterPrompt);
         showToast('💾 Master prompt disimpan ke image-prompt-generator-prompt.md!');
       }
     } catch (err) {
@@ -309,13 +452,13 @@ const WakuImagePromptStep: React.FC = () => {
     try {
       const targetId = topicId || activeTopicId;
       if (api?.saveToProject) {
-        await api.saveToProject('input/waku/image_prompts.json', rawStr);
+        await api.saveToProject('input/vann/image_prompts.json', rawStr);
         const formattedTxt = prompts.map((p) => `Segmen ${p.segment_id}: "${p.segment_quote}"\nPrompt:\n${p.prompt}`).join('\n\n---\n\n');
-        await api.saveToProject('input/waku/prompts.txt', formattedTxt);
+        await api.saveToProject('input/vann/prompts.txt', formattedTxt);
 
         if (targetId) {
-          await api.saveToProject(`input/waku/prompts/image_prompts_topic_${targetId}.json`, rawStr);
-          await api.saveToProject(`input/waku/prompts/prompts_topic_${targetId}.txt`, formattedTxt);
+          await api.saveToProject(`input/vann/prompts/image_prompts_topic_${targetId}.json`, rawStr);
+          await api.saveToProject(`input/vann/prompts/prompts_topic_${targetId}.txt`, formattedTxt);
         }
       }
       if (targetId) {
@@ -354,17 +497,17 @@ const WakuImagePromptStep: React.FC = () => {
         // Load segments for this topic
         let segmentsText = '';
         if (api?.readFromProject) {
-          const segFileStr = (await api.readFromProject(`input/waku/breakdowns/segments_topic_${topic.id}.json`)) || '';
+          const segFileStr = (await api.readFromProject(`input/vann/breakdowns/segments_topic_${topic.id}.json`)) || '';
           if (segFileStr) {
             try {
               const parsed = JSON.parse(segFileStr);
               if (Array.isArray(parsed.segments)) {
-                segmentsText = parsed.segments.map((s: any) => `Segmen ${s.segment_id}: "${s.text}"`).join('\n\n');
+                segmentsText = parsed.segments.map((s: any) => `Segmen ${s.segment_id}: "${s.quote ?? s.text ?? ''}"`).join('\n\n');
               }
             } catch {}
           }
           if (!segmentsText) {
-            segmentsText = (await api.readFromProject(`input/waku/breakdowns/breakdown_topic_${topic.id}.json`)) || '';
+            segmentsText = (await api.readFromProject(`input/vann/breakdowns/breakdown_topic_${topic.id}.json`)) || '';
           }
         }
         if (!segmentsText) segmentsText = segmentsListStr;
@@ -466,6 +609,15 @@ const WakuImagePromptStep: React.FC = () => {
             </button>
 
             <button
+              onClick={() => setShowConfig(!showConfig)}
+              className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-xl text-xs font-semibold border border-gray-700 transition-all flex items-center gap-1.5"
+              title="Konfigurasi generate: concurrency, continuity, enforcement"
+            >
+              <span>🛠️</span>
+              <span>{showConfig ? 'Sembunyikan Config' : 'Config'}</span>
+            </button>
+
+            <button
               onClick={handleCopyPrompt}
               className="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-emerald-300 rounded-xl text-xs font-semibold border border-emerald-800/80 transition-all flex items-center gap-1.5"
             >
@@ -491,6 +643,36 @@ const WakuImagePromptStep: React.FC = () => {
               )}
             </button>
           </div>
+          {showConfig && (
+            <div className="mt-3 bg-gray-900/80 p-3 rounded-lg border border-gray-800 text-xs text-gray-300">
+              <div className="flex items-center gap-3">
+                <label className="text-[11px] font-bold text-gray-400">Concurrency:</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={8}
+                  value={concurrencyLimit}
+                  onChange={(e) => setConcurrencyLimit(Math.max(1, Number(e.target.value || 1)))}
+                  className="w-16 bg-gray-950 border border-gray-800 rounded px-2 py-1 text-sm"
+                />
+
+                <label className="text-[11px] font-bold text-gray-400">Continuity words:</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={4}
+                  value={continuityCount}
+                  onChange={(e) => setContinuityCount(Math.max(0, Number(e.target.value || 0)))}
+                  className="w-12 bg-gray-950 border border-gray-800 rounded px-2 py-1 text-sm"
+                />
+
+                <label className="ml-2 flex items-center gap-2 text-[11px]">
+                  <input type="checkbox" checked={enforceNoText} onChange={(e) => setEnforceNoText(e.target.checked)} />
+                  <span className="text-gray-300">Enforce No-Text</span>
+                </label>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -925,4 +1107,4 @@ const WakuImagePromptStep: React.FC = () => {
   );
 };
 
-export default WakuImagePromptStep;
+export default VannImagePromptStep;

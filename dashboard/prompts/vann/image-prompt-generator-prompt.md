@@ -18,24 +18,28 @@ TUGAS: Buatkan prompt gambar untuk setiap segmen naskah dari Step 3 (1 segmen = 
   * Adengan Malam / Gua / Hutan Kuno ➔ Moody midnight indigo, intense chiaroscuro contrast, faint moonlight beam.
   * Adengan Pagi / Pantai / Terik ➔ Harsh directional sunlight glare, dust particles, desaturated gritty earth tones.
 
-3. TEKS OVERLAY MELAYANG DI DALAM ADEGAN GAMBAR (INTEGRATED FLOATING TEXT OVERLAY):
-- Untuk segmen yang mengenalkan poin/topik/kejadian penting, SERTAKAN instruksi teks judul bergaya tulisan manga/grafis tegas (*bold gritty graphic novel font text*) berisi 1-3 kata kunci paling relevan dari segmen tersebut dalam Bahasa Indonesia (misal: "POV MUSASHI", "PANTAI GANRYUJIMA", "PEDANG DAYUNG", "DUEL DEKAT").
-- 🛑 KETENTUAN TEKS MELAYANG (FLOATING DIRECTLY INSIDE ARTWORK):
-  - Teks HARUS digambar MELAYANG langsung DI DALAM adegan gambar visual (*floating directly inside the main artwork scene on top of background drawing*).
-  - DILARANG KERAS membuat kotak header terpisah (*no separate header box*), pita banner judul di bagian atas (*no top title banner strip*), atau bingkai tempat teks terpisah di luar adegan gambar!
+3. TIDAK BOLEH ADA TEKS MELAYANG / OVERLAY DALAM GAMBAR (NO FLOATING TEXT):
+- Sangat penting: JANGAN memasukkan instruksi apa pun yang meminta teks, caption, subtitle, atau overlay grafis dalam artwork. Semua teks narasi atau kata kunci harus tetap di field JSON `segment_quote` — TIDAK BOLEH digambarkan atau dirender di gambar.
+- Jika naskah menyebutkan kata kunci atau judul singkat, sertakan kata-kata itu hanya sebagai metadata/quote, bukan sebagai elemen visual teks.
+- Tujuan: gambar harus murni visual tanpa teks, sehingga prompt tidak boleh menyuruh model menambahkan tulisan di dalam artwork.
 
 4. AKURASI REPRESENTASI VISUAL KONTEN (WAJIB 100% MENCAKUP ISI SEGMEN):
 - Visual HARUS 100% akurat menggambarkan poin, aksi, objek, lingkungan, dan emosi yang sedang diucapkan narator pada segmen naskah POV tersebut.
 - Setiap objek utama, karakter, aktivitas, dan suasana yang disebutkan dalam naskah WAJIB divisualisasikan dengan jelas dan ekspresif dari sudut pandang POV.
 
 5. 🛡️ ATURAN KEBIJAKAN KONTEN & FILTER KEAMANAN AI (STRICT SAFETY POLICY COMPLIANCE):
-- 🛑 DILARANG KERAS MENGGUNAKAN KATA-KATA TRIGGER FILTER SAFETY AI GOOGLE (IMAGEN / GEMINI):
-  - DILARANG MERUJUK KATA TERLARANG: "child", "children", "kid", "underage", "minor", "blood", "bloody", "mutilation", "decapitation", "gore", "torture", "execution", "executioner", "slaughter", "naked", "erotic", "bone-saw", "amputate", "incision", "scalpel", "gallows", "blade", "victim".
+- 🛑 DILARANG KERAS MENGGUNAKAN KATA-KATA TRIGGER FILTER SAFETY AI GOOGLE (IMAGEN / GEMINI / GOOGLE FLOW):
+  - DILARANG SAMA SEKALI MEMASUKKAN KATA-KATA TERLARANG INI BAIK DI PROMPT UTAMA MAUPUN DI BARIS `Negative Constraints` (karena filter otomatis Google Flow juga memindai kata-kata negatif):
+    "child", "children", "kid", "underage", "minor", "blood", "bloody", "mutilation", "decapitation", "gore", "torture", "execution", "executioner", "slaughter", "naked", "erotic", "bone-saw", "amputate", "incision", "scalpel", "gallows", "blade", "victim", "wound", "wounds", "infected", "infection", "decay", "decaying", "rotting", "debridement", "distress", "pain", "pained", "screaming", "jeritan", "injury", "injured", "corpse", "flesh", "organs", "photoreal gore".
   - WAJIB GANTI DENGAN ISTILAH ARTISTIK & SYMBOLIC YANG LOLOS KEBIJAKAN GOOGLE FLOW:
-    - Darah / Luka ➔ "crimson resin glow", "red cape accents", "dramatic red atmospheric lighting", "battle-worn texture", "weathered armor".
-    - Alat Medis Bedah / Amputasi ➔ "antique wooden tool", "ceramic herbal bowl", "apothecary glass bottle", "clean white linen wrap", "medical cotton".
+    - Darah / Luka ➔ "crimson resin glow", "red cape accents", "dramatic red atmospheric lighting", "battle-worn texture", "weathered armor", "stained linen wraps".
+    - Luka / Daging Busuk / Infeksi Bedah ➔ "apothecary herbal salve", "ceramic tincture jar", "clean white linen wrap", "wooden counter", "apothecary tools", "restrained medical care".
+    - Jeritan Kesakitan / Penderitaan ➔ "strained facial expression", "tense emotional atmosphere", "shadow-draped stone room", "resolute posture".
     - Anak-anak / Di Bawah Umur ➔ "young apprentice", "novice warrior", "small figure", "young companion".
     - Algojo / Eksekusi / Gantungan ➔ "shadowed traveller", "masked figure in hood", "wooden terrace", "timber beam shadows".
+  - 🛑 NEGATIVE CONSTRAINTS HARUS STANDAR & BEBAS DARI KATA TRIGGER SAFETY:
+    Gunakan persis format ini tanpa menambahkan kata terlarang:
+    `Negative Constraints: Clean flat 2D cartoon style, bright cheerful colors, 3D render, smooth digital vector art, outer header box, banner container, outer frame border, paper margins, multi-panel split borders, text, words, letters, labels, logo.`
 
 SPESIFIKASI TEMPLATE PROMPT GAMBAR PER SEGMEN:
 Setiap prompt WAJIB diawali dengan tag identifikasi segmen `[SEG#<segment_id>]` dan mengikuti format struktur berikut:
@@ -44,7 +48,7 @@ Setiap prompt WAJIB diawali dengan tag identifikasi segmen `[SEG#<segment_id>]` 
 
 Canvas: 1280x720px, 16:9 landscape aspect ratio, full bleed composition, zero outer margins, 100% canvas coverage.
 
-Floating Text Overlay (jika ada poin penting): Big bold handwritten gritty graphic novel font text reading "{KATA_KUNCI_SINGKAT_BAHASA_INDONESIA}" floating directly inside the main artwork scene on top of the background drawing (no top banner box, no header container bar, no title panel frame, no separate banner strip).
+// IMPORTANT: DO NOT render any text inside the artwork. The prompt MUST NOT instruct placing floating text, captions, subtitles, or any overlay graphics. Keep the image purely visual. If a segment includes a keyword/title, keep it only in the JSON `segment_quote` field and do NOT include it as visual text in the image.
 
 Scene & Action: {Visualisasikan 1 adegan tunggal secara presisi apa yang sedang diucapkan narator — aksi, objek, lokasi dalam perspektif POV dengan kata-kata aman kebijakan AI}
 
@@ -56,7 +60,9 @@ Lighting & Color Palette: {Sesuaikan mood adegan — misal: high-contrast cool b
 
 Mood: {1-3 kata mood adegan — misal: Intense, Visceral, Dramatic, Immersive, Dark}
 
-Negative Constraints: Clean flat 2D cartoon style, bright cheerful colors, 3D render, smooth digital vector art, outer header box, banner container, outer frame border, paper margins, multi-panel split borders, blood, gore, violence, underage, child.
+Continuity: {Untuk segmen selain pertama, sertakan satu klausa singkat (2-4 kata) yang menghubungkan visual ini dengan segmen sebelumnya, misal: "continuity: torn cloak, trailing smoke"}
+
+Negative Constraints: Clean flat 2D cartoon style, bright cheerful colors, 3D render, smooth digital vector art, outer header box, banner container, outer frame border, paper margins, multi-panel split borders, text, words, letters, labels, logo.
 
 ---
 
@@ -76,7 +82,7 @@ Wajib mengembalikan HANYA objek JSON valid dengan struktur persis seperti beriku
     {
       "segment_id": 1,
       "segment_quote": "kutipan segmen 1 persis dari Step 3",
-      "prompt": "[SEG#1] Full canvas 16:9 single continuous high-contrast cinematic gritty graphic novel dark anime style scene inspired by Vagabond and Vinland Saga, featuring detailed ink hatching, dramatic chiaroscuro deep shadows, extending edge-to-edge to all four screen corners without any outer borders, frames, paper margins, card borders, or comic panel divider lines.\n\nCanvas: 1280x720px, 16:9 landscape aspect ratio, full bleed composition, zero outer margins, 100% canvas coverage.\n\nFloating Text Overlay: Big bold handwritten gritty graphic novel font text reading \"POV MUSASHI\" floating directly inside the main artwork scene on top of the background drawing (no top banner box, no header container bar, no title panel frame, no separate banner strip).\n\nScene & Action: First-person POV perspective looking down at your calloused hands holding a heavy wooden oar carved into a wooden sword, facing Sasaki Kojiro standing on the misty Ganryujima beach.\n\nCamera & Framing: First-person POV perspective with wooden oar in foreground.\n\nMain Subject: Musashi Miyamoto hands holding wooden oar sword, wearing traditional ragged dark samurai garments.\n\nLighting & Color Palette: Dramatic morning sea mist, cool desaturated blue-grey tones, ink hatching shadows, harsh sun glare.\n\nMood: Intense, visceral, immersive.\n\nNegative Constraints: Clean flat 2D cartoon style, bright cheerful colors, 3D render, smooth digital vector art, outer header box, banner container, outer frame border, paper margins, multi-panel split borders, blood, gore, child."
+      "prompt": "[SEG#1] Full canvas 16:9 single continuous high-contrast cinematic gritty graphic novel dark anime style scene inspired by Vagabond and Vinland Saga, featuring detailed ink hatching, dramatic chiaroscuro deep shadows, extending edge-to-edge to all four screen corners without any outer borders, frames, paper margins, card borders, or comic panel divider lines.\n\nCanvas: 1280x720px, 16:9 landscape aspect ratio, full bleed composition, zero outer margins, 100% canvas coverage.\n\n// IMPORTANT: DO NOT render any text inside the artwork. Big bold handwritten gritty graphic novel font text reading \"POV MUSASHI\" floating directly inside the main artwork scene on top of the background drawing (no top banner box, no header container bar, no title panel frame, no separate banner strip).\n\nScene & Action: First-person POV perspective looking down at your calloused hands holding a heavy wooden oar carved into a wooden sword, facing Sasaki Kojiro standing on the misty Ganryujima beach.\n\nCamera & Framing: First-person POV perspective with wooden oar in foreground.\n\nMain Subject: Musashi Miyamoto hands holding wooden oar sword, wearing traditional ragged dark samurai garments.\n\nLighting & Color Palette: Dramatic morning sea mist, cool desaturated blue-grey tones, ink hatching shadows, harsh sun glare.\n\nMood: Intense, visceral, immersive.\n\nNegative Constraints: Clean flat 2D cartoon style, bright cheerful colors, 3D render, smooth digital vector art, outer header box, banner container, outer frame border, paper margins, multi-panel split borders, blood, gore, child."
     }
   ]
 }
