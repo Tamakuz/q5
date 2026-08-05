@@ -117,6 +117,34 @@ const WakuVoiceOverStep: React.FC<VannVoiceOverStepProps> = ({ onStepChange }) =
   const [pipelineStatusText, setPipelineStatusText] = useState<string>('');
 
   const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
+  const [activeSegmentId, setActiveSegmentId] = useState<number | null>(null);
+  const segmentRowRefs = useRef<Record<number, HTMLTableRowElement | null>>({});
+
+  // Update active segment based on merged audio current time and auto-scroll the segment into view
+  useEffect(() => {
+    const t = audioCurrentTimes && audioCurrentTimes['merged'];
+    const segs = mergedVo?.transcript?.segments;
+    if (t === undefined || !segs || segs.length === 0) {
+      setActiveSegmentId(null);
+      return;
+    }
+
+    const cur = segs.find((s: any) => {
+      const start = typeof s.start_sec === 'number' ? s.start_sec : s.start_sec || 0;
+      const end = typeof s.end_sec === 'number' ? s.end_sec : s.end_sec || 0;
+      return t >= start && t <= end;
+    });
+    const newId = cur ? cur.segment_id : null;
+    setActiveSegmentId(newId);
+
+    if (newId && segmentRowRefs.current[newId]) {
+      try {
+        segmentRowRefs.current[newId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [audioCurrentTimes, mergedVo?.transcript?.segments]);
 
   // Auto-scroll terminal log container
   useEffect(() => {
@@ -1391,7 +1419,11 @@ const WakuVoiceOverStep: React.FC<VannVoiceOverStepProps> = ({ onStepChange }) =
                 </thead>
                 <tbody className="divide-y divide-gray-800/60 font-mono text-gray-300">
                   {mergedVo.transcript.segments.map((seg) => (
-                    <tr key={seg.segment_id} className="hover:bg-gray-900/60 transition-colors">
+                    <tr
+                      key={seg.segment_id}
+                      ref={(el) => (segmentRowRefs.current[seg.segment_id] = el)}
+                      className={`hover:bg-gray-900/60 transition-colors ${activeSegmentId === seg.segment_id ? 'bg-emerald-900/50 ring-1 ring-emerald-500' : ''}`}
+                    >
                       <td className="py-2 px-3 font-bold text-emerald-400">#{seg.segment_id}</td>
                       <td className="py-2 px-3 text-emerald-300">
                         {seg.start_sec.toFixed(2)}s ➔ {seg.end_sec.toFixed(2)}s

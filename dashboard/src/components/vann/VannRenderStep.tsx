@@ -397,35 +397,35 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
         setTimeout(() => setToast(null), 4000);
     };
 
-    // Load per-topic data (timeline, preview image, existing render result)
+    // Load per-topic data (mapping timeline, preview image, existing render result)
     const loadTopicRenderData = async (topicId: number) => {
         if (!api?.readFromProject) return null;
 
         let parsedT: WakuTimelineStructure | null = null;
 
-        // 1. Load timeline data for this topic
-        let timelineJson = await api.readFromProject(`input/vann/timelines/timeline_topic_${topicId}.json`);
-        if (!timelineJson) {
-            timelineJson = await api.readFromProject(`input/vann/vann_timeline_topic_${topicId}.json`);
-        }
-        if (!timelineJson && topicId === 1) {
-            timelineJson = await api.readFromProject('input/vann/vann_timeline.json');
-        }
-
-        if (timelineJson) {
+        // 1. Load timeline directly from vann_mapping_topic_X.json
+        const genTimelineFn = api?.generateVannTimeline || api?.generateWakuTimeline;
+        if (genTimelineFn) {
             try {
-                parsedT = JSON.parse(timelineJson);
-                setTimeline(parsedT);
+                const res = await genTimelineFn(topicId);
+                if (res?.timeline) {
+                    parsedT = res.timeline;
+                    setTimeline(parsedT);
 
-                // Load sample preview image from first clip
-                const firstClip = parsedT?.video_clips?.[0];
-                if (firstClip?.image_url) {
-                    setSampleImageUrl(firstClip.image_url);
-                } else if (firstClip?.image_path) {
-                    setSampleImageUrl(`media://content-auto/${encodeURIComponent(firstClip.image_path)}`);
+                    // Load sample preview image from first clip
+                    const firstClip = parsedT?.video_clips?.[0];
+                    if (firstClip?.image_url) {
+                        setSampleImageUrl(firstClip.image_url);
+                    } else if (firstClip?.image_path) {
+                        setSampleImageUrl(`media://content-auto/${encodeURIComponent(firstClip.image_path)}`);
+                    }
                 }
-            } catch {}
-        } else {
+            } catch (err) {
+                console.error('Error loading vann mapping timeline:', err);
+            }
+        }
+
+        if (!parsedT) {
             setTimeline(null);
             setSampleImageUrl(null);
         }
@@ -654,8 +654,9 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
         );
 
         try {
-            if (!api?.renderWakuVideo) {
-                throw new Error('API renderWakuVideo tidak tersedia.');
+            const renderFn = api?.renderVannVideo || api?.renderWakuVideo;
+            if (!renderFn) {
+                throw new Error('API renderVannVideo tidak tersedia.');
             }
 
             // Always persist latest full config (including captions & audio) to JSON before render
@@ -663,8 +664,8 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
                 await api.saveToProject('input/vann/render_config.json', JSON.stringify(config, null, 2));
             }
 
-            showToast(`🎬 Memulai proses render Waku Video Topik #${activeTopicId || 1}...`);
-            const res = await api.renderWakuVideo(config, timeline as any, undefined, activeTopicId || undefined);
+            showToast(`🎬 Memulai proses render Vann Video Topik #${activeTopicId || 1}...`);
+            const res = await renderFn(config, timeline as any, undefined, activeTopicId || undefined);
 
             if ('error' in res && res.error) {
                 setRenderError(res.error);
@@ -705,8 +706,9 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
 
         let successCount = 0;
         try {
-            if (!api?.renderWakuVideo) {
-                throw new Error('API renderWakuVideo tidak tersedia.');
+            const renderFn = api?.renderVannVideo || api?.renderWakuVideo;
+            if (!renderFn) {
+                throw new Error('API renderVannVideo tidak tersedia.');
             }
 
             // Always persist latest full config (including captions & audio) to JSON before render
@@ -737,7 +739,7 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
                     continue;
                 }
 
-                const res = await api.renderWakuVideo(config, topicTl as any, undefined, topic.id);
+                const res = await renderFn(config, topicTl as any, undefined, topic.id);
                 
                 const isSuccess = !('error' in res) || !res.error;
                 if (isSuccess) {

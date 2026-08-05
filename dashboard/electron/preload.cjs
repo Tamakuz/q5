@@ -323,6 +323,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('render-waku-video', { config, timeline, outputPath, topicId }),
   renderWakuPreviewFrame: (config, imagePath) =>
     ipcRenderer.invoke('render-waku-preview-frame', { config, imagePath }),
+
+  generateVannTimeline: (topicId) => ipcRenderer.invoke('generate-vann-timeline', { topicId }),
+  getVannRenderResult: (topicId) => ipcRenderer.invoke('get-vann-render-result', { topicId }),
+  renderVannVideo: (config, timeline, outputPath, topicId) =>
+    ipcRenderer.invoke('render-vann-video', { config, timeline, outputPath, topicId }),
+  renderVannPreviewFrame: (config, imagePath) =>
+    ipcRenderer.invoke('render-vann-preview-frame', { config, imagePath }),
   generateWakuThumbnailPrompts: (scriptContent, topicTitle, selectedTitle, metadata, model, topicId) =>
     ipcRenderer.invoke('generate-waku-thumbnail-prompts', { scriptContent, topicTitle, selectedTitle, metadata, model, topicId }),
   onWakuThumbnailPromptsChunk: (callback) => {

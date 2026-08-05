@@ -264,14 +264,14 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return res;
   }
 
-  ipcMain.handle('generate-waku-single-image', async (event, { segmentId, prompt, model, size, quality, image_detail, topicId }) => {
-    const res = await generateGoogleFlowImageDirect({ prompt, segmentId, workerId: 1, onLog: (logData) => { try { event.sender.send('waku-image-log', logData); } catch {} } });
+  handleVann('generate-vann-single-image', async (event, { segmentId, prompt, model, size, quality, image_detail, topicId }) => {
+    const res = await generateGoogleFlowImageDirect({ prompt, segmentId, workerId: 1, onLog: (logData) => { try { event.sender.send('waku-image-log', logData); event.sender.send('vann-image-log', logData); } catch {} } });
     return saveWakuImageFile(segmentId, res, topicId);
   });
 
   // ─── Batch image generation ────────────────────────────
 
-  ipcMain.handle('generate-waku-batch-images', async (event, { items, model, size, quality, image_detail, topicId, concurrency, keepOpen }) => {
+  handleVann('generate-vann-batch-images', async (event, { items, model, size, quality, image_detail, topicId, concurrency, keepOpen }) => {
     const results = [];
     const total = items.length;
     let completedCount = 0;
@@ -352,7 +352,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   // Waku Thumbnail Studio
   // ══════════════════════════════════════════════════════
 
-  ipcMain.handle('generate-waku-thumbnail-prompts', async (event, { scriptContent, topicTitle, selectedTitle, metadata, model, topicId }) => {
+  handleVann('generate-vann-thumbnail-prompts', async (event, { scriptContent, topicTitle, selectedTitle, metadata, model, topicId }) => {
     const topId = topicId || 1;
     let contextText = scriptContent || '';
     if (!contextText) {
@@ -387,7 +387,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return parsed;
   });
 
-  ipcMain.handle('generate-waku-thumbnail-images', async (event, { concepts, model, size, topicId }) => {
+  handleVann('generate-vann-thumbnail-images', async (event, { concepts, model, size, topicId }) => {
     if (!Array.isArray(concepts) || concepts.length === 0) throw new Error('Concepts list is empty.');
 
     const topId = topicId || 1;
@@ -474,7 +474,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   });
 
   // ─── Analyze thumbnails with vision ────────────────────
-  ipcMain.handle('analyze-waku-thumbnail-images', async (event, { topicTitle, selectedTitle, thumbnails, model, topicId }) => {
+  handleVann('analyze-vann-thumbnail-images', async (event, { topicTitle, selectedTitle, thumbnails, model, topicId }) => {
     const topId = topicId || 1;
     const targetThumbDir = path.join(p.WAKU_THUMBNAILS_DIR, `topic_${topId}`);
 
@@ -521,7 +521,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   });
 
   // ─── Get/save thumbnails ───────────────────────────────
-  ipcMain.handle('get-waku-thumbnails', async (_event, args) => {
+  handleVann('get-vann-thumbnails', async (_event, args) => {
     const topicId = (typeof args === 'number' ? args : args?.topicId) || 1;
     const savePath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails', `thumbnails_rendered_topic_${topicId}.json`);
     const promptsPath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails', `thumbnail_prompts_topic_${topicId}.json`);
@@ -550,7 +550,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return { concepts, rendered, selected };
   });
 
-  ipcMain.handle('save-waku-thumbnail-selection', async (_event, { selectedId, concept, topicId }) => {
+  handleVann('save-vann-thumbnail-selection', async (_event, { selectedId, concept, topicId }) => {
     const topId = topicId || 1;
     const selPath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'thumbnails', `thumbnail_selected_topic_${topId}.json`);
     const sdir = path.dirname(selPath);
@@ -570,7 +570,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   // Upload Metadata
   // ══════════════════════════════════════════════════════
 
-  ipcMain.handle('generate-waku-upload-metadata', async (event, { scriptContent, topicTitle, model, topicId }) => {
+  handleVann('generate-vann-upload-metadata', async (event, { scriptContent, topicTitle, model, topicId }) => {
     const topId = topicId || 1;
     let contextText = scriptContent || '';
     if (!contextText) {
@@ -617,7 +617,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return parsed;
   });
 
-  ipcMain.handle('get-waku-upload-metadata', async (_event, args) => {
+  handleVann('get-vann-upload-metadata', async (_event, args) => {
     const topicId = (typeof args === 'number' ? args : args?.topicId) || 1;
     const savePath = path.join(p.PROJECT_ROOT, 'input', 'vann', 'metadata', `upload_metadata_topic_${topicId}.json`);
     if (fs.existsSync(savePath)) { try { return JSON.parse(fs.readFileSync(savePath, 'utf-8')); } catch {} }
@@ -625,7 +625,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return null;
   });
 
-  ipcMain.handle('analyze-waku-metadata', async (event, { topicTitle, metadata, model, topicId }) => {
+  handleVann('analyze-vann-metadata', async (event, { topicTitle, metadata, model, topicId }) => {
     const topId = topicId || 1;
     const systemPrompt = loadPrompt('analyze-metadata-prompt.md');
     const prompt = `Topic Title: "${topicTitle || 'Waku Educational Facts'}"\n\nGenerated Metadata to Analyze:\n${JSON.stringify(metadata, null, 2)}`;
@@ -640,7 +640,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return analysis;
   });
 
-  ipcMain.handle('fix-waku-metadata', async (event, { topicTitle, metadata, analysis, model, topicId }) => {
+  handleVann('fix-vann-metadata', async (event, { topicTitle, metadata, analysis, model, topicId }) => {
     const topId = topicId || 1;
     const systemPrompt = loadPrompt('fix-metadata-prompt.md');
     const prompt = `Topic Title: "${topicTitle || 'Waku Educational Facts'}"\n\nCurrent Metadata:\n${JSON.stringify(metadata, null, 2)}\n\nAI Analysis & Areas to Fix:\n${JSON.stringify(analysis || {}, null, 2)}`;
@@ -661,7 +661,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   // VO Audio Upload & Merge
   // ══════════════════════════════════════════════════════
 
-  ipcMain.handle('upload-waku-vo-audio', async (_event, { segmentId, sourcePath, bufferArray, topicId }) => {
+  handleVann('upload-vann-vo-audio', async (_event, { segmentId, sourcePath, bufferArray, topicId }) => {
     const targetAudioDir = topicId ? path.join(p.PROJECT_ROOT, 'input', 'vann', 'audio', `topic_${topicId}`) : p.WAKU_AUDIO_DIR;
     await fs.promises.mkdir(targetAudioDir, { recursive: true });
     const ext = sourcePath ? path.extname(sourcePath) || '.mp3' : '.mp3';
@@ -676,7 +676,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return { segmentId, filename, filePath: destPath, url: media.mediaUrl(destPath), duration };
   });
 
-  ipcMain.handle('merge-waku-vo-audio', async (_event, { audioPaths, topicId }) => {
+  handleVann('merge-vann-vo-audio', async (_event, { audioPaths, topicId }) => {
     if (!Array.isArray(audioPaths) || audioPaths.length === 0) throw new Error('Daftar file audio tidak boleh kosong.');
     const validPaths = audioPaths.filter((p) => p && fs.existsSync(p));
     if (validPaths.length === 0) throw new Error('Tidak ada file audio valid yang ditemukan.');
@@ -732,7 +732,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return { filename: 'merged_narration.mp3', filePath: destPath, url: media.mediaUrl(destPath), duration };
   });
 
-  ipcMain.handle('run-waku-faster-whisper-alignment', async (event, { audioPath, scriptText, topicId }) => {
+  handleVann('run-vann-faster-whisper-alignment', async (event, { audioPath, scriptText, topicId }) => {
     const sendProgress = (stage, progress, message, logText) => {
       try {
         if (event && event.sender && !event.sender.isDestroyed()) {
@@ -775,7 +775,8 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
         throw new Error(`File audio narasi tidak ditemukan. Harap upload file audio narasi terlebih dahulu.`);
       }
 
-      const scriptToUse = scriptText || '';
+      // Force empty script to ensure Faster-Whisper outputs raw ASR (no script-based matching)
+      const scriptToUse = '';
       const tmpDir = path.join(p.PROJECT_ROOT, 'input', 'vann', 'transcripts');
       await fs.promises.mkdir(tmpDir, { recursive: true });
 
@@ -861,7 +862,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   // Get Waku Render Result
   // ══════════════════════════════════════════════════════
 
-  ipcMain.handle('get-waku-render-result', async (_event, args) => {
+  handleVann('get-vann-render-result', async (_event, args) => {
     const topId = (typeof args === 'number' ? args : args?.topicId) || 1;
     const topicFolder = path.join(p.WAKU_OUTPUT_DIR, `topic_${topId}`);
     const topicMp4InFolder = path.join(topicFolder, `waku_topic_${topId}.mp4`);
@@ -881,7 +882,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   // Waku Render Engine
   // ══════════════════════════════════════════════════════
 
-  ipcMain.handle('render-waku-video', async (event, { config, timeline, outputPath, topicId }) => {
+  handleVann('render-vann-video', async (event, { config, timeline, outputPath, topicId }) => {
     const topId = topicId || timeline?.topic_id || 1;
     const targetTopicFolder = path.join(p.WAKU_OUTPUT_DIR, `topic_${topId}`);
     if (!fs.existsSync(targetTopicFolder)) fs.mkdirSync(targetTopicFolder, { recursive: true });
@@ -916,8 +917,17 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       const validAudioTracks = audioTracks.filter((t) => t.filePath && fs.existsSync(t.filePath));
 
       let mappingSegments = [];
-      const wakuMappingPaths = [path.join(p.PROJECT_ROOT, 'input', 'vann', `vann_mapping_topic_${topId}.json`), path.join(p.PROJECT_ROOT, 'input', 'vann', 'transcripts', `merged_transcript_topic_${topId}.json`)];
-      if (topId === 1) wakuMappingPaths.push(path.join(p.PROJECT_ROOT, 'input', 'vann', 'vann_mapping.json'));
+      const wakuMappingPaths = [
+        path.join(p.PROJECT_ROOT, 'input', 'vann', 'mappings', `vann_mapping_topic_${topId}.json`),
+        path.join(p.PROJECT_ROOT, 'input', 'vann', `vann_mapping_topic_${topId}.json`),
+        path.join(p.PROJECT_ROOT, 'input', 'vann', 'transcripts', `merged_transcript_topic_${topId}.json`)
+      ];
+      if (topId === 1) {
+        wakuMappingPaths.push(
+          path.join(p.PROJECT_ROOT, 'input', 'vann', 'mappings', 'vann_mapping.json'),
+          path.join(p.PROJECT_ROOT, 'input', 'vann', 'vann_mapping.json')
+        );
+      }
       for (const smp of wakuMappingPaths) { if (fs.existsSync(smp)) { try { const raw = JSON.parse(fs.readFileSync(smp, 'utf-8')); mappingSegments = raw.segments || []; if (mappingSegments.length > 0) break; } catch {} } }
 
       const clipDurations = clips.map((clip, i) => {
@@ -1120,7 +1130,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   });
 
   // ─── Render Waku Preview Frame ──────────────────────
-  ipcMain.handle('render-waku-preview-frame', async (_event, { config, imagePath }) => {
+  handleVann('render-vann-preview-frame', async (_event, { config, imagePath }) => {
     if (!imagePath || !fs.existsSync(imagePath)) return { error: 'Preview image not found.' };
 
     const w = config?.resolution?.width || 1920, h = config?.resolution?.height || 1080;

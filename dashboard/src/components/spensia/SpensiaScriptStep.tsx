@@ -41,7 +41,7 @@ const SpensiaScriptStep: React.FC = () => {
   const [batchTotalCount, setBatchTotalCount] = useState<number>(0);
   const [generatingTopicId, setGeneratingTopicId] = useState<number | null>(null);
 
-  const [selectedModel, setSelectedModel] = useState<string>('cx/gpt-5.5');
+  const [selectedModel, setSelectedModel] = useState<string>('ag/gemini-3-flash-agent');
   const [masterPrompt, setMasterPrompt] = useState<string>('');
   const [showPromptEditor, setShowPromptEditor] = useState<boolean>(false);
 

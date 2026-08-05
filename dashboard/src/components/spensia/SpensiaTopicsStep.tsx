@@ -25,10 +25,11 @@ export interface TopicItem {
 }
 
 const MODEL_OPTIONS = [
-  { id: 'cx/gpt-5.5', name: 'cx/gpt-5.5 (Recommended)' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+  { id: 'ag/gemini-3-flash-agent', name: 'ag/gemini-3-flash-agent (Recommended)' },
+  { id: 'cx/gpt-5.5', name: 'cx/gpt-5.5' },
   { id: 'cmc/deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
 ];
 
 const SpensiaTopicsStep: React.FC = () => {
@@ -36,7 +37,7 @@ const SpensiaTopicsStep: React.FC = () => {
   const [itemCount, setItemCount] = useState<number>(5);
   const [masterPrompt, setMasterPrompt] = useState<string>('');
   const [showPromptEditor, setShowPromptEditor] = useState<boolean>(false);
-  const [selectedModel, setSelectedModel] = useState<string>('cx/gpt-5.5');
+  const [selectedModel, setSelectedModel] = useState<string>('ag/gemini-3-flash-agent');
 
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [pastedOutput, setPastedOutput] = useState<string>('');

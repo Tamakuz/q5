@@ -172,7 +172,7 @@ def run_faster_whisper_pipeline(audio_path: str, raw_text: str, model_name: str 
                 "text": seg.text.strip(),
                 "speaker": "Narator"
             })
-        return entries
+        return entries, all_words
 
     # Fuzzy Sequence Matching from naskah sentences to physical audio words
     current_word_idx = 0
