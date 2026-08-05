@@ -1,5 +1,6 @@
 // dashboard/src/components/waku/WakuVoiceOverStep.tsx
 import React, { useState, useEffect, useRef } from 'react';
+import type { StepId } from '../common/Sidebar';
 import {
   validateWakuWordTranscript,
   WakuWordTimestamp,
@@ -71,7 +72,7 @@ export interface BatchTopicItem {
 }
 
 interface VannVoiceOverStepProps {
-  onStepChange?: (step: 'upload') => void;
+  onStepChange?: (step: StepId) => void;
 }
 
 const WakuVoiceOverStep: React.FC<VannVoiceOverStepProps> = ({ onStepChange }) => {
@@ -166,8 +167,30 @@ const WakuVoiceOverStep: React.FC<VannVoiceOverStepProps> = ({ onStepChange }) =
         if (report.isValid && report.normalizedData) {
           setMergedVo((prev) => (prev ? { ...prev, rawTranscriptJson: res.jsonContent, transcript: report.normalizedData! } : prev));
           setTranscriptTab('sentences');
-          showToast('✨ Transkrip otomatis Faster-Whisper berhasil dibuat!');
-          handleGenerateTimelineData(activeTopicId || 1);
+
+          const topId = activeTopicId || 1;
+          if (api?.saveToProject) {
+            api.saveToProject(
+              `input/vann/mappings/vann_mapping_topic_${topId}.json`,
+              JSON.stringify(report.normalizedData, null, 2)
+            );
+            api.saveToProject(
+              `input/vann/transcripts/merged_transcript_topic_${topId}.json`,
+              JSON.stringify(report.normalizedData, null, 2)
+            );
+            if (topId === 1) {
+              api.saveToProject(
+                'input/vann/mappings/vann_mapping.json',
+                JSON.stringify(report.normalizedData, null, 2)
+              );
+              api.saveToProject(
+                'input/vann/vann_mapping.json',
+                JSON.stringify(report.normalizedData, null, 2)
+              );
+            }
+          }
+
+          showToast('✨ Transkrip otomatis Faster-Whisper & Vann Mapping berhasil dibuat!');
         } else {
           showToast('⚠️ Transkrip dibuat tetapi gagal divalidasi secara sempurna.');
         }
@@ -390,62 +413,10 @@ const WakuVoiceOverStep: React.FC<VannVoiceOverStepProps> = ({ onStepChange }) =
       setPipelineStage('idle');
       setPipelineStatusText('');
     }
-    // 3. Load timeline JSON for this topic
-    let timelineJson = await api.readFromProject(`input/vann/timelines/timeline_topic_${topicId}.json`);
-    if (!timelineJson) {
-      timelineJson = await api.readFromProject(`input/vann/vann_timeline_topic_${topicId}.json`);
-    }
-    if (!timelineJson && topicId === 1) {
-      timelineJson = await api.readFromProject('input/vann/vann_timeline.json');
-    }
-    if (timelineJson) {
-      try {
-        const parsed = JSON.parse(timelineJson);
-        if (parsed && Array.isArray(parsed.video_clips)) {
-          setTimelineData(parsed);
-        } else {
-          setTimelineData(null);
-        }
-      } catch {
-        setTimelineData(null);
-      }
-    } else {
-      setTimelineData(null);
-    }
-
     if (savedMergedVo?.audioUrl) {
       setActiveTab(0);
     } else {
       setActiveTab(1);
-    }
-  };
-
-  const handleGenerateTimelineData = async (targetTopicId?: number) => {
-    const topId = targetTopicId || activeTopicId || 1;
-    setIsGeneratingTimeline(true);
-    try {
-      const genTimelineFn = api?.generateVannTimeline || api?.generateWakuTimeline;
-      if (genTimelineFn) {
-        const res = await genTimelineFn(topId);
-        if (res?.error) {
-          showToast(`❌ Timeline Error: ${res.error}`);
-        } else if (res?.timeline) {
-          setTimelineData(res.timeline);
-          setBatchTopics((prev) =>
-            prev.map((t) => (t.id === topId ? { ...t, hasTimeline: true } : t))
-          );
-          showToast(
-            `✨ Timeline Mapping Topik #${topId} Berhasil Dibuat (${res.timeline.video_clips?.length || 0} Segmen, Total ${
-              res.timeline.total_duration_sec?.toFixed(1) || 0
-            }s)!`
-          );
-        }
-      }
-    } catch (err: any) {
-      console.error('Error generating timeline:', err);
-      showToast(`❌ Gagal membuat timeline: ${err?.message || err}`);
-    } finally {
-      setIsGeneratingTimeline(false);
     }
   };
 
@@ -823,7 +794,6 @@ const WakuVoiceOverStep: React.FC<VannVoiceOverStepProps> = ({ onStepChange }) =
             ? `✨ Audio Mapping Gemini Berhasil Diproses (${segCount} Segmen Aligned)!`
             : `✨ Transkrip Gemini Berhasil Diproses (${wordCount} Kata Aligned)!`
         );
-        handleGenerateTimelineData(activeTopicId || 1);
       } else {
         const pId = Number(targetKey);
         setParts((prev) => {
@@ -1386,16 +1356,26 @@ const WakuVoiceOverStep: React.FC<VannVoiceOverStepProps> = ({ onStepChange }) =
         {/* Display Segment Timeline Mapping Table if segments array exists */}
         {mergedVo?.transcript?.segments && mergedVo.transcript.segments.length > 0 && (
           <div className="p-5 bg-gray-950 border border-emerald-800/80 rounded-2xl space-y-3 shadow-xl animate-in fade-in duration-200">
-            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
               <div className="flex items-center gap-2">
                 <span className="p-1 bg-emerald-950 text-emerald-300 rounded-lg text-xs font-bold">🎬</span>
                 <h4 className="text-xs font-extrabold text-white tracking-wide">
                   Timeline Mapping Segmen Adegan (`vann_mapping.json` — Ready for FFmpeg Render)
                 </h4>
               </div>
-              <span className="text-[11px] font-mono text-emerald-400 font-bold">
-                {mergedVo.transcript.segments.length} Segmen Terpetakan
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] font-mono text-emerald-400 font-bold">
+                  {mergedVo.transcript.segments.length} Segmen Terpetakan
+                </span>
+                {onStepChange && (
+                  <button
+                    onClick={() => onStepChange('audio')}
+                    className="px-4 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 shadow-lg shadow-purple-950/50"
+                  >
+                    <span>Lanjut ke Step 4: Scene Splitter ✂️</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="overflow-x-auto max-h-72 border border-gray-800/80 rounded-xl">
@@ -1733,149 +1713,6 @@ const WakuVoiceOverStep: React.FC<VannVoiceOverStepProps> = ({ onStepChange }) =
                 />
               </div>
             )}
-          </div>
-        )}
-      </div>
-
-      {/* ─── VISUAL TIMELINE & SUBTITLE SYNC STUDIO SECTION ─── */}
-      <div className="bg-gray-900/90 p-6 rounded-3xl border border-emerald-800/60 shadow-2xl space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-extrabold text-white flex items-center gap-2">
-                <span>🗺️</span> Visual Timeline Mapping Adegan Video (`timeline.json`)
-              </h2>
-              {timelineData && (
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold">
-                  ✓ Timeline Sync Ready
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Daftar segmen adegan lengkap dengan gambar ilustrasi, rentang detik awal/akhir, dan durasi klip untuk rendering FFmpeg.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleGenerateTimelineData(activeTopicId || 1)}
-              disabled={isGeneratingTimeline}
-              className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg disabled:opacity-50"
-            >
-              <span>{isGeneratingTimeline ? '⚙️ Processing...' : '🔄 Re-Generate Timeline'}</span>
-            </button>
-
-            {onStepChange && (
-              <button
-                onClick={() => onStepChange('upload')}
-                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 shadow-lg shadow-purple-950/50"
-              >
-                <span>Lanjut ke Step 7: Render Studio 🎬</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {timelineData && timelineData.video_clips && timelineData.video_clips.length > 0 ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-xs font-mono font-bold text-gray-400 bg-gray-950/60 px-4 py-2 rounded-xl border border-gray-800">
-              <span>Total Segmen: <strong className="text-emerald-400">{timelineData.video_clips.length} Klip</strong></span>
-              <span>Total Durasi Video: <strong className="text-emerald-400">{timelineData.total_duration_sec?.toFixed(1)}s</strong></span>
-              <span>Audio Sync: <strong className="text-emerald-400">Merged Audio Aligned</strong></span>
-            </div>
-
-            <div className="overflow-x-auto border border-gray-800 rounded-2xl shadow-inner max-h-[500px] overflow-y-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-gray-950 text-gray-400 font-mono text-[11px] uppercase tracking-wider border-b border-gray-800 sticky top-0 z-20">
-                  <tr>
-                    <th className="py-3 px-4">Segmen</th>
-                    <th className="py-3 px-4">Gambar Adegan</th>
-                    <th className="py-3 px-4">Rentang Waktu (Start ➔ End)</th>
-                    <th className="py-3 px-4">Durasi</th>
-                    <th className="py-3 px-4">Naskah / Quote Adegan</th>
-                    <th className="py-3 px-4 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800/70 font-mono text-gray-300 bg-gray-900/50">
-                  {timelineData.video_clips.map((clip) => {
-                    const curTime = audioCurrentTimes['merged'] || 0;
-                    const isActive = curTime >= clip.start_sec && curTime < clip.end_sec;
-                    return (
-                      <tr
-                        key={clip.clip_id}
-                        id={`segment-row-${clip.segment_id}`}
-                        className={`transition-all duration-300 ${
-                          isActive
-                            ? 'bg-gradient-to-r from-emerald-950 via-emerald-950/80 to-gray-900 border-l-4 border-l-emerald-400 shadow-xl shadow-emerald-950/40 text-white font-medium'
-                            : 'hover:bg-gray-800/60 text-gray-300'
-                        }`}
-                      >
-                        <td className="py-3 px-4 font-extrabold">
-                          <div className="flex flex-col gap-1">
-                            <span className={`text-sm ${isActive ? 'text-emerald-300 font-black' : 'text-emerald-400'}`}>
-                              #{clip.segment_id}
-                            </span>
-                            {isActive && (
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-400 text-black text-[9px] font-black uppercase tracking-wider animate-pulse inline-flex items-center gap-1 shadow-md w-max">
-                                <span className="w-1.5 h-1.5 rounded-full bg-black animate-ping" />
-                                NOW PLAYING
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          {clip.image_url ? (
-                            <div className={`w-16 h-10 rounded-lg overflow-hidden border bg-black shrink-0 relative transition-all ${
-                              isActive ? 'border-emerald-400 ring-2 ring-emerald-500/40 shadow-lg scale-105' : 'border-gray-700'
-                            }`}>
-                              <img src={clip.image_url} alt={`Segmen #${clip.segment_id}`} className="w-full h-full object-cover" />
-                            </div>
-                          ) : (
-                            <span className="text-[10px] text-gray-500 italic">No image</span>
-                          )}
-                        </td>
-                        <td className={`py-3 px-4 font-bold ${isActive ? 'text-emerald-200 text-sm' : 'text-emerald-300'}`}>
-                          {clip.start_sec.toFixed(2)}s ➔ {clip.end_sec.toFixed(2)}s
-                        </td>
-                        <td className={`py-3 px-4 font-extrabold ${isActive ? 'text-emerald-200 text-sm' : 'text-emerald-300'}`}>
-                          {clip.duration_sec.toFixed(2)}s
-                        </td>
-                        <td className={`py-3 px-4 font-sans max-w-sm truncate ${isActive ? 'text-white font-semibold' : 'text-gray-300'}`} title={clip.quote}>
-                          {clip.quote}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <button
-                            onClick={() => handleSeekAudioToTime('merged', clip.start_sec)}
-                            className={`px-3 py-1.5 rounded-xl text-[11px] font-extrabold border transition-all flex items-center gap-1 ml-auto ${
-                              isActive
-                                ? 'bg-emerald-500 hover:bg-emerald-400 text-black border-emerald-300 shadow-lg shadow-emerald-950/80 animate-pulse'
-                                : 'bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border-emerald-800'
-                            }`}
-                          >
-                            {isActive ? '🔊 Playing...' : `▶️ Play ${clip.start_sec.toFixed(1)}s`}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-8 bg-gray-950/80 border border-dashed border-gray-800 rounded-2xl space-y-2">
-            <span className="text-2xl">🎬</span>
-            <h4 className="text-xs font-bold text-gray-300">Belum Ada Data Timeline Video</h4>
-            <p className="text-[11px] text-gray-500 max-w-md mx-auto">
-              Selesaikan proses transkrip otomatis Faster-Whisper atau paste JSON Gemini di atas untuk menghasilkan `timeline.json` secara otomatis.
-            </p>
-            <button
-              onClick={() => handleGenerateTimelineData(activeTopicId || 1)}
-              disabled={isGeneratingTimeline}
-              className="mt-2 px-4 py-2 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2"
-            >
-              <span>⚙️ Generate Timeline Sekarang</span>
-            </button>
           </div>
         )}
       </div>
