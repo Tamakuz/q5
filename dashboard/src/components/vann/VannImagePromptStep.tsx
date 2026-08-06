@@ -125,68 +125,84 @@ const VannImagePromptStep: React.FC = () => {
     })();
   }, []);
 
+  // Helper to extract segments array from any parsed JSON (sentences, timeline, mapping, transcript, breakdown)
+  const extractSegmentsFromParsed = (parsed: any): any[] | null => {
+    if (!parsed) return null;
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    if (Array.isArray(parsed.segments) && parsed.segments.length > 0) return parsed.segments;
+    if (Array.isArray(parsed.video_clips) && parsed.video_clips.length > 0) return parsed.video_clips;
+    if (Array.isArray(parsed.sentences) && parsed.sentences.length > 0) return parsed.sentences;
+    if (Array.isArray(parsed.breakdown) && parsed.breakdown.length > 0) return parsed.breakdown;
+    if (Array.isArray(parsed.timeline) && parsed.timeline.length > 0) return parsed.timeline;
+    if (Array.isArray(parsed.clips) && parsed.clips.length > 0) return parsed.clips;
+    if (Array.isArray(parsed.chunks) && parsed.chunks.length > 0) return parsed.chunks;
+    if (Array.isArray(parsed.items) && parsed.items.length > 0) return parsed.items;
+    return null;
+  };
+
+  // Comprehensive candidate list for finding segment data per topic
+  const getCandidateFilePaths = (topicId: number | null): string[] => {
+    const paths: string[] = [];
+    if (topicId) {
+      paths.push(
+        `input/vann/transcripts/merged_transcript_topic_${topicId}.json`,
+        `input/vann/mappings/vann_mapping_topic_${topicId}.json`,
+        `input/vann/timelines/timeline_topic_${topicId}.json`,
+        `input/vann/vann_timeline_topic_${topicId}.json`,
+        `input/vann/breakdowns/segments_topic_${topicId}.json`,
+        `input/vann/breakdowns/breakdown_topic_${topicId}.json`,
+        `input/vann/breakdown_topic_${topicId}.json`
+      );
+    }
+    paths.push(
+      'input/vann/transcripts/merged_transcript.json',
+      'input/vann/transcripts/transcript.json',
+      'input/vann/mappings/vann_mapping.json',
+      'input/vann/vann_mapping.json',
+      'input/vann/timelines/timeline_topic_1.json',
+      'input/vann/vann_timeline.json',
+      'input/vann/breakdowns/breakdown.json',
+      'input/vann/breakdown.json',
+      'input/vann/segments.json'
+    );
+    return paths;
+  };
+
   const loadTopicData = async (topicId: number | null, topicList?: BatchTopicItem[]) => {
     if (!api?.readFromProject) return;
 
-    // Load segments for this topic
+    const targetId = topicId || 1;
     let segmentsText = '';
     let count = 0;
-    if (topicId) {
-      // Try Vann mapping/transcript files first (merged transcript created by Vann step)
-      const vannCandidates = [
-        `input/vann/transcripts/merged_transcript_topic_${topicId}.json`,
-        `input/vann/mappings/vann_mapping_topic_${topicId}.json`,
-        `input/vann/mappings/vann_mapping.json`,
-        `input/vann/vann_mapping.json`,
-        `input/vann/transcripts/merged_transcript.json`,
-      ];
-      let found = false;
-      for (const p of vannCandidates) {
-        const s = (await api.readFromProject(p)) || '';
-        if (!s) continue;
-        try {
-          const parsed = JSON.parse(s);
-          const segs = Array.isArray(parsed.segments) ? parsed.segments : Array.isArray(parsed) ? parsed : null;
-          if (segs && segs.length > 0) {
-            count = segs.length;
-            segmentsText = segs.map((s: any) => `Segmen ${s.segment_id ?? s.id ?? '?'}: "${s.quote ?? s.text ?? ''}"`).join('\n\n');
-            found = true;
-            break;
-          }
-        } catch {}
-      }
 
-      // Fallback: read generic breakdown file
-      if (!found) {
-        segmentsText = (await api.readFromProject(`input/vann/breakdown_topic_${topicId}.json`)) || (await api.readFromProject('input/vann/breakdown.json')) || '';
-        if (segmentsText && segmentsText.trim()) {
-          // couldn't parse JSON; keep raw text
-          count = (segmentsText.match(/Segmen\s+\d+/g) || []).length || 0;
+    const candidates = getCandidateFilePaths(targetId);
+    let found = false;
+
+    for (const p of candidates) {
+      const s = (await api.readFromProject(p)) || '';
+      if (!s || !s.trim()) continue;
+      try {
+        const parsed = JSON.parse(s);
+        const segs = extractSegmentsFromParsed(parsed);
+        if (segs && segs.length > 0) {
+          count = segs.length;
+          segmentsText = segs
+            .map((item: any, idx: number) => {
+              const segId = item.segment_id ?? item.sentence_id ?? item.clip_id ?? item.chunk_id ?? item.id ?? (idx + 1);
+              const quote = item.quote || item.text || item.content || item.transcript || item.visual_description || item.narration || '';
+              return `Segmen ${segId}: "${quote}"`;
+            })
+            .join('\n\n');
+          found = true;
+          break;
         }
-      }
-    }
-
-    // Global fallback to any pre-existing files
-    if (!segmentsText) {
-      const globalCandidates = [
-        'input/vann/mappings/vann_mapping.json',
-        'input/vann/vann_mapping.json',
-        'input/vann/segments.json',
-        'input/vann/breakdown.json',
-      ];
-      for (const p of globalCandidates) {
-        const s = (await api.readFromProject(p)) || '';
-        if (!s) continue;
-        try {
-          const parsed = JSON.parse(s);
-          const segs = Array.isArray(parsed.segments) ? parsed.segments : Array.isArray(parsed) ? parsed : null;
-          if (segs && segs.length > 0) {
-            count = segs.length;
-            segmentsText = segs.map((s: any) => `Segmen ${s.segment_id ?? s.id ?? '?'}: "${s.quote ?? s.text ?? ''}"`).join('\n\n');
-            break;
-          }
-        } catch (e) {
-          // ignore
+      } catch {
+        const matches = s.match(/Segmen\s+\d+:[\s\S]*?(?=(Segmen\s+\d+:|$))/gi);
+        if (matches && matches.length > 0) {
+          count = matches.length;
+          segmentsText = matches.map((m) => m.trim()).join('\n\n');
+          found = true;
+          break;
         }
       }
     }
@@ -195,13 +211,13 @@ const VannImagePromptStep: React.FC = () => {
     setSegmentsListStr(segmentsText || '');
 
     // Load image prompts for this topic
-    const promptFile = topicId
-      ? `input/vann/prompts/image_prompts_topic_${topicId}.json`
+    const promptFile = targetId
+      ? `input/vann/prompts/image_prompts_topic_${targetId}.json`
       : 'input/vann/prompts/image_prompts.json';
 
     let promptsJson = (await api.readFromProject(promptFile)) || '';
-    if (!promptsJson && topicId) {
-      promptsJson = (await api.readFromProject(`input/vann/prompts/image_prompts_topic_${topicId}.json`)) || (await api.readFromProject('input/vann/prompts/image_prompts.json')) || (await api.readFromProject('input/vann/image_prompts.json')) || '';
+    if (!promptsJson && targetId) {
+      promptsJson = (await api.readFromProject(`input/vann/prompts/image_prompts_topic_${targetId}.json`)) || (await api.readFromProject('input/vann/prompts/image_prompts.json')) || (await api.readFromProject('input/vann/image_prompts.json')) || '';
     }
 
     if (promptsJson) {
@@ -241,7 +257,7 @@ const VannImagePromptStep: React.FC = () => {
   // 🎨 Auto Generate Image Prompts via AI (Per-segment, strict context + sanitization)
   const handleAutoGenerate = async () => {
     if (!segmentsListStr.trim()) {
-      showToast('⚠️ Mohon pastikan segmen adegan dari Step 3 telah dibuat!');
+      showToast('⚠️ Mohon pastikan segmen adegan dari Step 3 atau Step 4/5 telah dibuat!');
       return;
     }
 
@@ -258,28 +274,24 @@ const VannImagePromptStep: React.FC = () => {
         throw new Error('API generateWakuImagePrompts tidak tersedia pada Electron preload.');
       }
 
-      // Fetch structured segments if possible (prefer Vann mapping/transcript files)
+      // Fetch structured segments if possible
       let segmentsArr: Array<any> = [];
-      if (activeTopicId) {
-        const candidates = [
-          `input/vann/transcripts/merged_transcript_topic_${activeTopicId}.json`,
-          `input/vann/mappings/vann_mapping_topic_${activeTopicId}.json`,
-          `input/vann/mappings/vann_mapping.json`,
-          `input/vann/vann_mapping.json`,
-        ];
-        for (const p of candidates) {
-          const s = (await api.readFromProject(p)) || '';
-          if (!s) continue;
-          try {
-            const parsed = JSON.parse(s);
-            const segs = Array.isArray(parsed.segments) ? parsed.segments : Array.isArray(parsed) ? parsed : null;
-            if (segs && segs.length > 0) {
-              segmentsArr = segs;
-              break;
-            }
-          } catch (e) {
-            // ignore
+      const candidates = getCandidateFilePaths(activeTopicId);
+      for (const p of candidates) {
+        const s = (await api.readFromProject(p)) || '';
+        if (!s || !s.trim()) continue;
+        try {
+          const parsed = JSON.parse(s);
+          const segs = extractSegmentsFromParsed(parsed);
+          if (segs && segs.length > 0) {
+            segmentsArr = segs.map((item: any, idx: number) => ({
+              segment_id: item.segment_id ?? item.sentence_id ?? item.clip_id ?? item.chunk_id ?? item.id ?? (idx + 1),
+              quote: item.quote || item.text || item.content || item.transcript || item.visual_description || item.narration || '',
+            }));
+            break;
           }
+        } catch (e) {
+          // ignore
         }
       }
 
@@ -497,17 +509,30 @@ The "prompt" field should be a single paragraph image prompt in the style define
         // Load segments for this topic
         let segmentsText = '';
         if (api?.readFromProject) {
-          const segFileStr = (await api.readFromProject(`input/vann/breakdowns/segments_topic_${topic.id}.json`)) || '';
-          if (segFileStr) {
+          const candidates = getCandidateFilePaths(topic.id);
+          for (const p of candidates) {
+            const s = (await api.readFromProject(p)) || '';
+            if (!s || !s.trim()) continue;
             try {
-              const parsed = JSON.parse(segFileStr);
-              if (Array.isArray(parsed.segments)) {
-                segmentsText = parsed.segments.map((s: any) => `Segmen ${s.segment_id}: "${s.quote ?? s.text ?? ''}"`).join('\n\n');
+              const parsed = JSON.parse(s);
+              const segs = extractSegmentsFromParsed(parsed);
+              if (segs && segs.length > 0) {
+                segmentsText = segs
+                  .map((item: any, idx: number) => {
+                    const segId = item.segment_id ?? item.sentence_id ?? item.clip_id ?? item.chunk_id ?? item.id ?? (idx + 1);
+                    const quote = item.quote || item.text || item.content || item.transcript || item.visual_description || item.narration || '';
+                    return `Segmen ${segId}: "${quote}"`;
+                  })
+                  .join('\n\n');
+                break;
               }
-            } catch {}
-          }
-          if (!segmentsText) {
-            segmentsText = (await api.readFromProject(`input/vann/breakdowns/breakdown_topic_${topic.id}.json`)) || '';
+            } catch {
+              const matches = s.match(/Segmen\s+\d+:[\s\S]*?(?=(Segmen\s+\d+:|$))/gi);
+              if (matches && matches.length > 0) {
+                segmentsText = matches.map((m) => m.trim()).join('\n\n');
+                break;
+              }
+            }
           }
         }
         if (!segmentsText) segmentsText = segmentsListStr;

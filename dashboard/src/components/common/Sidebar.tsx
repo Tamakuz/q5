@@ -35,12 +35,11 @@ const LONGFORM_STEPS: Step[] = [
 const SPENSIA_STEPS: Step[] = [
   { id: 'source', icon: '💡', label: '1. Topics Generator', subText: 'Ide topik & fakta kontraintuitif' },
   { id: 'analyze', icon: '⚡', label: '2. Script Generator', subText: 'Naskah voiceover Style DNA Spensia' },
-  { id: 'audio', icon: '✂️', label: '3. Scene Splitter', subText: 'Breakdown segmen visual adegan' },
+  { id: 'publish', icon: '🎙️', label: '3. Voice & Timeline Studio', subText: 'Transkrip, auto timeline & visual sync' },
   { id: 'mapping', icon: '🎨', label: '4. Image Prompt Generator', subText: 'Visual Style DNA Spensia prompts' },
   { id: 'render', icon: '🖼️', label: '5. Image Generator', subText: 'Generate ilustrasi adegan Google Flow' },
-  { id: 'publish', icon: '🎙️', label: '6. Voice & Timeline Studio', subText: 'Transkrip, auto timeline & visual sync' },
-  { id: 'upload', icon: '🎬', label: '7. Render Studio (16:9)', subText: 'Watermark, caption, BGM & export' },
-  { id: 'thumbnail', icon: '🚀', label: '8. Publish Hub & Thumbnail', subText: 'AI SEO Title, Tags, Description & 3x Thumbnail' },
+  { id: 'upload', icon: '🎬', label: '6. Render Studio (16:9)', subText: 'Watermark, caption, BGM & export' },
+  { id: 'thumbnail', icon: '🚀', label: '7. Publish Hub & Thumbnail', subText: 'AI SEO Title, Tags, Description & 3x Thumbnail' },
 ];
 
 const UGC_STEPS: Step[] = [

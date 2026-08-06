@@ -27,6 +27,12 @@ const SpensiaImagePromptStep: React.FC = () => {
   const [masterPrompt, setMasterPrompt] = useState<string>('');
   const [showPromptEditor, setShowPromptEditor] = useState<boolean>(false);
 
+  // Small config panel for generation behavior
+  const [showConfig, setShowConfig] = useState<boolean>(false);
+  const [concurrencyLimit, setConcurrencyLimit] = useState<number>(3); // parallel AI calls
+  const [enforceNoText, setEnforceNoText] = useState<boolean>(true);
+  const [continuityCount, setContinuityCount] = useState<number>(2); // number of keywords from previous segment to include
+
   const [batchTopics, setBatchTopics] = useState<BatchTopicItem[]>([]);
   const [activeTopicId, setActiveTopicId] = useState<number | null>(null);
   const [isBatchGenerating, setIsBatchGenerating] = useState<boolean>(false);
@@ -119,55 +125,99 @@ const SpensiaImagePromptStep: React.FC = () => {
     })();
   }, []);
 
+  // Helper to extract segments array from any parsed JSON (sentences, timeline, mapping, transcript, breakdown)
+  const extractSegmentsFromParsed = (parsed: any): any[] | null => {
+    if (!parsed) return null;
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    if (Array.isArray(parsed.segments) && parsed.segments.length > 0) return parsed.segments;
+    if (Array.isArray(parsed.video_clips) && parsed.video_clips.length > 0) return parsed.video_clips;
+    if (Array.isArray(parsed.sentences) && parsed.sentences.length > 0) return parsed.sentences;
+    if (Array.isArray(parsed.breakdown) && parsed.breakdown.length > 0) return parsed.breakdown;
+    if (Array.isArray(parsed.timeline) && parsed.timeline.length > 0) return parsed.timeline;
+    if (Array.isArray(parsed.clips) && parsed.clips.length > 0) return parsed.clips;
+    if (Array.isArray(parsed.chunks) && parsed.chunks.length > 0) return parsed.chunks;
+    if (Array.isArray(parsed.items) && parsed.items.length > 0) return parsed.items;
+    return null;
+  };
+
+  // Comprehensive candidate list for finding segment data per topic
+  const getCandidateFilePaths = (topicId: number | null): string[] => {
+    const paths: string[] = [];
+    if (topicId) {
+      paths.push(
+        `input/spensia/transcripts/merged_transcript_topic_${topicId}.json`,
+        `input/spensia/mappings/spensia_mapping_topic_${topicId}.json`,
+        `input/spensia/timelines/timeline_topic_${topicId}.json`,
+        `input/spensia/spensia_timeline_topic_${topicId}.json`,
+        `input/spensia/breakdowns/segments_topic_${topicId}.json`,
+        `input/spensia/breakdowns/breakdown_topic_${topicId}.json`,
+        `input/spensia/breakdown_topic_${topicId}.json`
+      );
+    }
+    paths.push(
+      'input/spensia/transcripts/merged_transcript.json',
+      'input/spensia/transcripts/transcript.json',
+      'input/spensia/mappings/spensia_mapping.json',
+      'input/spensia/spensia_mapping.json',
+      'input/spensia/timelines/timeline_topic_1.json',
+      'input/spensia/spensia_timeline.json',
+      'input/spensia/breakdowns/breakdown.json',
+      'input/spensia/breakdown.json',
+      'input/spensia/segments.json'
+    );
+    return paths;
+  };
+
   const loadTopicData = async (topicId: number | null, topicList?: BatchTopicItem[]) => {
     if (!api?.readFromProject) return;
 
-    // Load segments for this topic
+    const targetId = topicId || 1;
     let segmentsText = '';
     let count = 0;
-    if (topicId) {
-      const segFileStr = (await api.readFromProject(`input/spensia/breakdowns/segments_topic_${topicId}.json`)) || '';
-      if (segFileStr) {
-        try {
-          const parsed = JSON.parse(segFileStr);
-          if (Array.isArray(parsed.segments)) {
-            count = parsed.segments.length;
-            segmentsText = parsed.segments.map((s: any) => `Segmen ${s.segment_id}: "${s.text}"`).join('\n\n');
-          }
-        } catch {}
-      }
-      if (!segmentsText) {
-        segmentsText = (await api.readFromProject(`input/spensia/breakdowns/breakdown_topic_${topicId}.json`)) || '';
-      }
-    }
 
-    if (!segmentsText) {
-      const segmentsJsonStr = (await api.readFromProject('input/spensia/segments.json')) || '';
-      if (segmentsJsonStr) {
-        try {
-          const parsed = JSON.parse(segmentsJsonStr);
-          if (Array.isArray(parsed.segments)) {
-            count = parsed.segments.length;
-            segmentsText = parsed.segments.map((s: any) => `Segmen ${s.segment_id}: "${s.text}"`).join('\n\n');
-          }
-        } catch {}
+    const candidates = getCandidateFilePaths(targetId);
+    let found = false;
+
+    for (const p of candidates) {
+      const s = (await api.readFromProject(p)) || '';
+      if (!s || !s.trim()) continue;
+      try {
+        const parsed = JSON.parse(s);
+        const segs = extractSegmentsFromParsed(parsed);
+        if (segs && segs.length > 0) {
+          count = segs.length;
+          segmentsText = segs
+            .map((item: any, idx: number) => {
+              const segId = item.segment_id ?? item.sentence_id ?? item.clip_id ?? item.chunk_id ?? item.id ?? (idx + 1);
+              const quote = item.quote || item.text || item.content || item.transcript || item.visual_description || item.narration || '';
+              return `Segmen ${segId}: "${quote}"`;
+            })
+            .join('\n\n');
+          found = true;
+          break;
+        }
+      } catch {
+        const matches = s.match(/Segmen\s+\d+:[\s\S]*?(?=(Segmen\s+\d+:|$))/gi);
+        if (matches && matches.length > 0) {
+          count = matches.length;
+          segmentsText = matches.map((m) => m.trim()).join('\n\n');
+          found = true;
+          break;
+        }
       }
-    }
-    if (!segmentsText) {
-      segmentsText = (await api.readFromProject('input/spensia/breakdown.json')) || '';
     }
 
     setSegmentsCount(count);
     setSegmentsListStr(segmentsText || '');
 
     // Load image prompts for this topic
-    const promptFile = topicId
-      ? `input/spensia/prompts/image_prompts_topic_${topicId}.json`
-      : 'input/spensia/image_prompts.json';
+    const promptFile = targetId
+      ? `input/spensia/prompts/image_prompts_topic_${targetId}.json`
+      : 'input/spensia/prompts/image_prompts.json';
 
     let promptsJson = (await api.readFromProject(promptFile)) || '';
-    if (!promptsJson && topicId) {
-      promptsJson = (await api.readFromProject('input/spensia/image_prompts.json')) || '';
+    if (!promptsJson && targetId) {
+      promptsJson = (await api.readFromProject(`input/spensia/prompts/image_prompts_topic_${targetId}.json`)) || (await api.readFromProject('input/spensia/prompts/image_prompts.json')) || (await api.readFromProject('input/spensia/image_prompts.json')) || '';
     }
 
     if (promptsJson) {
@@ -204,10 +254,10 @@ const SpensiaImagePromptStep: React.FC = () => {
       .replace(/{list_segmen}/g, targetSegments || '[List Segmen]');
   };
 
-  // 🎨 Auto Generate Image Prompts via AI (Realtime SSE Streaming)
+  // 🎨 Auto Generate Image Prompts via AI (Per-segment, strict context + sanitization)
   const handleAutoGenerate = async () => {
     if (!segmentsListStr.trim()) {
-      showToast('⚠️ Mohon pastikan segmen adegan dari Step 3 telah dibuat!');
+      showToast('⚠️ Mohon pastikan segmen adegan dari Step 3 atau Step 4/5 telah dibuat!');
       return;
     }
 
@@ -216,42 +266,148 @@ const SpensiaImagePromptStep: React.FC = () => {
     setBatchCurrentIndex(1);
     setBatchTotalCount(1);
     setPastedOutput('');
-    let unsubscribeStream: (() => void) | null = null;
 
     try {
-      let currentPrompt = (await loadPromptFromFile()) || masterPrompt;
+      const master = (await loadPromptFromFile()) || masterPrompt || '';
 
-      const computed = getComputedPrompt(currentPrompt);
-
-      if (!api?.generateSpensiaImagePrompts) {
+      if (!api?.generateSpensiaImagePrompts && !api?.generateWakuImagePrompts) {
         throw new Error('API generateSpensiaImagePrompts tidak tersedia pada Electron preload.');
       }
+      const aiPromptFn = api.generateSpensiaImagePrompts || api.generateWakuImagePrompts;
 
-      if (api?.onSpensiaImagePromptsChunk) {
-        unsubscribeStream = api.onSpensiaImagePromptsChunk(({ fullText }) => {
-          setPastedOutput(fullText);
+      // Fetch structured segments if possible
+      let segmentsArr: Array<any> = [];
+      const candidates = getCandidateFilePaths(activeTopicId);
+      for (const p of candidates) {
+        const s = (await api.readFromProject(p)) || '';
+        if (!s || !s.trim()) continue;
+        try {
+          const parsed = JSON.parse(s);
+          const segs = extractSegmentsFromParsed(parsed);
+          if (segs && segs.length > 0) {
+            segmentsArr = segs.map((item: any, idx: number) => ({
+              segment_id: item.segment_id ?? item.sentence_id ?? item.clip_id ?? item.chunk_id ?? item.id ?? (idx + 1),
+              quote: item.quote || item.text || item.content || item.transcript || item.visual_description || item.narration || '',
+            }));
+            break;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      // Fallback: parse segmentsListStr into simple objects
+      if (segmentsArr.length === 0) {
+        const rawItems = segmentsListStr.split(/\n\n+/).map((r) => r.trim()).filter(Boolean);
+        segmentsArr = rawItems.map((txt, idx) => {
+          const m = txt.match(/Segmen\s*(\d+)\s*:\s*"?(.*)"?/i);
+          if (m) return { segment_id: Number(m[1]), quote: m[2].trim() };
+          return { segment_id: idx + 1, quote: txt };
         });
       }
 
-      const res = await api.generateSpensiaImagePrompts(computed, selectedModel);
-      const rawContent = res?.rawText || JSON.stringify(res);
-      setPastedOutput(rawContent);
-
-      const report = validateSpensiaImagePrompts(rawContent);
-      setValidationReport(report);
-
-      if (report.normalizedData && report.normalizedData.image_prompts.length > 0) {
-        setImagePrompts(report.normalizedData.image_prompts);
-        savePromptsState(report.normalizedData.image_prompts, rawContent);
-        showToast(`✨ Generasi Image Prompt Berhasil: ${report.normalizedData.image_prompts.length} prompt gambar dibuat!`);
-      } else {
-        showToast(`⚠️ Validasi Image Prompt Gagal: ${report.summaryText}`);
+      if (segmentsArr.length === 0) {
+        showToast('⚠️ Tidak ditemukan segmen terstruktur untuk diproses.');
+        setIsGenerating(false);
+        setGeneratingTopicId(null);
+        return;
       }
+
+      const results: Array<any> = [];
+
+      // Helper: simple continuity extractor (pick up to continuityCount words from previous quote)
+      const getContinuity = (prevQuote: string) => {
+        if (!prevQuote) return '';
+        const words = prevQuote.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(Boolean).filter((w) => w.length > 4);
+        return words.slice(0, Math.max(0, Number(continuityCount) || 0)).join(', ');
+      };
+
+      // Helper: sanitize prompt to forbid text/overlay instructions
+      const sanitizePromptInstructions = (str: string) => {
+        return str.replace(/floating text|floating|overlay text|caption|subtitle|overlay/gi, '');
+      };
+
+      // Process segments in chunks with concurrencyLimit
+      const chunkSize = Math.max(1, Number(concurrencyLimit) || 1);
+      for (let start = 0; start < segmentsArr.length; start += chunkSize) {
+        const chunk = segmentsArr.slice(start, start + chunkSize);
+
+        // Map to promises for parallel calls
+        const promises = chunk.map((seg, idx) => {
+          const i = start + idx;
+          const continuity = i > 0 ? getContinuity(segmentsArr[i - 1].quote || segmentsArr[i - 1].segment_quote || '') : '';
+
+          const perSegInstruction = `
+${master}
+
+${enforceNoText ? '// MANDATORY: DO NOT render any text inside the artwork. The prompt MUST NOT instruct placing floating text, captions, subtitles, or overlay graphics. Keep the image purely visual.' : ''}
+VIDEO TITLE: ${videoTitle || 'Unknown'}\nTOTAL SEGMENTS: ${segmentsArr.length}\n
+[SEG#${seg.segment_id}]\nSEGMENT_QUOTE: ${seg.quote || seg.segment_quote || ''}\nCONTINUITY: ${continuity}\n
+Please return ONLY a JSON object with the following exact structure (no extra text): { "segment_id": <number>, "segment_quote": "<original quote>", "prompt": "<the image prompt text>" }
+The "prompt" field should be a single paragraph image prompt in the style defined by the master template and must NOT request rendering any text inside the artwork.`;
+
+          const sanitized = enforceNoText ? sanitizePromptInstructions(perSegInstruction) : perSegInstruction;
+
+          return (async () => {
+            try {
+              const aiRes = await aiPromptFn(sanitized, selectedModel);
+              const raw = aiRes?.rawText || (typeof aiRes === 'string' ? aiRes : JSON.stringify(aiRes || ''));
+
+              // Try parse JSON first
+              try {
+                const parsed = JSON.parse(raw);
+                if (parsed && parsed.prompt) return { ok: true, data: { segment_id: seg.segment_id, segment_quote: seg.quote || seg.segment_quote || '', prompt: parsed.prompt } };
+                if (Array.isArray(parsed.image_prompts) && parsed.image_prompts.length > 0) return { ok: true, data: { segment_id: seg.segment_id, segment_quote: seg.quote || seg.segment_quote || '', prompt: parsed.image_prompts[0].prompt } };
+                if (parsed.prompt_text) return { ok: true, data: { segment_id: seg.segment_id, segment_quote: seg.quote || seg.segment_quote || '', prompt: parsed.prompt_text } };
+                return { ok: true, data: { segment_id: seg.segment_id, segment_quote: seg.quote || seg.segment_quote || '', prompt: typeof raw === 'string' ? raw : JSON.stringify(parsed) } };
+              } catch (e) {
+                // raw not JSON
+                return { ok: true, data: { segment_id: seg.segment_id, segment_quote: seg.quote || seg.segment_quote || '', prompt: raw } };
+              }
+            } catch (err) {
+              console.error('AI call failed for segment', seg.segment_id, err);
+              return { ok: false, error: err, segId: seg.segment_id };
+            }
+          })();
+        });
+
+        const settled = await Promise.all(promises);
+        for (const r of settled) {
+          if (r && r.ok && r.data) {
+            // final sanitize
+            let promptText = r.data.prompt || '';
+            if (enforceNoText) promptText = promptText.replace(/floating text|floating|overlay text|caption|subtitle|overlay/gi, '');
+            if (promptText.includes('Generative AI Prohibited Use policy') || promptText.includes('The prompt could not be submitted')) {
+              promptText = `[SEG#${r.data.segment_id}] Hand-drawn 2D stick-figure style scene, thick slightly imperfect outline strokes, large round head, thin straight-line limbs, big round eyes with small pupils, expressive dynamic eyebrows, simple clear mouth expression. Flat color palette, muted earthy tones, minimal background, flat shading. 16:9 landscape aspect ratio. Negative Constraints: 3D render, realistic, detailed fingers, photorealistic, complex gradients, text, words, watermark.`;
+            }
+            promptText = promptText.replace(
+              /Negative Constraints:.*?(blood|gore|violence|underage|child|decapitation|blade|incision|scalpel|wounds?).*/gi,
+              'Negative Constraints: Clean flat 2D cartoon style, bright cheerful colors, 3D render, smooth digital vector art, outer header box, banner container, outer frame border, paper margins, multi-panel split borders, text, words, letters, labels, logo.'
+            );
+            results.push({ segment_id: r.data.segment_id, segment_quote: r.data.segment_quote, prompt: (promptText || '').trim() });
+          } else {
+            console.warn('Skipping segment due to AI failure:', r && r.segId);
+          }
+        }
+
+        // Progress update
+        setPastedOutput(JSON.stringify({ total_prompts: results.length, image_prompts: results }, null, 2));
+        setImagePrompts(results as any);
+        setBatchCurrentIndex(Math.min(start + chunkSize, segmentsArr.length));
+      }
+
+      // Save & validate
+      const finalRaw = JSON.stringify({ total_prompts: results.length, image_prompts: results }, null, 2);
+      setPastedOutput(finalRaw);
+      setValidationReport(null);
+      setImagePrompts(results as any);
+      savePromptsState(results as any, finalRaw);
+
+      showToast(`✨ Generasi Image Prompt Selesai: ${results.length} prompt dibuat.`);
     } catch (err: any) {
       console.error('Image prompt generate error:', err);
       showToast(`❌ Gagal me-generate prompt gambar: ${err?.message || err}`);
     } finally {
-      if (unsubscribeStream) unsubscribeStream();
       setIsGenerating(false);
       setGeneratingTopicId(null);
     }
@@ -309,9 +465,9 @@ const SpensiaImagePromptStep: React.FC = () => {
     try {
       const targetId = topicId || activeTopicId;
       if (api?.saveToProject) {
-        await api.saveToProject('input/spensia/image_prompts.json', rawStr);
+        await api.saveToProject('input/spensia/prompts/image_prompts.json', rawStr);
         const formattedTxt = prompts.map((p) => `Segmen ${p.segment_id}: "${p.segment_quote}"\nPrompt:\n${p.prompt}`).join('\n\n---\n\n');
-        await api.saveToProject('input/spensia/prompts.txt', formattedTxt);
+        await api.saveToProject('input/spensia/prompts/prompts.txt', formattedTxt);
 
         if (targetId) {
           await api.saveToProject(`input/spensia/prompts/image_prompts_topic_${targetId}.json`, rawStr);
@@ -336,8 +492,9 @@ const SpensiaImagePromptStep: React.FC = () => {
 
     let unsubscribeStream: (() => void) | null = null;
     try {
-      if (api?.onSpensiaImagePromptsChunk) {
-        unsubscribeStream = api.onSpensiaImagePromptsChunk(({ fullText }) => {
+      if (api?.onSpensiaImagePromptsChunk || api?.onWakuImagePromptsChunk) {
+        const streamFn = api.onSpensiaImagePromptsChunk || api.onWakuImagePromptsChunk;
+        unsubscribeStream = streamFn(({ fullText }) => {
           setPastedOutput(fullText);
         });
       }
@@ -359,9 +516,9 @@ const SpensiaImagePromptStep: React.FC = () => {
             try {
               const parsed = JSON.parse(segFileStr);
               if (Array.isArray(parsed.segments)) {
-                segmentsText = parsed.segments.map((s: any) => `Segmen ${s.segment_id}: "${s.text}"`).join('\n\n');
+                segmentsText = parsed.segments.map((s: any) => `Segmen ${s.segment_id}: "${s.quote ?? s.text ?? ''}"`).join('\n\n');
               }
-            } catch {}
+            } catch { }
           }
           if (!segmentsText) {
             segmentsText = (await api.readFromProject(`input/spensia/breakdowns/breakdown_topic_${topic.id}.json`)) || '';
@@ -379,8 +536,9 @@ const SpensiaImagePromptStep: React.FC = () => {
           let currentPrompt = (await loadPromptFromFile()) || masterPrompt;
           const computed = getComputedPrompt(currentPrompt, segmentsText);
 
-          if (api?.generateSpensiaImagePrompts) {
-            const res = await api.generateSpensiaImagePrompts(computed, selectedModel);
+          const aiPromptFn = api?.generateSpensiaImagePrompts || api?.generateWakuImagePrompts;
+          if (aiPromptFn) {
+            const res = await aiPromptFn(computed, selectedModel);
             const rawContent = res?.rawText || JSON.stringify(res);
             const report = validateSpensiaImagePrompts(rawContent);
 
@@ -452,7 +610,7 @@ const SpensiaImagePromptStep: React.FC = () => {
               <span>🎨</span> Image Prompt Generator (Spensia)
             </h1>
             <p className="text-xs text-gray-400 max-w-2xl leading-relaxed">
-              Generate prompt gambar ber-style Flat 2D illustration, warm earthy color palette, & stick-figure background unik untuk setiap segmen adegan.
+              Generate prompt gambar ber-style Gritty Graphic Novel Dark Anime, desaturated cool blue-grey chiaroscuro, & first-person POV storytelling unik untuk setiap segmen adegan Spensia.
             </p>
           </div>
 
@@ -463,6 +621,15 @@ const SpensiaImagePromptStep: React.FC = () => {
             >
               <span>⚙️</span>
               <span>{showPromptEditor ? 'Sembunyikan Prompt' : 'Master Prompt'}</span>
+            </button>
+
+            <button
+              onClick={() => setShowConfig(!showConfig)}
+              className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-xl text-xs font-semibold border border-gray-700 transition-all flex items-center gap-1.5"
+              title="Konfigurasi generate: concurrency, continuity, enforcement"
+            >
+              <span>🛠️</span>
+              <span>{showConfig ? 'Sembunyikan Config' : 'Config'}</span>
             </button>
 
             <button
@@ -491,6 +658,36 @@ const SpensiaImagePromptStep: React.FC = () => {
               )}
             </button>
           </div>
+          {showConfig && (
+            <div className="mt-3 bg-gray-900/80 p-3 rounded-lg border border-gray-800 text-xs text-gray-300">
+              <div className="flex items-center gap-3">
+                <label className="text-[11px] font-bold text-gray-400">Concurrency:</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={8}
+                  value={concurrencyLimit}
+                  onChange={(e) => setConcurrencyLimit(Math.max(1, Number(e.target.value || 1)))}
+                  className="w-16 bg-gray-950 border border-gray-800 rounded px-2 py-1 text-sm"
+                />
+
+                <label className="text-[11px] font-bold text-gray-400">Continuity words:</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={4}
+                  value={continuityCount}
+                  onChange={(e) => setContinuityCount(Math.max(0, Number(e.target.value || 0)))}
+                  className="w-12 bg-gray-950 border border-gray-800 rounded px-2 py-1 text-sm"
+                />
+
+                <label className="ml-2 flex items-center gap-2 text-[11px]">
+                  <input type="checkbox" checked={enforceNoText} onChange={(e) => setEnforceNoText(e.target.checked)} />
+                  <span className="text-gray-300">Enforce No-Text</span>
+                </label>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -536,26 +733,24 @@ const SpensiaImagePromptStep: React.FC = () => {
                 <button
                   key={t.id}
                   onClick={() => handleSwitchTopic(t)}
-                  className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${
-                    isGeneratingThis
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${isGeneratingThis
                       ? 'bg-emerald-950/90 border-emerald-400 text-emerald-200 shadow-lg shadow-emerald-950/60 ring-2 ring-emerald-500/50 animate-pulse'
                       : isActive
-                      ? 'bg-emerald-950/80 border-emerald-500 text-emerald-200 shadow-md ring-1 ring-emerald-500/40'
-                      : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
-                  }`}
+                        ? 'bg-emerald-950/80 border-emerald-500 text-emerald-200 shadow-md ring-1 ring-emerald-500/40'
+                        : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
+                    }`}
                 >
                   <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-emerald-300 shrink-0">
                     #{t.id}
                   </span>
                   <span className="truncate">"{t.title}"</span>
                   <span
-                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                      isGeneratingThis
+                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${isGeneratingThis
                         ? 'bg-emerald-900 text-emerald-200 border border-emerald-500 animate-pulse'
                         : t.hasPrompts
-                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                        : 'bg-gray-900 text-emerald-400 border border-gray-800'
-                    }`}
+                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                          : 'bg-gray-900 text-emerald-400 border border-gray-800'
+                      }`}
                   >
                     {isGeneratingThis ? '⚡ Generating...' : t.hasPrompts ? '✓ Ready' : '⏳ Belum'}
                   </span>
@@ -578,7 +773,7 @@ const SpensiaImagePromptStep: React.FC = () => {
               <h3 className="text-xs font-bold text-white tracking-wide uppercase flex items-center gap-2">
                 <span>⚡</span> Realtime Image Prompt Monitor
               </h3>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800">
                 Model: {selectedModel}
               </span>
             </div>
@@ -608,13 +803,12 @@ const SpensiaImagePromptStep: React.FC = () => {
                 return (
                   <div
                     key={t.id}
-                    className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 transition-all ${
-                      isGeneratingThis
+                    className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 transition-all ${isGeneratingThis
                         ? 'bg-emerald-950/80 border-emerald-400 text-white shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-400/50 animate-pulse'
                         : t.hasPrompts
-                        ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-300'
-                        : 'bg-gray-950 border-gray-800 text-gray-400'
-                    }`}
+                          ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-300'
+                          : 'bg-gray-950 border-gray-800 text-gray-400'
+                      }`}
                   >
                     <div className="flex items-center gap-1.5 truncate">
                       <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 shrink-0">
@@ -793,17 +987,15 @@ const SpensiaImagePromptStep: React.FC = () => {
                 <div className="flex items-center gap-1 bg-gray-950 p-1 rounded-xl border border-gray-800">
                   <button
                     onClick={() => setActiveTab('cards')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      activeTab === 'cards' ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
-                    }`}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${activeTab === 'cards' ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+                      }`}
                   >
                     🖼️ Visual Cards
                   </button>
                   <button
                     onClick={() => setActiveTab('json')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      activeTab === 'json' ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
-                    }`}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${activeTab === 'json' ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+                      }`}
                   >
                     📥 Raw Output
                   </button>
@@ -822,11 +1014,10 @@ const SpensiaImagePromptStep: React.FC = () => {
                 )}
                 {!isGenerating && validationReport && (
                   <span
-                    className={`text-[10px] font-mono px-2.5 py-0.5 rounded-md border font-bold ${
-                      validationReport.isValid
+                    className={`text-[10px] font-mono px-2.5 py-0.5 rounded-md border font-bold ${validationReport.isValid
                         ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
                         : 'bg-red-950 text-red-400 border-red-800'
-                    }`}
+                      }`}
                   >
                     {validationReport.isValid ? '✓ Image Prompts Valid' : `⚠️ ${validationReport.summaryText}`}
                   </span>

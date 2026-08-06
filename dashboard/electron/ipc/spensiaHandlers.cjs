@@ -365,7 +365,24 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     const rawJson = await aiClient.streamChatCompletion({ systemPrompt, prompt, model: model || 'ag/gemini-3-flash-agent', jsonMode: true, temperature: 0.8, onChunk: (chunk, fullText) => { try { event.sender.send('spensia-thumbnail-prompts-chunk', { chunk, fullText }); } catch { } } });
 
     const cleanJsonStr = aiClient.extractCleanJsonObject(rawJson);
-    const parsed = JSON.parse(cleanJsonStr);
+    let parsed = JSON.parse(cleanJsonStr);
+
+    // Hard Sanitizer for Spensia Thumbnail Concepts (Ensure STICK-FIGURE style, NO Vagabond/Vann/POV)
+    if (parsed && Array.isArray(parsed.concepts)) {
+      parsed.concepts = parsed.concepts.map((concept, idx) => {
+        let badge = concept.badge_text || 'CURIOSITY';
+        if (badge.includes('VANN') || badge.includes('POV')) {
+          const fallbackBadges = ['CURIOSITY', 'ABSURD', 'SHOCK'];
+          badge = fallbackBadges[idx % fallbackBadges.length];
+        }
+        let p = concept.prompt || '';
+        if (p.includes('Vagabond') || p.includes('Vinland') || p.includes('dark anime') || p.includes('gritty graphic novel')) {
+          p = `YouTube thumbnail artwork in hand-drawn 2D stick-figure style, 16:9 landscape aspect ratio. A single stick-figure character with a large dominant round head, thin straight-line limbs, big round eyes, and an exaggerated shocked facial expression, positioned at the bottom-center. Solid flat vibrant yellow background with high contrast. Clean composition. Bold text overlay at the top saying "${concept.text_overlay || 'FAKTA UNIK'}" in all caps, bright yellow font with a thick black outline. Negative Constraints: 3D render, photorealistic, Vagabond, anime, manga.`;
+        }
+        return { ...concept, badge_text: badge, prompt: p };
+      });
+    }
+
     const savePath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'thumbnails', `thumbnail_prompts_topic_${topId}.json`);
     const dir = path.dirname(savePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -595,7 +612,18 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
     const rawJson = await aiClient.streamChatCompletion({ systemPrompt, prompt, model: model || 'ag/gemini-3-flash-agent', jsonMode: true, temperature: 0.7, onChunk: (chunk, fullText) => { try { event.sender.send('spensia-upload-metadata-chunk', { chunk, fullText }); } catch { } } });
 
-    const parsed = JSON.parse(rawJson);
+    let parsed = JSON.parse(rawJson);
+
+    // Hard Sanitizer to ensure NO "POV:" or "Vann" leaks into Spensia metadata
+    const cleanTitle = (t) => (typeof t === 'string' ? t.replace(/^POV:\s*(KAMU\s*JADI\s*|KAMU\s*)?/i, '').replace(/^POV:\s*/i, '').replace(/\s*#POV/gi, '').trim() : t);
+    if (Array.isArray(parsed.titles)) {
+      parsed.titles = parsed.titles.map((item) => (typeof item === 'string' ? cleanTitle(item) : (item && typeof item === 'object' ? { ...item, title: cleanTitle(item.title) } : item)));
+    }
+    if (parsed.recommended_title) parsed.recommended_title = cleanTitle(parsed.recommended_title);
+    if (parsed.description) parsed.description = parsed.description.replace(/@vann_id/g, '@spensia_id').replace(/@vann\.official/g, '@spensia.official').replace(/#POV/gi, '#Spensia').replace(/#Vann/gi, '#Sains');
+    if (Array.isArray(parsed.tags)) parsed.tags = parsed.tags.filter((t) => typeof t === 'string' && t.toLowerCase() !== 'pov' && t.toLowerCase() !== 'pov kamu' && t.toLowerCase() !== 'vann');
+    if (Array.isArray(parsed.hashtags)) parsed.hashtags = parsed.hashtags.map((h) => (typeof h === 'string' && /^#pov$/i.test(h) ? '#Spensia' : (typeof h === 'string' && /^#vann$/i.test(h) ? '#Sains' : h)));
+
     const savePath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'metadata', `upload_metadata_topic_${topId}.json`);
     const dir = path.dirname(savePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -607,9 +635,21 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   ipcMain.handle('get-spensia-upload-metadata', async (_event, args) => {
     const topicId = (typeof args === 'number' ? args : args?.topicId) || 1;
     const savePath = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'metadata', `upload_metadata_topic_${topicId}.json`);
-    if (fs.existsSync(savePath)) { try { return JSON.parse(fs.readFileSync(savePath, 'utf-8')); } catch { } }
-    else if (topicId === 1) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'upload_metadata.json'); if (fs.existsSync(legacy)) { try { return JSON.parse(fs.readFileSync(legacy, 'utf-8')); } catch { } } }
-    return null;
+    let data = null;
+    if (fs.existsSync(savePath)) { try { data = JSON.parse(fs.readFileSync(savePath, 'utf-8')); } catch { } }
+    else if (topicId === 1) { const legacy = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'upload_metadata.json'); if (fs.existsSync(legacy)) { try { data = JSON.parse(fs.readFileSync(legacy, 'utf-8')); } catch { } } }
+
+    if (data) {
+      const cleanTitle = (t) => (typeof t === 'string' ? t.replace(/^POV:\s*(KAMU\s*JADI\s*|KAMU\s*)?/i, '').replace(/^POV:\s*/i, '').replace(/\s*#POV/gi, '').trim() : t);
+      if (Array.isArray(data.titles)) {
+        data.titles = data.titles.map((item) => (typeof item === 'string' ? cleanTitle(item) : (item && typeof item === 'object' ? { ...item, title: cleanTitle(item.title) } : item)));
+      }
+      if (data.recommended_title) data.recommended_title = cleanTitle(data.recommended_title);
+      if (data.description) data.description = data.description.replace(/@vann_id/g, '@spensia_id').replace(/@vann\.official/g, '@spensia.official').replace(/#POV/gi, '#Spensia').replace(/#Vann/gi, '#Sains');
+      if (Array.isArray(data.tags)) data.tags = data.tags.filter((t) => typeof t === 'string' && t.toLowerCase() !== 'pov' && t.toLowerCase() !== 'pov kamu' && t.toLowerCase() !== 'vann');
+      if (Array.isArray(data.hashtags)) data.hashtags = data.hashtags.map((h) => (typeof h === 'string' && /^#pov$/i.test(h) ? '#Spensia' : (typeof h === 'string' && /^#vann$/i.test(h) ? '#Sains' : h)));
+    }
+    return data;
   });
 
   ipcMain.handle('analyze-spensia-metadata', async (event, { topicTitle, metadata, model, topicId }) => {
@@ -896,11 +936,38 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       const w = config?.resolution?.width || 1920, h = config?.resolution?.height || 1080, fps = config?.fps || 30;
       send('init', 0, `Initializing Spensia Render Engine for Topic #${topId}...`);
 
-      const clips = timeline?.video_clips || [];
+      let clips = timeline?.video_clips || [];
+      if (clips.length === 0) {
+        try {
+          const autoTl = await generateSpensiaTimelineInternal(topId);
+          if (autoTl?.timeline?.video_clips?.length > 0) {
+            timeline = autoTl.timeline;
+            clips = timeline.video_clips;
+          }
+        } catch (e) {
+          console.warn('[render-spensia-video] Timeline auto-recovery failed:', e?.message || String(e));
+        }
+      }
       if (clips.length === 0) { send('error', 0, `No video clips in timeline for Topic #${topId}.`); return { error: `No video clips in timeline for Topic #${topId}.` }; }
 
-      const audioTracks = timeline?.audio_tracks || [];
-      const validAudioTracks = audioTracks.filter((t) => t.filePath && fs.existsSync(t.filePath));
+      let audioTracks = timeline?.audio_tracks || [];
+      let validAudioTracks = audioTracks.filter((t) => t.filePath && fs.existsSync(t.filePath));
+      if (validAudioTracks.length === 0) {
+        const topicAudDir = path.join(p.PROJECT_ROOT, 'input', 'spensia', 'audio', `topic_${topId}`);
+        const searchAudDirs = topId === 1 ? [topicAudDir, path.join(p.PROJECT_ROOT, 'input', 'spensia', 'audio')] : [topicAudDir, path.join(p.PROJECT_ROOT, 'input', 'spensia', 'audio')];
+        for (const d of searchAudDirs) {
+          if (fs.existsSync(d)) {
+            const audioFiles = fs.readdirSync(d).filter(f => /\.(mp3|wav|m4a|ogg|flac|aac)$/i.test(f));
+            if (audioFiles.length > 0) {
+              const fp = path.join(d, audioFiles[0]);
+              let dur = 30;
+              try { const probeOut = require('child_process').execSync(`"${ffmpeg.ffprobePath}" -v error -show_entries format=duration -of csv=p=0 "${fp}"`, { encoding: 'utf-8', timeout: 5000 }); dur = parseFloat(probeOut) || 30; } catch { }
+              validAudioTracks = [{ track: 'A1', part_id: 1, filePath: fp, url: media.mediaUrl(fp), start_sec: 0, end_sec: dur, duration_sec: dur }];
+              break;
+            }
+          }
+        }
+      }
 
       let mappingSegments = [];
       const spensiaMappingPaths = [path.join(p.PROJECT_ROOT, 'input', 'spensia', `spensia_mapping_topic_${topId}.json`), path.join(p.PROJECT_ROOT, 'input', 'spensia', 'transcripts', `merged_transcript_topic_${topId}.json`)];
@@ -1159,52 +1226,94 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   // Spensia Timeline Generator
   // ══════════════════════════════════════════════════════
 
-  ipcMain.handle('generate-spensia-timeline', async (_event, args) => {
+  // Helper function to auto-generate Spensia Timeline from disk assets
+  const generateSpensiaTimelineInternal = async (topicId) => {
     try {
-      const topicId = (typeof args === 'number' ? args : args?.topicId) || 1;
+      const topId = topicId || 1;
       const spensiaDir = path.join(p.PROJECT_ROOT, 'input', 'spensia');
       const transcriptsDir = path.join(spensiaDir, 'transcripts');
 
       let segments = [];
-      const breakdownPaths = topicId === 1
-        ? [path.join(spensiaDir, 'breakdowns', `breakdown_topic_1.json`), path.join(spensiaDir, `breakdown_topic_1.json`), path.join(spensiaDir, 'breakdown.json')]
-        : [path.join(spensiaDir, 'breakdowns', `breakdown_topic_${topicId}.json`), path.join(spensiaDir, `breakdown_topic_${topicId}.json`)];
+      const breakdownPaths = [
+        path.join(spensiaDir, 'mappings', `spensia_mapping_topic_${topId}.json`),
+        path.join(spensiaDir, `spensia_mapping_topic_${topId}.json`),
+        path.join(spensiaDir, 'prompts', `image_prompts_topic_${topId}.json`),
+        path.join(transcriptsDir, `merged_transcript_topic_${topId}.json`),
+        path.join(spensiaDir, 'breakdowns', `segments_topic_${topId}.json`),
+        path.join(spensiaDir, 'breakdowns', `breakdown_topic_${topId}.json`),
+        path.join(spensiaDir, `breakdown_topic_${topId}.json`),
+      ];
+      if (topId === 1) {
+        breakdownPaths.push(
+          path.join(spensiaDir, 'mappings', 'spensia_mapping.json'),
+          path.join(spensiaDir, 'spensia_mapping.json'),
+          path.join(spensiaDir, 'prompts', 'image_prompts.json'),
+          path.join(transcriptsDir, 'merged_transcript.json'),
+          path.join(spensiaDir, 'breakdowns', 'breakdown.json'),
+          path.join(spensiaDir, 'breakdown.json'),
+          path.join(spensiaDir, 'segments.json')
+        );
+      }
 
-      for (const bp of breakdownPaths) { if (fs.existsSync(bp)) { try { const raw = JSON.parse(fs.readFileSync(bp, 'utf-8')); const segs = Array.isArray(raw) ? raw : (raw.segments || raw.breakdown || []); if (segs.length > 0) { segments = segs; break; } } catch { } } }
-      if (segments.length === 0) return { error: `No breakdown data found for Topic #${topicId}. Jalankan step Scene Splitter dulu.` };
+      for (const bp of breakdownPaths) {
+        if (fs.existsSync(bp)) {
+          try {
+            const raw = JSON.parse(fs.readFileSync(bp, 'utf-8'));
+            const segs = Array.isArray(raw)
+              ? raw
+              : (raw.segments || raw.sentences || raw.image_prompts || raw.breakdown || []);
+            if (segs.length > 0) { segments = segs; break; }
+          } catch { }
+        }
+      }
 
       const images = [];
-      const genImgJsonPath = path.join(spensiaDir, 'images', `generated_images_topic_${topicId}.json`);
+      const genImgJsonPath = path.join(spensiaDir, 'images', `generated_images_topic_${topId}.json`);
       if (fs.existsSync(genImgJsonPath)) {
         try {
           const genData = JSON.parse(fs.readFileSync(genImgJsonPath, 'utf-8'));
           const genSegs = Array.isArray(genData) ? genData : (genData.segments || genData.images || []);
           genSegs.forEach((s) => {
             const segId = Number(s.segment_id || s.id);
-            const topicSubfile = path.join(spensiaDir, 'images', `topic_${topicId}`, `segment_${segId}.png`);
+            const topicSubfile = path.join(spensiaDir, 'images', `topic_${topId}`, `segment_${segId}.png`);
             if (fs.existsSync(topicSubfile)) images.push({ segment_id: segId, filePath: topicSubfile, url: media.mediaUrl(topicSubfile) });
-            else if (s.filePath && s.filePath.includes(`topic_${topicId}`) && fs.existsSync(s.filePath)) images.push({ segment_id: segId, filePath: s.filePath, url: media.mediaUrl(s.filePath) });
-            else if (topicId === 1 && s.filePath && !s.filePath.includes('topic_') && fs.existsSync(s.filePath)) images.push({ segment_id: segId, filePath: s.filePath, url: media.mediaUrl(s.filePath) });
+            else if (s.filePath && s.filePath.includes(`topic_${topId}`) && fs.existsSync(s.filePath)) images.push({ segment_id: segId, filePath: s.filePath, url: media.mediaUrl(s.filePath) });
+            else if (topId === 1 && s.filePath && !s.filePath.includes('topic_') && fs.existsSync(s.filePath)) images.push({ segment_id: segId, filePath: s.filePath, url: media.mediaUrl(s.filePath) });
           });
         } catch { }
       }
 
-      const topicImgDir = path.join(spensiaDir, 'images', `topic_${topicId}`);
+      const topicImgDir = path.join(spensiaDir, 'images', `topic_${topId}`);
       const searchImgDirs = [topicImgDir];
-      if (topicId === 1) searchImgDirs.push(path.join(spensiaDir, 'images', 'topic_1'));
+      if (topId === 1) searchImgDirs.push(path.join(spensiaDir, 'images', 'topic_1'));
       for (const d of searchImgDirs) {
         if (fs.existsSync(d)) {
           const files = fs.readdirSync(d).filter(f => /^segment_\d+\.(png|jpg|jpeg|webp)$/i.test(f));
           for (const f of files) {
             const m = f.match(/segment_(\d+)/);
-            if (m) { const segId = parseInt(m[1], 10); const filePath = path.join(d, f); if (!images.some((i) => i.segment_id === segId)) images.push({ segment_id: segId, filePath, url: media.mediaUrl(filePath) }); }
+            if (m) {
+              const segId = parseInt(m[1], 10);
+              const filePath = path.join(d, f);
+              if (!images.some((i) => i.segment_id === segId)) {
+                images.push({ segment_id: segId, filePath, url: media.mediaUrl(filePath) });
+              }
+            }
           }
         }
       }
 
+      // Fallback: If segments list is still empty, derive segments directly from image list
+      if (segments.length === 0 && images.length > 0) {
+        segments = images
+          .sort((a, b) => a.segment_id - b.segment_id)
+          .map((img) => ({ segment_id: img.segment_id, quote: `Segmen #${img.segment_id}` }));
+      }
+
+      if (segments.length === 0) return { error: `No breakdown or image assets found for Topic #${topId}.` };
+
       let singleAudio = null, part1Audio = null, part2Audio = null;
-      const topicAudDir = path.join(spensiaDir, 'audio', `topic_${topicId}`);
-      const searchAudDirs = topicId === 1 ? [topicAudDir, path.join(spensiaDir, 'audio')] : [topicAudDir];
+      const topicAudDir = path.join(spensiaDir, 'audio', `topic_${topId}`);
+      const searchAudDirs = topId === 1 ? [topicAudDir, path.join(spensiaDir, 'audio')] : [topicAudDir, path.join(spensiaDir, 'audio')];
 
       for (const d of searchAudDirs) {
         if (fs.existsSync(d)) {
@@ -1213,7 +1322,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
             const fp = path.join(d, f);
             let dur = 30;
             try { const probeOut = require('child_process').execSync(`"${ffmpeg.ffprobePath}" -v error -show_entries format=duration -of csv=p=0 "${fp}"`, { encoding: 'utf-8', timeout: 5000 }); dur = parseFloat(probeOut) || 30; } catch { }
-            if (f.includes('full') || f.includes('merged') || f.includes('single') || f.includes(`topic_${topicId}`)) singleAudio = { filePath: fp, url: media.mediaUrl(fp), duration: dur };
+            if (f.includes('full') || f.includes('merged') || f.includes('single') || f.includes(`topic_${topId}`) || f.endsWith('.wav') || f.endsWith('.mp3')) singleAudio = { filePath: fp, url: media.mediaUrl(fp), duration: dur };
             else if (f.includes('part_1') || f.includes('part1') || f.includes('segment_1')) part1Audio = { filePath: fp, url: media.mediaUrl(fp), duration: dur };
             else if (f.includes('part_2') || f.includes('part2') || f.includes('segment_2')) part2Audio = { filePath: fp, url: media.mediaUrl(fp), duration: dur };
           }
@@ -1222,16 +1331,27 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
             try { const probeOut = require('child_process').execSync(`"${ffmpeg.ffprobePath}" -v error -show_entries format=duration -of csv=p=0 "${fp}"`, { encoding: 'utf-8', timeout: 5000 }); dur = parseFloat(probeOut) || 30; } catch { }
             singleAudio = { filePath: fp, url: media.mediaUrl(fp), duration: dur };
           }
+          if (singleAudio) break;
         }
       }
 
       let mergedTranscript = null;
-      const spensiaMappingPaths = topicId === 1
+      const spensiaMappingPaths = topId === 1
         ? [path.join(spensiaDir, 'mappings', `spensia_mapping_topic_1.json`), path.join(spensiaDir, `spensia_mapping_topic_1.json`), path.join(transcriptsDir, `merged_transcript_topic_1.json`), path.join(spensiaDir, 'mappings', 'spensia_mapping.json'), path.join(spensiaDir, 'spensia_mapping.json')]
-        : [path.join(spensiaDir, 'mappings', `spensia_mapping_topic_${topicId}.json`), path.join(spensiaDir, `spensia_mapping_topic_${topicId}.json`), path.join(transcriptsDir, `merged_transcript_topic_${topicId}.json`)];
+        : [path.join(spensiaDir, 'mappings', `spensia_mapping_topic_${topId}.json`), path.join(spensiaDir, `spensia_mapping_topic_${topId}.json`), path.join(transcriptsDir, `merged_transcript_topic_${topId}.json`)];
 
       for (const smp of spensiaMappingPaths) {
-        if (fs.existsSync(smp)) { try { const rawMap = JSON.parse(fs.readFileSync(smp, 'utf-8')); const words = rawMap.words || []; const segs = rawMap.segments || []; if (words.length > 0 || segs.length > 0) { mergedTranscript = { words, segments: segs, transcript_full: rawMap.transcript_full || '' }; break; } } catch { } }
+        if (fs.existsSync(smp)) {
+          try {
+            const rawMap = JSON.parse(fs.readFileSync(smp, 'utf-8'));
+            const words = rawMap.words || [];
+            const segs = rawMap.segments || rawMap.sentences || [];
+            if (words.length > 0 || segs.length > 0) {
+              mergedTranscript = { words, segments: segs, transcript_full: rawMap.transcript_full || '' };
+              break;
+            }
+          } catch { }
+        }
       }
 
       const fps = 30, width = 1920, height = 1080;
@@ -1242,12 +1362,20 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       let clipId = 1;
 
       const buildClips = (segs, partId, partStartOffset, partDuration, transcriptData) => {
+        const transcriptSegs = (transcriptData?.segments && transcriptData.segments.length > 0) ? transcriptData.segments : segs;
         const transcriptWords = transcriptData?.words || [];
         let wordSearchIdx = 0;
 
-        // Pass 1: Extract start timestamps for all segments from transcript word alignment
-        const rawStarts = segs.map((seg, idx) => {
-          let segStartSec = -1;
+        // Extract start timestamps directly from Whisper/Gemini sentence alignment if available
+        const rawStarts = transcriptSegs.map((seg, idx) => {
+          const parseN = (v) => (typeof v === 'number' ? v : parseFloat(String(v || '').replace(/[^0-9.]/g, '')));
+          let sVal = parseN(seg.start_sec !== undefined ? seg.start_sec : (seg.start_seconds !== undefined ? seg.start_seconds : seg.start));
+
+          if (!isNaN(sVal) && sVal >= 0) {
+            return partStartOffset + sVal;
+          }
+
+          // Fallback: try matching first word in transcriptWords
           if (transcriptWords.length > 0) {
             const rawSegText = (seg.text || seg.quote || '').trim();
             const segWords = rawSegText.split(/\s+/).map(cleanWordForMatch).filter(Boolean);
@@ -1256,36 +1384,34 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
               for (let i = wordSearchIdx; i < transcriptWords.length; i++) {
                 const tw = cleanWordForMatch(transcriptWords[i].word || transcriptWords[i].text);
                 if (tw === firstTargetWord || tw.includes(firstTargetWord) || firstTargetWord.includes(tw)) {
-                  const parseN = (v) => (typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.]/g, '')));
                   const startVal = parseN(transcriptWords[i].start);
                   if (!isNaN(startVal) && startVal >= 0) {
-                    segStartSec = partStartOffset + startVal;
                     wordSearchIdx = i + 1;
-                    break;
+                    return partStartOffset + startVal;
                   }
                 }
               }
             }
           }
-          return segStartSec;
+          return -1;
         });
 
         // Segment 0 always starts at part start (0.00s)
         rawStarts[0] = partStartOffset;
 
         // Interpolate any missing start timestamps proportionally
-        segs.forEach((seg, idx) => {
+        transcriptSegs.forEach((seg, idx) => {
           if (rawStarts[idx] < 0) {
             let prevKnownIdx = idx - 1;
             while (prevKnownIdx >= 0 && rawStarts[prevKnownIdx] < 0) prevKnownIdx--;
             const prevStart = prevKnownIdx >= 0 ? rawStarts[prevKnownIdx] : partStartOffset;
 
             let nextKnownIdx = idx + 1;
-            while (nextKnownIdx < segs.length && rawStarts[nextKnownIdx] < 0) nextKnownIdx++;
-            const nextStart = nextKnownIdx < segs.length ? rawStarts[nextKnownIdx] : (partStartOffset + partDuration);
+            while (nextKnownIdx < transcriptSegs.length && rawStarts[nextKnownIdx] < 0) nextKnownIdx++;
+            const nextStart = nextKnownIdx < transcriptSegs.length ? rawStarts[nextKnownIdx] : (partStartOffset + partDuration);
 
             const gapDuration = Math.max(1.0, nextStart - prevStart);
-            const subSegs = segs.slice(prevKnownIdx >= 0 ? prevKnownIdx : 0, nextKnownIdx);
+            const subSegs = transcriptSegs.slice(prevKnownIdx >= 0 ? prevKnownIdx : 0, nextKnownIdx);
             const subTotalChars = subSegs.reduce((acc, s) => acc + (s.text || s.quote || '').length, 0);
 
             let subCharAcc = 0;
@@ -1366,6 +1492,11 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
       return { timeline, saved: true };
     } catch (err) { return { error: err.message }; }
+  };
+
+  ipcMain.handle('generate-spensia-timeline', async (_event, args) => {
+    const topicId = (typeof args === 'number' ? args : args?.topicId) || 1;
+    return await generateSpensiaTimelineInternal(topicId);
   });
 }
 

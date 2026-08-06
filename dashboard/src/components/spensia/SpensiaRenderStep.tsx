@@ -403,29 +403,50 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
 
         let parsedT: SpensiaTimelineStructure | null = null;
 
-        // 1. Load timeline data for this topic
-        let timelineJson = await api.readFromProject(`input/spensia/timelines/timeline_topic_${topicId}.json`);
-        if (!timelineJson) {
-            timelineJson = await api.readFromProject(`input/spensia/spensia_timeline_topic_${topicId}.json`);
-        }
-        if (!timelineJson && topicId === 1) {
-            timelineJson = await api.readFromProject('input/spensia/spensia_timeline.json');
-        }
-
-        if (timelineJson) {
+        // 1. Generate & load timeline live (matching Vann module flow)
+        if (api?.generateSpensiaTimeline) {
             try {
-                parsedT = JSON.parse(timelineJson);
-                setTimeline(parsedT);
+                const res = await api.generateSpensiaTimeline(topicId);
+                if (res?.timeline && Array.isArray(res.timeline.video_clips) && res.timeline.video_clips.length > 0) {
+                    parsedT = res.timeline;
+                    setTimeline(parsedT);
 
-                // Load sample preview image from first clip
-                const firstClip = parsedT?.video_clips?.[0];
-                if (firstClip?.image_url) {
-                    setSampleImageUrl(firstClip.image_url);
-                } else if (firstClip?.image_path) {
-                    setSampleImageUrl(`media://content-auto/${encodeURIComponent(firstClip.image_path)}`);
+                    const firstClip = parsedT?.video_clips?.[0];
+                    if (firstClip?.image_url) {
+                        setSampleImageUrl(firstClip.image_url);
+                    } else if (firstClip?.image_path) {
+                        setSampleImageUrl(`media://content-auto/${encodeURIComponent(firstClip.image_path)}`);
+                    }
                 }
-            } catch {}
-        } else {
+            } catch (err) {
+                console.error('Error loading spensia mapping timeline:', err);
+            }
+        }
+
+        // Fallback: Read pre-existing file if generateSpensiaTimeline didn't return timeline
+        if (!parsedT) {
+            let timelineJson = await api.readFromProject(`input/spensia/timelines/timeline_topic_${topicId}.json`);
+            if (!timelineJson) {
+                timelineJson = await api.readFromProject(`input/spensia/spensia_timeline_topic_${topicId}.json`);
+            }
+            if (!timelineJson && topicId === 1) {
+                timelineJson = await api.readFromProject('input/spensia/spensia_timeline.json');
+            }
+            if (timelineJson) {
+                try {
+                    parsedT = JSON.parse(timelineJson);
+                    setTimeline(parsedT);
+                    const firstClip = parsedT?.video_clips?.[0];
+                    if (firstClip?.image_url) {
+                        setSampleImageUrl(firstClip.image_url);
+                    } else if (firstClip?.image_path) {
+                        setSampleImageUrl(`media://content-auto/${encodeURIComponent(firstClip.image_path)}`);
+                    }
+                } catch { }
+            }
+        }
+
+        if (!parsedT) {
             setTimeline(null);
             setSampleImageUrl(null);
         }
@@ -445,7 +466,7 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                     } else if (firstItem?.filePath) {
                         setSampleImageUrl(`media://content-auto/${encodeURIComponent(firstItem.filePath)}`);
                     }
-                } catch {}
+                } catch { }
             }
         }
 
@@ -484,7 +505,7 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                                 caption: { enabled: true, displayMode: 'sentence', inactiveColorHex: '#CBD5E1', fontSize: 48, positionY: 160, ...(parsed.caption || {}) },
                                 vignette: { ...(parsed.vignette || {}), intensity: parsed.vignette?.intensity ?? 0.75 },
                             }));
-                        } catch {}
+                        } catch { }
                     }
 
                     // Load topics from Step 1
@@ -720,7 +741,7 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                 setBatchTopics((prev) =>
                     prev.map((t) => (t.id === topic.id ? { ...t, isCurrentlyRendering: true } : { ...t, isCurrentlyRendering: false }))
                 );
-                
+
                 // Visual update: Switch current active tab to currently rendering topic
                 setActiveTopicId(topic.id);
                 setVideoTitle(topic.title);
@@ -738,7 +759,7 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                 }
 
                 const res = await api.renderSpensiaVideo(config, topicTl as any, undefined, topic.id);
-                
+
                 const isSuccess = !('error' in res) || !res.error;
                 if (isSuccess) {
                     successCount++;
@@ -874,24 +895,22 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                                 <button
                                     key={t.id}
                                     onClick={() => handleSwitchTopic(t)}
-                                    className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${
-                                        isActive
+                                    className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-2 max-w-xs ${isActive
                                             ? 'bg-emerald-950/90 border-emerald-500 text-emerald-200 shadow-md ring-1 ring-emerald-500/40'
                                             : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
-                                    }`}
+                                        }`}
                                 >
                                     <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-emerald-300 shrink-0">
                                         #{t.id}
                                     </span>
                                     <span className="truncate">"{t.title}"</span>
                                     <span
-                                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                                            t.isCurrentlyRendering
+                                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${t.isCurrentlyRendering
                                                 ? 'bg-emerald-900 text-emerald-200 border border-emerald-500 animate-pulse'
                                                 : t.hasRendered
-                                                ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                                                : 'bg-gray-900 text-gray-500 border border-gray-800'
-                                        }`}
+                                                    ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                                                    : 'bg-gray-900 text-gray-500 border border-gray-800'
+                                            }`}
                                     >
                                         {t.isCurrentlyRendering ? '🔄 Rendering...' : t.hasRendered ? '✓ Rendered' : '⏳ Ready'}
                                     </span>
@@ -1007,15 +1026,14 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                             renderLogs.map((log, idx) => (
                                 <div
                                     key={idx}
-                                    className={`truncate ${
-                                        log.includes('❌') || log.includes('Gagal') || log.includes('Error')
+                                    className={`truncate ${log.includes('❌') || log.includes('Gagal') || log.includes('Error')
                                             ? 'text-red-400 font-bold'
                                             : log.includes('🎉') || log.includes('Sukses') || log.includes('Selesai')
-                                            ? 'text-emerald-300 font-bold'
-                                            : log.includes('⚡') || log.includes('Encoding')
-                                            ? 'text-amber-300 font-bold'
-                                            : 'text-gray-300'
-                                    }`}
+                                                ? 'text-emerald-300 font-bold'
+                                                : log.includes('⚡') || log.includes('Encoding')
+                                                    ? 'text-amber-300 font-bold'
+                                                    : 'text-gray-300'
+                                        }`}
                                 >
                                     {log}
                                 </div>
@@ -1085,11 +1103,10 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                                                     key={m.id}
                                                     type="button"
                                                     onClick={() => updateCaption({ displayMode: m.id as any })}
-                                                    className={`p-2.5 rounded-xl border text-left transition-all ${
-                                                        (config.caption?.displayMode || 'sentence') === m.id
+                                                    className={`p-2.5 rounded-xl border text-left transition-all ${(config.caption?.displayMode || 'sentence') === m.id
                                                             ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-300 shadow-md ring-1 ring-emerald-500/30'
                                                             : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-700'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     <div className="text-xs font-bold">{m.label}</div>
                                                     <div className="text-[10px] opacity-75 mt-0.5">{m.desc}</div>
@@ -1111,11 +1128,10 @@ const SpensiaRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = (
                                                     key={p.color}
                                                     type="button"
                                                     onClick={() => updateCaption({ inactiveColorHex: p.color })}
-                                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono font-bold transition-all ${
-                                                        (config.caption?.inactiveColorHex || '#CBD5E1').toUpperCase() === p.color.toUpperCase()
+                                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono font-bold transition-all ${(config.caption?.inactiveColorHex || '#CBD5E1').toUpperCase() === p.color.toUpperCase()
                                                             ? 'bg-gray-800 border-emerald-500 text-white ring-1 ring-emerald-500/50 shadow-md'
                                                             : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-700'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     <span className="w-3 h-3 rounded-full border border-gray-900 shadow-inner shrink-0" style={{ backgroundColor: p.color }} />
                                                     <span>{p.label}</span>
