@@ -14,9 +14,9 @@ You MUST analyze:
 8. "metadata_checklist": Boolean evaluation (true/false) for 5 metadata criteria:
    - "doom_scroll_stopper": stops fast doom scrolling (<0.5 sec)
    - "title_length": <60 characters & mobile readable
-   - "psychological_formula": uses curiosity gap, underdog, or contradiction
-   - "description_hook": first 2-3 sentences form an intense curiosity hook
-   - "seo_completeness": includes timestamps, CTA, 15-25 tags, hashtags
+   - "psychological_formula": uses curiosity gap, biological paradox, or contradiction
+   - "description_hook": rich 7-part narrative science description with synopsis and key takeaways
+   - "seo_completeness": includes timestamps, CTA, 18-25 tags, hashtags
 
 Return ONLY a valid JSON object matching this structure:
 {
@@ -28,7 +28,7 @@ Return ONLY a valid JSON object matching this structure:
     {
       "target_field": "tags",
       "reason": "Jumlah tag bisa dimaksimalkan hingga mendekati 500 karakter dengan menambahkan kata kunci pencarian populer.",
-      "suggested_fix_instruction": "Tambahkan tag SEO populer Indonesia seperti 'letusan gunung toba', 'konspirasi bumi', dan 'sains populer'."
+      "suggested_fix_instruction": "Tambahkan tag SEO populer Indonesia seperti 'manusia purba', 'evolusi rahang', dan 'sains populer'."
     }
   ],
   "psychological_analysis": "...",
