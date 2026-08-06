@@ -1854,6 +1854,505 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
       });
     });
   });
+
+  // ─── IPC: generate-alurfilm-test-tts-with-silence ──────
+  ipcMain.handle('generate-alurfilm-test-tts-with-silence', async (_event, { scriptText }) => {
+    const contentId = p.getOrGenerateContentId('longform');
+    if (!fs.existsSync(p.ALURFILM_AUDIO_DIR)) fs.mkdirSync(p.ALURFILM_AUDIO_DIR, { recursive: true });
+
+    const tagRegex = /\[VISUAL_ONLY:\s*([\d.]+)\s*s?\s*(?:\|\s*([^\]]+))?\]/gi;
+    const rawSegments = [];
+    let lastIndex = 0;
+    let match;
+
+    const inputScript = scriptText || '';
+
+    while ((match = tagRegex.exec(inputScript)) !== null) {
+      const textBefore = inputScript.slice(lastIndex, match.index).trim();
+      if (textBefore) {
+        rawSegments.push({ type: 'narration', text: textBefore });
+      }
+
+      const durationSec = Math.max(1.0, parseFloat(match[1]) || 5.0);
+      const description = (match[2] || 'Adegan Visual Murni Action').trim();
+      rawSegments.push({ type: 'visual_only', durationSec, description });
+
+      lastIndex = tagRegex.lastIndex;
+    }
+
+    const textAfter = inputScript.slice(lastIndex).trim();
+    if (textAfter) {
+      rawSegments.push({ type: 'narration', text: textAfter });
+    }
+
+    if (rawSegments.length === 0) {
+      rawSegments.push({ type: 'narration', text: inputScript || 'Naskah pengujian alur film.' });
+    }
+
+    const timestamp = Date.now();
+    const tempFiles = [];
+    const processedSegments = [];
+    let currentClockSec = 0;
+
+    for (let i = 0; i < rawSegments.length; i++) {
+      const seg = rawSegments[i];
+      const tempPath = path.join(p.ALURFILM_AUDIO_DIR, `temp_seg_${timestamp}_${i}.wav`);
+      tempFiles.push(tempPath);
+
+      let duration = 0;
+      if (seg.type === 'narration') {
+        const words = seg.text.split(/\s+/).filter(Boolean);
+        duration = Math.max(2.0, Number((words.length / 3.0).toFixed(1)));
+
+        // Generate synthetic narration audio tone for testing
+        await new Promise((resolve, reject) => {
+          const args = [
+            '-f', 'lavfi',
+            '-i', `sine=frequency=350:duration=${duration}`,
+            '-ar', '16000',
+            '-ac', '1',
+            '-c:a', 'pcm_s16le',
+            '-y',
+            tempPath
+          ];
+          const proc = spawn(ffmpeg.ffmpegPath, args);
+          proc.on('close', (code) => code === 0 ? resolve() : reject(new Error(`FFmpeg narration audio error code ${code}`)));
+          proc.on('error', reject);
+        });
+      } else {
+        duration = seg.durationSec;
+        // Generate pure silence audio
+        await new Promise((resolve, reject) => {
+          const args = [
+            '-f', 'lavfi',
+            '-i', `anullsrc=r=16000:cl=mono`,
+            '-t', String(duration),
+            '-c:a', 'pcm_s16le',
+            '-y',
+            tempPath
+          ];
+          const proc = spawn(ffmpeg.ffmpegPath, args);
+          proc.on('close', (code) => code === 0 ? resolve() : reject(new Error(`FFmpeg silence audio error code ${code}`)));
+          proc.on('error', reject);
+        });
+      }
+
+      const startSec = Number(currentClockSec.toFixed(1));
+      currentClockSec += duration;
+      const endSec = Number(currentClockSec.toFixed(1));
+
+      processedSegments.push({
+        index: i,
+        type: seg.type,
+        text: seg.text || null,
+        description: seg.description || null,
+        startSec,
+        endSec,
+        durationSec: Number(duration.toFixed(1))
+      });
+    }
+
+    // Concatenate all temp files using FFmpeg concat list
+    const listFilePath = path.join(p.ALURFILM_AUDIO_DIR, `concat_list_${timestamp}.txt`);
+    const listContent = tempFiles.map(f => `file '${f.replace(/'/g, "'\\''")}'`).join('\n');
+    fs.writeFileSync(listFilePath, listContent, 'utf-8');
+
+    const outputName = `${contentId}_test_silence_audio_${timestamp}.wav`;
+    const finalAudioPath = path.join(p.ALURFILM_AUDIO_DIR, outputName);
+
+    await new Promise((resolve, reject) => {
+      const args = [
+        '-f', 'concat',
+        '-safe', '0',
+        '-i', listFilePath,
+        '-c', 'copy',
+        '-y',
+        finalAudioPath
+      ];
+      const proc = spawn(ffmpeg.ffmpegPath, args);
+      proc.on('close', (code) => code === 0 ? resolve() : reject(new Error(`FFmpeg concat error code ${code}`)));
+      proc.on('error', reject);
+    });
+
+    // Cleanup temp files
+    try { fs.unlinkSync(listFilePath); } catch {}
+    for (const f of tempFiles) {
+      try { fs.unlinkSync(f); } catch {}
+    }
+
+    return {
+      success: true,
+      audioPath: finalAudioPath,
+      audioUrl: media.mediaUrl(finalAudioPath),
+      totalDurationSec: Number(currentClockSec.toFixed(1)),
+      segments: processedSegments
+    };
+  });
+
+  // ─── IPC: run-alurfilm-test-whisper-alignment ───────────
+  ipcMain.handle('run-alurfilm-test-whisper-alignment', async (event, { audioPath, scriptText }) => {
+    const contentId = p.getOrGenerateContentId('longform');
+    const tmpDir = path.join(p.ALURFILM_DIR, 'transcripts');
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+
+    const timestamp = Date.now();
+    const rawText = scriptText || '';
+
+    // Step 1: Parse raw script into an ordered sequence of elements (sentences + VISUAL_ONLY tags)
+    const tagRegex = /\[VISUAL_ONLY:\s*([\d.]+)\s*s?\s*(?:\|\s*([^\]]+))?\]/gi;
+    const scriptElements = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = tagRegex.exec(rawText)) !== null) {
+      const textBefore = rawText.slice(lastIndex, match.index).trim();
+      if (textBefore) {
+        const sents = textBefore.split(/(?<=[.!?])\s+/).filter(Boolean);
+        for (const st of sents) {
+          scriptElements.push({ type: 'narration', text: st });
+        }
+      }
+
+      const silenceDur = Math.max(1.0, parseFloat(match[1]) || 5.0);
+      const desc = (match[2] || 'Adegan Visual Murni Action').trim();
+      scriptElements.push({
+        type: 'visual_only',
+        text: `[VISUAL_ONLY: ${desc}]`,
+        description: desc,
+        duration: silenceDur
+      });
+
+      lastIndex = tagRegex.lastIndex;
+    }
+
+    const textAfter = rawText.slice(lastIndex).trim();
+    if (textAfter) {
+      const sents = textAfter.split(/(?<=[.!?])\s+/).filter(Boolean);
+      for (const st of sents) {
+        scriptElements.push({ type: 'narration', text: st });
+      }
+    }
+
+    // Step 2: Extract clean narration text for Faster-Whisper alignment
+    const narrationSentencesOnly = scriptElements
+      .filter(el => el.type === 'narration')
+      .map(el => el.text)
+      .join('\n');
+
+    const tmpScriptPath = path.join(tmpDir, `tmp_test_script_${timestamp}.txt`);
+    fs.writeFileSync(tmpScriptPath, narrationSentencesOnly || 'Naskah pengujian alur film.', 'utf-8');
+
+    const outJsonPath = path.join(tmpDir, `tmp_test_transcript_${timestamp}.json`);
+    const pythonBin = path.join(p.PROJECT_ROOT, 'whisperx', 'venv', 'bin', 'python3');
+    const alignCli = path.join(p.PROJECT_ROOT, 'whisperx', 'align_cli.py');
+
+    let whisperSentences = [];
+    let isFasterWhisperUsed = false;
+
+    if (fs.existsSync(pythonBin) && fs.existsSync(alignCli) && audioPath && fs.existsSync(audioPath)) {
+      try {
+        const sendProgress = (stage, progress, msg) => {
+          try {
+            event.sender.send('alurfilm-test-whisper-progress', { stage, progress, message: msg });
+          } catch {}
+        };
+
+        sendProgress('loading_model', 20, 'Memuat CTranslate2 / Faster-Whisper Model...');
+
+        await new Promise((resolve, reject) => {
+          const child = spawn(pythonBin, [alignCli, '--audio', audioPath, '--text', tmpScriptPath, '--output', outJsonPath, '--model', 'small'], {
+            cwd: p.PROJECT_ROOT,
+            env: { ...process.env, PYTHONSAFEPATH: '1' },
+          });
+
+          child.stdout.on('data', (d) => {
+            const line = d.toString().trim();
+            if (line.includes('Starting Silero VAD')) sendProgress('transcribing', 40, 'Menjalankan Silero VAD & Faster-Whisper Transkrip...');
+            if (line.includes('Perform Fuzzy Text-Matching')) sendProgress('aligning', 80, 'Menyesuaikan alignment teks & timestamp...');
+          });
+
+          child.on('close', (code) => code === 0 && fs.existsSync(outJsonPath) ? resolve() : reject(new Error(`Faster-Whisper process code ${code}`)));
+          child.on('error', reject);
+        });
+
+        if (fs.existsSync(outJsonPath)) {
+          const data = JSON.parse(fs.readFileSync(outJsonPath, 'utf-8'));
+          const parsed = Array.isArray(data) ? data : (data.transcript || data.sentences || []);
+          whisperSentences = parsed.map((item, idx) => {
+            let rawSpeechEnd = item.end_seconds !== undefined ? item.end_seconds : (item.end || 0);
+            if (Array.isArray(item.words) && item.words.length > 0) {
+              const lastWord = item.words[item.words.length - 1];
+              if (lastWord && lastWord.end !== undefined) {
+                rawSpeechEnd = lastWord.end;
+              }
+            }
+            return {
+              sentence_index: idx,
+              text: item.text || item.kalimat || item.narration || '',
+              start: Number((item.start_seconds !== undefined ? item.start_seconds : (item.start || 0)).toFixed(3)),
+              end: Number((item.end_seconds !== undefined ? item.end_seconds : (item.end || 0)).toFixed(3)),
+              rawSpeechEnd: Number(Number(rawSpeechEnd).toFixed(3))
+            };
+          });
+          isFasterWhisperUsed = true;
+        }
+      } catch (err) {
+        console.warn('Faster-Whisper CLI failed, falling back to script alignment:', err.message);
+      }
+    }
+
+    // Cleanup temp files
+    try { fs.unlinkSync(tmpScriptPath); } catch {}
+    try { fs.unlinkSync(outJsonPath); } catch {}
+
+    // Step 3: Map whisper timestamps onto narration elements
+    let whisperIdx = 0;
+    let simClock = 0;
+
+    const alignedElements = scriptElements.map((el, idx) => {
+      if (el.type === 'narration') {
+        const nextEl = idx < scriptElements.length - 1 ? scriptElements[idx + 1] : null;
+        const isFollowedByVisualOnly = nextEl && nextEl.type === 'visual_only';
+
+        if (isFasterWhisperUsed && whisperIdx < whisperSentences.length) {
+          const w = whisperSentences[whisperIdx++];
+          // If followed by visual_only, use exact physical rawSpeechEnd (un-smoothed e.g. 9.1s)
+          const actualEnd = isFollowedByVisualOnly && w.rawSpeechEnd ? w.rawSpeechEnd : w.end;
+          simClock = actualEnd;
+          return { ...el, start: w.start, end: actualEnd, rawSpeechEnd: w.rawSpeechEnd };
+        } else {
+          const words = (el.text || '').split(/\s+/).filter(Boolean);
+          const dur = Math.max(2.5, Number((words.length / 3.0).toFixed(3)));
+          const start = Number(simClock.toFixed(3));
+          simClock += dur;
+          const end = Number(simClock.toFixed(3));
+          return { ...el, start, end };
+        }
+      }
+      return el;
+    }
+    );
+
+
+    // Step 4: Zero-Loss Sequential Audio Splicing with 200ms Acoustic Tail Padding (Millisecond Precision)
+    let finalAudioPath = audioPath || '';
+    let finalAudioUrl = audioPath ? media.mediaUrl(audioPath) : '';
+    let audioSpliced = false;
+
+    const audioMeta = (audioPath && fs.existsSync(audioPath)) ? await ffmpeg.getVideoMetaHelper(audioPath) : null;
+    const totalRawAudioDur = (audioMeta && audioMeta.duration) ? audioMeta.duration : 0.0;
+
+    // Build sequential audio slice instructions with +0.20s acoustic tail padding
+    const audioSplits = [];
+    let lastCutTime = 0.0;
+
+    for (let i = 0; i < alignedElements.length; i++) {
+      const current = alignedElements[i];
+
+      if (current.type === 'visual_only') {
+        const prevNarr = i > 0 ? alignedElements[i - 1] : null;
+        let cutEnd = totalRawAudioDur;
+        if (prevNarr && prevNarr.end !== undefined && prevNarr.end > lastCutTime) {
+          // Add 200ms (0.2s) safety buffer to prevent cutting trailing vocal decay/room echo
+          cutEnd = Math.min(totalRawAudioDur, Number((prevNarr.end + 0.200).toFixed(3)));
+        }
+
+        if (cutEnd > lastCutTime && cutEnd <= totalRawAudioDur) {
+          audioSplits.push({
+            type: 'audio_chunk',
+            startSec: Number(lastCutTime.toFixed(3)),
+            endSec: Number(cutEnd.toFixed(3))
+          });
+          lastCutTime = cutEnd;
+        }
+
+        audioSplits.push({
+          type: 'silence_buffer',
+          durationSec: Number((current.duration || 5.0).toFixed(3)),
+          element: current
+        });
+      }
+    }
+
+    if (totalRawAudioDur > lastCutTime) {
+      audioSplits.push({
+        type: 'audio_chunk',
+        startSec: Number(lastCutTime.toFixed(3)),
+        endSec: Number(totalRawAudioDur.toFixed(3))
+      });
+    }
+
+    // Perform FFmpeg slicing and concatenation
+    if (audioPath && fs.existsSync(audioPath) && audioSplits.length > 0) {
+      try {
+        const tempFiles = [];
+        const sendProgress = (stage, progress, msg) => {
+          try { event.sender.send('alurfilm-test-whisper-progress', { stage, progress, message: msg }); } catch {}
+        };
+
+        sendProgress('splicing_audio', 85, 'Splicing audio sekuensial & menyisipkan Silence Gap presisi...');
+
+        for (let i = 0; i < audioSplits.length; i++) {
+          const item = audioSplits[i];
+          const tempChunkPath = path.join(p.ALURFILM_AUDIO_DIR, `temp_chunk_${timestamp}_${i}.wav`);
+          tempFiles.push(tempChunkPath);
+
+          if (item.type === 'audio_chunk') {
+            const ss = Math.max(0, item.startSec);
+            const to = Math.max(ss + 0.01, item.endSec);
+            const dur = Number((to - ss).toFixed(3));
+
+            await new Promise((resolve, reject) => {
+              const args = [
+                '-i', audioPath,
+                '-ss', String(ss),
+                '-t', String(dur),
+                '-ar', '16000',
+                '-ac', '1',
+                '-c:a', 'pcm_s16le',
+                '-y',
+                tempChunkPath
+              ];
+              const proc = spawn(ffmpeg.ffmpegPath, args);
+              proc.on('close', (code) => code === 0 && fs.existsSync(tempChunkPath) ? resolve() : reject(new Error(`FFmpeg slice error ${code}`)));
+              proc.on('error', reject);
+            });
+          } else {
+            const silenceDur = Number((item.durationSec || 5.0).toFixed(3));
+            await new Promise((resolve, reject) => {
+              const args = [
+                '-f', 'lavfi',
+                '-i', 'anullsrc=r=16000:cl=mono',
+                '-t', String(silenceDur),
+                '-ar', '16000',
+                '-ac', '1',
+                '-c:a', 'pcm_s16le',
+                '-y',
+                tempChunkPath
+              ];
+              const proc = spawn(ffmpeg.ffmpegPath, args);
+              proc.on('close', (code) => code === 0 && fs.existsSync(tempChunkPath) ? resolve() : reject(new Error(`FFmpeg silence error ${code}`)));
+              proc.on('error', reject);
+            });
+          }
+        }
+
+        // Concatenate using FFmpeg concat filter with re-encoding to guarantee clean stream joining
+        const listFilePath = path.join(p.ALURFILM_AUDIO_DIR, `concat_list_${timestamp}.txt`);
+        const listContent = tempFiles.map(f => `file '${f.replace(/'/g, "'\\''")}'`).join('\n');
+        fs.writeFileSync(listFilePath, listContent, 'utf-8');
+
+        const outputName = `${contentId}_final_audio_with_silence_gaps_${timestamp}.wav`;
+        const outPath = path.join(p.ALURFILM_AUDIO_DIR, outputName);
+
+        await new Promise((resolve, reject) => {
+          const args = [
+            '-f', 'concat',
+            '-safe', '0',
+            '-i', listFilePath,
+            '-ar', '16000',
+            '-ac', '1',
+            '-c:a', 'pcm_s16le',
+            '-y',
+            outPath
+          ];
+          const proc = spawn(ffmpeg.ffmpegPath, args);
+          proc.on('close', (code) => code === 0 && fs.existsSync(outPath) ? resolve() : reject(new Error(`FFmpeg concat error code ${code}`)));
+          proc.on('error', reject);
+        });
+
+        // Clean up temp files
+        try { fs.unlinkSync(listFilePath); } catch {}
+        for (const f of tempFiles) { try { fs.unlinkSync(f); } catch {} }
+
+        finalAudioPath = outPath;
+        finalAudioUrl = media.mediaUrl(outPath);
+        audioSpliced = true;
+      } catch (err) {
+        console.warn('FFmpeg audio splicing failed, keeping original audio:', err.message);
+      }
+    }
+
+    // Step 5: Construct timeline items matching adjusted final audio file perfectly
+    const finalItems = [];
+    let itemCounter = 0;
+    let clockSec = 0.0;
+    let sourceVideoClock = 15.0;
+    let cumulativeSilenceOffset = 0.0;
+
+    for (let i = 0; i < alignedElements.length; i++) {
+      const current = alignedElements[i];
+
+      if (current.type === 'visual_only') {
+        const duration = Number((current.duration || 5.0).toFixed(3));
+        const start = Number(clockSec.toFixed(3));
+        clockSec += duration;
+        const end = Number(clockSec.toFixed(3));
+
+        cumulativeSilenceOffset += duration;
+
+        const clip1Dur = Number((duration * 0.5).toFixed(3));
+        const clip2Dur = Number((duration - clip1Dur).toFixed(3));
+
+        finalItems.push({
+          sentence_index: itemCounter++,
+          type: 'visual_only',
+          text: current.text,
+          description: current.description || 'Adegan Visual Murni Action',
+          start,
+          end,
+          duration,
+          visuals: [
+            { type: 'video_cut', duration: clip1Dur, source_start_seconds: Number(sourceVideoClock.toFixed(1)), color_grading_shift: { contrast: 1.06, brightness: 0.005, saturation: 1.06 } },
+            { type: 'video_cut', duration: clip2Dur, source_start_seconds: Number((sourceVideoClock + 25.0).toFixed(1)), color_grading_shift: { contrast: 1.05, brightness: 0.004, saturation: 1.05 } }
+          ]
+        });
+        sourceVideoClock += 35.0;
+      } else {
+        const origStart = current.start !== undefined ? current.start : 0;
+        const origEnd = current.end !== undefined ? current.end : (origStart + 3.0);
+        const duration = Math.max(1.5, Number((origEnd - origStart).toFixed(3)));
+
+        const finalStart = audioSpliced
+          ? Number((origStart + cumulativeSilenceOffset).toFixed(3))
+          : Number(clockSec.toFixed(3));
+        
+        const adjustedStart = Math.max(clockSec, finalStart);
+        clockSec = Number((adjustedStart + duration).toFixed(3));
+        const finalEnd = Number(clockSec.toFixed(3));
+
+        finalItems.push({
+          sentence_index: itemCounter++,
+          type: 'narration',
+          text: current.text,
+          start: adjustedStart,
+          end: finalEnd,
+          duration,
+          visuals: [
+            { type: 'video_cut', duration, source_start_seconds: Number(sourceVideoClock.toFixed(1)), color_grading_shift: { contrast: 1.04, brightness: 0.003, saturation: 1.04 } }
+          ]
+        });
+        sourceVideoClock += 12.0;
+      }
+    }
+
+    const totalDur = Number(clockSec.toFixed(3));
+
+    return {
+      success: true,
+      isFasterWhisperUsed,
+      audioSpliced,
+      finalAudioPath,
+      finalAudioUrl,
+      totalDurationSec: totalDur,
+      items: finalItems
+    };
+
+
+  });
+
+
+
 }
 
 module.exports = { register };

@@ -65,6 +65,11 @@ Kamu WAJIB mengkombinasikan 5 tipe visual berikut secara bervariasi per scene:
 
 Wajib sertakan `color_grading_shift` acak pada setiap klip (contrast: 1.02-1.07, brightness: 0.002-0.01, saturation: 1.03-1.08).
 
+🚨 **ATURAN KHUSUS SEGMEN VISUAL MURNI (NO-VO VISUAL ONLY / JEDA HENING)**:
+- Untuk segmen jeda hening / visual murni tanpa VO (misal: adegan pertarungan/aksi/tsunami `[VISUAL_ONLY]`), **DILARANG KERAS** menggunakan `slow_motion`, `freeze_frame_with_zoom`, `mirror_cut`, atau `pan_and_zoom_cut`.
+- Segmen Visual Murni **WAJIB 100% MENGGUNAKAN TIPE `video_cut` (kecepatan normal tanpa efek)** agar adegan aksi tampil alami, realistis, dan berenergi tinggi.
+
+
 ==================================================
 📄 FORMAT OUTPUT JSON MURNI (TANPA MARKDOWN ```json)
 ==================================================

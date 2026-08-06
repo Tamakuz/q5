@@ -164,6 +164,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('alurfilm:render-intro-progress', handler);
     return () => ipcRenderer.removeListener('alurfilm:render-intro-progress', handler);
   },
+  generateAlurfilmTestTtsWithSilence: (scriptText) =>
+    ipcRenderer.invoke('generate-alurfilm-test-tts-with-silence', { scriptText }),
+  runAlurfilmTestWhisperAlignment: (audioPath, scriptText) =>
+    ipcRenderer.invoke('run-alurfilm-test-whisper-alignment', { audioPath, scriptText }),
+  onAlurfilmTestWhisperProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('alurfilm-test-whisper-progress', handler);
+    return () => ipcRenderer.removeListener('alurfilm-test-whisper-progress', handler);
+  },
+
+
   getMediaUrl: (filePath) => `media://content-auto/${encodeURIComponent(filePath)}`,
 
   // Generic project file helpers

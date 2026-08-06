@@ -66,8 +66,13 @@ INPUT KONTEKS & PARAMETER:
 - **VARIASI PANJANG KALIMAT & RITME**: Campurkan kalimat pendek (8–12 kata untuk momen dramatis/terkejut), sedang (15–30 kata rata-rata penceritaan), dan panjang (30–40 kata untuk menggambarkan aksi beruntun). Dilarang membuat semua kalimat berukuran seragam.
 - **TIDAK OVERUSE TITIK & GUNAKAN KATA HUBUNG ALAMI**: Akhiri kalimat HANYA ketika satu ide selesai, terjadi pergeseran emosi, atau perpindahan adegan. Hubungkan ide antar-kejadian secara alami menggunakan kata penghubung seperti: *dan*, *hingga*, *sementara*, *lalu*, *namun*, *meski begitu*, *bahkan*, *sehingga*, *karena*, *setelah itu*, *di saat yang sama*.
 - **IRAMA KOMA UNTUK JEDA BERNAPAS (BREATHING RHYTHM)**: Gunakan tanda koma secara proporsional untuk menciptakan tempo bernapas yang alami bagi AI Voice-Over TTS (seperti Gemini TTS).
-- **PARAGRAF RELEVAN**: Buat paragraf baru HANYA jika terjadi perpindahan adegan, lokasi, atau pergeseran emosi besar. Dilarang membuat paragraf baru setiap 2-3 kalimat.
 - **RITME SINEMATIK & GAYA PENCERITA YOUTUBE**: Adegan aksi mengalir cepat, adegan emosional/tegang sedikit melambat. Penceritaan wajib mengalir hangat dan hidup seperti YouTuber Movie Recap profesional yang sedang bercerita seru.
+- **MOMEN VISUAL MURNI (NO-VO SEGMENTS)**: Evaluasi secara fleksibel setiap adegan di mana kekuatan visual sinematik, gerakan fisik/aksi, ekspresi emosi mendalam, ketegangan, atau atmosfer suasana sudah **cukup berbicara sendiri tanpa perlu narasi kata-kata**. Sisipkan tag jeda narasi `[VISUAL_ONLY: X.Xs | Deskripsi Adegan]` pada `script_text` sebanyak 2–4 kali per Part dengan durasi 4.0 hingga 8.0 detik secara intuitif.
+  * *Contoh Perjuangan Fisik*: "...Adam mengepalkan tangannya dan berusaha sepenuh tenaga untuk menerobos barikade musuh. `[VISUAL_ONLY: 5.0s | Adegan Adam berjuang mati-matian menerobos barikade]` Setelah berhasil menembus barikade tersebut..."
+  * *Contoh Pertarungan / Aksi*: "...dan akhirnya pertarungan sengit antar kedua kelompok pun tak terelakkan. `[VISUAL_ONLY: 6.0s | Adegan pertarungan sengit dan adu pedang]` Akibat pertarungan tersebut..."
+  * *Contoh Bencana / Kejadian Besar*: "...tiba-tiba gelombang tsunami raksasa datang menerjang pesisir pantai. `[VISUAL_ONLY: 5.5s | Adegan tsunami menerjang dan menghancurkan daratan]` Kota itu pun hancur seketika..."
+  * *Contoh Keheningan / Ketegangan*: "...Peter menahan napasnya saat bayangan sosok misterius itu perlahan mendekat. `[VISUAL_ONLY: 4.5s | Adegan suasana mencekam dan pergerakan mendekat]` Karena panik, Peter pun..."
+
 
 ==================================================
 4. TARGET KATA & KONTINUITAS KARAKTER

@@ -417,6 +417,46 @@ export interface ElectronAPI {
     outputPath?: string;
   }) => Promise<{ success: boolean; outputPath: string; error?: string }>;
   onAlurfilmIntroProgress?: (callback: (data: { percent: number; msg?: string }) => void) => () => void;
+  generateAlurfilmTestTtsWithSilence?: (scriptText: string) => Promise<{
+    success: boolean;
+    audioPath: string;
+    audioUrl: string;
+    totalDurationSec: number;
+    segments: Array<{
+      index: number;
+      type: 'narration' | 'visual_only';
+      text?: string | null;
+      description?: string | null;
+      startSec: number;
+      endSec: number;
+      durationSec: number;
+    }>;
+    error?: string;
+  }>;
+
+  runAlurfilmTestWhisperAlignment?: (audioPath?: string, scriptText?: string) => Promise<{
+    success: boolean;
+    isFasterWhisperUsed: boolean;
+    totalDurationSec: number;
+    items: Array<{
+      sentence_index: number;
+      type: 'narration' | 'visual_only';
+      text: string;
+      description?: string;
+      start: number;
+      end: number;
+      duration: number;
+      visuals: Array<{
+        type: string;
+        duration: number;
+        source_start_seconds: number;
+        color_grading_shift?: { contrast: number; brightness: number; saturation: number };
+      }>;
+    }>;
+    error?: string;
+  }>;
+  onAlurfilmTestWhisperProgress?: (callback: (data: { stage: string; progress: number; message: string }) => void) => () => void;
+
   getMediaUrl?: (filePath: string) => string;
   resetProject: (mode?: string) => Promise<{ success: boolean; content_id?: string; error?: string }>;
   copyToClipboard: (text: string) => Promise<boolean>;
