@@ -615,7 +615,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     let parsed = JSON.parse(rawJson);
 
     // Hard Sanitizer to ensure NO "POV:" or "Vann" leaks into Spensia metadata
-    const cleanTitle = (t) => (typeof t === 'string' ? t.replace(/^POV:\s*(KAMU\s*JADI\s*|KAMU\s*)?/i, '').replace(/^POV:\s*/i, '').replace(/\s*#POV/gi, '').trim() : t);
+    const cleanTitle = (t) => (typeof t === 'string' ? t.replace(/^POV:\s*(KAMU\s*JADI\s*|KAMU\s*)?/i, '').replace(/^POV:\s*/i, '').replace(/^\[[^\]]+\]\s*/i, '').replace(/\s*#POV/gi, '').trim() : t);
     if (Array.isArray(parsed.titles)) {
       parsed.titles = parsed.titles.map((item) => (typeof item === 'string' ? cleanTitle(item) : (item && typeof item === 'object' ? { ...item, title: cleanTitle(item.title) } : item)));
     }

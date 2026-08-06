@@ -58,4 +58,34 @@ Berikut adalah daftar file audio MP3 yang **benar-benar ada dan siap digunakan**
 
 ---
 
+## 🎛️ Aturan & Strategi Dynamic BGM (Pacing & Transisi)
+
+Untuk menjaga kenyamanan (*retention*) penonton dan mencegah kebisingan audio fatigue:
+
+1. **Scene/Babak Level Tagging (Bukan per Sentence):**
+   * Tagging emosi BGM dilakukan pada skala **Babak / Scene** (bertahan 30 detik – 2 menit per mood). Dilarang mengganti BGM per kalimat agar audio tidak terputus-putus.
+2. **Aturan Durasi Minimal BGM (Guard Rule):**
+   * BGM minimal bertahan **20 – 30 detik** sebelum diizinkan berganti ke emosi lain, kecuali jika terjadi klimaks/turning point ekstrim secara tiba-tiba.
+3. **Dominasi Baseline (`05_santai_misteri`):**
+   * Sekitar 60–70% total durasi video tetap mengalir menggunakan BGM baseline ini saat adegan normal/investigasi/penjelasan.
+4. **Smooth Crossfade (1.5s - 2.0s):**
+   * Semua perpindahan BGM antar-scene **wajib menggunakan crossfade 1.5 - 2.0 detik** agar transisi musik terasa mulus tanpa kejut audio.
+
+---
+
+## ✂️ Multi-Split Video Continuity (Aturan Cliffhanger & Re-Hook)
+
+Ketika skrip alur film dibagi menjadi beberapa bagian/chunk (misal Part 1 dan Part 2) dan klimaks adegan terjadi di perbatasan split:
+
+1. **Akhir Split 1 (Cliffhanger Audio):**
+   * BGM klimaks (misal `04_kebangkitan_epic` / `01_tegang_suspense`) melakukan **fade-out halus (1.5 - 2.0s)** di detik-detik terakhir sebelum video Part 1 berakhir.
+2. **Awal Split 2 (Re-hook Audio):**
+   * Part 2 mewarisi emosi BGM terakhir dari Part 1 (`ending_bgm_emotion` Part 1 ➔ `initial_bgm_emotion` Part 2).
+   * Detik 0.0 Part 2 langsung di-**fade-in (1.0s)** menggunakan BGM klimaks tersebut agar penonton Part 2 langsung tersedot kembali ke dalam cerita.
+3. **Penyelarasan Kembali:**
+   * Setelah adegan klimaks di Part 2 selesai (misal di detik 20-30 Part 2), BGM perlahan crossfade kembali ke `05_santai_misteri` (Baseline).
+
+---
+
 > ⚠️ **Catatan Penting:** Hanya gunakan file audio MP3 di atas yang sudah tersedia secara lokal di dalam folder project. Jangan mencantumkan atau memanggil file BGM lain yang belum ada di dalam direktori `assets/`.
+

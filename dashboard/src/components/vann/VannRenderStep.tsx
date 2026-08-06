@@ -1366,7 +1366,8 @@ const WakuRenderStep: React.FC<{ onStepChange?: (step: string) => void }> = () =
                                             onChange={(e) => updateBgm({ path: e.target.value })}
                                             className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono focus:border-emerald-500 focus:outline-none"
                                         >
-                                            <option value="assets/'Hiraeth' [Emotional Classical CC-BY] - Scott Buckley.mp3">Scott Buckley - Hiraeth (Default Waku Comfort BGM)</option>
+                                            <option value="assets/Obsidian Tides.mp3">Obsidian Tides (Default Spensia & Vann BGM)</option>
+                                            <option value="assets/'Hiraeth' [Emotional Classical CC-BY] - Scott Buckley.mp3">Scott Buckley - Hiraeth</option>
                                             <option value="assets/Edge Of Unknown.mp3">Edge Of Unknown</option>
                                             {bgms.map((bgm) => (
                                                 <option key={bgm.path} value={`assets/${bgm.name}`}>{bgm.name}</option>

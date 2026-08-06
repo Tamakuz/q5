@@ -58,7 +58,7 @@ export type VoiceOverConfig = z.infer<typeof VoiceOverConfigSchema>;
 
 export const BgmConfigSchema = z.object({
     enabled: z.boolean().default(true),
-    path: z.string().default("assets/'Hiraeth' [Emotional Classical CC-BY] - Scott Buckley.mp3"),
+    path: z.string().default("assets/Obsidian Tides.mp3"),
     volume: z.number().min(0).max(1).default(0.15),
     fadeInSec: z.number().min(0).default(1.0),
     fadeOutSec: z.number().min(0).default(2.0),
