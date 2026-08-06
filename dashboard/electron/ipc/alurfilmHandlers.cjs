@@ -1789,6 +1789,72 @@ ${combinedScript.slice(0, 12000)}`;
     }
     return null;
   });
+
+  // ─── Render Alurfilm Intro Test Video ───────────────────
+  ipcMain.handle('alurfilm:render-intro-test', async (_event, options) => {
+    return new Promise((resolve) => {
+      const optsJson = JSON.stringify(options || {});
+      const runnerScript = `
+import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
+(async () => {
+  try {
+    const opts = ${optsJson};
+    const res = await renderIntroVideo(opts, (percent, msg) => {
+      console.log('PROGRESS:' + JSON.stringify({ percent, msg }));
+    });
+    console.log('RESULT:' + JSON.stringify(res));
+  } catch (e) {
+    console.log('RESULT:' + JSON.stringify({ success: false, error: e.message }));
+  }
+})();
+      `;
+
+      const child = spawn('npx', ['tsx', '-e', runnerScript], {
+        cwd: p.PROJECT_ROOT,
+        env: { ...process.env },
+      });
+
+      let lastResult = { success: false, error: 'Unknown render failure' };
+
+      child.stdout.on('data', (data) => {
+        const text = data.toString();
+        const lines = text.split('\n').filter(Boolean);
+        for (const line of lines) {
+          if (line.startsWith('PROGRESS:')) {
+            try {
+              const payload = JSON.parse(line.replace('PROGRESS:', ''));
+              _event.sender.send('alurfilm:render-intro-progress', payload);
+            } catch {}
+          } else if (line.startsWith('RESULT:')) {
+            try {
+              lastResult = JSON.parse(line.replace('RESULT:', ''));
+            } catch {}
+          }
+        }
+      });
+
+      child.stderr.on('data', (data) => {
+        console.error('Intro render stderr:', data.toString());
+      });
+
+      child.on('close', (code) => {
+        if (code === 0 && lastResult.success) {
+          resolve(lastResult);
+        } else {
+          resolve({
+            success: false,
+            outputPath: lastResult.outputPath || '',
+            error: lastResult.error || `Process exited with code ${code}`,
+          });
+        }
+      });
+
+      child.on('error', (err) => {
+        resolve({ success: false, error: err.message });
+      });
+    });
+  });
 }
 
 module.exports = { register };
+

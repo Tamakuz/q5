@@ -157,6 +157,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('alurfilm-metadata-chunk', handler);
     return () => ipcRenderer.removeListener('alurfilm-metadata-chunk', handler);
   },
+  renderAlurfilmIntroTest: (options) =>
+    ipcRenderer.invoke('alurfilm:render-intro-test', options),
+  onAlurfilmIntroProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('alurfilm:render-intro-progress', handler);
+    return () => ipcRenderer.removeListener('alurfilm:render-intro-progress', handler);
+  },
+  getMediaUrl: (filePath) => `media://content-auto/${encodeURIComponent(filePath)}`,
 
   // Generic project file helpers
   getContentId: (mode) => ipcRenderer.invoke('get-content-id', mode),

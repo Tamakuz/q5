@@ -25,6 +25,7 @@ import AlurfilmTranscriptStep from './components/longform/AlurfilmTranscriptStep
 import AlurfilmMappingStep from './components/longform/AlurfilmMappingStep';
 import AlurfilmRenderStep from './components/longform/AlurfilmRenderStep';
 import AlurfilmMetadataStep from './components/longform/AlurfilmMetadataStep';
+import AlurfilmTestingHub from './components/longform/testing/AlurfilmTestingHub';
 
 // Spensia Feature Components
 import SpensiaTopicsStep from './components/spensia/SpensiaTopicsStep';
@@ -50,6 +51,7 @@ const App: React.FC = () => {
   const [contentMode, setContentMode] = useState<ContentMode>('vann');
   const [status] = useState<Status>('ready');
   const [longformId, setLongformId] = useState<string | null>(null);
+  const [longformTab, setLongformTab] = useState<'main' | 'testing'>('main');
 
   const [spensiaResetKey, setSpensiaResetKey] = useState<number>(0);
   const [wakuResetKey, setWakuResetKey] = useState<number>(0);
@@ -111,6 +113,8 @@ const App: React.FC = () => {
           onStepChange={setActiveStep}
           contentMode={contentMode}
           onModeChange={setContentMode}
+          longformTab={longformTab}
+          onLongformTabChange={setLongformTab}
         />
 
         <main className="flex-1 p-6 overflow-auto bg-gradient-to-br from-gray-950 via-gray-950 to-gray-900">
@@ -217,6 +221,8 @@ const App: React.FC = () => {
                 </div>
               </div>
             )
+          ) : longformTab === 'testing' ? (
+            <AlurfilmTestingHub key="longform-testing-hub" />
           ) : activeStep === 'source' ? (
             <AlurfilmSplitterStep key={`longform-source-${longformId}`} />
           ) : activeStep === 'analyze' ? (

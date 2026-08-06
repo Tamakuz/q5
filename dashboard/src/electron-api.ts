@@ -407,6 +407,17 @@ export interface ElectronAPI {
   saveAlurfilmMetadata: (opts: { modeContentId?: string; metadata: AlurfilmMetadataResult }) => Promise<{ success: boolean; filePath: string; metadata: AlurfilmMetadataResult }>;
   getAlurfilmMetadata: (modeContentId?: string) => Promise<AlurfilmMetadataResult | null>;
   onAlurfilmMetadataChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
+  renderAlurfilmIntroTest?: (opts: {
+    titleText: string;
+    subtitleText: string;
+    audioPath?: string;
+    impactTimestamp?: number;
+    duration?: number;
+    stylePreset?: 'cinematic_gold' | 'silver_epic' | 'neon_thriller';
+    outputPath?: string;
+  }) => Promise<{ success: boolean; outputPath: string; error?: string }>;
+  onAlurfilmIntroProgress?: (callback: (data: { percent: number; msg?: string }) => void) => () => void;
+  getMediaUrl?: (filePath: string) => string;
   resetProject: (mode?: string) => Promise<{ success: boolean; content_id?: string; error?: string }>;
   copyToClipboard: (text: string) => Promise<boolean>;
   saveToProject: (subPath: string, data: string) => Promise<boolean>;

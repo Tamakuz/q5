@@ -54,9 +54,18 @@ interface SidebarProps {
   onStepChange: (step: StepId) => void;
   contentMode: ContentMode;
   onModeChange: (mode: ContentMode) => void;
+  longformTab?: 'main' | 'testing';
+  onLongformTabChange?: (tab: 'main' | 'testing') => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode, onModeChange }) => {
+const Sidebar: React.FC<SidebarProps> = ({
+  activeStep,
+  onStepChange,
+  contentMode,
+  onModeChange,
+  longformTab = 'main',
+  onLongformTabChange,
+}) => {
   const activeStepsList =
     contentMode === 'vann' || contentMode === 'waku' || contentMode === 'shortform'
       ? VANN_STEPS
@@ -138,6 +147,33 @@ const Sidebar: React.FC<SidebarProps> = ({ activeStep, onStepChange, contentMode
                     : 'UGC Mode'}
             </span>
           </div>
+
+          {contentMode === 'longform' && (
+            <div className="px-3 pb-2 pt-0.5">
+              <div className="grid grid-cols-2 gap-1 bg-gray-950 p-1 rounded-lg border border-purple-900/40">
+                <button
+                  onClick={() => onLongformTabChange?.('main')}
+                  className={`py-1 px-2 rounded-md text-[10px] font-bold transition-all text-center flex items-center justify-center gap-1 ${
+                    longformTab === 'main'
+                      ? 'bg-purple-600 text-white shadow'
+                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+                  }`}
+                >
+                  <span>📋</span> Main
+                </button>
+                <button
+                  onClick={() => onLongformTabChange?.('testing')}
+                  className={`py-1 px-2 rounded-md text-[10px] font-bold transition-all text-center flex items-center justify-center gap-1 ${
+                    longformTab === 'testing'
+                      ? 'bg-amber-500 text-gray-950 shadow font-extrabold'
+                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+                  }`}
+                >
+                  <span>🧪</span> Testing
+                </button>
+              </div>
+            </div>
+          )}
 
           {activeStepsList.length === 0 ? (
             <div className="px-4 py-8 text-center text-xs text-gray-500 italic border border-dashed border-gray-800/80 rounded-xl mx-2">
