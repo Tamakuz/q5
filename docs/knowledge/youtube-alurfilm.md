@@ -141,7 +141,10 @@ Dari pengamatan channel-channel *faceless* alur film teratas (jutaan views), ter
 [PREMIS DRAMATIS / TERJEBAK / ANCAMAN COLOSSAL / BENCANA BESAR] ‼️ Alur Cerita Film
 ```
 
-> **Catatan Format Wajib**: Setiap judul diakhiri dengan emoji dua tanda seru merah **`‼️ Alur Cerita Film`**. Kata-kata utama dibuat kapital / bertekstur provokatif yang langsung memancing insting emosi penonton dalam 2 detik.
+> **Catatan Format Wajib**: 
+> 1. Setiap judul HARUS diakhiri dengan emoji dua tanda seru merah **`‼️ Alur Cerita Film`**.
+> 2. **BATAS MUTLAK 100 KARAKTER**: Panjang total string judul (termasuk akhiran) **DILARANG KERAS MELEBIHI 100 KARAKTER** (Batas resmi YouTube API). Target ideal: 75-98 karakter.
+> 3. Kata-kata utama dibuat kapital / bertekstur provokatif yang langsung memancing insting emosi penonton dalam 2 detik.
 
 ### 💡 Contoh Judul Terbukti Meledak (Acuan Channel Viral):
 - `SATU KELUARGA TERJEBAK DI GURUN MEMATIKAN SETELAH PESAWAT MEREKA JATUH ‼️ Alur Cerita Film`

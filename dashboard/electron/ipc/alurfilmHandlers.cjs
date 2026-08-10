@@ -1839,6 +1839,7 @@ Sebelum merumuskan judul, Anda HARUS mengekstrak 5 fakta psikologis riil dari da
 🚨 ATURAN AKURASI & FAKTUAlITAS MUTLAK (DILARANG HALUSINASI):
 1. DILARANG KERAS mengarang metafora acak, profesi palsu, atau istilah yang tidak ada dalam film (seperti "menggebrak panggung gendang", "pensiunan pembalap", "kode bank", "juara dunia" jika filmnya tentang drama keluarga/difabel/anak berkebutuhan khusus).
 2. Setiap kata pada slot Judul WAJIB 100% didasarkan pada kejadian riil, penderitaan nyata, dan perlawanan/pembuktian emosional karakter utama dari data naskah yang diberikan.
+3. BATAS MUTLAK PANJANG JUDUL: Panjang TOTAL string judul MAKSIMAL 100 KARAKTER (termasuk akhiran "‼️ Alur Cerita Film"). DILARANG KERAS melebihi 100 karakter! Targetkan panjang 75-98 karakter agar muat di YouTube dan terbaca utuh di layar HP.
 
 🎯 TAHAP 2 — STRUKTUR FORMULA & FORMAT JUDUL VIRAL (ACUAN CHANNEL TERATAS):
 Semua opsi judul HARUS diakhiri dengan akhiran wajib "‼️ Alur Cerita Film" (menggunakan emoji dua tanda seru merah ‼️).
