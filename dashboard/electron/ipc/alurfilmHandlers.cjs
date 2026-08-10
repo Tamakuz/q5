@@ -1771,7 +1771,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
   });
 
   // ─── Generate Alurfilm Metadata ───────────────────
-  ipcMain.handle('alurfilm:generate-metadata', async (_event, { contentId, model, customNotes }) => {
+  ipcMain.handle('generate-alurfilm-metadata', async (_event, { contentId, model, customNotes }) => {
     // Collect all script text, character registry, and macro summaries from available analysis files
     const allFiles = fs.existsSync(p.ALURFILM_DIR) ? fs.readdirSync(p.ALURFILM_DIR) : [];
     const analysisFiles = allFiles
