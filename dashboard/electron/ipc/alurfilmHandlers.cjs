@@ -1837,53 +1837,49 @@ Sebelum merumuskan judul, Anda HARUS mengekstrak 5 fakta psikologis riil dari da
 5. Tamparan Penyesalan / Puncak Emosi: Payoff emosional, tamparan fakta bagi penindas, atau klimaks pembuktian diri.
 
 🚨 ATURAN AKURASI & FAKTUAlITAS MUTLAK (DILARANG HALUSINASI):
-1. DILARANG KERAS mengarang metafora acak, profesi palsu, atau istilah yang tidak ada dalam film (seperti "menggebrak panggung gendang", "pensiunan pembalap", "kode bank", "juara dunia" jika filmnya tentang drama keluarga/difabel/anak berkebutuhan khusus).
+1. DILARANG KERAS mengarang metafora acak, profesi palsu, atau elemen fiksi yang tidak ada dalam data naskah film.
 2. Setiap kata pada slot Judul WAJIB 100% didasarkan pada kejadian riil, penderitaan nyata, dan perlawanan/pembuktian emosional karakter utama dari data naskah yang diberikan.
 3. BATAS MUTLAK PANJANG JUDUL: Panjang TOTAL string judul MAKSIMAL 100 KARAKTER (termasuk akhiran "‼️ Alur Cerita Film"). DILARANG KERAS melebihi 100 karakter! Targetkan panjang 75-98 karakter agar muat di YouTube dan terbaca utuh di layar HP.
 
-🎯 TAHAP 2 — STRUKTUR FORMULA & FORMAT JUDUL VIRAL (ACUAN CHANNEL TERATAS):
+🎯 TAHAP 2 — STRUKTUR FORMULA & FORMAT JUDUL VIRAL (MURNI BERBASIS NASKAH CERITA):
 Semua opsi judul HARUS diakhiri dengan akhiran wajib "‼️ Alur Cerita Film" (menggunakan emoji dua tanda seru merah ‼️).
 
-Pola Format Judul:
-[PREMIS DRAMATIS / KONDISI EKSTREM / ANCAMAN COLOSSAL / BENCANA BESAR] ‼️ Alur Cerita Film
+Pola Format Judul (Wajib 100% Diambil Dari Kejadian Riil & Karakter Utama Dalam Naskah):
+[PREMIS KONFLIK DRAMATIS / KONDISI EKSTREM KARAKTER UTAMA DARI NASKAH] ‼️ Alur Cerita Film
 
-CONTOH FORMULA AKURAT GAYA CHANNEL VIRAL:
-- SATU KELUARGA TERJEBAK DI GURUN MEMATIKAN SETELAH PESAWAT MEREKA JATUH ‼️ Alur Cerita Film
-- 16 TAHUN HIDUP DI BALIK TEMBOK.. SAAT KELUAR, DUNIA SUDAH DIPENUHI MONSTER ‼️ Alur Cerita Film
-- SIAPAPUN YANG MELEWATI TEMBOK KEGELAPAN INI TAK PERNAH KEMBALI HIDUP ‼️ Alur Cerita Film
-- SAAT LAUT BERUBAH MERAH.. SEMUA ORANG BARU SADAR BENCANA BESAR SUDAH DIMULAI ‼️ Alur Cerita Film
-- DALAM HITUNGAN JAM, RAKSASA INI MEMBUAT UMAT MANUSIA HAMPIR PUNAH ‼️ Alur Cerita Film
-- MEREKA MENGIRA ITU HANYA PATUNG.. SAMPAI SALAH SATUNYA MULAI BERGERAK ‼️ Alur Cerita Film
+ATURAN MUTLAK KESESUAIAN ALUR CERITA (DILARANG HALUSINASI ELEMEN):
+Setiap kata pada opsi judul dan subjek visual pada "thumbnail_prompt" WAJIB MENYESUAIKAN 100% FAKTA DARI NASKAH FILM YANG DIPROSES:
+- Visual subjek dan alur cerita WAJIB mengekstrak karakter utama, kondisi fisik/emosi riilnya, setting lokasi asli, dan konflik utama langsung dari naskah film yang diberikan.
+- DILARANG KERAS menyelipkan elemen luar yang tidak ada di dalam naskah film!
 
 PEMBAGIAN 5 OPSI JUDUL SESUAI TABUHAN GENDANG EMOSI PSIKOLOGIS:
 Anda harus menghasilkan tepat 5 variasi judul dengan kategori emosi berikut:
-1. "underdog": Mengincar Gendang Empati & Penderitaan (Haru/Perjuangan Karakter Terjebak/Difabel/Miskin).
-2. "balas_dendam": Mengincar Gendang Kemarahan & Penyesalan (Pembuktian Diri & Tamparan Penyesalan bagi Penindas/Pengkhianat).
-3. "aksi_nekat": Mengincar Gendang Ketegangan & Survival (Keberanian/Pengorbanan Karakter Mengambil Risiko Besar).
-4. "kaget": Mengincar Gendang Syok & Kontradiksi (Kejadian Tak Terduga / Paradox di Alur Cerita).
-5. "misteri": Mengincar Gendang Kepo Terlarang (Rahasia, Motivasi Tersembunyi & Curiosity Gap).
+1. "underdog": Mengincar Gendang Empati & Penderitaan (Haru/Perjuangan Karakter Utama Dari Naskah).
+2. "balas_dendam": Mengincar Gendang Kemarahan & Penyesalan (Pembuktian Diri & Tamparan Penyesalan Dari Naskah).
+3. "aksi_nekat": Mengincar Gendang Ketegangan & Survival (Keberanian/Pengorbanan Karakter Mengambil Risiko Besar Dari Naskah).
+4. "kaget": Mengincar Gendang Syok & Kontradiksi (Kejadian Tak Terduga / Paradox Dari Naskah).
+5. "misteri": Mengincar Gendang Kepo Terlarang (Rahasia, Motivasi Tersembunyi & Curiosity Gap Dari Naskah).
 
 ATURAN TEKS THUMBNAIL (GAYA DUA WARNA VIRAL):
 Teks thumbnail harus 2-4 kata yang sangat singkat & kontras tajam.
 Gaya teks mengikuti pola dua warna yang terbukti meledak di niche Alur Cerita Film:
-- Kata Pertama (Yellow Part): Teks penarik perhatian warna Kuning Cerah ALL CAPS (misal: "TAK ADA", "TEMPAT", "16 TAHUN", "TAK BISA", "SUHU", "28 TAHUN", "DIBALIK", "TERLALU").
-- Kata Kedua (Red Part): Teks klimaks emosi warna Merah Menyala dengan Outline Hitam ALL CAPS (misal: "JALAN PULANG", "TERAKHIR", "DIKURUNG", "KABUR", "-150°C", "TERISOLASI", "TEMBOK", "GANAS").
+- Kata Pertama (Yellow Part): Teks penarik perhatian warna Kuning Cerah ALL CAPS.
+- Kata Kedua (Red Part): Teks klimaks emosi warna Merah Menyala dengan Outline Hitam ALL CAPS.
 
 🎨 ATURAN PROMPT GAMBAR THUMBNAIL (KHUSUS YOUTUBE THUMBNAIL 16:9 - FULL PROMPT READY TO COPY-PASTE):
 Nilai dari "thumbnail_prompt" WAJIB berupa FULL PROMPT LENGKAP PROFESIONAL (dalam Bahasa Inggris) yang SIAP DI-COPAS LANGSUNG oleh pengguna ke generator AI (Midjourney v6 / Flux / DALL-E 3 / ControlNet).
 
-PRINSIP KESESUAIAN VISUAL KONTEKS FILM (DYNAMIC CONTEXT-DRIVEN EXTRACTION):
-- Visual subjek di "thumbnail_prompt" WAJIB 100% MENYESUAIKAN ISI NASKAH FILM YANG DIBERIKAN (Karater utama, kondisi fisik/emosi riil, serta konflik/ancaman utama di cerita tersebut).
-- Jika film menceritakan karakter difabel / fisik terbatas / perjuangan hidup ➔ Gambarkan kondisi fisik riil & ekspresi emosi mendalam karakter utama tersebut di tempat kejadiannya.
-- Jika film menceritakan bencana / monster / kehancuran ➔ Gambarkan adegan bencana / monster spesifik dari alur cerita tersebut.
-- DILARANG KERAS menggunakan subjek visual acak yang tidak berhubungan dengan isi naskah film!
+🚨 ATURAN KETAT KESESUAIAN LOKASI & LINGKUNGAN (PRESERVE ORIGINAL ENVIRONMENT & NO SCENE HALLUCINATION):
+1. DILARANG KERAS MENGUBAH / MENGGANTI LOKASI & LINGKUNGAN CERITA: Visual tempat kejadian di "thumbnail_prompt" WAJIB 100% Menggunakan setting lokasi asli dari naskah film (misal: jika adegan di dalam rumah / tangga apartemen / sekolah / rumah sakit ➔ setting visual WAJIB 100% di lokasi tersebut!).
+2. DILARANG KERAS MENAMBAHKAN ELEMEN / PROPS LUAR YANG TIDAK ADA DI NASKAH: Jangan pernah menambahkan pesawat jatuh, gurun, monster, laut merah, atau bencana luar jika elemen tersebut TIDAK ADA di naskah film!
+3. TUGAS PROMPT HANYA MENATA KOMPOSISI & MENDRAMATISIR ELEMEN ASLI NASKAH: Prompt AI HANYA bertugas mempertegas kontras emosi karakter, menata sudut kamera sinematik (16:9), menambahkan lighting dramatis & tekstur sinematik 8K, serta memasukkan overlay teks warna Kuning & Merah pada elemen/lokasi asli yang sudah ada di naskah.
 
 Setiap "thumbnail_prompt" WAJIB menggabungkan 7 komponen sinematik secara utuh dalam 1 paragraf prompt Bahasa Inggris:
 1. YOUTUBE THUMBNAIL 16:9 COMPOSITION: High-impact 16:9 YouTube thumbnail layout with focal action subject positioned in center/lower-third.
 2. YOUTUBE SAFE ZONE: Keep bottom-right corner clean (free of text/action) to prevent YouTube video duration timestamp badge overlap.
-3. DYNAMIC SCRIPT-BASED SUBJECT DRAMATIZATION: Cinematic description of the main character (matching physical traits, emotional state, or physical struggle from the script) and the core story conflict or threat.
-4. SCALE PARADOX & ATMOSPHERE: Visual scale contrast, volumetric fog, haze, dramatic dust, and gritty 8k film poster textures.
-5. COLOR GRADING & LIGHTING: High contrast cinematic lighting (teal-orange, apocalyptic amber, or dramatic emotional mood), heavy dark vignette along frame edges for instant mobile thumb-stop power.
+3. PRESERVED REAL MOVIE SCENE & SUBJECT DRAMATIZATION: Accurate cinematic description of the main character (physical condition/struggle from script) inside the EXACT location/environment from the movie script (no environment change!).
+4. DRAMATIC LIGHTING & ATMOSPHERE: Volumetric lighting, intense emotional atmospheric mood, cinematic depth, and gritty 8k film textures on the real movie environment.
+5. COLOR GRADING & LIGHTING: High contrast cinematic lighting matching scene mood, heavy dark vignette along frame edges for instant mobile thumb-stop power.
 6. TOP-THIRD EMBEDDED TEXT MARKER OVERLAY:
    - Text Part 1: "[thumbnail_text_yellow]" in ultra-bold bright yellow font at top-center.
    - Text Part 2: "[thumbnail_text_red]" in ultra-bold bright red font with thick black outline & drop shadow.

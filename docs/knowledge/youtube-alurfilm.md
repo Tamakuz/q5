@@ -146,13 +146,9 @@ Dari pengamatan channel-channel *faceless* alur film teratas (jutaan views), ter
 > 2. **BATAS MUTLAK 100 KARAKTER**: Panjang total string judul (termasuk akhiran) **DILARANG KERAS MELEBIHI 100 KARAKTER** (Batas resmi YouTube API). Target ideal: 75-98 karakter.
 > 3. Kata-kata utama dibuat kapital / bertekstur provokatif yang langsung memancing insting emosi penonton dalam 2 detik.
 
-### 💡 Contoh Judul Terbukti Meledak (Acuan Channel Viral):
-- `SATU KELUARGA TERJEBAK DI GURUN MEMATIKAN SETELAH PESAWAT MEREKA JATUH ‼️ Alur Cerita Film`
-- `16 TAHUN HIDUP DI BALIK TEMBOK.. SAAT KELUAR, DUNIA SUDAH DIPENUHI MONSTER ‼️ Alur Cerita Film`
-- `SIAPAPUN YANG MELEWATI TEMBOK KEGELAPAN INI TAK PERNAH KEMBALI HIDUP ‼️ Alur Cerita Film`
-- `SAAT LAUT BERUBAH MERAH.. SEMUA ORANG BARU SADAR BENCANA BESAR SUDAH DIMULAI ‼️ Alur Cerita Film`
-- `DALAM HITUNGAN JAM, RAKSASA INI MEMBUAT UMAT MANUSIA HAMPIR PUNAH ‼️ Alur Cerita Film`
-- `MEREKA MENGIRA ITU HANYA PATUNG.. SAMPAI SALAH SATUNYA MULAI BERGERAK ‼️ Alur Cerita Film`
+### 💡 Prinsip Ekstraksi Judul Murni Berbasis Naskah:
+- Setiap kata diisi oleh **100% kejadian nyata & fakta riil dari naskah film yang di-input**.
+- Dilarang keras menyisipkan elemen fiksi luar yang tidak ada di dalam naskah film.
 
 ---
 
@@ -160,17 +156,17 @@ Dari pengamatan channel-channel *faceless* alur film teratas (jutaan views), ter
 
 Prompt thumbnail AI **TIDAK dibuat dari nol (0)**, melainkan dirancang sebagai petunjuk **Polesan & Dramatisasi dari Foto Referensi Adegan Asli Film**:
 
-### 1. 🔍 Skala Colossal Paradox (Objek Raksasa vs Manusia Kecil)
-- Ambil adegan utama dari film (pesawat jatuh, tembok raksasa, monster, gurun, laut).
-- Perbesar proporsi ancaman/objek secara ekstrem (*colossal threat/structure*) dan posisikan siluet manusia dalam skala sangat kecil di 1/3 bawah frame.
+### 1. 🔍 Skala Paradox & Objek Utama
+- Ambil adegan & karakter utama dari naskah film yang sedang diproses.
+- Dramatisir proporsi ancaman/perjuangan fisik secara sinematik dengan memposisikan siluet manusia/karakter utama di posisi fokus frame.
 
 ### 2. 🌫️ Tekstur Sinematik & Efek Atmosferik (Gritty Texture)
-- Tambahkan efek badai pasir, kabut tebal volumetrik, asap kehancuran, es membeku, atau percikan api.
+- Tambahkan efek atmosferik sinematik (kabut volumetrik, asap, debu, atau cahaya dramatis).
 - Berikan tekstur sinematik yang kasar (*gritty realistic 8k cinema textures*) sehingga terasa nyata dan tidak seperti gambar kartun polos.
 
-### 🎯 Dynamic Script-Driven Visual Extraction (Ekstraksi Subjek Visual Dinamis)
-- **Subjek Visual Murni Berbasis Naskah**: AI diwajibkan mengekstrak subjek utama langsung dari naskah film yang sedang diproses. Jika film tentang disabilitas/fisik terbatas ➔ visual mendeskripsikan perjuangan fisik karakter tersebut. Jika tentang bencana/monster ➔ visual mendeskripsikan bencana/monster spesifik tersebut.
-- **DILARANG BIAS / CONTOH STATIS**: Prompt master tidak boleh terkunci pada satu jenis film (seperti gurun/pesawat) agar luwes menganalisis genre film apa pun secara dinamis.
+### 🏠 Strict Environment & Scene Preservation (Wajib Pakai Setting Asli Naskah)
+- **100% Menggunakan Setting Lokasi Asli Naskah**: Dilarang keras mengganti lokasi kejadian. Jika adegan di dalam rumah, tangga gedung, sekolah, atau rumah sakit ➔ `thumbnail_prompt` WAJIB 100% menggunakan setting lokasi riil tersebut.
+- **Tugas Prompt Hanya Menata Komposisi & Atmosfer**: Prompt AI hanya bertugas mempertegas ekspresi emosi karakter, menata pencahayaan dramatis, tekstur sinematik 8K, dan menata layout 16:9 tanpa menambahkan objek luar (seperti pesawat, gurun, atau monster) yang tidak ada di naskah.
 
 ### 4. 📋 Format Prompt Utuh Siap Copas (Full Prompt Ready-to-Copy)
 Setiap `thumbnail_prompt` yang dihasilkan AI di-format utuh (tanpa contoh statis palsu) mencakup:
