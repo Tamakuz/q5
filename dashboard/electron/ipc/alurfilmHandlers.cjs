@@ -1870,21 +1870,24 @@ Gaya teks mengikuti pola dua warna yang terbukti meledak di niche Alur Cerita Fi
 - Kata Kedua (Red Part): Teks klimaks emosi warna Merah Menyala dengan Outline Hitam ALL CAPS (misal: "JALAN PULANG", "TERAKHIR", "DIKURUNG", "KABUR", "-150°C", "TERISOLASI", "TEMBOK", "GANAS").
 
 🎨 ATURAN PROMPT GAMBAR THUMBNAIL (KHUSUS YOUTUBE THUMBNAIL 16:9 - FULL PROMPT READY TO COPY-PASTE):
-Nilai dari "thumbnail_prompt" WAJIB berupa FULL PROMPT LENGKAP PROFESIONAL (dalam Bahasa Inggris) yang DIRANCANG KHUSUS UNTUK YOUTUBE THUMBNAIL (Rasio 16:9, Kelihatan Jelas di Layar HP Kecil, & Bebas Dari Overlap Badge Durasi YouTube).
+Nilai dari "thumbnail_prompt" WAJIB berupa FULL PROMPT LENGKAP PROFESIONAL (dalam Bahasa Inggris) yang SIAP DI-COPAS LANGSUNG oleh pengguna ke generator AI (Midjourney v6 / Flux / DALL-E 3 / ControlNet).
 
-Setiap "thumbnail_prompt" WAJIB menggabungkan 6 komponen sinematik secara utuh:
+PRINSIP KESESUAIAN VISUAL KONTEKS FILM (DYNAMIC CONTEXT-DRIVEN EXTRACTION):
+- Visual subjek di "thumbnail_prompt" WAJIB 100% MENYESUAIKAN ISI NASKAH FILM YANG DIBERIKAN (Karater utama, kondisi fisik/emosi riil, serta konflik/ancaman utama di cerita tersebut).
+- Jika film menceritakan karakter difabel / fisik terbatas / perjuangan hidup ➔ Gambarkan kondisi fisik riil & ekspresi emosi mendalam karakter utama tersebut di tempat kejadiannya.
+- Jika film menceritakan bencana / monster / kehancuran ➔ Gambarkan adegan bencana / monster spesifik dari alur cerita tersebut.
+- DILARANG KERAS menggunakan subjek visual acak yang tidak berhubungan dengan isi naskah film!
+
+Setiap "thumbnail_prompt" WAJIB menggabungkan 7 komponen sinematik secara utuh dalam 1 paragraf prompt Bahasa Inggris:
 1. YOUTUBE THUMBNAIL 16:9 COMPOSITION: High-impact 16:9 YouTube thumbnail layout with focal action subject positioned in center/lower-third.
 2. YOUTUBE SAFE ZONE: Keep bottom-right corner clean (free of text/action) to prevent YouTube video duration timestamp badge overlap.
-3. SCENE DRAMATIZATION (Img2Img / Reference Based): Deskripsi adegan utama film yang didramatisir berdasarkan naskah.
-4. COLOSSAL SCALE PARADOX & ATMOSPHERE: Skala raksasa (colossal threat / giant wall / monster / desert / sea vs siluet manusia kecil di 1/3 bawah frame), kabut volumetrik, asap, tekstur sinematik 8K poster film.
-5. COLOR GRADING & LIGHTING: High contrast cinematic lighting (teal and orange / apocalyptic amber / crimson red contrast), heavy dark vignette along frame edges for instant mobile thumb-stop power.
+3. DYNAMIC SCRIPT-BASED SUBJECT DRAMATIZATION: Cinematic description of the main character (matching physical traits, emotional state, or physical struggle from the script) and the core story conflict or threat.
+4. SCALE PARADOX & ATMOSPHERE: Visual scale contrast, volumetric fog, haze, dramatic dust, and gritty 8k film poster textures.
+5. COLOR GRADING & LIGHTING: High contrast cinematic lighting (teal-orange, apocalyptic amber, or dramatic emotional mood), heavy dark vignette along frame edges for instant mobile thumb-stop power.
 6. TOP-THIRD EMBEDDED TEXT MARKER OVERLAY:
    - Text Part 1: "[thumbnail_text_yellow]" in ultra-bold bright yellow font at top-center.
    - Text Part 2: "[thumbnail_text_red]" in ultra-bold bright red font with thick black outline & drop shadow.
 7. RENDER FLAGS: Hyper-realistic 8k resolution, YouTube thumbnail style, photorealistic, octane render, wide shot --ar 16:9 --v 6.0.
-
-CONTOH HASIL THUMBNAIL_PROMPT LENGKAP KHUSUS YOUTUBE THUMBNAIL:
-"A high-impact 16:9 YouTube thumbnail based on movie reference. A crashed commercial airplane broken in half in the middle of a colossal endless desert, with a tiny injured man crawling on the burning sand. Massive scale contrast with colossal towering sand dunes over a tiny human figure in lower-third composition. Keep bottom-right corner clear for YouTube duration badge. Dramatic volumetric sandstorm dust, toxic haze, 8k gritty film poster texture. High contrast cinematic color grading with desaturated orange desert and dark blue sky, heavy dark vignette along frame edges for mobile readability. Top-third text overlay in ultra-bold heavy impact font: Part 1 'TAK ADA' in bright yellow font, Part 2 'JALAN PULANG' in bright red font with thick black stroke and shadow. Hyper-realistic 8k resolution, YouTube thumbnail style, photorealistic, octane render, wide cinematic shot --ar 16:9 --v 6.0"
 
 DESKRIPSI VIDEO YOUTUBE (TERSTRUKTUR & SEO FRIENDLY):
 1. 2 Baris Pertama: Hook pembuka tajam yang selaras dengan judul.

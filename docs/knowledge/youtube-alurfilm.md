@@ -168,13 +168,18 @@ Prompt thumbnail AI **TIDAK dibuat dari nol (0)**, melainkan dirancang sebagai p
 - Tambahkan efek badai pasir, kabut tebal volumetrik, asap kehancuran, es membeku, atau percikan api.
 - Berikan tekstur sinematik yang kasar (*gritty realistic 8k cinema textures*) sehingga terasa nyata dan tidak seperti gambar kartun polos.
 
+### 🎯 Dynamic Script-Driven Visual Extraction (Ekstraksi Subjek Visual Dinamis)
+- **Subjek Visual Murni Berbasis Naskah**: AI diwajibkan mengekstrak subjek utama langsung dari naskah film yang sedang diproses. Jika film tentang disabilitas/fisik terbatas ➔ visual mendeskripsikan perjuangan fisik karakter tersebut. Jika tentang bencana/monster ➔ visual mendeskripsikan bencana/monster spesifik tersebut.
+- **DILARANG BIAS / CONTOH STATIS**: Prompt master tidak boleh terkunci pada satu jenis film (seperti gurun/pesawat) agar luwes menganalisis genre film apa pun secara dinamis.
+
 ### 4. 📋 Format Prompt Utuh Siap Copas (Full Prompt Ready-to-Copy)
-Setiap `thumbnail_prompt` yang dihasilkan AI di-format utuh mencakup:
-- **Scene Dramatization (Img2Img)**: Deskripsi adegan utama film yang didramatisir.
+Setiap `thumbnail_prompt` yang dihasilkan AI di-format utuh (tanpa contoh statis palsu) mencakup:
+- **YouTube 16:9 & Safe Zone**: Format rasio 16:9 dan instruksi menjaga area kanan bawah tetap bersih dari elemen penting agar tidak tertutup badge durasi YouTube.
+- **Scene Dramatization (Img2Img)**: Deskripsi adegan & fisik spesifik karakter utama dari film yang didramatisir.
 - **Atmosphere & Scale Paradox**: Kontras skala raksasa, asap volumetrik, tekstur sinematik 8K.
-- **Color Grading & Vignette**: Teal & orange / amber / crimson red contrast dengan vignette tebal.
-- **Embedded Text Marker Spec**: Spesifikasi teks marker warna Kuning & Merah dengan stroke hitam tebal.
-- **Render Flags**: `Hyper-realistic 8k resolution, photorealistic, octane render, wide cinematic shot --ar 16:9 --v 6.0`.
+- **Color Grading & Vignette**: Teal & orange / amber / crimson red contrast dengan vignette tebal untuk keterbacaan di layar HP.
+- **Top-Third Text Marker Spec**: Spesifikasi teks marker warna Kuning & Merah di posisi 1/3 bagian atas frame.
+- **Render Flags**: `Hyper-realistic 8k resolution, YouTube thumbnail style, photorealistic, octane render, wide cinematic shot --ar 16:9 --v 6.0`.
 
 ---
 
