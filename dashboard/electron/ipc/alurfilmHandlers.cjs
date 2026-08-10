@@ -25,7 +25,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
 
     const runFfmpeg = (args) => new Promise((resolve, reject) => {
       const proc = spawn(ffmpegPath, args);
-      proc.stderr.on('data', () => {});
+      proc.stderr.on('data', () => { });
       proc.on('close', (code) => code === 0 ? resolve() : reject(new Error(`FFmpeg exit code ${code}`)));
       proc.on('error', reject);
     });
@@ -381,7 +381,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     try {
       const meta = await ffmpeg.getVideoMetaHelper(srcFile);
       if (meta && meta.duration) durationSec = meta.duration;
-    } catch {}
+    } catch { }
 
     await encodeAndCompressChunk(ffmpeg.ffmpegPath, srcFile, 0, durationSec, destPath);
 
@@ -489,7 +489,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       promptTemplate = `Kamu adalah Master Scriptwriter Alur Film. Tulis naskah voiceover recap Macro Storytelling. Output JSON valid.`;
     }
 
-    const computedWordsPerChunk = 700;
+    const computedWordsPerChunk = 300;
     const prevCtxStr = previousContext ? JSON.stringify(previousContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
     const isFirstPart = Number(chunkPart) === 1;
     const isLastPart = Number(chunkPart) === Number(totalChunks);
@@ -770,197 +770,198 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     return fullPrompt;
   });
 
-function parseTranscriptPayload(parsed) {
-  if (!parsed) return { isMultiPart: false, multiPartMap: null, entries: [] };
+  function parseTranscriptPayload(parsed) {
+    if (!parsed) return { isMultiPart: false, multiPartMap: null, entries: [] };
 
-  let current = parsed;
-  // Step 1: Unwrap single-element arrays if the element is an object that wraps parts/data/result
-  while (Array.isArray(current) && current.length === 1 && (Array.isArray(current[0]) || (typeof current[0] === 'object' && current[0] !== null))) {
-    const item = current[0];
-    if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
-      if (item.text || item.narration || item.speech || item.content || item.start_seconds !== undefined || item.start !== undefined) {
-        break;
-      }
-    }
-    current = current[0];
-  }
-
-  // Step 2: Unwrap single wrapper objects like { "data": [...] } or { "result": { "1": [...] } }
-  if (!Array.isArray(current) && typeof current === 'object' && current !== null) {
-    for (const wrapperKey of ['data', 'transcript', 'transcripts', 'items', 'result', 'sentences', 'dialogue', 'response']) {
-      if (current[wrapperKey] && (Array.isArray(current[wrapperKey]) || typeof current[wrapperKey] === 'object')) {
-        current = current[wrapperKey];
-        break;
-      }
-    }
-  }
-
-  const multiPartMap = {};
-  let foundMultiPart = false;
-
-  // Case A: Object with part keys: { "1": [...], "2": [...] } or { "part_1": [...] }
-  if (!Array.isArray(current) && typeof current === 'object' && current !== null) {
-    const keys = Object.keys(current);
-    for (const k of keys) {
-      const match = k.match(/\d+/);
-      if (match) {
-        const pt = parseInt(match[0], 10);
-        const val = current[k];
-        let rawEntries = [];
-        if (Array.isArray(val)) {
-          rawEntries = val;
-        } else if (typeof val === 'object' && val !== null) {
-          rawEntries = val.entries || val.data || val.transcript || val.sentences || [val];
-        } else if (typeof val === 'string') {
-          rawEntries = [val];
-        }
-
-        if (rawEntries.length > 0) {
-          multiPartMap[pt] = rawEntries;
-          foundMultiPart = true;
-        }
-      }
-    }
-  }
-
-  // Case B: Array of items. Could be array of Part objects like [ { "part": 1, "entries": [...] } ]
-  if (Array.isArray(current)) {
-    let isArrayOfPartObjects = false;
-    for (const item of current) {
+    let current = parsed;
+    // Step 1: Unwrap single-element arrays if the element is an object that wraps parts/data/result
+    while (Array.isArray(current) && current.length === 1 && (Array.isArray(current[0]) || (typeof current[0] === 'object' && current[0] !== null))) {
+      const item = current[0];
       if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
-        const hasPartNum = item.part !== undefined || item.part_number !== undefined || item.partNum !== undefined || item.part_id !== undefined;
-        const hasDigitKeys = Object.keys(item).some(k => /\d+/.test(k) && (Array.isArray(item[k]) || typeof item[k] === 'object'));
-        if (hasPartNum || hasDigitKeys) {
-          isArrayOfPartObjects = true;
+        if (item.text || item.narration || item.speech || item.content || item.start_seconds !== undefined || item.start !== undefined) {
+          break;
+        }
+      }
+      current = current[0];
+    }
+
+    // Step 2: Unwrap single wrapper objects like { "data": [...] } or { "result": { "1": [...] } }
+    if (!Array.isArray(current) && typeof current === 'object' && current !== null) {
+      for (const wrapperKey of ['data', 'transcript', 'transcripts', 'items', 'result', 'sentences', 'dialogue', 'response']) {
+        if (current[wrapperKey] && (Array.isArray(current[wrapperKey]) || typeof current[wrapperKey] === 'object')) {
+          current = current[wrapperKey];
           break;
         }
       }
     }
 
-    if (isArrayOfPartObjects) {
-      for (let i = 0; i < current.length; i++) {
-        const item = current[i];
-        if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
-          const ptNum = item.part ?? item.part_number ?? item.partNum ?? item.part_id;
-          const rawEntries = item.entries || item.data || item.transcript || item.sentences;
+    const multiPartMap = {};
+    let foundMultiPart = false;
 
-          if (ptNum !== undefined && Array.isArray(rawEntries) && rawEntries.length > 0) {
-            multiPartMap[Number(ptNum)] = rawEntries;
-            foundMultiPart = true;
-          } else {
-            for (const k of Object.keys(item)) {
-              const match = k.match(/\d+/);
-              if (match) {
-                const pt = parseInt(match[0], 10);
-                const val = item[k];
-                const subEntries = Array.isArray(val) ? val : (typeof val === 'object' && val !== null ? (val.entries || [val]) : [val]);
-                if (subEntries.length > 0) {
-                  multiPartMap[pt] = subEntries;
-                  foundMultiPart = true;
-                }
-              }
-            }
+    // Case A: Object with part keys: { "1": [...], "2": [...] } or { "part_1": [...] }
+    if (!Array.isArray(current) && typeof current === 'object' && current !== null) {
+      const keys = Object.keys(current);
+      for (const k of keys) {
+        const match = k.match(/\d+/);
+        if (match) {
+          const pt = parseInt(match[0], 10);
+          const val = current[k];
+          let rawEntries = [];
+          if (Array.isArray(val)) {
+            rawEntries = val;
+          } else if (typeof val === 'object' && val !== null) {
+            rawEntries = val.entries || val.data || val.transcript || val.sentences || [val];
+          } else if (typeof val === 'string') {
+            rawEntries = [val];
           }
-        } else if (Array.isArray(item)) {
-          multiPartMap[i + 1] = item;
-          foundMultiPart = true;
+
+          if (rawEntries.length > 0) {
+            multiPartMap[pt] = rawEntries;
+            foundMultiPart = true;
+          }
         }
       }
     }
-  }
 
-  if (foundMultiPart && Object.keys(multiPartMap).length > 0) {
+    // Case B: Array of items. Could be array of Part objects like [ { "part": 1, "entries": [...] } ]
+    if (Array.isArray(current)) {
+      let isArrayOfPartObjects = false;
+      for (const item of current) {
+        if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+          const hasPartNum = item.part !== undefined || item.part_number !== undefined || item.partNum !== undefined || item.part_id !== undefined;
+          const hasDigitKeys = Object.keys(item).some(k => /\d+/.test(k) && (Array.isArray(item[k]) || typeof item[k] === 'object'));
+          if (hasPartNum || hasDigitKeys) {
+            isArrayOfPartObjects = true;
+            break;
+          }
+        }
+      }
+
+      if (isArrayOfPartObjects) {
+        for (let i = 0; i < current.length; i++) {
+          const item = current[i];
+          if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+            const ptNum = item.part ?? item.part_number ?? item.partNum ?? item.part_id;
+            const rawEntries = item.entries || item.data || item.transcript || item.sentences;
+
+            if (ptNum !== undefined && Array.isArray(rawEntries) && rawEntries.length > 0) {
+              multiPartMap[Number(ptNum)] = rawEntries;
+              foundMultiPart = true;
+            } else {
+              for (const k of Object.keys(item)) {
+                const match = k.match(/\d+/);
+                if (match) {
+                  const pt = parseInt(match[0], 10);
+                  const val = item[k];
+                  const subEntries = Array.isArray(val) ? val : (typeof val === 'object' && val !== null ? (val.entries || [val]) : [val]);
+                  if (subEntries.length > 0) {
+                    multiPartMap[pt] = subEntries;
+                    foundMultiPart = true;
+                  }
+                }
+              }
+            }
+          } else if (Array.isArray(item)) {
+            multiPartMap[i + 1] = item;
+            foundMultiPart = true;
+          }
+        }
+      }
+    }
+
+    if (foundMultiPart && Object.keys(multiPartMap).length > 0) {
+      return {
+        isMultiPart: true,
+        multiPartMap,
+        entries: null
+      };
+    }
+
+    const rawArray = Array.isArray(current) ? current : [current];
     return {
-      isMultiPart: true,
-      multiPartMap,
-      entries: null
+      isMultiPart: false,
+      multiPartMap: null,
+      entries: rawArray
     };
   }
 
-  const rawArray = Array.isArray(current) ? current : [current];
-  return {
-    isMultiPart: false,
-    multiPartMap: null,
-    entries: rawArray
-  };
-}
+  function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
+    if (!entry || typeof entry !== 'object') {
+      const strVal = String(entry || '').trim();
+      const startSec = prevEndSec;
+      const endSec = startSec + 3;
+      const m1 = Math.floor(startSec / 60); const s1 = Math.floor(startSec % 60);
+      const m2 = Math.floor(endSec / 60); const s2 = Math.floor(endSec % 60);
+      const defaultTs = `${String(m1).padStart(2, '0')}:${String(s1).padStart(2, '0')} - ${String(m2).padStart(2, '0')}:${String(s2).padStart(2, '0')}`;
 
-function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
-  if (!entry || typeof entry !== 'object') {
-    const strVal = String(entry || '').trim();
-    const startSec = prevEndSec;
-    const endSec = startSec + 3;
+      return {
+        id: idx + 1,
+        start_seconds: Number(startSec.toFixed(1)),
+        end_seconds: Number(endSec.toFixed(1)),
+        timestamp_minute: defaultTs,
+        text: strVal,
+        speaker: 'Narator',
+      };
+    }
+
+    let textStr = entry.text || entry.narration || entry.speech || entry.content ||
+      entry.dialogue || entry.sentence || entry.line || entry.naskah ||
+      entry.script || entry.kalimat || entry.transcript || '';
+
+    if (!textStr && typeof entry === 'object') {
+      for (const [k, v] of Object.entries(entry)) {
+        if (['id', 'start', 'end', 'start_seconds', 'end_seconds', 'timestamp', 'timestamp_minute', 'speaker', 'part', 'part_number'].includes(k.toLowerCase())) {
+          continue;
+        }
+        if (typeof v === 'string' && v.trim().length > 0) {
+          textStr = v;
+          break;
+        }
+      }
+    }
+
+    let rawStart = entry.start_seconds !== undefined ? entry.start_seconds : (entry.start !== undefined ? entry.start : (entry.startTime !== undefined ? entry.startTime : entry.from));
+    let rawEnd = entry.end_seconds !== undefined ? entry.end_seconds : (entry.end !== undefined ? entry.end : (entry.endTime !== undefined ? entry.endTime : entry.to));
+
+    const timeStr = entry.timestamp_minute || entry.timestamp || entry.time || entry.time_range || entry.timeframe;
+    if ((rawStart === undefined || rawEnd === undefined) && typeof timeStr === 'string') {
+      const matches = timeStr.match(/(\d+:\d+(?::\d+)?|\d+(?:\.\d+)?)/g);
+      if (matches && matches.length >= 2) {
+        const parseSec = (s) => {
+          if (s.includes(':')) {
+            const parts = s.split(':').map(Number);
+            if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+            if (parts.length === 2) return parts[0] * 60 + parts[1];
+          }
+          return parseFloat(s) || 0;
+        };
+        if (rawStart === undefined) rawStart = parseSec(matches[0]);
+        if (rawEnd === undefined) rawEnd = parseSec(matches[1]);
+      }
+    }
+
+    const startSec = typeof rawStart === 'number' && !isNaN(rawStart)
+      ? rawStart
+      : (parseFloat(String(rawStart)) || prevEndSec);
+
+    const endSec = typeof rawEnd === 'number' && !isNaN(rawEnd)
+      ? rawEnd
+      : (parseFloat(String(rawEnd)) || (startSec + 3));
+
     const m1 = Math.floor(startSec / 60); const s1 = Math.floor(startSec % 60);
     const m2 = Math.floor(endSec / 60); const s2 = Math.floor(endSec % 60);
     const defaultTs = `${String(m1).padStart(2, '0')}:${String(s1).padStart(2, '0')} - ${String(m2).padStart(2, '0')}:${String(s2).padStart(2, '0')}`;
 
     return {
-      id: idx + 1,
+      id: typeof entry.id === 'number' ? entry.id : (idx + 1),
       start_seconds: Number(startSec.toFixed(1)),
       end_seconds: Number(endSec.toFixed(1)),
-      timestamp_minute: defaultTs,
-      text: strVal,
-      speaker: 'Narator',
+      timestamp_minute: String(timeStr || defaultTs),
+      text: String(textStr || ''),
+      type: entry.type || (String(textStr || '').includes('VISUAL_ONLY') ? 'visual_only' : 'narration'),
+      speaker: entry.speaker || (entry.type === 'visual_only' || String(textStr || '').includes('VISUAL_ONLY') ? 'Visual' : 'Narator'),
     };
   }
-
-  let textStr = entry.text || entry.narration || entry.speech || entry.content ||
-                entry.dialogue || entry.sentence || entry.line || entry.naskah ||
-                entry.script || entry.kalimat || entry.transcript || '';
-
-  if (!textStr && typeof entry === 'object') {
-    for (const [k, v] of Object.entries(entry)) {
-      if (['id', 'start', 'end', 'start_seconds', 'end_seconds', 'timestamp', 'timestamp_minute', 'speaker', 'part', 'part_number'].includes(k.toLowerCase())) {
-        continue;
-      }
-      if (typeof v === 'string' && v.trim().length > 0) {
-        textStr = v;
-        break;
-      }
-    }
-  }
-
-  let rawStart = entry.start_seconds !== undefined ? entry.start_seconds : (entry.start !== undefined ? entry.start : (entry.startTime !== undefined ? entry.startTime : entry.from));
-  let rawEnd = entry.end_seconds !== undefined ? entry.end_seconds : (entry.end !== undefined ? entry.end : (entry.endTime !== undefined ? entry.endTime : entry.to));
-
-  const timeStr = entry.timestamp_minute || entry.timestamp || entry.time || entry.time_range || entry.timeframe;
-  if ((rawStart === undefined || rawEnd === undefined) && typeof timeStr === 'string') {
-    const matches = timeStr.match(/(\d+:\d+(?::\d+)?|\d+(?:\.\d+)?)/g);
-    if (matches && matches.length >= 2) {
-      const parseSec = (s) => {
-        if (s.includes(':')) {
-          const parts = s.split(':').map(Number);
-          if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-          if (parts.length === 2) return parts[0] * 60 + parts[1];
-        }
-        return parseFloat(s) || 0;
-      };
-      if (rawStart === undefined) rawStart = parseSec(matches[0]);
-      if (rawEnd === undefined) rawEnd = parseSec(matches[1]);
-    }
-  }
-
-  const startSec = typeof rawStart === 'number' && !isNaN(rawStart)
-    ? rawStart
-    : (parseFloat(String(rawStart)) || prevEndSec);
-
-  const endSec = typeof rawEnd === 'number' && !isNaN(rawEnd)
-    ? rawEnd
-    : (parseFloat(String(rawEnd)) || (startSec + 3));
-
-  const m1 = Math.floor(startSec / 60); const s1 = Math.floor(startSec % 60);
-  const m2 = Math.floor(endSec / 60); const s2 = Math.floor(endSec % 60);
-  const defaultTs = `${String(m1).padStart(2, '0')}:${String(s1).padStart(2, '0')} - ${String(m2).padStart(2, '0')}:${String(s2).padStart(2, '0')}`;
-
-  return {
-    id: typeof entry.id === 'number' ? entry.id : (idx + 1),
-    start_seconds: Number(startSec.toFixed(1)),
-    end_seconds: Number(endSec.toFixed(1)),
-    timestamp_minute: String(timeStr || defaultTs),
-    text: String(textStr || ''),
-    speaker: entry.speaker || 'Narator',
-  };
-}
 
   // ─── Save Alurfilm Transcript ──────────────────────────
   ipcMain.handle('save-alurfilm-transcript', async (_event, arg1, arg2, arg3) => {
@@ -1082,7 +1083,7 @@ function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
       }
     }
 
-    sendProgress('preparing', 5, `Starting WhisperX alignment for Parts #${sortedParts.join(', #')}...`);
+    sendProgress('preparing', 5, `Starting Faster-Whisper & Silence Gap Alignment for Parts #${sortedParts.join(', #')}...`);
 
     // Resolve target audio path
     let targetAudioPath = audioPath;
@@ -1095,7 +1096,7 @@ function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
           if (audioEntry && audioEntry.filePath && fs.existsSync(audioEntry.filePath)) {
             targetAudioPath = audioEntry.filePath;
           }
-        } catch {}
+        } catch { }
       }
     }
 
@@ -1103,190 +1104,400 @@ function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
       throw new Error(`Voiceover audio file not found for Parts #${sortedParts.join(', #')}. Please upload audio first.`);
     }
 
-    // Collect reference scripts from Step 2 analysis JSON files
-    const referenceTexts = [];
-    const scriptByPart = {};
-    for (const pt of sortedParts) {
-      const partStr = String(pt).padStart(2, '0');
-      const analysisPath = path.join(p.ALURFILM_DIR, `${contentId}_analysis_part_${partStr}.json`);
-      if (fs.existsSync(analysisPath)) {
-        try {
-          const data = JSON.parse(fs.readFileSync(analysisPath, 'utf-8'));
-          const scriptText = data.naskah_voiceover?.script_text || data.script_text || '';
-          if (scriptText) {
-            referenceTexts.push(scriptText.trim());
-            scriptByPart[pt] = scriptText.trim();
-          }
-        } catch {}
-      }
-    }
-
-    if (referenceTexts.length === 0) {
-      throw new Error(`Script analysis files not found for Parts #${sortedParts.join(', #')}. Please generate or upload scripts first.`);
-    }
-
-    const combinedScriptText = referenceTexts.join(' ');
-    const partsStr = sortedParts.map(pt => String(pt).padStart(2, '0')).join('-');
-    const tempNarasiPath = path.join(p.TMP_DIR, `${contentId}_narasi_parts_${partsStr}.txt`);
-    const tempOutputPath = path.join(p.TMP_DIR, `${contentId}_alignment_output_${partsStr}.json`);
-
-    fs.writeFileSync(tempNarasiPath, combinedScriptText, 'utf-8');
-    sendProgress('preparing', 15, `Prepared script text (~${combinedScriptText.split(/\s+/).length} words) and target audio: ${path.basename(targetAudioPath)}`);
-
-    // Setup Python process arguments
+    const savedResults = [];
+    const multiPartMap = {};
     const projectRoot = p.PROJECT_ROOT || path.resolve(__dirname, '..', '..', '..');
     const pythonBin = path.join(projectRoot, 'whisperx', 'venv', 'bin', 'python3');
     const alignCli = path.join(projectRoot, 'whisperx', 'align_cli.py');
-
-    if (!fs.existsSync(pythonBin)) {
-      throw new Error(`Python virtual environment not found at ${pythonBin}`);
-    }
-    if (!fs.existsSync(alignCli)) {
-      throw new Error(`Align CLI script not found at ${alignCli}`);
-    }
-
-    const args = [
-      alignCli,
-      '--audio', targetAudioPath,
-      '--text', tempNarasiPath,
-      '--output', tempOutputPath,
-      '--model', 'small',
-      '--device', 'cpu'
-    ];
-
-    const childEnv = {
-      ...process.env,
-      PYTHONSAFEPATH: '1'
-    };
-
-    sendProgress('loading_model', 25, `Spawning Python Faster-Whisper alignment process...`);
-
-    await new Promise((resolve, reject) => {
-      const proc = spawn(pythonBin, args, { env: childEnv, cwd: projectRoot });
-
-      function handleLogLine(rawLine) {
-        const line = rawLine.replace(/^\[log\]\s*/, '').replace(/^\[faster-whisper\]\s*/, '').trim();
-        if (!line) return;
-
-        let progress = 30;
-        let stage = 'aligning';
-
-        if (line.includes('Checking local cache')) { progress = 10; stage = 'loading_model'; }
-        else if (line.includes('Initializing CTranslate2')) { progress = 15; stage = 'loading_model'; }
-        else if (line.includes('Loaded Faster-Whisper model')) { progress = 25; stage = 'loading_model'; }
-        else if (line.includes('Audio Target:')) { progress = 28; stage = 'preparing'; }
-        else if (line.includes('Starting Silero VAD')) { progress = 30; stage = 'transcribing'; }
-        else if (line.includes('Selesai VAD Transcribe')) { progress = 80; stage = 'aligning'; }
-        else if (line.includes('Mapping')) { progress = 88; stage = 'mapping'; }
-        else if (line.includes('Selesai!')) { progress = 95; stage = 'done'; }
-
-        // Dynamic progress extraction from [XX%] log lines
-        const pctMatch = line.match(/\[(\d+)%\]/);
-        if (pctMatch) {
-          const rawPct = parseInt(pctMatch[1], 10);
-          if (!isNaN(rawPct)) {
-            // Map audio transcribe 0-100% into 30% - 80% progress bar
-            progress = Math.min(80, 30 + Math.floor((rawPct / 100) * 50));
-            stage = 'transcribing';
-          }
-        }
-
-        sendProgress(stage, progress, line);
-      }
-
-      proc.stdout.on('data', (data) => {
-        const lines = data.toString().split('\n').filter(Boolean);
-        for (const l of lines) handleLogLine(l);
-      });
-
-      proc.stderr.on('data', (data) => {
-        const lines = data.toString().split('\n').filter(Boolean);
-        for (const l of lines) handleLogLine(l);
-      });
-
-      proc.on('close', (code) => {
-        if (code === 0 && fs.existsSync(tempOutputPath)) {
-          resolve(true);
-        } else {
-          reject(new Error(`WhisperX alignment process exited with code ${code}`));
-        }
-      });
-
-      proc.on('error', (err) => {
-        reject(err);
-      });
-    });
-
-    sendProgress('mapping', 92, `Alignment complete. Mapping aligned sentences to individual parts...`);
-
-    // Parse alignment JSON output
-    const alignJsonRaw = fs.readFileSync(tempOutputPath, 'utf-8');
-    const alignJson = JSON.parse(alignJsonRaw);
-    const transcriptEntries = alignJson.transcript || alignJson.sentences || [];
-
-    // Map sentences to individual parts
-    let idx = 0;
-    const multiPartMap = {};
-
-    for (const pt of sortedParts) {
-      const scriptText = scriptByPart[pt] || '';
-      const matched = [];
-
-      while (idx < transcriptEntries.length) {
-        const item = transcriptEntries[idx];
-        const txt = item.text || '';
-        if (txt && scriptText.includes(txt)) {
-          const itemCopy = { ...item, id: matched.length + 1 };
-          matched.push(itemCopy);
-          idx++;
-        } else {
-          break;
-        }
-      }
-
-      multiPartMap[pt] = matched;
-      sendProgress('mapping', 95, `Part #${pt}: Mapped ${matched.length} aligned entries.`);
-    }
-
-    // Handle any remaining unmatched entries by appending to last part if applicable
-    if (idx < transcriptEntries.length) {
-      const lastPt = sortedParts[sortedParts.length - 1];
-      const remaining = transcriptEntries.slice(idx);
-      multiPartMap[lastPt] = (multiPartMap[lastPt] || []).concat(remaining);
-    }
-
-    // Save outputs using save-alurfilm-transcript multiPart feature
     const targetDir = p.ALURFILM_TRANSCRIPTS_DIR || path.join(p.ALURFILM_DIR, 'transcripts');
     if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
 
-    const savedResults = [];
     for (const pt of sortedParts) {
-      const entries = multiPartMap[pt] || [];
       const partStr = String(pt).padStart(2, '0');
-      const outputName = `${contentId}_transcript_part_${partStr}.json`;
-      const destPath = path.join(targetDir, outputName);
+      const analysisPath = path.join(p.ALURFILM_DIR, `${contentId}_analysis_part_${partStr}.json`);
+      let scriptText = '';
+      if (fs.existsSync(analysisPath)) {
+        try {
+          const data = JSON.parse(fs.readFileSync(analysisPath, 'utf-8'));
+          scriptText = data.naskah_voiceover?.script_text || data.script_text || '';
+        } catch { }
+      }
 
-      let prevEnd = 0;
-      const normEntries = entries.map((e, index) => {
-        const res = normalizeBackendEntry(e, index, prevEnd);
-        prevEnd = res.end_seconds;
-        return res;
+      if (!scriptText) {
+        throw new Error(`Script analysis file not found for Part #${pt}. Please generate script first.`);
+      }
+
+      // Step 1: Parse raw script into narration and visual_only elements
+      const tagRegex = /\[VISUAL_ONLY:\s*([\d.]+)\s*s?\s*(?:\|\s*([^\]]+))?\]/gi;
+      const scriptElements = [];
+      let lastIndex = 0;
+      let match;
+
+      while ((match = tagRegex.exec(scriptText)) !== null) {
+        const textBefore = scriptText.slice(lastIndex, match.index).trim();
+        if (textBefore) {
+          const sents = textBefore.split(/(?<=[.!?])\s+/).filter(Boolean);
+          for (const st of sents) {
+            scriptElements.push({ type: 'narration', text: st });
+          }
+        }
+
+        const silenceDur = Math.max(1.0, parseFloat(match[1]) || 5.0);
+        const desc = (match[2] || 'Adegan Visual Murni Action').trim();
+        scriptElements.push({
+          type: 'visual_only',
+          text: `[VISUAL_ONLY: ${desc}]`,
+          description: desc,
+          duration: silenceDur
+        });
+
+        lastIndex = tagRegex.lastIndex;
+      }
+
+      const textAfter = scriptText.slice(lastIndex).trim();
+      if (textAfter) {
+        const sents = textAfter.split(/(?<=[.!?])\s+/).filter(Boolean);
+        for (const st of sents) {
+          scriptElements.push({ type: 'narration', text: st });
+        }
+      }
+
+      // Step 2: Extract CLEAN narration sentences ONLY for Faster-Whisper
+      const narrationSentencesOnly = scriptElements
+        .filter(el => el.type === 'narration')
+        .map(el => el.text)
+        .join('\n');
+
+      const timestamp = Date.now();
+      const tempNarasiPath = path.join(p.TMP_DIR, `${contentId}_narasi_part_${partStr}_${timestamp}.txt`);
+      const tempOutputPath = path.join(p.TMP_DIR, `${contentId}_alignment_part_${partStr}_${timestamp}.json`);
+      fs.writeFileSync(tempNarasiPath, narrationSentencesOnly || 'Naskah alur film.', 'utf-8');
+
+      let whisperSentences = [];
+      let isFasterWhisperUsed = false;
+
+      if (fs.existsSync(pythonBin) && fs.existsSync(alignCli)) {
+        try {
+          sendProgress('transcribing', 30, `Part #${pt}: Running Faster-Whisper alignment on narration text...`);
+          await new Promise((resolve, reject) => {
+            const proc = spawn(pythonBin, [alignCli, '--audio', targetAudioPath, '--text', tempNarasiPath, '--output', tempOutputPath, '--model', 'medium', '--device', 'cpu'], {
+              cwd: projectRoot,
+              env: { ...process.env, PYTHONSAFEPATH: '1' }
+            });
+            proc.on('close', (code) => code === 0 && fs.existsSync(tempOutputPath) ? resolve() : reject(new Error(`Faster-Whisper exit code ${code}`)));
+            proc.on('error', reject);
+          });
+
+          if (fs.existsSync(tempOutputPath)) {
+            const data = JSON.parse(fs.readFileSync(tempOutputPath, 'utf-8'));
+            const parsedData = Array.isArray(data) ? data : (data.transcript || data.sentences || []);
+            whisperSentences = parsedData.map((item, idx) => {
+              let rawSpeechEnd = item.end_seconds !== undefined ? item.end_seconds : (item.end || 0);
+              let firstWordStart = item.start_seconds !== undefined ? item.start_seconds : (item.start || 0);
+              if (Array.isArray(item.words) && item.words.length > 0) {
+                const firstWord = item.words[0];
+                const lastWord = item.words[item.words.length - 1];
+                if (firstWord && firstWord.start !== undefined) firstWordStart = firstWord.start;
+                if (lastWord && lastWord.end !== undefined) rawSpeechEnd = lastWord.end;
+              }
+              return {
+                sentence_index: idx,
+                text: item.text || item.kalimat || item.narration || '',
+                start: Number((item.start_seconds !== undefined ? item.start_seconds : (item.start || 0)).toFixed(3)),
+                end: Number((item.end_seconds !== undefined ? item.end_seconds : (item.end || 0)).toFixed(3)),
+                firstWordStart: Number(Number(firstWordStart).toFixed(3)),
+                lastWordEnd: Number(Number(rawSpeechEnd).toFixed(3))
+              };
+            });
+            isFasterWhisperUsed = true;
+          }
+        } catch (err) {
+          console.warn(`Part #${pt}: Faster-Whisper alignment failed, falling back to script estimation:`, err.message);
+        }
+      }
+
+      // Clean temp script/output
+      try { fs.unlinkSync(tempNarasiPath); } catch { }
+      try { fs.unlinkSync(tempOutputPath); } catch { }
+
+      // Step 3: Map aligned sentences to scriptElements
+      let whisperIdx = 0;
+      let simClock = 0;
+
+      const alignedElements = scriptElements.map((el, idx) => {
+        if (el.type === 'narration') {
+          const nextEl = idx < scriptElements.length - 1 ? scriptElements[idx + 1] : null;
+          const isFollowedByVisualOnly = nextEl && nextEl.type === 'visual_only';
+
+          if (isFasterWhisperUsed && whisperIdx < whisperSentences.length) {
+            const w = whisperSentences[whisperIdx++];
+            const lastWordEnd = w.lastWordEnd || w.end;
+            const firstWordStart = w.firstWordStart || w.start;
+            const actualEnd = isFollowedByVisualOnly ? lastWordEnd : w.end;
+            simClock = actualEnd;
+            return {
+              ...el,
+              start: w.start,
+              end: actualEnd,
+              firstWordStart,
+              lastWordEnd
+            };
+          } else {
+            const words = (el.text || '').split(/\s+/).filter(Boolean);
+            const dur = Math.max(2.5, Number((words.length / 3.0).toFixed(3)));
+            const start = Number(simClock.toFixed(3));
+            simClock += dur;
+            const end = Number(simClock.toFixed(3));
+            return { ...el, start, end };
+          }
+        }
+        return el;
       });
 
-      fs.writeFileSync(destPath, JSON.stringify(normEntries, null, 2), 'utf-8');
-      savedResults.push({ part: pt, name: outputName, filePath: destPath, data: normEntries, entries: normEntries });
+      // Step 4: Check if FFmpeg audio splicing with silence buffer is needed
+      const hasVisualOnly = scriptElements.some(el => el.type === 'visual_only');
+      let finalPartAudioPath = targetAudioPath;
+      const audioSplits = [];
+
+      if (hasVisualOnly && fs.existsSync(targetAudioPath)) {
+        try {
+          const audioMeta = await ffmpeg.getVideoMetaHelper(targetAudioPath);
+          const totalRawAudioDur = (audioMeta && audioMeta.duration) ? audioMeta.duration : 0.0;
+          let lastCutTime = 0.0;
+
+          for (let i = 0; i < alignedElements.length; i++) {
+            const current = alignedElements[i];
+            if (current.type === 'visual_only') {
+              let prevNarr = null;
+              for (let k = i - 1; k >= 0; k--) {
+                if (alignedElements[k].type === 'narration') {
+                  prevNarr = alignedElements[k];
+                  break;
+                }
+              }
+
+              let nextNarr = null;
+              for (let k = i + 1; k < alignedElements.length; k++) {
+                if (alignedElements[k].type === 'narration') {
+                  nextNarr = alignedElements[k];
+                  break;
+                }
+              }
+
+              if (prevNarr && prevNarr.end !== undefined) {
+                const cutEnd = Math.min(totalRawAudioDur, Number(prevNarr.end.toFixed(3)));
+                if (cutEnd > lastCutTime) {
+                  audioSplits.push({
+                    type: 'audio_chunk',
+                    startSec: Number(lastCutTime.toFixed(3)),
+                    endSec: Number(cutEnd.toFixed(3))
+                  });
+                }
+
+                if (nextNarr && nextNarr.firstWordStart !== undefined) {
+                  lastCutTime = Math.max(cutEnd, Number(nextNarr.firstWordStart.toFixed(3)));
+                } else {
+                  lastCutTime = cutEnd;
+                }
+              }
+
+              audioSplits.push({
+                type: 'silence_buffer',
+                durationSec: Number((current.duration || 5.0).toFixed(3)),
+                element: current
+              });
+            }
+          }
+
+          if (totalRawAudioDur > lastCutTime + 0.05) {
+            audioSplits.push({
+              type: 'audio_chunk',
+              startSec: Number(lastCutTime.toFixed(3)),
+              endSec: Number(totalRawAudioDur.toFixed(3))
+            });
+            lastCutTime = totalRawAudioDur;
+          }
+
+          // Calculate cumulative splicedStart & splicedEnd for precise timestamp mapping
+          let currentSplicedClock = 0.0;
+          for (let j = 0; j < audioSplits.length; j++) {
+            const item = audioSplits[j];
+            if (item.type === 'audio_chunk') {
+              item.splicedStart = Number(currentSplicedClock.toFixed(3));
+              item.splicedEnd = Number((currentSplicedClock + (item.endSec - item.startSec)).toFixed(3));
+              currentSplicedClock = item.splicedEnd;
+            } else {
+              item.splicedStart = Number(currentSplicedClock.toFixed(3));
+              item.splicedEnd = Number((currentSplicedClock + item.durationSec).toFixed(3));
+              currentSplicedClock = item.splicedEnd;
+            }
+          }
+
+          if (audioSplits.length > 0) {
+            sendProgress('splicing_audio', 85, `Part #${pt}: Splicing audio and inserting ${audioSplits.filter(s => s.type === 'silence_buffer').length} silence gaps via FFmpeg...`);
+            const tempFiles = [];
+            for (let i = 0; i < audioSplits.length; i++) {
+              const item = audioSplits[i];
+              const tempChunkPath = path.join(p.ALURFILM_AUDIO_DIR, `temp_part_${pt}_chunk_${timestamp}_${i}.wav`);
+              tempFiles.push(tempChunkPath);
+
+              if (item.type === 'audio_chunk') {
+                const ss = Math.max(0, item.startSec);
+                const to = Math.max(ss + 0.01, item.endSec);
+                const dur = Number((to - ss).toFixed(3));
+                await new Promise((res, rej) => {
+                  const proc = spawn(ffmpeg.ffmpegPath, ['-i', targetAudioPath, '-ss', String(ss), '-t', String(dur), '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', '-y', tempChunkPath]);
+                  proc.on('close', (c) => c === 0 && fs.existsSync(tempChunkPath) ? res() : rej(new Error(`Slice error ${c}`)));
+                  proc.on('error', rej);
+                });
+              } else {
+                const silenceDur = Number((item.durationSec || 5.0).toFixed(3));
+                await new Promise((res, rej) => {
+                  const proc = spawn(ffmpeg.ffmpegPath, ['-f', 'lavfi', '-i', 'anullsrc=r=16000:cl=mono', '-t', String(silenceDur), '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', '-y', tempChunkPath]);
+                  proc.on('close', (c) => c === 0 && fs.existsSync(tempChunkPath) ? res() : rej(new Error(`Silence error ${c}`)));
+                  proc.on('error', rej);
+                });
+              }
+            }
+
+            const listFilePath = path.join(p.ALURFILM_AUDIO_DIR, `concat_list_part_${pt}_${timestamp}.txt`);
+            const listContent = tempFiles.map(f => `file '${f.replace(/'/g, "'\\''")}'`).join('\n');
+            fs.writeFileSync(listFilePath, listContent, 'utf-8');
+
+            const outputSplicedName = `${contentId}_audio_part_${partStr}_spliced_${timestamp}.wav`;
+            const splicedOutPath = path.join(p.ALURFILM_AUDIO_DIR, outputSplicedName);
+
+            await new Promise((res, rej) => {
+              const proc = spawn(ffmpeg.ffmpegPath, ['-f', 'concat', '-safe', '0', '-i', listFilePath, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', '-y', splicedOutPath]);
+              proc.on('close', (c) => c === 0 && fs.existsSync(splicedOutPath) ? res() : rej(new Error(`Concat error ${c}`)));
+              proc.on('error', rej);
+            });
+
+            try { fs.unlinkSync(listFilePath); } catch { }
+            for (const f of tempFiles) { try { fs.unlinkSync(f); } catch { } }
+
+            finalPartAudioPath = splicedOutPath;
+
+            // Update audio mappings json file with the new spliced audio path
+            const mappingFile = path.join(p.ALURFILM_AUDIO_DIR, `${contentId}_audio_mappings.json`);
+            if (fs.existsSync(mappingFile)) {
+              try {
+                const mapData = JSON.parse(fs.readFileSync(mappingFile, 'utf-8'));
+                if (Array.isArray(mapData.audios)) {
+                  const targetAudioEntry = mapData.audios.find(item => item.parts && item.parts.includes(pt));
+                  if (targetAudioEntry) {
+                    const splicedStat = fs.statSync(splicedOutPath);
+                    targetAudioEntry.filePath = splicedOutPath;
+                    targetAudioEntry.name = outputSplicedName;
+                    targetAudioEntry.url = media.mediaUrl(splicedOutPath);
+                    targetAudioEntry.size = splicedStat.size;
+                    targetAudioEntry.isSpliced = true;
+                    targetAudioEntry.splicedAt = new Date().toISOString();
+                    fs.writeFileSync(mappingFile, JSON.stringify(mapData, null, 2), 'utf-8');
+                  }
+                }
+              } catch (mapErr) {
+                console.warn(`Part #${pt}: Failed to update audio mapping with spliced file:`, mapErr.message);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn(`Part #${pt}: FFmpeg audio splicing failed, keeping original audio:`, err.message);
+        }
+      }
+
+      // Step 5: Construct distinct transcript entries for narration vs visual_only
+      const partEntries = [];
+      let itemCounter = 1;
+      let clockSec = 0.0;
+      const audioSpliced = hasVisualOnly && audioSplits.length > 0;
+
+      for (let i = 0; i < alignedElements.length; i++) {
+        const current = alignedElements[i];
+        if (current.type === 'visual_only') {
+          const silenceItem = audioSplits.find(s => s.type === 'silence_buffer' && s.element === current);
+          const start = (audioSpliced && silenceItem)
+            ? silenceItem.splicedStart
+            : Number(clockSec.toFixed(3));
+          const duration = (audioSpliced && silenceItem)
+            ? Number((silenceItem.splicedEnd - silenceItem.splicedStart).toFixed(3))
+            : Number((current.duration || 5.0).toFixed(3));
+          const end = (audioSpliced && silenceItem)
+            ? silenceItem.splicedEnd
+            : Number((start + duration).toFixed(3));
+
+          clockSec = end;
+
+          const m1 = Math.floor(start / 60); const s1 = Math.floor(start % 60);
+          const m2 = Math.floor(end / 60); const s2 = Math.floor(end % 60);
+          const tsMin = `${String(m1).padStart(2, '0')}:${String(s1).padStart(2, '0')} - ${String(m2).padStart(2, '0')}:${String(s2).padStart(2, '0')}`;
+
+          partEntries.push({
+            id: itemCounter++,
+            start_seconds: start,
+            end_seconds: end,
+            timestamp_minute: tsMin,
+            text: current.text,
+            type: 'visual_only',
+            speaker: 'Visual'
+          });
+        } else {
+          const origStart = current.start !== undefined ? current.start : 0;
+          const origEnd = current.end !== undefined ? current.end : (origStart + 3.0);
+          const rawDuration = Math.max(0.5, Number((origEnd - origStart).toFixed(3)));
+
+          let start = 0.0;
+          let end = 0.0;
+
+          if (audioSpliced && audioSplits.length > 0) {
+            let matchingChunk = audioSplits.find(item => item.type === 'audio_chunk' && origStart >= item.startSec && origStart <= item.endSec);
+            if (!matchingChunk) {
+              matchingChunk = audioSplits.filter(item => item.type === 'audio_chunk').find(item => origStart <= item.endSec) || audioSplits.filter(item => item.type === 'audio_chunk').pop();
+            }
+
+            if (matchingChunk) {
+              const offset = Math.max(0, origStart - matchingChunk.startSec);
+              start = Number((matchingChunk.splicedStart + offset).toFixed(3));
+              end = Number((start + rawDuration).toFixed(3));
+            } else {
+              start = Number(clockSec.toFixed(3));
+              end = Number((start + rawDuration).toFixed(3));
+            }
+          } else {
+            start = Number((current.start !== undefined ? current.start : clockSec).toFixed(3));
+            end = Number((current.end !== undefined ? current.end : (start + rawDuration)).toFixed(3));
+          }
+
+          clockSec = Math.max(clockSec, end);
+
+          const m1 = Math.floor(start / 60); const s1 = Math.floor(start % 60);
+          const m2 = Math.floor(end / 60); const s2 = Math.floor(end % 60);
+          const tsMin = `${String(m1).padStart(2, '0')}:${String(s1).padStart(2, '0')} - ${String(m2).padStart(2, '0')}:${String(s2).padStart(2, '0')}`;
+
+          partEntries.push({
+            id: itemCounter++,
+            start_seconds: start,
+            end_seconds: end,
+            timestamp_minute: tsMin,
+            text: current.text,
+            type: 'narration',
+            speaker: 'Narator'
+          });
+        }
+      }
+
+      // Save Part Transcript
+      const outputName = `${contentId}_transcript_part_${partStr}.json`;
+      const destPath = path.join(targetDir, outputName);
+      fs.writeFileSync(destPath, JSON.stringify(partEntries, null, 2), 'utf-8');
+
+      multiPartMap[pt] = partEntries;
+      savedResults.push({ part: pt, name: outputName, filePath: destPath, data: partEntries, entries: partEntries });
+
+      sendProgress('mapping', 95, `Part #${pt}: Created ${partEntries.length} transcript entries (${partEntries.filter(e => e.type === 'visual_only').length} Visual-Only gaps).`);
     }
 
-    // Save combined multipart file as well
-    const multipartFile = path.join(targetDir, `${contentId}_transcript_multipart.json`);
-    const multiPartObject = {};
-    for (const pt of sortedParts) {
-      multiPartObject[String(pt)] = multiPartMap[pt] || [];
-    }
-    fs.writeFileSync(multipartFile, JSON.stringify(multiPartObject, null, 2), 'utf-8');
-
-    sendProgress('done', 100, `Successfully saved transcript files for Parts #${sortedParts.join(', #')}!`);
-
+    sendProgress('done', 100, `Successfully aligned & spliced audio with Visual-Only gaps for Parts #${sortedParts.join(', #')}!`);
     return { success: true, savedResults, multiPartMap };
   });
 
@@ -1559,39 +1770,7 @@ function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
     return mappings;
   });
 
-  // ─── List Alurfilm Renders ─────────────────────────────
-  ipcMain.handle('list-alurfilm-renders', async (_event, modeContentId) => {
-    const contentId = modeContentId || p.getOrGenerateContentId('longform');
-    const outputDir = path.join(p.PROJECT_ROOT, 'output');
-    if (!fs.existsSync(outputDir)) return [];
-
-    const files = fs.readdirSync(outputDir);
-    const partMap = {};
-
-    for (const f of files) {
-      if (f.startsWith(`alurfilm_${contentId}_part_`) && f.endsWith('.mp4')) {
-        const match = f.match(/_part_(\d+)_/);
-        if (match) {
-          const part = parseInt(match[1], 10);
-          const fullPath = path.join(outputDir, f);
-          try {
-            const stat = fs.statSync(fullPath);
-            if (!partMap[part] || stat.mtimeMs > partMap[part].mtimeMs) {
-              partMap[part] = { part, name: f, filePath: fullPath, mediaUrl: media.mediaUrl(fullPath), mtimeMs: stat.mtimeMs, elapsed: 'Done' };
-            }
-          } catch { }
-        }
-      }
-    }
-
-    return Object.values(partMap).sort((a, b) => a.part - b.part);
-  });
-
-  // ─── Generate Alurfilm Metadata ────────────────────────
-  ipcMain.handle('generate-alurfilm-metadata', async (event, { modeContentId, model = 'ag/gemini-3-flash-agent', customNotes = '' }) => {
-    const contentId = modeContentId || p.getOrGenerateContentId('longform');
-
-    // Collect all script text from available analysis files
+  // ─── List Alurfilm Renders ─────────────────    // Collect all script text, character registry, and macro summaries from available analysis files
     const allFiles = fs.existsSync(p.ALURFILM_DIR) ? fs.readdirSync(p.ALURFILM_DIR) : [];
     const analysisFiles = allFiles
       .filter(f => (
@@ -1606,6 +1785,9 @@ function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
 
     let combinedScript = '';
     let movieTitle = '';
+    const characterRegistryList = [];
+    const macroSummariesList = [];
+    const timelineFocusList = [];
 
     for (const f of analysisFiles) {
       try {
@@ -1614,47 +1796,77 @@ function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
         if (data.naskah_voiceover?.script_text) {
           combinedScript += `\n--- PART ${data.chunk_part || ''} ---\n` + data.naskah_voiceover.script_text;
         }
+        if (data.naskah_voiceover?.macro_summary) {
+          macroSummariesList.push(`Part ${data.chunk_part || ''}: ${data.naskah_voiceover.macro_summary}`);
+        }
+        if (Array.isArray(data.character_registry)) {
+          data.character_registry.forEach(c => {
+            if (c.assigned_name && !characterRegistryList.some(x => x.assigned_name === c.assigned_name)) {
+              characterRegistryList.push(c);
+            }
+          });
+        }
+        if (Array.isArray(data.timeline_edits)) {
+          data.timeline_edits.forEach(tl => {
+            if (tl.scene_label || tl.narrative_focus) {
+              timelineFocusList.push(`[${tl.scene_label || 'Scene'}]: ${tl.narrative_focus || ''}`);
+            }
+          });
+        }
         if (data.movie_title && !movieTitle) {
           movieTitle = data.movie_title;
         }
-      } catch {}
+      } catch { }
     }
 
     if (!combinedScript.trim()) {
       throw new Error('Naskah alur film tidak ditemukan. Silakan selesaikan Step 2 (Script Generator) terlebih dahulu.');
     }
 
-    const systemPrompt = `Anda adalah seorang Pakar Strategi SEO & YouTube Content Specialist khusus Niche Alur Cerita Film (Recap Film).
-Tugas Anda adalah menganalisis naskah alur film yang diberikan dan menghasilkan metadata video YouTube yang sangat teroptimasi untuk Click-Through Rate (CTR) tinggi dan Daya Tahan Nonton (Retention).
+    const systemPrompt = `Anda adalah seorang Pakar Psikologi Penonton & Strategi SEO YouTube khusus Niche Alur Cerita Film (Recap Film).
+Tugas Anda adalah menganalisis SELURUH KONTEKS ALUR FILM (naskah, daftar karakter, ringkasan cerita) dan menghasilkan judul & metadata video YouTube yang 100% AKURAT SESUAI ISI FILM, tidak mengarang/asal-asalan, serta sangat memicu insting emosional penonton (CTR & Retention Tinggi).
 
-ATURAN STRUKTUR JUDUL (CTR FORMULA):
-Semua opsi judul HARUS mengikuti pola formula berikut:
-[Tindakan Ekstrem / Kondisi Dramatis] + [Status Karakter Underdog] + [Konflik / Ending Penasaran] — Alur Cerita Film
+🧠 TAHAP 1 — ANALISIS EKSTRAKSI 5 JANGKAR PSIKOLOGI CERITA (Wajib Analisis Dalam Hati Sebelum Membuat Judul):
+Sebelum merumuskan judul, Anda HARUS mengekstrak 5 fakta psikologis riil dari data naskah yang diberikan:
+1. Status Underdog & Penderitaan: Siapa karakter utama, kondisi fisik/sosial/ekonominya, dan penderitaan nyata yang dialami.
+2. Taruhan Nyata (Survival Stakes): Apa yang hilang/rusak jika karakter gagal (nyawa, keluarga, kehormatan, masa depan).
+3. Aksi Ekstrem Nyata: Tindakan nekat/perjuangan fisik/keberanian terbesar yang benar-benar dilakukan di naskah.
+4. Bentuk Penindasan: Siapa penindasnya/pihak yang meremehkan dan bagaimana bentuk perlakuan zalimnya secara spesifik.
+5. Tamparan Penyesalan / Puncak Emosi: Payoff emosional, tamparan fakta bagi penindas, atau klimaks pembuktian diri.
 
-CONTOH FORMULA SUKSES:
-1. [CUMA MODAL HP] [TUKANG PEL INI] [MEMBONGKAR KODE RAHASIA BANK] — Alur Cerita Film
-2. [Diremehkan Pakai Mobil Rongsokan] [Pensiunan Pembalap] [Akhirnya Merebut Gelar Juara Dunia] — Alur Cerita Film
-3. [Nekat Turun ke Lintasan Bromo] [Mantan Pembalap Cacat] [Bikin Syok Seluruh Penonton] — Alur Cerita Film
+🚨 ATURAN AKURASI & FAKTUAlITAS MUTLAK (DILARANG HALUSINASI):
+1. DILARANG KERAS mengarang metafora acak, profesi palsu, atau istilah yang tidak ada dalam film (seperti "menggebrak panggung gendang", "pensiunan pembalap", "kode bank", "juara dunia" jika filmnya tentang drama keluarga/difabel/anak berkebutuhan khusus).
+2. Setiap kata pada slot Judul WAJIB 100% didasarkan pada kejadian riil, penderitaan nyata, dan perlawanan/pembuktian emosional karakter utama dari data naskah yang diberikan.
 
-PEMBAGIAN 5 OPSI JUDUL SESUAI EMOSI:
+🎯 TAHAP 2 — STRUKTUR FORMULA JUDUL (TABUHAN GENDANG EMOSI CTR):
+Semua opsi judul HARUS mengikuti pola formula CTR berikut:
+[Tindakan Ekstrem / Perjuangan Nyata] + [Status Karakter Underdog] + [Konflik / Puncak Emosi Realistis] — Alur Cerita Film
+
+CONTOH FORMULA AKURAT BERDASARKAN PSIKOLOGI PENONTON:
+- [Demi Sembuh Dari Lumpuh] [Pemuda Cerebral Palsy] [Buktikan Bisa Hidup Mandiri] — Alur Cerita Film
+- [Diremehkan Ibu Sendiri] [Anak Difabel Ini] [Bikin Satu Keluarga Menangis Penyesalan] — Alur Cerita Film
+- [Dihina Fisik Kaku] [Pemuda Cerebral Palsy] [Berhasil Bangkit & Temukan Cinta Sejati] — Alur Cerita Film
+- [Neikat Jualan Permen] [Pemuda Cerebral Palsy] [Buktikan Bisa Bangkit Dari Keputusasaan] — Alur Cerita Film
+
+PEMBAGIAN 5 OPSI JUDUL SESUAI TABUHAN GENDANG EMOSI PSIKOLOGIS:
 Anda harus menghasilkan tepat 5 variasi judul dengan kategori emosi berikut:
-1. "underdog": Mengincar emosi Haru/Perjuangan Karakter Biasa yang Diremehkan.
-2. "balas_dendam": Mengincar emosi Marah/Pembalasan Karakter setelah Dihancurkan/Diremehkan.
-3. "aksi_nekat": Mengincar emosi Keheranan/Aksi Gila & Taruhan Tinggi.
-4. "kaget": Mengincar emosi Terkejut/Hal Tidak Masuk Akal.
-5. "misteri": Mengincar emosi Rasa Ingin Tahu/Rahasia Tersembunyi (Curiosity Gap).
+1. "underdog": Mengincar Gendang Empati & Penderitaan (Haru/Perjuangan Karakter Biasa/Difabel yang Diremehkan).
+2. "balas_dendam": Mengincar Gendang Kemarahan & Penyesalan (Pembuktian Diri & Tamparan Penyesalan bagi Penindas).
+3. "aksi_nekat": Mengincar Gendang Ketegangan & Survival (Keberanian/Pengorbanan Karakter Mengambil Risiko Besar).
+4. "kaget": Mengincar Gendang Syok & Kontradiksi (Kejadian Tak Terduga / Paradox di Alur Cerita).
+5. "misteri": Mengincar Gendang Kepo Terlarang (Rahasia, Motivasi Tersembunyi & Curiosity Gap).
 
 ATURAN TEKS THUMBNAIL (GAYA DUA WARNA VIRAL):
 Teks thumbnail harus 2-4 kata yang sangat singkat & kontras tajam.
 Gaya teks mengikuti pola dua warna yang terbukti meledak di niche Alur Cerita Film:
-- Kata Pertama (Yellow Part): Teks penarik perhatian warna Kuning Cerah (misal: "GERBANG", "PATUNG INI", "16 TAHUN", "TAK BISA", "AWAL", "SUHU", "28 TAHUN").
-- Kata Kedua (Red Part): Teks klimaks emosi warna Merah Menyala dengan Outline Hitam (misal: "TERAKHIR", "TERNYATA HIDUP", "DIKURUNG", "KABUR", "PETAKA", "-150°C", "TERISOLASI").
+- Kata Pertama (Yellow Part): Teks penarik perhatian warna Kuning Cerah (misal: "FISIK KAKU", "DIREMEHKAN", "TAK BISA", "BISA BANGKIT", "DEMI IBU").
+- Kata Kedua (Red Part): Teks klimaks emosi warna Merah Menyala dengan Outline Hitam (misal: "BUKTIKAN MANUSIA", "MENANGIS PENYESALAN", "CINTA SEJATI", "DIBANGKITKAN", "TAMPAKAN").
 
 ATURAN PROMPT GAMBAR THUMBNAIL (AI IMAGE GENERATOR):
-Hasilkan prompt gambar AI profesional (dalam Bahasa Inggris) untuk Midjourney / Flux / DALL-E / Google Flow yang menghasilkan visual thumbnail bergaya apokaliptik/dystopian/misteri bertekstur tajam dengan spesifikasi:
-1. Skala Kontras Ekstrem: Silhouette/karakter manusia kecil (tiny human) berdiri di hadapan objek/ancaman/bangunan raksasa (colossal wall, massive sea creature, giant statue, frozen city, colossal titan monster).
-2. Lighting & Color Texture: Dramatic cinematic lighting, teal and orange color grading, vibrant color contrast, highly detailed gritty textures (es beku, gurun gersang, dinding raksasa berlumut, laut merah), 8k photorealistic concept art.
-3. Angle: Wide-angle cinematic shot, epic atmosphere.
+Hasilkan prompt gambar AI profesional (dalam Bahasa Inggris) untuk Midjourney / Flux / DALL-E / Google Flow yang menggambarkan visual emosi karakter utama & konflik cerita secara sinematik dengan spesifikasi:
+1. Visual Utama: Karakter utama (sesuai deskripsi fisik di registry) dengan raut emosi mendalam (haru/perjuangan/tekad) dipadukan dengan atmosfer sinematik pendukung.
+2. Lighting & Color Texture: Dramatic cinematic lighting, teal and orange color grading, vibrant color contrast, highly detailed gritty textures, 8k photorealistic concept art.
+3. Angle: Wide-angle / medium cinematic shot, epic atmosphere.
 
 DESKRIPSI VIDEO YOUTUBE (TERSTRUKTUR & SEO FRIENDLY):
 1. 2 Baris Pertama: Hook pembuka tajam yang selaras dengan judul.
@@ -1681,7 +1893,7 @@ OUTPUT FORMAT (MANDATORY JSON OBJECT ONLY):
     {
       "id": "2",
       "emotion_category": "balas_dendam",
-      "emotion_label": "😡 Balas Dendam & Tamparan",
+      "emotion_label": "😡 Pembuktian & Tamparan Penyesalan",
       "title": "...",
       "thumbnail_text_yellow": "...",
       "thumbnail_text_red": "...",
@@ -1691,6 +1903,65 @@ OUTPUT FORMAT (MANDATORY JSON OBJECT ONLY):
     {
       "id": "3",
       "emotion_category": "aksi_nekat",
+      "emotion_label": "⚡ Keberanian & Aksi Nekat",
+      "title": "...",
+      "thumbnail_text_yellow": "...",
+      "thumbnail_text_red": "...",
+      "thumbnail_prompt": "...",
+      "thumbnail_composition_notes": "..."
+    },
+    {
+      "id": "4",
+      "emotion_category": "kaget",
+      "emotion_label": "😱 Syok & Tak Terduga",
+      "title": "...",
+      "thumbnail_text_yellow": "...",
+      "thumbnail_text_red": "...",
+      "thumbnail_prompt": "...",
+      "thumbnail_composition_notes": "..."
+    },
+    {
+      "id": "5",
+      "emotion_category": "misteri",
+      "emotion_label": "🤨 Rahasia & Curiosity Gap",
+      "title": "...",
+      "thumbnail_text_yellow": "...",
+      "thumbnail_text_red": "...",
+      "thumbnail_prompt": "...",
+      "thumbnail_composition_notes": "..."
+    }
+  ],
+  "description": "...",
+  "tags": ["Alur Cerita Film", "Recap Film", "..."]
+}`;
+
+    const characterContext = characterRegistryList.map(c => `- ${c.assigned_name}: ${c.visual_description || ''}`).join('\n');
+    const macroContext = macroSummariesList.join('\n');
+    const timelineContext = timelineFocusList.join('\n');
+
+    const promptText = `Berikut adalah DATA KONTEKS LENGKAP ALUR FILM UNTUK DIANALISIS:
+${movieTitle ? `JUDUL FILM: ${movieTitle}\n` : ''}
+${customNotes ? `CATATAN KHUSUS USER: ${customNotes}\n` : ''}
+
+DAFTAR KARAKTER UTAMA:
+${characterContext || 'Tidak ada data karakter'}
+
+RINGKASAN ALUR CERITA (PER PART):
+${macroContext || 'Tidak ada ringkasan makro'}
+
+FOKUS ADEGAN UTAMA:
+${timelineContext || 'Tidak ada fokus adegan'}
+
+NASKAH VOICEOVER LENGKAP:
+${combinedScript.slice(0, 25000)}`;
+
+    const rawJsonText = await aiClient.streamChatCompletion({
+      systemPrompt,
+      prompt: promptText,
+      model: model || 'ag/gemini-3-flash-agent',
+      jsonMode: true,
+      temperature: 0.7,
+      onChunk: (chunk, fullText) => {   "emotion_category": "aksi_nekat",
       "emotion_label": "⚡ Aksi Gila & Nekat",
       "title": "...",
       "thumbnail_text_yellow": "...",
@@ -1739,7 +2010,7 @@ ${combinedScript.slice(0, 12000)}`;
       onChunk: (chunk, fullText) => {
         try {
           event.sender.send('alurfilm-metadata-chunk', { chunk, fullText });
-        } catch {}
+        } catch { }
       },
     });
 
@@ -1785,7 +2056,7 @@ ${combinedScript.slice(0, 12000)}`;
       try {
         const raw = fs.readFileSync(destPath, 'utf-8');
         return JSON.parse(raw);
-      } catch {}
+      } catch { }
     }
     return null;
   });
@@ -1824,11 +2095,11 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
             try {
               const payload = JSON.parse(line.replace('PROGRESS:', ''));
               _event.sender.send('alurfilm:render-intro-progress', payload);
-            } catch {}
+            } catch { }
           } else if (line.startsWith('RESULT:')) {
             try {
               lastResult = JSON.parse(line.replace('RESULT:', ''));
-            } catch {}
+            } catch { }
           }
         }
       });
@@ -1853,6 +2124,28 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
         resolve({ success: false, error: err.message });
       });
     });
+  });
+
+  // ─── Get Alurfilm Intro Video Path ──────────────────────
+  ipcMain.handle('get-alurfilm-intro', async (_event, modeContentId) => {
+    const contentId = modeContentId || p.getOrGenerateContentId('longform');
+    const outputDir = path.join(p.PROJECT_ROOT, 'output');
+    if (!fs.existsSync(outputDir)) return null;
+
+    const files = fs.readdirSync(outputDir);
+    const matches = files.filter((f) => (f.includes(`alurfilm_${contentId}_intro`) || f.includes('alurfilm_intro_test')) && f.endsWith('.mp4')).sort().reverse();
+    if (matches.length > 0) {
+      const filePath = path.join(outputDir, matches[0]);
+      return { filePath, mediaUrl: media.mediaUrl(filePath), fileName: matches[0] };
+    }
+
+    const anyIntro = files.filter((f) => f.includes('intro') && f.endsWith('.mp4')).sort().reverse();
+    if (anyIntro.length > 0) {
+      const filePath = path.join(outputDir, anyIntro[0]);
+      return { filePath, mediaUrl: media.mediaUrl(filePath), fileName: anyIntro[0] };
+    }
+
+    return null;
   });
 
   // ─── IPC: generate-alurfilm-test-tts-with-silence ──────
@@ -1975,9 +2268,9 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
     });
 
     // Cleanup temp files
-    try { fs.unlinkSync(listFilePath); } catch {}
+    try { fs.unlinkSync(listFilePath); } catch { }
     for (const f of tempFiles) {
-      try { fs.unlinkSync(f); } catch {}
+      try { fs.unlinkSync(f); } catch { }
     }
 
     return {
@@ -2054,13 +2347,13 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
         const sendProgress = (stage, progress, msg) => {
           try {
             event.sender.send('alurfilm-test-whisper-progress', { stage, progress, message: msg });
-          } catch {}
+          } catch { }
         };
 
         sendProgress('loading_model', 20, 'Memuat CTranslate2 / Faster-Whisper Model...');
 
         await new Promise((resolve, reject) => {
-          const child = spawn(pythonBin, [alignCli, '--audio', audioPath, '--text', tmpScriptPath, '--output', outJsonPath, '--model', 'small'], {
+          const child = spawn(pythonBin, [alignCli, '--audio', audioPath, '--text', tmpScriptPath, '--output', outJsonPath, '--model', 'medium'], {
             cwd: p.PROJECT_ROOT,
             env: { ...process.env, PYTHONSAFEPATH: '1' },
           });
@@ -2080,18 +2373,20 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
           const parsed = Array.isArray(data) ? data : (data.transcript || data.sentences || []);
           whisperSentences = parsed.map((item, idx) => {
             let rawSpeechEnd = item.end_seconds !== undefined ? item.end_seconds : (item.end || 0);
+            let firstWordStart = item.start_seconds !== undefined ? item.start_seconds : (item.start || 0);
             if (Array.isArray(item.words) && item.words.length > 0) {
+              const firstWord = item.words[0];
               const lastWord = item.words[item.words.length - 1];
-              if (lastWord && lastWord.end !== undefined) {
-                rawSpeechEnd = lastWord.end;
-              }
+              if (firstWord && firstWord.start !== undefined) firstWordStart = firstWord.start;
+              if (lastWord && lastWord.end !== undefined) rawSpeechEnd = lastWord.end;
             }
             return {
               sentence_index: idx,
               text: item.text || item.kalimat || item.narration || '',
               start: Number((item.start_seconds !== undefined ? item.start_seconds : (item.start || 0)).toFixed(3)),
               end: Number((item.end_seconds !== undefined ? item.end_seconds : (item.end || 0)).toFixed(3)),
-              rawSpeechEnd: Number(Number(rawSpeechEnd).toFixed(3))
+              firstWordStart: Number(Number(firstWordStart).toFixed(3)),
+              lastWordEnd: Number(Number(rawSpeechEnd).toFixed(3))
             };
           });
           isFasterWhisperUsed = true;
@@ -2102,8 +2397,8 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
     }
 
     // Cleanup temp files
-    try { fs.unlinkSync(tmpScriptPath); } catch {}
-    try { fs.unlinkSync(outJsonPath); } catch {}
+    try { fs.unlinkSync(tmpScriptPath); } catch { }
+    try { fs.unlinkSync(outJsonPath); } catch { }
 
     // Step 3: Map whisper timestamps onto narration elements
     let whisperIdx = 0;
@@ -2116,10 +2411,17 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
 
         if (isFasterWhisperUsed && whisperIdx < whisperSentences.length) {
           const w = whisperSentences[whisperIdx++];
-          // If followed by visual_only, use exact physical rawSpeechEnd (un-smoothed e.g. 9.1s)
-          const actualEnd = isFollowedByVisualOnly && w.rawSpeechEnd ? w.rawSpeechEnd : w.end;
+          const lastWordEnd = w.lastWordEnd || w.end;
+          const firstWordStart = w.firstWordStart || w.start;
+          const actualEnd = isFollowedByVisualOnly ? lastWordEnd : w.end;
           simClock = actualEnd;
-          return { ...el, start: w.start, end: actualEnd, rawSpeechEnd: w.rawSpeechEnd };
+          return {
+            ...el,
+            start: w.start,
+            end: actualEnd,
+            firstWordStart,
+            lastWordEnd
+          };
         } else {
           const words = (el.text || '').split(/\s+/).filter(Boolean);
           const dur = Math.max(2.5, Number((words.length / 3.0).toFixed(3)));
@@ -2130,9 +2432,7 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
         }
       }
       return el;
-    }
-    );
-
+    });
 
     // Step 4: Zero-Loss Sequential Audio Splicing with 200ms Acoustic Tail Padding (Millisecond Precision)
     let finalAudioPath = audioPath || '';
@@ -2150,20 +2450,37 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
       const current = alignedElements[i];
 
       if (current.type === 'visual_only') {
-        const prevNarr = i > 0 ? alignedElements[i - 1] : null;
-        let cutEnd = totalRawAudioDur;
-        if (prevNarr && prevNarr.end !== undefined && prevNarr.end > lastCutTime) {
-          // Add 200ms (0.2s) safety buffer to prevent cutting trailing vocal decay/room echo
-          cutEnd = Math.min(totalRawAudioDur, Number((prevNarr.end + 0.200).toFixed(3)));
+        let prevNarr = null;
+        for (let k = i - 1; k >= 0; k--) {
+          if (alignedElements[k].type === 'narration') {
+            prevNarr = alignedElements[k];
+            break;
+          }
         }
 
-        if (cutEnd > lastCutTime && cutEnd <= totalRawAudioDur) {
-          audioSplits.push({
-            type: 'audio_chunk',
-            startSec: Number(lastCutTime.toFixed(3)),
-            endSec: Number(cutEnd.toFixed(3))
-          });
-          lastCutTime = cutEnd;
+        let nextNarr = null;
+        for (let k = i + 1; k < alignedElements.length; k++) {
+          if (alignedElements[k].type === 'narration') {
+            nextNarr = alignedElements[k];
+            break;
+          }
+        }
+
+        if (prevNarr && prevNarr.end !== undefined) {
+          const cutEnd = Math.min(totalRawAudioDur, Number(prevNarr.end.toFixed(3)));
+          if (cutEnd > lastCutTime) {
+            audioSplits.push({
+              type: 'audio_chunk',
+              startSec: Number(lastCutTime.toFixed(3)),
+              endSec: Number(cutEnd.toFixed(3))
+            });
+          }
+
+          if (nextNarr && nextNarr.firstWordStart !== undefined) {
+            lastCutTime = Math.max(cutEnd, Number(nextNarr.firstWordStart.toFixed(3)));
+          } else {
+            lastCutTime = cutEnd;
+          }
         }
 
         audioSplits.push({
@@ -2174,12 +2491,28 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
       }
     }
 
-    if (totalRawAudioDur > lastCutTime) {
+    if (totalRawAudioDur > lastCutTime + 0.05) {
       audioSplits.push({
         type: 'audio_chunk',
         startSec: Number(lastCutTime.toFixed(3)),
         endSec: Number(totalRawAudioDur.toFixed(3))
       });
+      lastCutTime = totalRawAudioDur;
+    }
+
+    // Calculate cumulative splicedStart & splicedEnd for precise timestamp mapping
+    let currentSplicedClock = 0.0;
+    for (let j = 0; j < audioSplits.length; j++) {
+      const item = audioSplits[j];
+      if (item.type === 'audio_chunk') {
+        item.splicedStart = Number(currentSplicedClock.toFixed(3));
+        item.splicedEnd = Number((currentSplicedClock + (item.endSec - item.startSec)).toFixed(3));
+        currentSplicedClock = item.splicedEnd;
+      } else {
+        item.splicedStart = Number(currentSplicedClock.toFixed(3));
+        item.splicedEnd = Number((currentSplicedClock + item.durationSec).toFixed(3));
+        currentSplicedClock = item.splicedEnd;
+      }
     }
 
     // Perform FFmpeg slicing and concatenation
@@ -2187,7 +2520,7 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
       try {
         const tempFiles = [];
         const sendProgress = (stage, progress, msg) => {
-          try { event.sender.send('alurfilm-test-whisper-progress', { stage, progress, message: msg }); } catch {}
+          try { event.sender.send('alurfilm-test-whisper-progress', { stage, progress, message: msg }); } catch { }
         };
 
         sendProgress('splicing_audio', 85, 'Splicing audio sekuensial & menyisipkan Silence Gap presisi...');
@@ -2262,8 +2595,8 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
         });
 
         // Clean up temp files
-        try { fs.unlinkSync(listFilePath); } catch {}
-        for (const f of tempFiles) { try { fs.unlinkSync(f); } catch {} }
+        try { fs.unlinkSync(listFilePath); } catch { }
+        for (const f of tempFiles) { try { fs.unlinkSync(f); } catch { } }
 
         finalAudioPath = outPath;
         finalAudioUrl = media.mediaUrl(outPath);
@@ -2278,18 +2611,23 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
     let itemCounter = 0;
     let clockSec = 0.0;
     let sourceVideoClock = 15.0;
-    let cumulativeSilenceOffset = 0.0;
 
     for (let i = 0; i < alignedElements.length; i++) {
       const current = alignedElements[i];
 
       if (current.type === 'visual_only') {
-        const duration = Number((current.duration || 5.0).toFixed(3));
-        const start = Number(clockSec.toFixed(3));
-        clockSec += duration;
-        const end = Number(clockSec.toFixed(3));
+        const silenceItem = audioSplits.find(s => s.type === 'silence_buffer' && s.element === current);
+        const start = (audioSpliced && silenceItem)
+          ? silenceItem.splicedStart
+          : Number(clockSec.toFixed(3));
+        const duration = (audioSpliced && silenceItem)
+          ? Number((silenceItem.splicedEnd - silenceItem.splicedStart).toFixed(3))
+          : Number((current.duration || 5.0).toFixed(3));
+        const end = (audioSpliced && silenceItem)
+          ? silenceItem.splicedEnd
+          : Number((start + duration).toFixed(3));
 
-        cumulativeSilenceOffset += duration;
+        clockSec = end;
 
         const clip1Dur = Number((duration * 0.5).toFixed(3));
         const clip2Dur = Number((duration - clip1Dur).toFixed(3));
@@ -2311,25 +2649,41 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
       } else {
         const origStart = current.start !== undefined ? current.start : 0;
         const origEnd = current.end !== undefined ? current.end : (origStart + 3.0);
-        const duration = Math.max(1.5, Number((origEnd - origStart).toFixed(3)));
+        const rawDuration = Math.max(0.5, Number((origEnd - origStart).toFixed(3)));
 
-        const finalStart = audioSpliced
-          ? Number((origStart + cumulativeSilenceOffset).toFixed(3))
-          : Number(clockSec.toFixed(3));
-        
-        const adjustedStart = Math.max(clockSec, finalStart);
-        clockSec = Number((adjustedStart + duration).toFixed(3));
-        const finalEnd = Number(clockSec.toFixed(3));
+        let start = 0.0;
+        let end = 0.0;
+
+        if (audioSpliced && audioSplits.length > 0) {
+          let matchingChunk = audioSplits.find(item => item.type === 'audio_chunk' && origStart >= item.startSec && origStart <= item.endSec);
+          if (!matchingChunk) {
+            matchingChunk = audioSplits.filter(item => item.type === 'audio_chunk').find(item => origStart <= item.endSec) || audioSplits.filter(item => item.type === 'audio_chunk').pop();
+          }
+
+          if (matchingChunk) {
+            const offset = Math.max(0, origStart - matchingChunk.startSec);
+            start = Number((matchingChunk.splicedStart + offset).toFixed(3));
+            end = Number((start + rawDuration).toFixed(3));
+          } else {
+            start = Number(clockSec.toFixed(3));
+            end = Number((start + rawDuration).toFixed(3));
+          }
+        } else {
+          start = Number((current.start !== undefined ? current.start : clockSec).toFixed(3));
+          end = Number((current.end !== undefined ? current.end : (start + rawDuration)).toFixed(3));
+        }
+
+        clockSec = Math.max(clockSec, end);
 
         finalItems.push({
           sentence_index: itemCounter++,
           type: 'narration',
           text: current.text,
-          start: adjustedStart,
-          end: finalEnd,
-          duration,
+          start,
+          end,
+          duration: rawDuration,
           visuals: [
-            { type: 'video_cut', duration, source_start_seconds: Number(sourceVideoClock.toFixed(1)), color_grading_shift: { contrast: 1.04, brightness: 0.003, saturation: 1.04 } }
+            { type: 'video_cut', duration: rawDuration, source_start_seconds: Number(sourceVideoClock.toFixed(1)), color_grading_shift: { contrast: 1.04, brightness: 0.003, saturation: 1.04 } }
           ]
         });
         sourceVideoClock += 12.0;
