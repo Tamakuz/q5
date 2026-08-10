@@ -1770,7 +1770,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     return mappings;
   });
 
-  // ─── List Alurfilm Renders ─────────────────    // Collect all script text, character registry, and macro summaries from available analysis files
+  // ─── Generate Alurfilm Metadata ───────────────────
+  ipcMain.handle('alurfilm:generate-metadata', async (_event, { contentId, model, customNotes }) => {
+    // Collect all script text, character registry, and macro summaries from available analysis files
     const allFiles = fs.existsSync(p.ALURFILM_DIR) ? fs.readdirSync(p.ALURFILM_DIR) : [];
     const analysisFiles = allFiles
       .filter(f => (
@@ -1953,53 +1955,7 @@ FOKUS ADEGAN UTAMA:
 ${timelineContext || 'Tidak ada fokus adegan'}
 
 NASKAH VOICEOVER LENGKAP:
-${combinedScript.slice(0, 25000)}`;
-
-    const rawJsonText = await aiClient.streamChatCompletion({
-      systemPrompt,
-      prompt: promptText,
-      model: model || 'ag/gemini-3-flash-agent',
-      jsonMode: true,
-      temperature: 0.7,
-      onChunk: (chunk, fullText) => {   "emotion_category": "aksi_nekat",
-      "emotion_label": "⚡ Aksi Gila & Nekat",
-      "title": "...",
-      "thumbnail_text_yellow": "...",
-      "thumbnail_text_red": "...",
-      "thumbnail_prompt": "...",
-      "thumbnail_composition_notes": "..."
-    },
-    {
-      "id": "4",
-      "emotion_category": "kaget",
-      "emotion_label": "😱 Syok & Tidak Masuk Akal",
-      "title": "...",
-      "thumbnail_text_yellow": "...",
-      "thumbnail_text_red": "...",
-      "thumbnail_prompt": "...",
-      "thumbnail_composition_notes": "..."
-    },
-    {
-      "id": "5",
-      "emotion_category": "misteri",
-      "emotion_label": "🤨 Rahasia & Curiosity Gap",
-      "title": "...",
-      "thumbnail_text_yellow": "...",
-      "thumbnail_text_red": "...",
-      "thumbnail_prompt": "...",
-      "thumbnail_composition_notes": "..."
-    }
-  ],
-  "description": "...",
-  "tags": ["Alur Cerita Film", "Recap Film", "..."]
-}`;
-
-    const promptText = `Berikut adalah Naskah Alur Film untuk dianalisis:
-${movieTitle ? `JUDUL FILM: ${movieTitle}\n` : ''}
-${customNotes ? `CATATAN KHUSUS USER: ${customNotes}\n` : ''}
-
-NASKAH LENGKAP:
-${combinedScript.slice(0, 12000)}`;
+${combinedScript}`;
 
     const rawJsonText = await aiClient.streamChatCompletion({
       systemPrompt,
