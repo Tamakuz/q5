@@ -128,39 +128,46 @@ Sebelum judul dirumuskan, AI/System WAJIB mengekstrak 5 fakta riil cerita dari n
 - **Aksi Ekstrem Nyata**: Aksi nekat terberat yang benar-benar dilakukan karakter di film.
 - **Bentuk Penindasan**: Siapa penindasnya dan bagaimana bentuk perlakuan zalimnya secara konkret.
 - **Tamparan Penyesalan/Puncak Emosi**: Payoff atau pembuktian di klimaks cerita.
+- **Konteks Utuh 100% Naskah**: Seluruh naskah narasi film wajib dimasukkan secara lengkap tanpa pemotongan (*no truncation*) agar AI menangkap klimaks cerita, taruhan riil, dan pembuktian akhir di film.
 
 ---
 
-## 🎯 Formula Judul Alur Film (Terbukti Viral & CTR Tinggi)
+## 🎯 Formula & Style Judul Alur Film (Gaya Channel Viral & CTR Tinggi)
 
-Dari pengamatan puluhan channel *faceless* yang viral, terdapat satu formula struktur judul yang terus berulang dan terbukti menghasilkan tingkat klik (CTR) sangat tinggi:
+Dari pengamatan channel-channel *faceless* alur film teratas (jutaan views), terdapat pola struktur judul dan penulisan yang terbukti sangat viral:
 
-### 📐 Struktur Formula:
+### 📐 Struktur Formula & Format Penulisan:
 ```text
-[Tindakan Ekstrem / Perjuangan Nyata] + [Status Karakter Underdog] + [Konflik / Puncak Emosi Realistis] — Alur Cerita Film
+[PREMIS DRAMATIS / TERJEBAK / ANCAMAN COLOSSAL / BENCANA BESAR] ‼️ Alur Cerita Film
 ```
 
-> **Prinsip Utama**: Yang berubah hanya isi tiap slot — bukan strukturnya. Setiap kata diisi oleh **100% kejadian nyata & fakta riil naskah** (Dilarang keras memakai profesi/metafora palsu yang tidak ada dalam film).
+> **Catatan Format Wajib**: Setiap judul diakhiri dengan emoji dua tanda seru merah **`‼️ Alur Cerita Film`**. Kata-kata utama dibuat kapital / bertekstur provokatif yang langsung memancing insting emosi penonton dalam 2 detik.
+
+### 💡 Contoh Judul Terbukti Meledak (Acuan Channel Viral):
+- `SATU KELUARGA TERJEBAK DI GURUN MEMATIKAN SETELAH PESAWAT MEREKA JATUH ‼️ Alur Cerita Film`
+- `16 TAHUN HIDUP DI BALIK TEMBOK.. SAAT KELUAR, DUNIA SUDAH DIPENUHI MONSTER ‼️ Alur Cerita Film`
+- `SIAPAPUN YANG MELEWATI TEMBOK KEGELAPAN INI TAK PERNAH KEMBALI HIDUP ‼️ Alur Cerita Film`
+- `SAAT LAUT BERUBAH MERAH.. SEMUA ORANG BARU SADAR BENCANA BESAR SUDAH DIMULAI ‼️ Alur Cerita Film`
+- `DALAM HITUNGAN JAM, RAKSASA INI MEMBUAT UMAT MANUSIA HAMPIR PUNAH ‼️ Alur Cerita Film`
+- `MEREKA MENGIRA ITU HANYA PATUNG.. SAMPAI SALAH SATUNYA MULAI BERGERAK ‼️ Alur Cerita Film`
 
 ---
 
-### 💡 Cara Menerapkan Formula (2 Langkah):
+## 🎨 Strategi AI Image Generator: Poles & Dramatisasi Foto Referensi Film (Image-to-Image / Ref-Based)
 
-#### **Langkah 1 — Identifikasi Emosi Utama Film**
-Cari poin paling emosional/dramatis dari film:
-- **Status Karakter**: Mantan pembalap yang dibuang ➔ *sedih, diremehkan*
-- **Aksi & Perjuangan**: Kembali berjuang dengan mobil rongsokan ➔ *nekat, dramatis*
+Prompt thumbnail AI **TIDAK dibuat dari nol (0)**, melainkan dirancang sebagai petunjuk **Polesan & Dramatisasi dari Foto Referensi Adegan Asli Film**:
 
-#### **Langkah 2 — Masukkan ke Dalam Slot Formula**
+### 1. 🔍 Skala Colossal Paradox (Objek Raksasa vs Manusia Kecil)
+- Ambil adegan utama dari film (pesawat jatuh, tembok raksasa, monster, gurun, laut).
+- Perbesar proporsi ancaman/objek secara ekstrem (*colossal threat/structure*) dan posisikan siluet manusia dalam skala sangat kecil di 1/3 bawah frame.
 
-**Contoh 1 (Channel Banking/Heist Viral):**
-> `[CUMA MODAL HP]` + `[TUKANG PEL INI]` + `[MEMBONGKAR KODE RAHASIA BANK]` — Alur Cerita Film
+### 2. 🌫️ Tekstur Sinematik & Efek Atmosferik (Gritty Texture)
+- Tambahkan efek badai pasir, kabut tebal volumetrik, asap kehancuran, es membeku, atau percikan api.
+- Berikan tekstur sinematik yang kasar (*gritty realistic 8k cinema textures*) sehingga terasa nyata dan tidak seperti gambar kartun polos.
 
-**Contoh 2 (Film "Pegasus" - Variasi A):**
-> `[Menggunakan Mobil Rongsokan]` + `[Pembalap Buangan]` + `[Merebut Gelar Juara Dunia]` — Alur Cerita Film
-
-**Contoh 3 (Film "Pegasus" - Variasi B):**
-> `[Diremehkan Pakai Mobil Rongsokan]` + `[Pensiunan Pembalap]` + `[Akhirnya Merebut Gelar Juara Dunia]` — Alur Cerita Film
+### 3. 🎨 Color Grading & Lighting Kontras
+- Gunakan skema warna kontras tinggi: background desaturated/gelap vs aksen warna terang (Teal & Orange, Apocalyptic Golden Hour, Toxic Green, atau Blood Red).
+- Pinggiran frame diberi **Vignette Gelap** tebal agar fokus mata penonton otomatis terkunci di objek tengah.
 
 ---
 
