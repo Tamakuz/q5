@@ -1869,12 +1869,20 @@ Gaya teks mengikuti pola dua warna yang terbukti meledak di niche Alur Cerita Fi
 - Kata Pertama (Yellow Part): Teks penarik perhatian warna Kuning Cerah ALL CAPS (misal: "TAK ADA", "TEMPAT", "16 TAHUN", "TAK BISA", "SUHU", "28 TAHUN", "DIBALIK", "TERLALU").
 - Kata Kedua (Red Part): Teks klimaks emosi warna Merah Menyala dengan Outline Hitam ALL CAPS (misal: "JALAN PULANG", "TERAKHIR", "DIKURUNG", "KABUR", "-150°C", "TERISOLASI", "TEMBOK", "GANAS").
 
-🎨 ATURAN PROMPT GAMBAR THUMBNAIL (IMAGE-TO-IMAGE & REFERENCE POLISHING):
-Pengguna akan menggunakan adegan/foto referensi dari film. Hasilkan prompt gambar AI profesional (dalam Bahasa Inggris) untuk Flux / Midjourney / DALL-E / ControlNet yang menginstruksikan cara MEMOLES & MENDRAMATISIR foto referensi tersebut:
-1. Colossal Scale Paradox: Instruksi memperbesar ancaman (colossal threat / giant wall / gigantic monster / endless desert / apocalyptic sea) vs siluet manusia kecil di 1/3 bawah frame.
-2. Gritty Texture & Lighting: Dramatic volumetric fog, toxic haze, sandstorm dust, cinematic lighting, teal and orange / apocalyptic amber / crimson red contrast, 8k gritty film poster textures.
-3. Vignette & Framing: Heavy dark vignette along frame edges forcing viewer focus to center visual.
-4. Thumbnail Composition Notes: Catatan panduan bahasa Indonesia singkat bagi desainer tentang cara mengedit foto referensi film (misal: "Gunakan foto adegan pesawat/monster asli sebagai Image Reference. Dramatisir dengan menambah skala kontras raksasa, warna sinematik teal-orange, dan tekstur debu/asap gelap di sekeliling frame").
+🎨 ATURAN PROMPT GAMBAR THUMBNAIL (FULL PROMPT PROFESIONAL READY TO COPY-PASTE):
+Nilai dari "thumbnail_prompt" WAJIB berupa FULL PROMPT LENGKAP PROFESIONAL (dalam Bahasa Inggris) yang SIAP DI-COPAS LANGSUNG oleh pengguna ke Midjourney v6 / Flux / DALL-E 3 / ControlNet.
+
+Setiap "thumbnail_prompt" WAJIB menggabungkan 5 komponen sinematik secara utuh:
+1. SCENE DRAMATIZATION (Img2Img / Reference Based): Deskripsi adegan utama film yang didramatisir berdasarkan naskah (misal: pesawat jatuh di gurun mematikan, tembok raksasa mengisolasi kota, monster purba di pulau terlarang).
+2. COLOSSAL SCALE PARADOX & ATMOSPHERE: Instruksi memperbesar ancaman (colossal threat / giant wall / colossal monster / endless desert / apocalyptic sea) vs siluet manusia kecil di 1/3 bawah frame. Efek kabut volumetrik tebal, asap kehancuran, debu badai, tekstur sinematik 8K poster film.
+3. COLOR GRADING & LIGHTING: High contrast cinematic lighting (teal and orange / apocalyptic amber / crimson red contrast), heavy dark vignette along frame edges forcing viewer focus to center visual.
+4. EMBEDDED TEXT MARKER OVERLAY SPECIFICATION:
+   - Text Part 1: "[thumbnail_text_yellow]" in ultra-bold bright yellow heavy font.
+   - Text Part 2: "[thumbnail_text_red]" in ultra-bold bright red font with thick black outline & drop shadow.
+5. RENDER FLAGS & STYLE: Hyper-realistic 8k resolution, cinematic film recap thumbnail style, photorealistic, octane render, wide cinematic shot --ar 16:9 --v 6.0.
+
+CONTOH HASIL THUMBNAIL_PROMPT LENGKAP SIAP COPAS:
+"A cinematic epic film poster thumbnail based on movie reference. A crashed commercial airplane broken in half in the middle of a colossal endless desert, with a tiny injured man crawling on the burning sand. Massive scale contrast with colossal towering sand dunes over a tiny human figure in lower-third composition. Dramatic volumetric sandstorm dust, toxic haze, 8k gritty film poster texture. High contrast cinematic color grading with desaturated orange desert and dark blue sky, heavy dark vignette along frame edges. Top text overlay in ultra-bold heavy impact font: Part 1 'TAK ADA' in bright yellow font, Part 2 'JALAN PULANG' in bright red font with thick black stroke and shadow. Hyper-realistic 8k resolution, photorealistic, octane render, wide cinematic shot --ar 16:9 --v 6.0"
 
 DESKRIPSI VIDEO YOUTUBE (TERSTRUKTUR & SEO FRIENDLY):
 1. 2 Baris Pertama: Hook pembuka tajam yang selaras dengan judul.

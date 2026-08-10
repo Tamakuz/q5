@@ -168,9 +168,13 @@ Prompt thumbnail AI **TIDAK dibuat dari nol (0)**, melainkan dirancang sebagai p
 - Tambahkan efek badai pasir, kabut tebal volumetrik, asap kehancuran, es membeku, atau percikan api.
 - Berikan tekstur sinematik yang kasar (*gritty realistic 8k cinema textures*) sehingga terasa nyata dan tidak seperti gambar kartun polos.
 
-### 3. 🎨 Color Grading & Lighting Kontras
-- Gunakan skema warna kontras tinggi: background desaturated/gelap vs aksen warna terang (Teal & Orange, Apocalyptic Golden Hour, Toxic Green, atau Blood Red).
-- Pinggiran frame diberi **Vignette Gelap** tebal agar fokus mata penonton otomatis terkunci di objek tengah.
+### 4. 📋 Format Prompt Utuh Siap Copas (Full Prompt Ready-to-Copy)
+Setiap `thumbnail_prompt` yang dihasilkan AI di-format utuh mencakup:
+- **Scene Dramatization (Img2Img)**: Deskripsi adegan utama film yang didramatisir.
+- **Atmosphere & Scale Paradox**: Kontras skala raksasa, asap volumetrik, tekstur sinematik 8K.
+- **Color Grading & Vignette**: Teal & orange / amber / crimson red contrast dengan vignette tebal.
+- **Embedded Text Marker Spec**: Spesifikasi teks marker warna Kuning & Merah dengan stroke hitam tebal.
+- **Render Flags**: `Hyper-realistic 8k resolution, photorealistic, octane render, wide cinematic shot --ar 16:9 --v 6.0`.
 
 ---
 
