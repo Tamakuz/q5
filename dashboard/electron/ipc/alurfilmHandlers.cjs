@@ -452,6 +452,144 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     return true;
   });
 
+  // ─── Run Alurfilm Gemini Script Pipeline ───────────────────
+  ipcMain.handle('run-alurfilm-gemini-script-pipeline', async (event, rawOpts = {}) => {
+    const opts = (typeof rawOpts === 'object' && rawOpts !== null) ? rawOpts : {};
+    const partNum = Number(opts.partNum) || 1;
+    const totalChunks = Number(opts.totalChunks) || 4;
+    const previousContext = (typeof opts.previousContext !== 'undefined' && opts.previousContext) ? opts.previousContext : null;
+
+    const contentId = p.getOrGenerateContentId('longform');
+    const partStr = String(partNum).padStart(2, '0');
+    
+    // Find video chunk filename & path
+    const targetFileName = `${contentId}_part_${partStr}.mp4`;
+    const compressPath = path.join(p.ALURFILM_COMPRESS_DIR, targetFileName);
+    const chunkPath = path.join(p.ALURFILM_CHUNKS_DIR, targetFileName);
+    
+    let videoFilePath = compressPath;
+    if (!fs.existsSync(videoFilePath) && fs.existsSync(chunkPath)) {
+      videoFilePath = chunkPath;
+    }
+
+    // Formulate prompt template
+    const promptFileName = 'alurfilm-singlepass-prompt.md';
+    const promptFile = path.join(p.PROMPTS_DIR, 'longform', promptFileName);
+    let promptTemplate = '';
+    if (fs.existsSync(promptFile)) {
+      promptTemplate = fs.readFileSync(promptFile, 'utf-8');
+    } else {
+      promptTemplate = `Kamu adalah Master Scriptwriter Alur Film. Tulis naskah voiceover recap Macro Storytelling. Output JSON valid.`;
+    }
+
+    const computedWordsPerChunk = 300;
+    const prevCtxStr = (typeof previousContext !== 'undefined' && previousContext) ? JSON.stringify(previousContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
+    const isFirstPart = Number(partNum) === 1;
+    const isLastPart = Number(partNum) === Number(totalChunks);
+    const isFirstPartStr = isFirstPart ? 'YA (Chunk #1 / Part Pembuka Film)' : `TIDAK (Chunk #${partNum} / Part Lanjutan)`;
+    const isLastPartStr = isLastPart ? 'YA (Chunk Terakhir / Part Penutup Film)' : `TIDAK (Part Bukan Penutup)`;
+    const styleExampleStr = 'Gunakan gaya penceritaan alur film santai, jernih, dan mengalir.';
+    
+    const formattedPrompt = promptTemplate
+      .replace(/{{chunk_part}}/g, String(partNum))
+      .replace(/{{total_chunks}}/g, String(totalChunks))
+      .replace(/{{is_first_part}}/g, isFirstPartStr)
+      .replace(/{{is_last_part}}/g, isLastPartStr)
+      .replace(/{{target_words_per_chunk}}/g, String(computedWordsPerChunk))
+      .replace(/{{previous_context}}/g, prevCtxStr)
+      .replace(/{{style_example}}/g, styleExampleStr);
+
+    return new Promise((resolve) => {
+      const runnerScript = `
+const path = require('path');
+(async () => {
+  try {
+    const { runGeminiScriptPipeline } = await import('./playwright/pipelines/gemini-script-pipeline.ts');
+    const result = await runGeminiScriptPipeline({
+      partNum: ${JSON.stringify(partNum)},
+      totalChunks: ${JSON.stringify(totalChunks)},
+      promptText: ${JSON.stringify(formattedPrompt)},
+      videoFileName: ${JSON.stringify(targetFileName)},
+      videoFilePath: ${JSON.stringify(videoFilePath)},
+      onProgress: (prog) => {
+        console.log('PROGRESS:' + JSON.stringify(prog));
+      },
+      onLog: (log) => {
+        console.log('LOG:' + JSON.stringify(log));
+      }
+    });
+    console.log('RESULT:' + JSON.stringify(result));
+  } catch (err) {
+    console.log('RESULT:' + JSON.stringify({ success: false, partNum: ${JSON.stringify(partNum)}, rawText: '', error: err.message }));
+  }
+})();
+      `;
+
+      const child = spawn('npx', ['tsx', '-e', runnerScript], {
+        cwd: p.PROJECT_ROOT,
+        env: { ...process.env },
+      });
+
+      let finalResult = { success: false, partNum, rawText: '', error: 'Pipeline execution failed without output' };
+
+      child.stdout.on('data', (data) => {
+        const text = data.toString();
+        const lines = text.split('\n').filter(Boolean);
+        for (const line of lines) {
+          if (line.startsWith('PROGRESS:')) {
+            try {
+              const payload = JSON.parse(line.substring(9));
+              event.sender.send('alurfilm:progress', { ...payload, partNum });
+            } catch {}
+          } else if (line.startsWith('LOG:')) {
+            try {
+              const payload = JSON.parse(line.substring(4));
+              event.sender.send('alurfilm:log', { ...payload, partNum });
+            } catch {}
+          } else if (line.startsWith('RESULT:')) {
+            try {
+              finalResult = JSON.parse(line.substring(7));
+            } catch {}
+          } else {
+            event.sender.send('alurfilm:log', { level: 'info', message: line, partNum });
+          }
+        }
+      });
+
+      child.stderr.on('data', (data) => {
+        const errText = data.toString().trim();
+        if (errText) {
+          console.error('[Gemini Pipeline Stderr]:', errText);
+          event.sender.send('alurfilm:log', { level: 'warn', message: errText, partNum });
+        }
+      });
+
+      child.on('close', (code) => {
+        if (code === 0 && finalResult.success && finalResult.rawText) {
+          const destPath = path.join(p.ALURFILM_DIR, `${contentId}_analysis_part_${partStr}.json`);
+          if (!fs.existsSync(p.ALURFILM_DIR)) fs.mkdirSync(p.ALURFILM_DIR, { recursive: true });
+
+          let dataToSave = finalResult.extractedJson;
+          if (!dataToSave) {
+            let raw = finalResult.rawText.trim();
+            if (raw.startsWith('```')) raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+            try { dataToSave = JSON.parse(raw); } catch {}
+          }
+
+          if (dataToSave) {
+            fs.writeFileSync(destPath, JSON.stringify(dataToSave, null, 2), 'utf-8');
+            event.sender.send('alurfilm:log', { level: 'info', message: `✅ Saved Analysis JSON to ${destPath}`, partNum });
+          }
+        }
+        resolve(finalResult);
+      });
+
+      child.on('error', (err) => {
+        resolve({ success: false, partNum, rawText: '', error: err.message });
+      });
+    });
+  });
+
   // ─── Analyze Alurfilm Chunk (disabled) ─────────────────
   ipcMain.handle('analyze-alurfilm-chunk', async () => {
     throw new Error('Panggilan API 9router dinonaktifkan. Gunakan workflow manual Copy Prompt & Import Output JSON.');
@@ -479,7 +617,13 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
   });
 
   // ─── Get Alurfilm Prompt ───────────────────────────────
-  ipcMain.handle('get-alurfilm-prompt', async (_event, { chunkPart, totalChunks = 2, previousContext, styleExample }) => {
+  ipcMain.handle('get-alurfilm-prompt', async (_event, rawOpts = {}) => {
+    const opts = (typeof rawOpts === 'object' && rawOpts !== null) ? rawOpts : {};
+    const chunkPart = Number(opts.chunkPart) || 1;
+    const totalChunks = Number(opts.totalChunks) || 2;
+    const previousContext = (typeof opts.previousContext !== 'undefined' && opts.previousContext) ? opts.previousContext : null;
+    const styleExample = opts.styleExample;
+
     const promptFileName = 'alurfilm-singlepass-prompt.md';
     const promptFile = path.join(p.PROMPTS_DIR, 'longform', promptFileName);
     let promptTemplate = '';
@@ -490,7 +634,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     }
 
     const computedWordsPerChunk = 300;
-    const prevCtxStr = previousContext ? JSON.stringify(previousContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
+    const prevCtxStr = (typeof previousContext !== 'undefined' && previousContext) ? JSON.stringify(previousContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
     const isFirstPart = Number(chunkPart) === 1;
     const isLastPart = Number(chunkPart) === Number(totalChunks);
     const isFirstPartStr = isFirstPart ? 'YA (Chunk #1 / Part Pembuka Film)' : `TIDAK (Chunk #${chunkPart} / Part Lanjutan)`;

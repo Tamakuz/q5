@@ -56,6 +56,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
   analyzeAlurfilmChunk: (chunkPath, chunkPart, previousContext) =>
     ipcRenderer.invoke('analyze-alurfilm-chunk', { chunkPath, chunkPart, previousContext }),
   listAlurfilmAnalyses: (modeContentId) => ipcRenderer.invoke('list-alurfilm-analyses', modeContentId),
+  runAlurfilmGeminiScriptPipeline: (...args) => {
+    let opts = {};
+    if (args.length === 1 && typeof args[0] === 'object' && args[0] !== null) {
+      opts = args[0];
+    } else {
+      opts = {
+        partNum: Number(args[0]) || 1,
+        totalChunks: Number(args[1]) || 4,
+        previousContext: args[2] || null,
+      };
+    }
+    return ipcRenderer.invoke('run-alurfilm-gemini-script-pipeline', opts);
+  },
+  onAlurfilmProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('alurfilm:progress', handler);
+    return () => ipcRenderer.removeListener('alurfilm:progress', handler);
+  },
+  onAlurfilmLog: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('alurfilm:log', handler);
+    return () => ipcRenderer.removeListener('alurfilm:log', handler);
+  },
   getAlurfilmPrompt: (chunkPart, totalChunks, previousContext) =>
     ipcRenderer.invoke('get-alurfilm-prompt', { chunkPart, totalChunks, previousContext }),
   saveAlurfilmAnalysis: (...args) => {

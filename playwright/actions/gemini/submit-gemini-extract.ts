@@ -1,4 +1,4 @@
-import { Page } from 'playwright';
+import { Page, Response } from 'playwright';
 import { dismissGeminiModalsAction } from './dismiss-gemini-modals';
 
 export interface SubmitGeminiExtractOptions {
@@ -8,11 +8,13 @@ export interface SubmitGeminiExtractOptions {
 export interface SubmitGeminiExtractResult {
   success: boolean;
   text: string;
+  source: 'network_stream' | 'dom_extraction';
   error?: string;
 }
 
 /**
- * Action: Submits prompt on gemini.google.com/app, monitors response generation, and extracts output text.
+ * Action: Submits prompt on gemini.google.com/app, intercepts StreamGenerate RPC network responses,
+ * monitors generation state, and falls back to DOM extraction if network stream is empty.
  */
 export async function submitGeminiAndExtractAction(
   page: Page,
@@ -20,9 +22,29 @@ export async function submitGeminiAndExtractAction(
 ): Promise<SubmitGeminiExtractResult> {
   const timeout = options.timeout || 180000;
 
-  console.log(`[Gemini Action] Submitting prompt & waiting for Gemini response...`);
+  console.log(`[Gemini Action] Submitting prompt & attaching StreamGenerate network response listener...`);
 
   await dismissGeminiModalsAction(page);
+
+  // Set up network response listener for StreamGenerate RPC stream
+  let networkStreamText = '';
+  const responseListener = async (response: Response) => {
+    const url = response.url();
+    if (url.includes('StreamGenerate') || url.includes('assistant.lamda.BardFrontendService')) {
+      try {
+        const bodyText = await response.text();
+        const jsonMatch = bodyText.match(/\{[\s\S]*?"naskah_voiceover"[\s\S]*?\}/g);
+        if (jsonMatch && jsonMatch.length > 0) {
+          networkStreamText = jsonMatch[jsonMatch.length - 1];
+          console.log(`[Gemini Action] ⚡ Intercepted JSON script output via StreamGenerate network response stream!`);
+        }
+      } catch {
+        // Continue if response streaming or unparseable
+      }
+    }
+  };
+
+  page.on('response', responseListener);
 
   // Locate Send button
   const sendBtnSelectors = [
@@ -70,12 +92,24 @@ export async function submitGeminiAndExtractAction(
   }
 
   await page.waitForTimeout(2000);
+  page.off('response', responseListener);
 
-  // Extract model response text
-  let responseText = '';
+  // If network stream captured valid script JSON, use network stream text!
+  if (networkStreamText && networkStreamText.includes('naskah_voiceover')) {
+    console.log(`[Gemini Action] ✅ Returning response extracted via Network Stream Interception (${networkStreamText.length} chars).`);
+    return {
+      success: true,
+      text: networkStreamText,
+      source: 'network_stream',
+    };
+  }
+
+  // Fallback to DOM evaluation (.message-content)
+  console.log(`[Gemini Action] Falling back to DOM extraction (.message-content)...`);
+  let domResponseText = '';
 
   try {
-    responseText = await page.evaluate(() => {
+    domResponseText = await page.evaluate(() => {
       const responseNodes = Array.from(document.querySelectorAll('message-content, div.message-content, model-response, div.markdown, .model-response-text'));
       if (responseNodes.length > 0) {
         const lastNode = responseNodes[responseNodes.length - 1];
@@ -86,13 +120,14 @@ export async function submitGeminiAndExtractAction(
       return '';
     });
   } catch (extractError) {
-    console.error('[Gemini Action] Error extracting Gemini response text:', extractError);
+    console.error('[Gemini Action] Error extracting Gemini response text from DOM:', extractError);
   }
 
-  console.log(`[Gemini Action] ✅ Response extracted successfully (${responseText.length} chars).`);
+  console.log(`[Gemini Action] ✅ Response extracted via DOM Evaluation (${domResponseText.length} chars).`);
 
   return {
     success: true,
-    text: responseText,
+    text: domResponseText || networkStreamText,
+    source: 'dom_extraction',
   };
 }

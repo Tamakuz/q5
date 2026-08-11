@@ -26,9 +26,78 @@ const AlurfilmAnalyzeStep: React.FC = () => {
   const [showPasteModal, setShowPasteModal] = useState<boolean>(false);
   const [pasteJsonInput, setPasteJsonInput] = useState<string>('');
 
+  // Gemini App Script Pipeline State
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [pipelineProgress, setPipelineProgress] = useState<{ percent: number; step: string; message: string }>({ percent: 0, step: '', message: '' });
+  const [pipelineLogs, setPipelineLogs] = useState<Array<{ level: string; message: string; timestamp: string }>>([]);
+  const [showLogConsole, setShowLogConsole] = useState<boolean>(false);
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
+  };
+
+  useEffect(() => {
+    if (api.onAlurfilmProgress) {
+      const unsubProgress = api.onAlurfilmProgress((data) => {
+        setPipelineProgress({ percent: data.percent, step: data.step, message: data.message });
+      });
+      const unsubLog = api.onAlurfilmLog ? api.onAlurfilmLog((logData) => {
+        const timeStr = new Date().toLocaleTimeString();
+        setPipelineLogs((prev) => [...prev, { level: logData.level, message: logData.message, timestamp: timeStr }]);
+      }) : () => {};
+
+      return () => {
+        unsubProgress();
+        unsubLog();
+      };
+    }
+  }, []);
+
+  const handleRunGeminiPipeline = async () => {
+    if (isGenerating) return;
+    setIsGenerating(true);
+    setError(null);
+    setPipelineProgress({ percent: 5, step: 'init', message: `Starting Gemini App pipeline for Part #${activePart}...` });
+    setPipelineLogs([{ level: 'info', message: `🚀 Starting Gemini Pipeline for Part #${activePart}...`, timestamp: new Date().toLocaleTimeString() }]);
+    setShowLogConsole(true);
+
+    try {
+      let prevContext = null;
+      if (activePart > 1 && analyses[activePart - 1]?.data) {
+        const prevData = analyses[activePart - 1].data;
+        prevContext = {
+          previous_script_text: prevData.naskah_voiceover?.script_text || '',
+          macro_summary: prevData.naskah_voiceover?.macro_summary || '',
+          character_registry: prevData.character_registry || [],
+        };
+      }
+
+      const totalChunks = chunks.length || 4;
+
+      if (api.runAlurfilmGeminiScriptPipeline) {
+        const res = await api.runAlurfilmGeminiScriptPipeline({
+          partNum: activePart,
+          totalChunks,
+          previousContext,
+        });
+
+        if (res.success && res.extractedJson) {
+          const partNum = res.extractedJson.chunk_part || activePart;
+          const saveRes = await api.saveAlurfilmAnalysis(partNum, res.extractedJson);
+          setAnalyses((prev) => ({ ...prev, [partNum]: saveRes }));
+          showToast(`🎉 Gemini Pipeline completed for Part #${partNum}! Script analysis JSON saved.`);
+        } else if (res.error) {
+          setError(`Gemini Pipeline error: ${res.error}`);
+        }
+      } else {
+        setError('Gemini App Script Pipeline API is not available on window.electronAPI.');
+      }
+    } catch (err: any) {
+      setError(`Failed to execute Gemini Pipeline: ${err.message}`);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   useEffect(() => {
@@ -242,28 +311,99 @@ const AlurfilmAnalyzeStep: React.FC = () => {
         {/* CENTER PANEL: Chunk Video Preview & AI Studio Prompt (Col 5) */}
         <div className="lg:col-span-5 flex flex-col bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden shadow-xl p-5 space-y-4">
           {/* Header & Prompt Button */}
-          <div className="flex items-center justify-between pb-3 border-b border-gray-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-800">
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <span>🤖</span> Part #{activePart} Video & Prompt
               </h3>
               <p className="text-[11px] text-gray-400 mt-0.5">
-                Preview Part #{activePart} video & copy prompt for AI Studio.
+                Automated Gemini Web App pipeline or manual AI Studio prompt copy.
               </p>
             </div>
 
-            <button
-              onClick={() => handleCopyPromptForPart(activePart)}
-              className={`px-3.5 py-2 text-white rounded-xl text-xs font-bold shadow-lg transition-all flex items-center gap-1.5 shrink-0 ${
-                copiedPromptPart === activePart
-                  ? 'bg-emerald-600 border border-emerald-400 shadow-emerald-600/30 ring-2 ring-emerald-500/50'
-                  : 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/30'
-              }`}
-            >
-              <span>{copiedPromptPart === activePart ? '✓' : '📋'}</span>
-              {copiedPromptPart === activePart ? `Copied Part #${activePart}!` : `Copy Prompt #${activePart}`}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleRunGeminiPipeline}
+                disabled={isGenerating}
+                className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGenerating ? (
+                  <>
+                    <span className="animate-spin text-sm">⏳</span>
+                    <span>Part #{activePart}...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>⚡</span>
+                    <span>Auto Generate via Gemini App</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={() => handleCopyPromptForPart(activePart)}
+                className={`px-3 py-1.5 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5 ${
+                  copiedPromptPart === activePart
+                    ? 'bg-emerald-600 border border-emerald-400 shadow-emerald-600/30 ring-2 ring-emerald-500/50'
+                    : 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/30'
+                }`}
+              >
+                <span>{copiedPromptPart === activePart ? '✓' : '📋'}</span>
+                {copiedPromptPart === activePart ? `Copied!` : `Copy Prompt`}
+              </button>
+            </div>
           </div>
+
+          {/* Gemini Script Pipeline Progress Bar & Status */}
+          {(isGenerating || pipelineProgress.percent > 0) && (
+            <div className="bg-gray-950 p-3.5 rounded-xl border border-emerald-500/30 space-y-2 shadow-inner">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+                  <span className="animate-pulse">⚡</span> Gemini Web App Pipeline (Part #{activePart})
+                </span>
+                <span className="font-mono font-bold text-emerald-300">{pipelineProgress.percent}%</span>
+              </div>
+              
+              <div className="w-full h-2 bg-gray-900 rounded-full overflow-hidden border border-gray-800">
+                <div 
+                  className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-300 rounded-full"
+                  style={{ width: `${pipelineProgress.percent}%` }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-gray-400">
+                <span className="truncate">{pipelineProgress.message || 'Processing...'}</span>
+                <button
+                  onClick={() => setShowLogConsole(!showLogConsole)}
+                  className="text-purple-400 hover:underline font-mono text-[10px] shrink-0"
+                >
+                  {showLogConsole ? 'Hide Terminal Log' : `View Log (${pipelineLogs.length})`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Collapsible Live Log Console Terminal Panel */}
+          {showLogConsole && (
+            <div className="bg-black/90 rounded-xl border border-gray-800 p-3 font-mono text-[11px] leading-relaxed max-h-40 overflow-y-auto space-y-1 text-gray-300 shadow-2xl">
+              <div className="flex items-center justify-between pb-1 mb-1 border-b border-gray-800 text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                <span>Console Terminal Log Output</span>
+                <button onClick={() => setPipelineLogs([])} className="hover:text-gray-300 text-[10px]">Clear Log</button>
+              </div>
+              {pipelineLogs.length > 0 ? (
+                pipelineLogs.map((log, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <span className="text-gray-600 shrink-0">[{log.timestamp}]</span>
+                    <span className={log.level === 'error' ? 'text-red-400 font-bold' : log.level === 'warn' ? 'text-amber-400' : 'text-emerald-300'}>
+                      {log.message}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-gray-600 text-center py-2">No terminal logs recorded yet.</div>
+              )}
+            </div>
+          )}
 
           {/* Integrated Video Player for Active Part Chunk */}
           <div className="space-y-2">
