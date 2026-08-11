@@ -499,84 +499,93 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       .replace(/{{previous_context}}/g, prevCtxStr)
       .replace(/{{style_example}}/g, styleExampleStr);
 
-    return new Promise((resolve) => {
-      const runnerScript = `
-const path = require('path');
+    const runnerScript = `
+import { runGeminiScriptPipeline } from './playwright/pipelines/gemini-script-pipeline.ts';
+
 (async () => {
   try {
-    const { runGeminiScriptPipeline } = await import('./playwright/pipelines/gemini-script-pipeline.ts');
-    const result = await runGeminiScriptPipeline({
+    const res = await runGeminiScriptPipeline({
       partNum: ${JSON.stringify(partNum)},
       totalChunks: ${JSON.stringify(totalChunks)},
       promptText: ${JSON.stringify(formattedPrompt)},
       videoFileName: ${JSON.stringify(targetFileName)},
       videoFilePath: ${JSON.stringify(videoFilePath)},
       onProgress: (prog) => {
-        console.log('PROGRESS:' + JSON.stringify(prog));
+        console.log('PROGRESS_EVENT:' + JSON.stringify(prog));
       },
       onLog: (log) => {
-        console.log('LOG:' + JSON.stringify(log));
+        console.log('LOG_EVENT:' + JSON.stringify(log));
       }
     });
-    console.log('RESULT:' + JSON.stringify(result));
+    console.log('RESULT_EVENT:' + JSON.stringify(res));
+    process.exit(0);
   } catch (err) {
-    console.log('RESULT:' + JSON.stringify({ success: false, partNum: ${JSON.stringify(partNum)}, rawText: '', error: err.message }));
+    console.log('RESULT_EVENT:' + JSON.stringify({ success: false, partNum: ${partNum}, rawText: '', error: err.message || String(err) }));
+    process.exit(1);
   }
 })();
-      `;
+    `;
 
+    return new Promise((resolve) => {
       const child = spawn('npx', ['tsx', '-e', runnerScript], {
         cwd: p.PROJECT_ROOT,
         env: { ...process.env },
       });
 
-      let finalResult = { success: false, partNum, rawText: '', error: 'Pipeline execution failed without output' };
+      let finalResult = { success: false, partNum, rawText: '', error: 'Subprocess exited without result' };
 
       child.stdout.on('data', (data) => {
-        const text = data.toString();
-        const lines = text.split('\n').filter(Boolean);
+        const lines = data.toString().split('\n').filter(Boolean);
         for (const line of lines) {
-          if (line.startsWith('PROGRESS:')) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('PROGRESS_EVENT:')) {
             try {
-              const payload = JSON.parse(line.substring(9));
-              event.sender.send('alurfilm:progress', { ...payload, partNum });
+              const prog = JSON.parse(trimmed.substring('PROGRESS_EVENT:'.length));
+              event.sender.send('alurfilm:progress', { ...prog, partNum });
             } catch {}
-          } else if (line.startsWith('LOG:')) {
+          } else if (trimmed.startsWith('LOG_EVENT:')) {
             try {
-              const payload = JSON.parse(line.substring(4));
-              event.sender.send('alurfilm:log', { ...payload, partNum });
+              const log = JSON.parse(trimmed.substring('LOG_EVENT:'.length));
+              event.sender.send('alurfilm:log', { ...log, partNum });
             } catch {}
-          } else if (line.startsWith('RESULT:')) {
+          } else if (trimmed.startsWith('RESULT_EVENT:')) {
             try {
-              finalResult = JSON.parse(line.substring(7));
+              finalResult = JSON.parse(trimmed.substring('RESULT_EVENT:'.length));
             } catch {}
           } else {
-            event.sender.send('alurfilm:log', { level: 'info', message: line, partNum });
+            console.log(`[Gemini Pipeline Subprocess] ${trimmed}`);
           }
         }
       });
 
       child.stderr.on('data', (data) => {
-        const errText = data.toString().trim();
-        if (errText) {
-          console.error('[Gemini Pipeline Stderr]:', errText);
-          event.sender.send('alurfilm:log', { level: 'warn', message: errText, partNum });
-        }
+        console.error(`[Gemini Pipeline Stderr] ${data.toString()}`);
       });
 
-      child.on('close', (code) => {
-        if (code === 0 && finalResult.success && finalResult.rawText) {
+      child.on('close', () => {
+        if (finalResult.success && finalResult.rawText) {
           const destPath = path.join(p.ALURFILM_DIR, `${contentId}_analysis_part_${partStr}.json`);
           if (!fs.existsSync(p.ALURFILM_DIR)) fs.mkdirSync(p.ALURFILM_DIR, { recursive: true });
 
           let dataToSave = finalResult.extractedJson;
           if (!dataToSave) {
             let raw = finalResult.rawText.trim();
-            if (raw.startsWith('```')) raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
-            try { dataToSave = JSON.parse(raw); } catch {}
+            const firstBrace = raw.indexOf('{');
+            const lastBrace = raw.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+              raw = raw.substring(firstBrace, lastBrace + 1).trim();
+            }
+            try {
+              dataToSave = JSON.parse(raw);
+            } catch {
+              const cleaned = raw.replace(/,\s*([}\]])/g, '$1');
+              try { dataToSave = JSON.parse(cleaned); } catch {}
+            }
           }
 
           if (dataToSave) {
+            dataToSave.chunk_part = partNum;
+            dataToSave.status = dataToSave.status || 'done';
             fs.writeFileSync(destPath, JSON.stringify(dataToSave, null, 2), 'utf-8');
             event.sender.send('alurfilm:log', { level: 'info', message: `✅ Saved Analysis JSON to ${destPath}`, partNum });
           }
@@ -585,6 +594,7 @@ const path = require('path');
       });
 
       child.on('error', (err) => {
+        event.sender.send('alurfilm:log', { level: 'error', message: `❌ Subprocess execution error: ${err.message}`, partNum });
         resolve({ success: false, partNum, rawText: '', error: err.message });
       });
     });

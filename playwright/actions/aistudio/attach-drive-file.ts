@@ -1,4 +1,6 @@
 import { Page } from 'playwright';
+import fs from 'fs';
+import path from 'path';
 import { config } from '../../config';
 
 export interface AttachDriveFileOptions {
@@ -13,7 +15,7 @@ export interface AttachDriveFileResult {
 
 /**
  * Action: Searches for a file in Google Drive via AI Studio media picker and attaches it using double-click.
- * Targets the latest active iframe (.last()) to prevent matching stale/closed Drive picker frames.
+ * If file is not found in Drive, automatically switches to Upload tab and uploads local file fallback.
  */
 export async function attachDriveFileAction(
   page: Page,
@@ -89,6 +91,76 @@ export async function attachDriveFileAction(
 
   if (!isFileFound) {
     console.log(`[AI Studio Action] ⚠️ Asset file "${fileName}" NOT found in Drive search results.`);
+    
+    // Auto-fallback: Check if local file exists in input/alurfilm/compress/ or exact path
+    const possiblePaths = [
+      fileName,
+      path.join(process.cwd(), 'input', 'alurfilm', 'compress', `${fileName}.mp4`),
+      path.join(process.cwd(), 'input', 'alurfilm', 'compress', fileName),
+    ];
+    const resolvedPath = possiblePaths.find(p => fs.existsSync(p));
+
+    if (resolvedPath) {
+      console.log(`[AI Studio Action] 🔄 File not found in Drive. Clicking 'Back' and switching to 'Upload' tab for local file: "${resolvedPath}"...`);
+      
+      // Step A: In search view, tabs are hidden behind the Back button. Click 'Back' button first!
+      try {
+        const backBtn = pickerFrame.getByRole('button', { name: /back|kembali/i })
+          .or(pickerFrame.locator('[aria-label*="Back"], [aria-label*="Kembali"], button:has-text("Back")'))
+          .first();
+
+        if (await backBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await backBtn.click();
+          await page.waitForTimeout(1000);
+        }
+      } catch (err) {
+        console.warn('[AI Studio Action] Note clicking Back button in Drive picker:', err);
+      }
+
+      // Step B: Now click the 'Upload' tab
+      const uploadTab = pickerFrame.getByRole('tab', { name: 'Upload' })
+        .or(pickerFrame.getByText('Upload', { exact: true }))
+        .first();
+
+      await uploadTab.waitFor({ state: 'visible', timeout: 8000 });
+      await uploadTab.click();
+      await page.waitForTimeout(1000);
+
+      // Step C: Inject local file into input[type="file"]
+      const fileInput = pickerFrame.locator('input[type="file"]').first();
+      await fileInput.waitFor({ state: 'attached', timeout: 10000 });
+      await fileInput.setInputFiles(resolvedPath);
+
+      console.log(`[AI Studio Action] Uploading... waiting for completion...`);
+      const uploadingDialog = pickerFrame.locator('div:has-text("Cancel"), [role="progressbar"]').first();
+      try {
+        if (await uploadingDialog.isVisible({ timeout: 5000 }).catch(() => false)) {
+          await uploadingDialog.waitFor({ state: 'hidden', timeout: 180000 });
+          console.log(`[AI Studio Action] Upload progress finished.`);
+        }
+      } catch {}
+
+      try {
+        const insertBtn = pickerFrame.getByRole('button', { name: /insert \d+ item|insert|select/i })
+          .or(pickerFrame.locator('button:has-text("Insert"), [role="button"]:has-text("Insert")'))
+          .first();
+
+        if (await insertBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+          await insertBtn.click({ force: true });
+          console.log(`[AI Studio Action] Clicked "Insert" button after upload.`);
+        }
+      } catch {}
+
+      await iframeLocator.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
+      await page.waitForTimeout(3000);
+
+      console.log(`[AI Studio Action] ✅ Local File "${path.basename(resolvedPath)}" uploaded & attached successfully as fallback!`);
+      return {
+        success: true,
+        fileName: path.basename(resolvedPath),
+      };
+    }
+
     return {
       success: false,
       fileName,

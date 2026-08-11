@@ -1,5 +1,5 @@
 // dashboard/src/components/longform/AlurfilmAnalyzeStep.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { AlurfilmChunk, AlurfilmAnalysisResult, AlurfilmAudioResult } from '../../electron-api';
 
 import { validateScriptAnalysis } from '../../utils/scriptValidation';
@@ -30,12 +30,20 @@ const AlurfilmAnalyzeStep: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [pipelineProgress, setPipelineProgress] = useState<{ percent: number; step: string; message: string }>({ percent: 0, step: '', message: '' });
   const [pipelineLogs, setPipelineLogs] = useState<Array<{ level: string; message: string; timestamp: string }>>([]);
-  const [showLogConsole, setShowLogConsole] = useState<boolean>(false);
+  const [showLogConsole, setShowLogConsole] = useState<boolean>(true);
+
+  const logEndRef = useRef<HTMLDivElement | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
   };
+
+  useEffect(() => {
+    if (logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [pipelineLogs]);
 
   useEffect(() => {
     if (api.onAlurfilmProgress) {
@@ -58,15 +66,15 @@ const AlurfilmAnalyzeStep: React.FC = () => {
     if (isGenerating) return;
     setIsGenerating(true);
     setError(null);
-    setPipelineProgress({ percent: 5, step: 'init', message: `Starting Gemini App pipeline for Part #${activePart}...` });
-    setPipelineLogs([{ level: 'info', message: `🚀 Starting Gemini Pipeline for Part #${activePart}...`, timestamp: new Date().toLocaleTimeString() }]);
+    setPipelineProgress({ percent: 5, step: 'init', message: `Initializing Gemini App pipeline for Part #${activePart}...` });
+    setPipelineLogs([{ level: 'info', message: `🚀 Starting Gemini Web App Pipeline for Part #${activePart}...`, timestamp: new Date().toLocaleTimeString() }]);
     setShowLogConsole(true);
 
     try {
-      let prevContext = null;
+      let previousContext = null;
       if (activePart > 1 && analyses[activePart - 1]?.data) {
         const prevData = analyses[activePart - 1].data;
-        prevContext = {
+        previousContext = {
           previous_script_text: prevData.naskah_voiceover?.script_text || '',
           macro_summary: prevData.naskah_voiceover?.macro_summary || '',
           character_registry: prevData.character_registry || [],
@@ -82,11 +90,45 @@ const AlurfilmAnalyzeStep: React.FC = () => {
           previousContext,
         });
 
-        if (res.success && res.extractedJson) {
-          const partNum = res.extractedJson.chunk_part || activePart;
-          const saveRes = await api.saveAlurfilmAnalysis(partNum, res.extractedJson);
-          setAnalyses((prev) => ({ ...prev, [partNum]: saveRes }));
-          showToast(`🎉 Gemini Pipeline completed for Part #${partNum}! Script analysis JSON saved.`);
+        if (res.success && (res.extractedJson || res.rawText)) {
+          let dataToSave = res.extractedJson;
+          if (!dataToSave && res.rawText) {
+            try {
+              const firstBrace = res.rawText.indexOf('{');
+              const lastBrace = res.rawText.lastIndexOf('}');
+              if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                dataToSave = JSON.parse(res.rawText.substring(firstBrace, lastBrace + 1));
+              }
+            } catch {}
+          }
+
+          if (dataToSave) {
+            const report = validateScriptAnalysis(dataToSave, activePart);
+            const validData = report.isValid ? report.normalizedData : dataToSave;
+            const targetPart = Number(validData?.chunk_part || activePart) || 1;
+
+            const saveRes = await api.saveAlurfilmAnalysis(targetPart, validData);
+            
+            // Refresh analyses map from disk to guarantee UI sync
+            const analysisList = await api.listAlurfilmAnalyses(contentId || undefined);
+            const map: Record<number, AlurfilmAnalysisResult> = {};
+            if (analysisList) {
+              for (const item of analysisList) {
+                if (item.data && item.data.chunk_part) {
+                  map[item.data.chunk_part] = item;
+                } else if (item.part) {
+                  map[item.part] = item;
+                }
+              }
+            }
+            if (saveRes) {
+              map[targetPart] = saveRes;
+            }
+            setAnalyses(map);
+            showToast(`🎉 Gemini Pipeline completed for Part #${targetPart}! Script analysis JSON saved.`);
+          } else {
+            setError(`Gemini Pipeline completed but failed to parse valid JSON from response output.`);
+          }
         } else if (res.error) {
           setError(`Gemini Pipeline error: ${res.error}`);
         }
@@ -205,7 +247,6 @@ const AlurfilmAnalyzeStep: React.FC = () => {
     }
   };
 
-
   const handleManualImportJson = async () => {
     if (!pasteJsonInput.trim()) return;
     setError(null);
@@ -234,7 +275,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
   const currentAudio = audios[activePart];
 
   return (
-    <div className="flex flex-col h-full bg-gray-950 text-gray-100 p-6 overflow-hidden">
+    <div className="flex flex-col h-full bg-gray-950 text-gray-100 p-6 overflow-hidden space-y-4">
       {/* Toast Notification */}
       {toast && (
         <div className="fixed top-5 right-5 z-50 bg-purple-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-2xl border border-purple-400 animate-bounce">
@@ -242,8 +283,8 @@ const AlurfilmAnalyzeStep: React.FC = () => {
         </div>
       )}
 
-      {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-gray-800 shrink-0">
+      {/* Top Header & Actions Bar */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-gray-800 shrink-0">
         <div>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
             <span className="p-2 bg-purple-600/20 text-purple-400 rounded-lg text-lg">⚡</span>
@@ -254,219 +295,235 @@ const AlurfilmAnalyzeStep: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+          <button
+            onClick={handleRunGeminiPipeline}
+            disabled={isGenerating}
+            className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/25 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isGenerating ? (
+              <>
+                <span className="animate-spin text-sm">⏳</span>
+                <span>Generating Part #{activePart}...</span>
+              </>
+            ) : (
+              <>
+                <span>⚡</span>
+                <span>Auto Generate via Gemini App</span>
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={() => handleCopyPromptForPart(activePart)}
+            className={`px-3.5 py-2.5 text-white rounded-xl text-xs font-bold shadow-lg transition-all flex items-center gap-1.5 ${
+              copiedPromptPart === activePart
+                ? 'bg-emerald-600 border border-emerald-400 shadow-emerald-600/30'
+                : 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/30'
+            }`}
+          >
+            <span>{copiedPromptPart === activePart ? '✓' : '📋'}</span>
+            {copiedPromptPart === activePart ? `Copied!` : `Copy Prompt`}
+          </button>
+
           <button
             onClick={() => setShowPasteModal(true)}
-            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border border-purple-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-purple-600/20"
+            className="px-3.5 py-2.5 bg-gray-900 hover:bg-gray-800 text-purple-300 border border-purple-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md"
           >
-            <span>📋</span> Import / Paste AI Studio JSON
+            <span>📥</span> Import JSON
           </button>
+        </div>
+      </div>
+
+      {/* Horizontal Parts Selector Bar */}
+      <div className="flex items-center justify-between bg-gray-900/80 border border-gray-800 rounded-2xl p-2.5 shrink-0 shadow-lg gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto py-0.5 px-1">
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider px-2 shrink-0">
+            PARTS ({chunks.length || 4}):
+          </span>
+          {(chunks.length > 0 ? chunks : [1, 2, 3, 4].map(p => ({ part: p }))).map((chunkItem: any) => {
+            const partNum = typeof chunkItem === 'number' ? chunkItem : chunkItem.part;
+            const isDone = !!analyses[partNum]?.data;
+            const isActive = activePart === partNum;
+            const isRunning = isGenerating && activePart === partNum;
+
+            return (
+              <button
+                key={partNum}
+                onClick={() => setActivePart(partNum)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-2 border shrink-0 ${
+                  isActive
+                    ? 'bg-purple-600 border-purple-400 text-white shadow-lg shadow-purple-600/40 scale-105'
+                    : isDone
+                    ? 'bg-purple-950/40 border-purple-800/60 text-purple-300 hover:bg-purple-900/50'
+                    : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                <span>Part #{partNum}</span>
+                {isRunning ? (
+                  <span className="animate-spin text-emerald-400">⏳</span>
+                ) : isDone ? (
+                  <span className="text-emerald-400 text-xs font-bold">✓</span>
+                ) : (
+                  <span className="text-gray-600 text-xs">○</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="text-[11px] text-purple-400 font-mono font-bold px-3 py-1 bg-purple-950/60 rounded-xl border border-purple-800/40 shrink-0 hidden md:block">
+          Macro Storytelling 10-Min
         </div>
       </div>
 
       {/* Google AI Studio TTS Presets Copy-Paste Helper */}
       <GoogleAiStudioTtsPreset />
 
-      {/* Main Grid Workspace with Side Parts List */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-5 flex-1 min-h-0 overflow-hidden">
-        {/* SIDE COLUMN: Vertical Parts Selector (Col 2) */}
-        <div className="lg:col-span-2 flex flex-col bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden shadow-xl p-3.5 space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-gray-800 shrink-0">
-            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-              Parts ({chunks.length})
-            </span>
-            <span className="text-[10px] text-purple-400 font-mono font-bold">10-Min</span>
-          </div>
-
-          {chunks.length > 0 ? (
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-0.5">
-              {chunks.map((chunk) => {
-                const isDone = !!analyses[chunk.part]?.data;
-                const isActive = activePart === chunk.part;
-                return (
-                  <button
-                    key={chunk.part}
-                    onClick={() => setActivePart(chunk.part)}
-                    className={`w-full px-3 py-2 rounded-xl text-xs font-bold font-mono transition-all flex items-center justify-between border ${
-                      isActive
-                        ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/30'
-                        : isDone
-                        ? 'bg-purple-950/40 border-purple-800/60 text-purple-300 hover:bg-purple-900/50'
-                        : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-gray-200'
-                    }`}
-                  >
-                    <span>Part #{chunk.part}</span>
-                    <span className="text-xs">{isDone ? '✓' : '○'}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-[11px] text-amber-400 p-2 text-center">
-              Belum ada part split.
-            </div>
-          )}
-        </div>
-
-        {/* CENTER PANEL: Chunk Video Preview & AI Studio Prompt (Col 5) */}
-        <div className="lg:col-span-5 flex flex-col bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden shadow-xl p-5 space-y-4">
-          {/* Header & Prompt Button */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-800">
-            <div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <span>🤖</span> Part #{activePart} Video & Prompt
-              </h3>
-              <p className="text-[11px] text-gray-400 mt-0.5">
-                Automated Gemini Web App pipeline or manual AI Studio prompt copy.
-              </p>
+      {/* Dedicated Execution Suite & Live Terminal Console Panel */}
+      {(isGenerating || pipelineLogs.length > 0) && (
+        <div className="bg-gray-900/90 border border-emerald-500/40 rounded-2xl p-4 shadow-2xl space-y-3 shrink-0">
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg font-bold text-sm">⚡</span>
+              <div>
+                <h4 className="font-bold text-white text-xs">
+                  Gemini Web App Automation Suite (Part #{activePart})
+                </h4>
+                <p className="text-[11px] text-gray-400 truncate mt-0.5">
+                  {pipelineProgress.message || 'Running Playwright automation pipeline...'}
+                </p>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="font-mono font-bold text-emerald-400 text-sm">{pipelineProgress.percent}%</span>
               <button
-                onClick={handleRunGeminiPipeline}
-                disabled={isGenerating}
-                className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => setShowLogConsole(!showLogConsole)}
+                className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-[11px] font-mono transition-all"
               >
-                {isGenerating ? (
-                  <>
-                    <span className="animate-spin text-sm">⏳</span>
-                    <span>Part #{activePart}...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>⚡</span>
-                    <span>Auto Generate via Gemini App</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={() => handleCopyPromptForPart(activePart)}
-                className={`px-3 py-1.5 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5 ${
-                  copiedPromptPart === activePart
-                    ? 'bg-emerald-600 border border-emerald-400 shadow-emerald-600/30 ring-2 ring-emerald-500/50'
-                    : 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/30'
-                }`}
-              >
-                <span>{copiedPromptPart === activePart ? '✓' : '📋'}</span>
-                {copiedPromptPart === activePart ? `Copied!` : `Copy Prompt`}
+                {showLogConsole ? 'Hide Terminal Log' : `View Log Terminal (${pipelineLogs.length})`}
               </button>
             </div>
           </div>
 
-          {/* Gemini Script Pipeline Progress Bar & Status */}
-          {(isGenerating || pipelineProgress.percent > 0) && (
-            <div className="bg-gray-950 p-3.5 rounded-xl border border-emerald-500/30 space-y-2 shadow-inner">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-emerald-400 flex items-center gap-1.5">
-                  <span className="animate-pulse">⚡</span> Gemini Web App Pipeline (Part #{activePart})
+          {/* Animated Progress Bar */}
+          <div className="w-full h-2.5 bg-gray-950 rounded-full overflow-hidden border border-gray-800 p-0.5">
+            <div
+              className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 rounded-full transition-all duration-300"
+              style={{ width: `${pipelineProgress.percent}%` }}
+            />
+          </div>
+
+          {/* Spacious Live Terminal Log Console */}
+          {showLogConsole && (
+            <div className="bg-black/95 rounded-xl border border-gray-800 p-3.5 font-mono text-[11px] leading-relaxed max-h-52 overflow-y-auto space-y-1 text-gray-300 shadow-inner">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-800 text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                <span className="flex items-center gap-1.5 text-emerald-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  Console Execution Terminal Output
                 </span>
-                <span className="font-mono font-bold text-emerald-300">{pipelineProgress.percent}%</span>
-              </div>
-              
-              <div className="w-full h-2 bg-gray-900 rounded-full overflow-hidden border border-gray-800">
-                <div 
-                  className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-300 rounded-full"
-                  style={{ width: `${pipelineProgress.percent}%` }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-[11px] text-gray-400">
-                <span className="truncate">{pipelineProgress.message || 'Processing...'}</span>
-                <button
-                  onClick={() => setShowLogConsole(!showLogConsole)}
-                  className="text-purple-400 hover:underline font-mono text-[10px] shrink-0"
-                >
-                  {showLogConsole ? 'Hide Terminal Log' : `View Log (${pipelineLogs.length})`}
+                <button onClick={() => setPipelineLogs([])} className="hover:text-gray-300 text-[10px] text-purple-400 hover:underline">
+                  Clear Log
                 </button>
               </div>
-            </div>
-          )}
 
-          {/* Collapsible Live Log Console Terminal Panel */}
-          {showLogConsole && (
-            <div className="bg-black/90 rounded-xl border border-gray-800 p-3 font-mono text-[11px] leading-relaxed max-h-40 overflow-y-auto space-y-1 text-gray-300 shadow-2xl">
-              <div className="flex items-center justify-between pb-1 mb-1 border-b border-gray-800 text-[10px] text-gray-500 font-bold uppercase tracking-wider">
-                <span>Console Terminal Log Output</span>
-                <button onClick={() => setPipelineLogs([])} className="hover:text-gray-300 text-[10px]">Clear Log</button>
-              </div>
               {pipelineLogs.length > 0 ? (
                 pipelineLogs.map((log, idx) => (
-                  <div key={idx} className="flex gap-2">
-                    <span className="text-gray-600 shrink-0">[{log.timestamp}]</span>
-                    <span className={log.level === 'error' ? 'text-red-400 font-bold' : log.level === 'warn' ? 'text-amber-400' : 'text-emerald-300'}>
+                  <div key={idx} className="flex gap-2 items-start hover:bg-gray-900/50 px-1 py-0.5 rounded">
+                    <span className="text-gray-600 shrink-0 text-[10px]">[{log.timestamp}]</span>
+                    <span className={`shrink-0 font-bold text-[10px] px-1.5 py-0.2 rounded ${
+                      log.level === 'error' ? 'bg-red-950 text-red-400 border border-red-800' :
+                      log.level === 'warn' ? 'bg-amber-950 text-amber-300 border border-amber-800' :
+                      'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                    }`}>
+                      {log.level.toUpperCase()}
+                    </span>
+                    <span className={log.level === 'error' ? 'text-red-400 font-bold' : log.level === 'warn' ? 'text-amber-300' : 'text-gray-200'}>
                       {log.message}
                     </span>
                   </div>
                 ))
               ) : (
-                <div className="text-gray-600 text-center py-2">No terminal logs recorded yet.</div>
+                <div className="text-gray-600 text-center py-3">No console logs recorded yet. Click "Auto Generate via Gemini App" to launch.</div>
+              )}
+              <div ref={logEndRef} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Main Workspace Grid (2 Columns: 6 / 6) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0 overflow-hidden">
+        {/* LEFT COLUMN: Video Preview & Prompt Configuration (Col 6) */}
+        <div className="lg:col-span-6 flex flex-col bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden shadow-xl p-5 space-y-4">
+          {/* Section Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-gray-800 shrink-0">
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <span>📹</span> Part #{activePart} Video & Prompt Config
+              </h3>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                Preview active chunk video & view context parameter values.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowChunkVideo(!showChunkVideo)}
+              className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-purple-400 rounded-lg text-[11px] font-medium transition-all"
+            >
+              {showChunkVideo ? 'Hide Player' : 'Show Player'}
+            </button>
+          </div>
+
+          {/* Integrated Video Player */}
+          {showChunkVideo && (
+            <div className="bg-black rounded-xl overflow-hidden border border-gray-800 h-56 flex items-center justify-center relative shadow-inner shrink-0">
+              {currentChunk ? (
+                <video
+                  key={currentChunk.mediaUrl || currentChunk.url}
+                  src={currentChunk.mediaUrl || currentChunk.url}
+                  controls
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="text-center p-4 space-y-1">
+                  <span className="text-3xl">📹</span>
+                  <p className="text-xs text-gray-400">No video chunk file loaded for Part #{activePart}</p>
+                </div>
               )}
             </div>
           )}
 
-          {/* Integrated Video Player for Active Part Chunk */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-400 font-bold flex items-center gap-1">
-                <span>📹</span> Part #{activePart} Video Preview
-              </span>
-              <button
-                onClick={() => setShowChunkVideo(!showChunkVideo)}
-                className="text-purple-400 hover:underline text-[11px]"
-              >
-                {showChunkVideo ? 'Hide Player' : 'Show Player'}
-              </button>
-            </div>
-
-            {showChunkVideo && (
-              <div className="bg-black rounded-xl overflow-hidden border border-gray-800 h-48 flex items-center justify-center relative shadow-inner">
-                {currentChunk ? (
-                  <video
-                    key={currentChunk.mediaUrl || currentChunk.url}
-                    src={currentChunk.mediaUrl || currentChunk.url}
-                    controls
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <div className="text-center p-4 space-y-1">
-                    <span className="text-2xl">📹</span>
-                    <p className="text-xs text-gray-400">No video chunk file loaded for Part #{activePart}</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
           {/* Prompt Configuration Box */}
-          <div className="flex-1 bg-gray-950 p-4 rounded-xl border border-gray-800 overflow-y-auto space-y-2.5 font-mono text-xs text-gray-300 leading-relaxed min-h-0">
-            <p className="text-purple-400 font-bold">// Prompt Configuration for Part #{activePart}</p>
-            <p>- Part: {activePart} / {chunks.length || 1}</p>
-            <p>- Target VO Duration: ~2.0 - 3.0 Menit (~350 Kata per Part)</p>
-            <p>- Status: {activePart === 1 ? 'Part Pembuka (Intro Film)' : activePart === (chunks.length || 1) ? 'Part Penutup (Outro Recap)' : `Part Lanjutan (Connected to Part #${activePart - 1})`}</p>
+          <div className="flex-1 bg-gray-950 p-4 rounded-xl border border-gray-800 overflow-y-auto space-y-2 font-mono text-xs text-gray-300 leading-relaxed min-h-0 shadow-inner">
+            <p className="text-purple-400 font-bold">// Context & Parameter Values for Part #{activePart}</p>
+            <p>- Target Word Count: ~300 Kata (~2.5 Menit Voiceover)</p>
+            <p>- First Part (Intro): {activePart === 1 ? 'YA (Part Pembuka)' : 'TIDAK'}</p>
+            <p>- Final Part (Outro): {activePart === (chunks.length || 4) ? 'YA (Part Penutup)' : 'TIDAK'}</p>
             {activePart > 1 && analyses[activePart - 1]?.data && (
-              <div className="p-2.5 bg-purple-950/40 rounded-lg border border-purple-800/40 text-[11px] text-purple-300">
-                ✓ Context & Characters from Part #{activePart - 1} auto-attached.
+              <div className="p-3 bg-purple-950/40 rounded-xl border border-purple-800/40 text-[11px] text-purple-300 mt-2 space-y-1">
+                <span className="font-bold block">✓ Connected Context from Part #{activePart - 1}:</span>
+                <p className="text-gray-400 truncate">Macro Summary: "{analyses[activePart - 1].data?.naskah_voiceover?.macro_summary}"</p>
               </div>
             )}
           </div>
-
 
           {error && (
-            <div className="p-3 bg-red-950/40 border border-red-800/50 rounded-xl text-xs text-red-400">
+            <div className="p-3 bg-red-950/40 border border-red-800/50 rounded-xl text-xs text-red-400 shrink-0">
               {error}
             </div>
           )}
         </div>
 
-        {/* RIGHT PANEL: Script Output Tabs & Interactive Guided Workflow (Col 5) */}
-        <div className="lg:col-span-5 flex flex-col bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
+        {/* RIGHT COLUMN: Script Output Tabs & Interactive Guided Workflow (Col 6) */}
+        <div className="lg:col-span-6 flex flex-col bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
           {/* Header Tabs */}
-          <div className="flex items-center justify-between bg-gray-900 px-4 py-3 border-b border-gray-800 shrink-0">
-            <div className="flex gap-1.5 bg-gray-950 p-1 rounded-lg border border-gray-800 overflow-x-auto">
+          <div className="flex items-center justify-between bg-gray-900 px-4 py-3 border-b border-gray-800 shrink-0 flex-wrap gap-2">
+            <div className="flex gap-1.5 bg-gray-950 p-1 rounded-xl border border-gray-800 overflow-x-auto">
               <button
                 onClick={() => setActiveTab('script')}
-                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
                   activeTab === 'script' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
@@ -474,7 +531,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
               </button>
               <button
                 onClick={() => setActiveTab('characters')}
-                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
                   activeTab === 'characters' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
@@ -482,7 +539,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
               </button>
               <button
                 onClick={() => setActiveTab('timeline')}
-                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
                   activeTab === 'timeline' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
@@ -490,11 +547,11 @@ const AlurfilmAnalyzeStep: React.FC = () => {
               </button>
               <button
                 onClick={() => setActiveTab('json')}
-                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
                   activeTab === 'json' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
-                📄 JSON
+                📋 JSON
               </button>
             </div>
 
@@ -653,7 +710,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
                   </div>
                   <h3 className="text-xs font-bold text-white">Belum Ada Script Generator Part #{activePart}</h3>
                   <p className="text-[11px] text-gray-400 max-w-xs mx-auto">
-                    Ikuti 3 langkah mudah berikut untuk menghasilkan naskah cerita 10-menit:
+                    Klik 1-tombol "Auto Generate via Gemini App" atau ikuti manual 3-langkah berikut:
                   </p>
                 </div>
 
@@ -662,16 +719,16 @@ const AlurfilmAnalyzeStep: React.FC = () => {
                   <div className="bg-gray-950 p-3 rounded-xl border border-gray-800 flex items-center gap-3">
                     <span className="w-6 h-6 rounded-full bg-purple-600 text-white font-bold text-xs flex items-center justify-center shrink-0">1</span>
                     <div>
-                      <h4 className="text-xs font-bold text-white">Copy Prompt</h4>
-                      <p className="text-[10px] text-gray-400">Klik "Copy Prompt #{activePart}" pada panel tengah.</p>
+                      <h4 className="text-xs font-bold text-white">Auto Generate</h4>
+                      <p className="text-[10px] text-gray-400">Klik "Auto Generate via Gemini App" di kanan atas.</p>
                     </div>
                   </div>
 
                   <div className="bg-gray-950 p-3 rounded-xl border border-gray-800 flex items-center gap-3">
                     <span className="w-6 h-6 rounded-full bg-purple-600 text-white font-bold text-xs flex items-center justify-center shrink-0">2</span>
                     <div>
-                      <h4 className="text-xs font-bold text-white">Paste di AI Studio</h4>
-                      <p className="text-[10px] text-gray-400">Jalankan prompt di Google AI Studio atau Gemini.</p>
+                      <h4 className="text-xs font-bold text-white">Copy Prompt</h4>
+                      <p className="text-[10px] text-gray-400">Atau klik "Copy Prompt" untuk jalankan manual di AI Studio.</p>
                     </div>
                   </div>
 
@@ -679,17 +736,10 @@ const AlurfilmAnalyzeStep: React.FC = () => {
                     <span className="w-6 h-6 rounded-full bg-purple-600 text-white font-bold text-xs flex items-center justify-center shrink-0">3</span>
                     <div>
                       <h4 className="text-xs font-bold text-white">Import Output</h4>
-                      <p className="text-[10px] text-gray-400">Klik "Paste AI Studio JSON" dan simpan hasilnya.</p>
+                      <p className="text-[10px] text-gray-400">Klik "Import JSON" dan simpan hasilnya.</p>
                     </div>
                   </div>
                 </div>
-
-                <button
-                  onClick={() => setShowPasteModal(true)}
-                  className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-600/30 transition-all flex items-center gap-2"
-                >
-                  <span>📋</span> Paste JSON Hasil Script Part #{activePart}
-                </button>
               </div>
             )}
           </div>

@@ -17,6 +17,7 @@
     "aistudio:prompt": "npx tsx playwright/actions/input-prompt.ts",
     "aistudio:attach": "npx tsx playwright/actions/attach-file.ts",
     "aistudio:drive": "npx tsx playwright/actions/attach-drive-file.ts",
+    "aistudio:drive-codegen": "npx tsx playwright/test-attach-drive-only.ts",
     "aistudio:submit": "npx tsx playwright/actions/submit-and-extract.ts",
     "aistudio:pipeline": "npx tsx playwright/pipelines/analysis-pipeline.ts",
     "playwright:init": "npx tsx playwright/cli.ts init-user-data",

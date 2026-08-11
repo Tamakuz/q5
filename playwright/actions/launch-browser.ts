@@ -73,6 +73,7 @@ export async function launchBrowser(options: LaunchOptions = {}): Promise<Browse
     fs.mkdirSync(storageDir, { recursive: true });
   }
 
+  const extensionPath = path.join(process.cwd(), 'playwright', 'extension');
   const launchArgs = [
     '--no-sandbox',
     '--disable-setuid-sandbox',
@@ -81,6 +82,13 @@ export async function launchBrowser(options: LaunchOptions = {}): Promise<Browse
     '--no-first-run',
     '--no-default-browser-check',
   ];
+
+  if (fs.existsSync(extensionPath)) {
+    launchArgs.push(
+      `--disable-extensions-except=${extensionPath}`,
+      `--load-extension=${extensionPath}`
+    );
+  }
 
   console.log(`[Playwright Action] Launching stealth browser (headed: ${headed}, user_data: ${userDataDir})`);
 
