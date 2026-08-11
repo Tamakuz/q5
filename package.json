@@ -11,6 +11,8 @@
     "render": "npx tsx cli.ts render",
     "validate": "npx tsx cli.ts validate",
     "aistudio": "npx tsx playwright/aistudio.ts",
+    "gemini": "npx tsx playwright/gemini.ts",
+    "gemini:codegen": "npx playwright codegen --user-data-dir=playwright/user_data/user_1 https://gemini.google.com/app",
     "aistudio:init": "npx tsx playwright/initialize.ts",
     "aistudio:prompt": "npx tsx playwright/actions/input-prompt.ts",
     "aistudio:attach": "npx tsx playwright/actions/attach-file.ts",

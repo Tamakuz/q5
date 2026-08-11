@@ -8,6 +8,7 @@ export interface LaunchOptions {
   userDataDir?: string;
   storageStatePath?: string;
   slowMo?: number;
+  useSystemChrome?: boolean;
 }
 
 export interface BrowserSession {
@@ -18,8 +19,7 @@ export interface BrowserSession {
 
 /**
  * Action: Launches a browser session.
- * Generates an isolated user_data directory per worker process, pre-populated with authenticated profile cookies
- * to prevent SingletonLock collisions and guarantee 100% authenticated Google session access.
+ * Uses stealth flags and ignoreDefaultArgs: ['--enable-automation'] to remove Chrome automation infobars and flags.
  */
 export async function launchBrowser(options: LaunchOptions = {}): Promise<BrowserSession> {
   const headed = options.headed ?? false;
@@ -35,6 +35,17 @@ export async function launchBrowser(options: LaunchOptions = {}): Promise<Browse
   // Ensure base and worker directories exist
   if (!fs.existsSync(userDataDir)) {
     fs.mkdirSync(userDataDir, { recursive: true });
+  }
+
+  // Remove stale SingletonLock files if present to prevent Chrome profile lock collisions
+  const lockFiles = ['SingletonLock', 'SingletonSocket', 'SingletonCookie'];
+  for (const lockFile of lockFiles) {
+    const lockPath = path.join(userDataDir, lockFile);
+    if (fs.existsSync(lockPath)) {
+      try {
+        fs.unlinkSync(lockPath);
+      } catch { }
+    }
   }
 
   // Pre-populate worker profile from main authenticated Default profile directory if creating a temp worker
@@ -67,15 +78,17 @@ export async function launchBrowser(options: LaunchOptions = {}): Promise<Browse
     '--disable-setuid-sandbox',
     '--disable-blink-features=AutomationControlled',
     '--disable-infobars',
+    '--no-first-run',
+    '--no-default-browser-check',
   ];
 
-  console.log(`[Playwright Action] Launching browser (headed: ${headed}, user_data: ${userDataDir})`);
+  console.log(`[Playwright Action] Launching stealth browser (headed: ${headed}, user_data: ${userDataDir})`);
 
   const launchOptions: any = {
     headless: !headed,
     viewport: config.viewport,
-    userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
     args: launchArgs,
+    ignoreDefaultArgs: ['--enable-automation'], // Removes Chrome "controlled by automated software" infobar & flag!
     slowMo: options.slowMo ?? 0,
     acceptDownloads: true,
   };
@@ -94,7 +107,6 @@ export async function launchBrowser(options: LaunchOptions = {}): Promise<Browse
   const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
   page.setDefaultTimeout(config.defaultTimeout);
 
-  // Clean up temporary worker directory on context close
   if (isDefaultDir) {
     context.on('close', async () => {
       try {
