@@ -63,7 +63,6 @@ const shared = { paths, media, ffmpeg, aiClient, loadPrompt, getMainWindow };
 require('./ipc/fileHandlers.cjs').register(ipcMain, shared);
 require('./ipc/alurfilmHandlers.cjs').register(ipcMain, shared);
 require('./ipc/spensiaHandlers.cjs').register(ipcMain, shared);
-require('./ipc/vannHandlers.cjs').register(ipcMain, shared);
 require('./ipc/ugcHandlers.cjs').register(ipcMain, shared);
 require('./ipc/renderHandlers.cjs').register(ipcMain, shared);
 require('./ipc/projectHandlers.cjs').register(ipcMain, shared);

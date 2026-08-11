@@ -5,7 +5,7 @@ INPUT KONTEKS & PARAMETER:
 - Part Saat Ini: Part {{chunk_part}} dari {{total_chunks}} Part Total Film (Di mana 1 Part = 1 Scene Utama / 20 Menit Video)
 - Status Part Pembuka: {{is_first_part}}
 - Status Part Penutup: {{is_last_part}}
-- Target Kata Per Part Ini: {{target_words_per_chunk}} KATA (Target VO 3.5 - 5.0 Menit per Part, 500 - 700 KATA)
+- Target Kata Per Part Ini: {{target_words_per_chunk}} KATA (Target VO 2.0 - 3.0 Menit per Part, 250 - 350 KATA)
 - Konteks & Naskah Part Sebelumnya (jika ada): {{previous_context}}
 - Referensi / Contoh Gaya Penulisan (jika ada): {{style_example}}
 
@@ -44,17 +44,14 @@ INPUT KONTEKS & PARAMETER:
 - Dilarang menambahkan fakta, latar belakang karakter, atau spekulasi cerita yang tidak terdapat pada tayangan/konteks adegan yang sedang dianalisis.
 
 🛑 DILARANG KERAS 4: ATURAN PEMBUKA & PENUTUP KONTEN
-- **KHUSUS PART PEMBUKA (PART 1)**: Jika Status Part Pembuka adalah YA (Part 1), naskah WAJIB diawali dengan frasa pembuka pengenalan cerita/film ala Movie Recap YouTube, seperti variasi:
-  * "Di awal film, kita diperlihatkan..."
-  * "Di awal cerita, kita dikenalkan dengan..."
-  * "Pada awal adegan, terlihat..."
-  * "Di awal tayangan, memperlihatkan..."
-  * (Atau variasi kalimat pengenalan sejenis yang alami di awal film).
+- **KHUSUS PART PEMBUKA (PART 1)**:
+  - DILARANG KERAS menggunakan frasa basa-basi kaku template (seperti *"Di awal film..."*, *"Di awal cerita..."*, *"Pada awal adegan..."*).
+  - WAJIB buat pembuka yang mengalir alami dan fleksibel menyesuaikan genre/atmosfer film (Horror, Misteri, Aksi, Sci-Fi, Komedi, Drama).
+  - **COLD OPEN & VISUAL-ONLY DI DETIK 00:00**: Diizinkan/dianjurkan membuka Part 1 secara langsung dengan tag `[VISUAL_ONLY: X.Xs | Deskripsi adegan/suasana/atmosfer]` di baris pertama naskah jika adegan awal film memiliki kekuatan visual/suasana yang hidup (misal pemandangan megah, suasana mencekam, adegan unik, atau aksi). Setelah jeda visual, lanjutkan narasi secara alami sesuai *tone* film tersebut.
 - **KHUSUS PART PENUTUP (PART TERAKHIR / FINAL PART)**: Jika Status Part Penutup adalah YA (Part Terakhir dari {{total_chunks}} Part), bagian paragraf penutup naskah WAJIB diakhiri dengan kalimat outro recap santai, seperti variasi:
   * "Jadi itu dia guys, alur cerita dari film..."
   * "Nah, itulah keseruan dan akhir kisah dari film..."
   * "Sampai di sini pembahasan alur cerita film ini, bagaimana menurut kalian di kolom komentar?"
-  * (Atau variasi kalimat penutup alur film sejenis yang alami).
 - **PART TENGAH (BUKAN PART 1 & BUKAN PART TERAKHIR)**: Langsung sambungkan alur cerita dari part sebelumnya tanpa frasa pembuka awal film atau outro penutup.
 
 🛑 DILARANG KERAS 5: MENCERITAKAN ALUR DILUAR SEGMEN CHUNK INI
@@ -62,6 +59,7 @@ INPUT KONTEKS & PARAMETER:
 - DILARANG KERAS merangkum seluruh isi film atau melompat ke kejadian di part-part berikutnya.
 
 ✅ DIWAJIBKAN: OPTIMASI NASKAH VOICE-OVER AI (GEMINI TTS) & RITME SINEMATIK YOUTUBE
+- **NASKAH RINGKAS & PADAT (CONCISE PACING - HINDARI DESKRIPSI BERTELE-TELE)**: Buat narasi yang ringkas, berenergi, to-the-point, dan kaya emosi. DILARANG KERAS memanjangkan deskripsi visual yang tidak perlu (seperti mendeskripsikan setiap detail gerakan fisik secara bertele-tele/mengambang). Narasi padat membuat tempo alur film cepat, menarik, dan tidak memaksakan durasi visual yang terlalu lama di 1 adegan.
 - **GABUNGKAN KALIMAT BERHUBUNGAN**: DILARANG keras membuat naskah berupa daftar kalimat kaku terputus-putus. Kalimat yang tergolong dalam satu tindakan atau kejadian yang sama WAJIB digabungkan secara natural. (Contoh buruk: "Peter membuka pintu. Ia melihat mayat. Ia berteriak." -> Contoh bagus: "Saat Peter membuka pintu, ia seketika melihat sesosok mayat hingga membuatnya langsung berteriak.")
 - **VARIASI PANJANG KALIMAT & RITME**: Campurkan kalimat pendek (8–12 kata untuk momen dramatis/terkejut), sedang (15–30 kata rata-rata penceritaan), dan panjang (30–40 kata untuk menggambarkan aksi beruntun). Dilarang membuat semua kalimat berukuran seragam.
 - **TIDAK OVERUSE TITIK & GUNAKAN KATA HUBUNG ALAMI**: Akhiri kalimat HANYA ketika satu ide selesai, terjadi pergeseran emosi, atau perpindahan adegan. Hubungkan ide antar-kejadian secara alami menggunakan kata penghubung seperti: *dan*, *hingga*, *sementara*, *lalu*, *namun*, *meski begitu*, *bahkan*, *sehingga*, *karena*, *setelah itu*, *di saat yang sama*.
@@ -77,7 +75,7 @@ INPUT KONTEKS & PARAMETER:
 ==================================================
 4. TARGET KATA & KONTINUITAS KARAKTER
 ==================================================
-- **TARGET KATA PART CHUNK INI**: **{{target_words_per_chunk}} KATA** (Target durasi Voiceover: WAJIB BERADA DI RENTANG 500 S.D. 700 KATA PER PART).
+- **TARGET KATA PART CHUNK INI**: **{{target_words_per_chunk}} KATA** (Target durasi Voiceover: WAJIB BERADA DI RENTANG 250 S.D. 350 KATA PER PART).
 - **KONTINUITAS NAMA KARAKTER**: Jika di {{previous_context}} sudah ada nama karakter yang ditetapkan (`character_registry`), WAJIB gunakan nama yang konsisten.
 
 ==================================================

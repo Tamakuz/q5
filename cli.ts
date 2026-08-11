@@ -128,7 +128,7 @@ program
       }
     } catch (err) {
       // If something unexpected happens, fall back to original durations
-      console.warn('[Render] Warning adjusting clip durations:', err?.message || err);
+      console.warn('[Render] Warning adjusting clip durations:', (err as any)?.message || err);
       clips = mapping.timeline;
     }
 

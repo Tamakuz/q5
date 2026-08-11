@@ -47,28 +47,52 @@ Jika kamu melampirkan (attach) File Audio & Video Source di AI Studio:
    - **PENUTUPAN JEDA HENING**: Jika terdapat jeda hening antar kalimat (`next_start > current_end`), sertakan durasi jeda tersebut ke klip terakhir kalimat agar total timeline visual menutup 100% durasi total audio {{total_audio_duration_sec}}s tanpa ada desync.
    - DILARANG KURANG ATAU LEBIH WALAUPUN 0.1 DETIK!
 
-2. **MAKSIMAL 3.5 - 4.0 DETIK PER KLIP VISUAL**:
-   - Maksimal 4.0 detik per klip (kecuali tipe `freeze_frame_with_zoom` yang boleh 3.0 - 5.0s).
-   - Pecah kalimat panjang menjadi beberapa visual klip adegan berurutan yang saling mendukung narasi.
+2. **MAKSIMAL 1.5 - 2.5 DETIK PER KLIP VISUAL (RATA-RATA 2.0 DETIK)**:
+   - Target utama durasi per klip visual adalah **1.5 hingga 2.5 detik** (idealnya ~2.0 detik per potongan klip).
+   - DILARANG KERAS membiarkan 1 klip berjalan lebih dari 2.5 detik (kecuali `freeze_frame_with_zoom` maksimal 2.0 - 3.0 detik).
+   - Pecah setiap kalimat narasi menjadi potongan-potongan klip cepat (*fast-paced cuts*) ~2.0 detik yang dinamis.
 
 ==================================================
-🎨 ATURAN VARIASI TIPE VISUAL FAIR-USE (CONTENT ID BYPASS):
+🎨 ATURAN VARIASI TIPE VISUAL FAIR-USE & NON-LINEAR CUTTING (CONTENT ID BYPASS):
 ==================================================
-Kamu WAJIB mengkombinasikan 5 tipe visual berikut secara bervariasi per scene:
+1. 🔀 **PEMOTONGAN VISUAL NON-LINIER (NON-SEQUENTIAL SEQUENCE BREAKING)**:
+   - DILARANG KERAS menyusun potongan klip secara linier berurutan persis sama seperti tayangan film asli (`01:00 -> 01:03 -> 01:06 -> 01:09`). Meskipun durasi klip sudah singkat (~2.0s), jika urutannya linier berturut-turut, Content ID YouTube tetap bisa mendeteksi pola urutan (*sequence pattern*).
+   - WAJIB gunakan **Sequence Breaking & Insert Shots**: Selingi pemotongan klip dengan adegan reaksi (*reaction shot*), *close-up* objek/detail, B-roll suasana, atau potongan adegan relevan dari timestamp/menit lain yang tidak berurutan, selama maknanya 100% mendukung dan relevan dengan narasi VO saat itu.
+   - Memutus urutan linier visual secara acak namun tetap mendukung narasi VO akan membuat Content ID YouTube **100% gagal mencocokkan pola urutan visual asli film**.
+
+2. 🎭 **KOMBINASI TIPE VISUAL (PRIORITAS SLOW-MOTION & FREEZE FRAME)**:
+Kamu WAJIB mengutamakan `slow_motion` dan `freeze_frame_with_zoom` sesuai persentase berikut:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-| 1. "slow_motion"            | ~30% | Sinematik utama (slow_mo_factor: 0.5 atau 0.6)  |
-| 2. "mirror_cut"             | ~25% | Variasi mirror (mirror_mode: "horizontal")       |
-| 3. "freeze_frame_with_zoom" | ~20% | Momen emosi/ikonik (source_timestamp_seconds)   |
-| 4. "video_cut"              | ~15% | Kecepatan normal tanpa efek                     |
-| 5. "pan_and_zoom_cut"       | ~10% | Landscape/wide shot (pan_direction)             |
+| 1. "slow_motion"            | ~35% - 40% | Sinematik utama (slow_mo_factor: 0.5 atau 0.6) |
+| 2. "freeze_frame_with_zoom" | ~30% - 35% | Momen emosi/ikonik di-freeze + slow zoom        |
+| 3. "mirror_cut"             | ~15%       | Variasi mirror (mirror_mode: "horizontal")      |
+| 4. "pan_and_zoom_cut"       | ~10%       | Landscape/wide shot (pan_direction)            |
+| 5. "video_cut"              | ~5%        | Kecepatan normal (minimal)                      |
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Wajib sertakan `color_grading_shift` acak pada setiap klip (contrast: 1.02-1.07, brightness: 0.002-0.01, saturation: 1.03-1.08).
 
 🚨 **ATURAN KHUSUS SEGMEN VISUAL MURNI (NO-VO VISUAL ONLY / JEDA HENING)**:
-- Untuk segmen jeda hening / visual murni tanpa VO (misal: adegan pertarungan/aksi/tsunami `[VISUAL_ONLY]`), **DILARANG KERAS** menggunakan `slow_motion`, `freeze_frame_with_zoom`, `mirror_cut`, atau `pan_and_zoom_cut`.
-- Segmen Visual Murni **WAJIB 100% MENGGUNAKAN TIPE `video_cut` (kecepatan normal tanpa efek)** agar adegan aksi tampil alami, realistis, dan berenergi tinggi.
+1. Segmen Visual Murni (`type: "visual_only"` atau memuat tag `[VISUAL_ONLY]`) **WAJIB 100% MENGGUNAKAN TIPE `video_cut` (kecepatan normal 1.0x tanpa efek)** agar adegan aksi/reaksi tampil alami, realistis, dan berenergi tinggi (DILARANG `slow_motion` atau `freeze_frame`).
+2. **FAIR USE CUT LIMIT ($\le 2.0\text{s} - 2.5\text{s}$ per klip)**: Jika total durasi `VISUAL_ONLY` lebih dari 2.5 detik (misal: 4.5 detik), **WAJIB DIPECAH menjadi 2 atau lebih klip visual terpisah** (contoh: klip A = 2.2s + klip B = 2.3s) dengan `source_start_seconds` yang berbeda/berganti sudut pandang adegan. Hal ini mutlak wajib agar lulus aturan *Transformative Fair Use* & bebas klaim Content ID YouTube!
 
+
+
+==================================================
+🎵 ATURAN BGM TIMELINE BLOCK-LEVEL (BUKAN PER KALIMAT):
+==================================================
+DILARANG KERAS mengganti BGM setiap kalimat! BGM diatur pada level **RENTANG DURASI BABAK / ADEGAN (minimal bertahan 25 - 60+ detik per BGM)** agar musik mengalir tenang & nyaman di telinga penonton.
+
+Daftar 5 Kategori BGM Fisik yang Tersedia (Gunakan NAMA FILE EXACT berikut):
+1. `01_tegang_suspense` ➔ File: `"Black Glass Corridor.mp3"` (Tegang/Thriller/Ancaman)
+2. `02_aksi_seru`      ➔ File: `"Shard of Thunder.mp3"` (Aksi/Perkelahian/Kejar-kejaran)
+3. `03_sedih_haru`      ➔ File: `"Velvet After Rain.mp3"` (Tragedi/Tangisan/Point Rendah Underdog)
+4. `04_kebangkitan_epic`➔ File: `"Skyward Triumph.mp3"` (Klimaks Heroik/Kebangkitan/Kemenangan)
+5. `05_santai_misteri`  ➔ File: `"Paper Map Morning.mp3"` (Default Baseline & Investigasi Normal)
+
+🚨 **ATURAN SAMBUNGAN BGM ANTAR PART (CROSS-PART CONTINUITY)**:
+- BGM Terakhir dari Part Sebelumya: {{previous_part_ending_bgm}}
+- Jika {{previous_part_ending_bgm}} terisi (misal Part 2 berlanjut dari Part 1), dan suasana awal Part {{chunk_part}} melanjutkan emosi dari akhir Part sebelumnya (misal sama-sama sedih/tegang), **WAJIB MEMULAI `bgm_timeline` pertama di detik 0.0 dengan BGM yang sama ({{previous_part_ending_bgm}})**. Ini mutlak agar saat penonton beralih dari Part 1 ke Part 2, musik mengalir mulus tanpa terputus secara kaget!
 
 ==================================================
 📄 FORMAT OUTPUT JSON MURNI (TANPA MARKDOWN ```json)
@@ -76,6 +100,20 @@ Wajib sertakan `color_grading_shift` acak pada setiap klip (contrast: 1.02-1.07,
 
 {
   "scene_id": "{{scene_id}}",
+  "bgm_timeline": [
+    {
+      "start": 0.0,
+      "end": 45.0,
+      "category": "05_santai_misteri",
+      "file": "Paper Map Morning.mp3"
+    },
+    {
+      "start": 45.0,
+      "end": 120.0,
+      "category": "03_sedih_haru",
+      "file": "Velvet After Rain.mp3"
+    }
+  ],
   "mappings": [
     {
       "sentence_index": 0,
@@ -108,4 +146,5 @@ Wajib sertakan `color_grading_shift` acak pada setiap klip (contrast: 1.02-1.07,
 ATURAN STRICT:
 - Output WAJIB MURNI JSON OBJECT tanpa pembungkus ```json atau teks pengantar/penutup.
 - Total akumulasi `duration` klip visual di seluruh `mappings` HARUS SAMA PERSIS dengan durasi total file audio VO ({{total_audio_duration_sec}} detik).
+
 

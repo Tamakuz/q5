@@ -85,6 +85,13 @@ const AlurfilmVisualOnlyTestStep: React.FC = () => {
     setActiveIndex(foundIdx);
   }, [currentTime, transcriptItems]);
 
+  // Force reload HTML5 audio element when audioFile URL changes to reflect spliced silence audio duration
+  useEffect(() => {
+    if (audioRef.current && audioFile?.url) {
+      audioRef.current.load();
+    }
+  }, [audioFile?.url]);
+
   const handleUploadAudio = async () => {
     try {
       setUploading(true);
@@ -296,6 +303,12 @@ const AlurfilmVisualOnlyTestStep: React.FC = () => {
                   ref={audioRef}
                   src={audioFile.url}
                   controls
+                  onLoadedMetadata={(e) => {
+                    const dur = e.currentTarget.duration;
+                    if (dur && !isNaN(dur) && dur > 0) {
+                      setTotalAudioDuration(Number(dur.toFixed(1)));
+                    }
+                  }}
                   onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => setIsPlaying(false)}

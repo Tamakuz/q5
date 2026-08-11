@@ -3,37 +3,23 @@ import React, { useState } from 'react';
 
 const DEFAULT_TTS_SETTINGS = {
   model: 'gemini-2.5-pro-preview-tts',
-  scene: `You are a professional Indonesian YouTube movie recap narrator speaking to a young audience.
+  scene: `You are a warm, engaging, and professional Indonesian YouTube movie recap narrator speaking to a young adult audience.
 
-Deliver the story with a controlled, conversational pace that feels smooth, engaging, and effortless to follow.
+Deliver the narration with a natural, conversational Indonesian accent. The pace should be steady, clear, and effortless to follow—like a close friend telling a captivating story at a cozy cafe.
 
-The narration should feel energetic without rushing, expressive without exaggeration, and emotional without becoming theatrical.
+Key Vocal Guidelines:
+1. Emotion & Tone: Warm, empathetic, and expressive. Sound genuinely invested in the characters' journey without being overly dramatic or theatrical.
+2. Adaptability: Naturally slow down slightly and soften your tone during emotional or sad moments. Increase energy and dynamism during action or suspenseful scenes.
+3. Breathing & Pauses: Respect all SSML tags (<break time="..."/>) precisely. Pause naturally at commas and periods to create a comfortable breathing rhythm.
+4. Pronunciation: Clear, crisp Indonesian pronunciation. Avoid sounding robotic, flat, or like a formal news anchor.
 
-Flow naturally from one idea to the next, allowing listeners to stay immersed without feeling overwhelmed.
+Maintain this exact voice identity, pitch, and storytelling energy consistently from start to finish.`,
+  sampleContext: `Continue the narration seamlessly as if the story has never stopped.
 
-Action scenes become slightly faster and more dynamic.
+Maintain the exact same voice timbre, speaking speed, pitch, emotional warmth, and storytelling rhythm from the previous section.
 
-Dialogue and emotional moments become slightly softer and more intimate.
-
-Suspense builds gradually through subtle pacing rather than dramatic pauses.
-
-Every sentence should transition smoothly into the next as if telling a captivating story to a friend.
-
-Maintain a warm, confident, and cinematic storytelling style throughout the entire narration.
-
-The voice should remain consistent from beginning to end, making long-form listening comfortable and enjoyable.`,
-  sampleContext: `Continue the narration exactly as if the previous paragraph had never stopped.
-
-Maintain the same voice, rhythm, pacing, pronunciation, emotional intensity, and storytelling flow.
-
-Keep transitions between sentences smooth and natural.
-
-Avoid sounding like separate facts being read aloud.
-
-The narration should feel continuous, immersive, and easy to listen to for long periods.
-
-Maintain a controlled conversational pace that keeps viewers engaged without sounding rushed.`,
-  voice: 'Fenrir',
+Keep transitions between sentences smooth and natural. Ensure there are no awkward pauses or shifts in voice personality.`,
+  voice: 'Schedar',
   temperature: '1.3'
 };
 

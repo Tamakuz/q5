@@ -19,42 +19,42 @@ BGM dalam narasi alur film berfungsi sebagai **pengemudi emosi penonton** dan **
 
 ---
 
-## 📂 5 Kategori BGM & Daftar File Fisik (Aktif)
+## 📂 5 Kategori BGM & Daftar File Fisik (Aktif Terbaru)
 
-Berikut adalah daftar file audio MP3 yang **benar-benar ada dan siap digunakan** di dalam folder `assets/bgm/`:
+Berikut adalah daftar file audio MP3 yang **benar-benar ada dan aktif digunakan** di dalam folder `assets/bgm/`:
 
 ### 1. 📁 `01_tegang_suspense` (High Tension & Thriller)
 * **Suasana:** Berdebar, intimidasi, ancaman musuh, terdesak waktu, bahaya mengintai.
-* **File MP3 yang Tersedia:**
-  * `assets/bgm/01_tegang_suspense/Black Heat.mp3` *(Karya: Ross Bugden)*
+* **File MP3 Fisik:**
+  * `assets/bgm/01_tegang_suspense/Black Glass Corridor.mp3`
 
 ---
 
 ### 2. 📁 `02_aksi_seru` (Fast Pacing & Fight Scene)
 * **Suasana:** Beat cepat, drum bertenaga, adrenalin tinggi, perkelahian, kejar-kejaran mobil.
-* **File MP3 yang Tersedia:**
-  * `assets/bgm/02_aksi_seru/Epic Chase Music  - Run (Copyright and Royalty Free).mp3`
+* **File MP3 Fisik:**
+  * `assets/bgm/02_aksi_seru/Shard of Thunder.mp3`
 
 ---
 
 ### 3. 📁 `03_sedih_haru` (Tragedy & Underdog Low Point)
 * **Suasana:** Piano melankolis, biola menyayat hati, alunan lambat dan emosional.
-* **File MP3 yang Tersedia:**
-  * `assets/bgm/03_sedih_haru/Something Wicked.mp3` *(Karya: Ross Bugden)*
+* **File MP3 Fisik:**
+  * `assets/bgm/03_sedih_haru/Velvet After Rain.mp3`
 
 ---
 
 ### 4. 📁 `04_kebangkitan_epic` (Heroic Comeback & Climax)
 * **Suasana:** Simfoni megah, membakar semangat, drum bertenaga, nada kemenangan.
-* **File MP3 yang Tersedia:**
-  * `assets/bgm/04_kebangkitan_epic/Beyond.mp3` *(Karya: Ross Bugden)*
+* **File MP3 Fisik:**
+  * `assets/bgm/04_kebangkitan_epic/Skyward Triumph.mp3`
 
 ---
 
 ### 5. 📁 `05_santai_misteri` (Default Baseline BGM & Casual / Investigation)
 * **Suasana:** Beat lo-fi/hip-hop santai, piano ringan, atau synth teka-teki.
-* **File MP3 yang Tersedia:**
-  * `assets/bgm/05_santai_misteri/Piano music in style of Thomas Newman - sad mood - Royalty free music no copyright music.mp3`
+* **File MP3 Fisik:**
+  * `assets/bgm/05_santai_misteri/Paper Map Morning.mp3`
 
 ---
 
@@ -70,6 +70,9 @@ Untuk menjaga kenyamanan (*retention*) penonton dan mencegah kebisingan audio fa
    * Sekitar 60–70% total durasi video tetap mengalir menggunakan BGM baseline ini saat adegan normal/investigasi/penjelasan.
 4. **Smooth Crossfade (1.5s - 2.0s):**
    * Semua perpindahan BGM antar-scene **wajib menggunakan crossfade 1.5 - 2.0 detik** agar transisi musik terasa mulus tanpa kejut audio.
+5. **Dynamic Sidechain Ducking (Voiceover vs Visual Only):**
+   * Saat narator bicara: Volume BGM mengecil ke **-22 dB (15%)** agar narasi jernih.
+   - Saat `VISUAL_ONLY` murni: Volume BGM membesar otomatis ke **-10 dB (45-50%)** untuk memberikan dampak emosi penuh.
 
 ---
 
@@ -84,8 +87,3 @@ Ketika skrip alur film dibagi menjadi beberapa bagian/chunk (misal Part 1 dan Pa
    * Detik 0.0 Part 2 langsung di-**fade-in (1.0s)** menggunakan BGM klimaks tersebut agar penonton Part 2 langsung tersedot kembali ke dalam cerita.
 3. **Penyelarasan Kembali:**
    * Setelah adegan klimaks di Part 2 selesai (misal di detik 20-30 Part 2), BGM perlahan crossfade kembali ke `05_santai_misteri` (Baseline).
-
----
-
-> ⚠️ **Catatan Penting:** Hanya gunakan file audio MP3 di atas yang sudah tersedia secara lokal di dalam folder project. Jangan mencantumkan atau memanggil file BGM lain yang belum ada di dalam direktori `assets/`.
-

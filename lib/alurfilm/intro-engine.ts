@@ -52,7 +52,7 @@ export async function renderIntroVideo(
   const cleanSubtitle = subtitleText.replace(/'/g, "\\'").replace(/:/g, '\\:');
 
   const filterComplex = [
-    `color=c=black:s=1920x1080:d=${duration}:r=60[bg]`,
+    `color=c=black:s=1920x1080:d=${duration}:r=30[bg]`,
     `[bg]drawtext=text='${cleanTitle}':fontcolor=${titleColor}:fontsize=90:x=(w-text_w)/2:y=(h-text_h)/2-30:enable='between(t,${impactTimestamp},${duration})':alpha='if(lt(t,${impactTimestamp}),0,if(lt(t,${impactTimestamp + 0.3}),(t-${impactTimestamp})/0.3,if(gt(t,${duration - 1.0}),(${duration}-t)/1.0,1)))'[v1]`,
     `[v1]drawtext=text='${cleanSubtitle}':fontcolor=${subtitleColor}:fontsize=32:x=(w-text_w)/2:y=(h-text_h)/2+65:enable='between(t,${impactTimestamp + 0.1},${duration})':alpha='if(lt(t,${impactTimestamp + 0.1}),0,if(lt(t,${impactTimestamp + 0.4}),(t-${impactTimestamp}-0.1)/0.3,if(gt(t,${duration - 1.0}),(${duration}-t)/1.0,1)))'[vfinal]`
   ].join(';');
@@ -60,7 +60,7 @@ export async function renderIntroVideo(
   const ffmpegArgs = [
     '-y',
     '-progress', 'pipe:1',
-    '-f', 'lavfi', '-i', `color=c=black:s=1920x1080:d=${duration}:r=60`,
+    '-f', 'lavfi', '-i', `color=c=black:s=1920x1080:d=${duration}:r=30`,
     '-i', resolvedAudio,
     '-filter_complex', filterComplex,
     '-map', '[vfinal]',
@@ -68,6 +68,7 @@ export async function renderIntroVideo(
     '-c:v', 'libx264',
     '-preset', 'fast',
     '-crf', '18',
+    '-r', '30',
     '-pix_fmt', 'yuv420p',
     '-c:a', 'aac',
     '-b:a', '192k',

@@ -6,17 +6,6 @@ import type { StepId, ContentMode } from './components/common/Sidebar';
 import MediaPreviewDrawer from './components/common/MediaPreviewDrawer';
 import StatusBar from './components/common/StatusBar';
 
-// Vann Feature Components
-import VannTopicsStep from './components/vann/VannTopicsStep';
-import VannScriptStep from './components/vann/VannScriptStep';
-import VannBreakdownStep from './components/vann/VannBreakdownStep';
-import VannImagePromptStep from './components/vann/VannImagePromptStep';
-import VannImageGeneratorStep from './components/vann/VannImageGeneratorStep';
-import VannVoiceOverStep from './components/vann/VannVoiceOverStep';
-import VannTimelineMappingStep from './components/vann/VannTimelineMappingStep';
-import VannRenderStep from './components/vann/VannRenderStep';
-import VannThumbnailStep from './components/vann/VannThumbnailStep';
-
 // Longform (Alur Film) Feature Components
 import AlurfilmSplitterStep from './components/longform/AlurfilmSplitterStep';
 import AlurfilmAnalyzeStep from './components/longform/AlurfilmAnalyzeStep';
@@ -48,13 +37,13 @@ type Status = 'ready' | 'rendering' | 'error';
 
 const App: React.FC = () => {
   const [activeStep, setActiveStep] = useState<StepId>('source');
-  const [contentMode, setContentMode] = useState<ContentMode>('vann');
+  const [contentMode, setContentMode] = useState<ContentMode>('spensia');
   const [status] = useState<Status>('ready');
   const [longformId, setLongformId] = useState<string | null>(null);
   const [longformTab, setLongformTab] = useState<'main' | 'testing'>('main');
 
   const [spensiaResetKey, setSpensiaResetKey] = useState<number>(0);
-  const [wakuResetKey, setWakuResetKey] = useState<number>(0);
+  const [longformResetKey, setLongformResetKey] = useState<number>(0);
 
   // Global Media Preview Drawer state
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
@@ -83,11 +72,11 @@ const App: React.FC = () => {
           }
         });
       } catch {}
-    } else if (contentMode === 'vann' || contentMode === 'waku' || contentMode === 'shortform') {
-      setWakuResetKey((prev) => prev + 1);
+    } else if (contentMode === 'longform') {
+      setLongformResetKey((prev) => prev + 1);
       try {
         Object.keys(localStorage).forEach((key) => {
-          if (key.toLowerCase().includes('waku') || key.toLowerCase().includes('vann')) {
+          if (key.toLowerCase().includes('longform') || key.toLowerCase().includes('alurfilm')) {
             localStorage.removeItem(key);
           }
         });
@@ -118,42 +107,7 @@ const App: React.FC = () => {
         />
 
         <main className="flex-1 p-6 overflow-auto bg-gradient-to-br from-gray-950 via-gray-950 to-gray-900">
-          {contentMode === 'vann' || contentMode === 'waku' || contentMode === 'shortform' ? (
-            activeStep === 'source' ? (
-              <VannTopicsStep key={`waku-topics-${wakuResetKey}`} />
-            ) : activeStep === 'analyze' ? (
-              <VannScriptStep key={`waku-script-${wakuResetKey}`} />
-            ) : activeStep === 'audio' ? (
-              <VannBreakdownStep key={`waku-breakdown-${wakuResetKey}`} />
-            ) : activeStep === 'mapping' ? (
-              <VannImagePromptStep key={`waku-image-prompts-${wakuResetKey}`} />
-            ) : activeStep === 'render' ? (
-              <VannImageGeneratorStep key={`waku-image-generator-${wakuResetKey}`} />
-            ) : activeStep === 'publish' ? (
-              <VannVoiceOverStep key={`waku-voice-over-${wakuResetKey}`} onStepChange={setActiveStep} />
-            ) : activeStep === 'upload' ? (
-              <VannRenderStep key={`waku-render-studio-${wakuResetKey}`} />
-            ) : activeStep === 'thumbnail' ? (
-              <VannThumbnailStep key={`waku-thumbnail-studio-${wakuResetKey}`} />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
-                <div className="w-20 h-20 bg-blue-600/10 text-blue-400 rounded-3xl flex items-center justify-center text-4xl border border-blue-500/20 shadow-xl shadow-blue-950/40">
-                  📱
-                </div>
-                <div className="max-w-md space-y-2">
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="px-3 py-1 rounded-full bg-blue-950 text-blue-300 border border-blue-800 text-xs font-mono font-bold uppercase tracking-wider">
-                      Workflow Vann
-                    </span>
-                  </div>
-                  <h2 className="text-lg font-bold text-white pt-1">Workflow Step Belum Ada</h2>
-                  <p className="text-xs text-gray-400 leading-relaxed">
-                    Langkah ini belum dikonfigurasi untuk Vann.
-                  </p>
-                </div>
-              </div>
-            )
-          ) : contentMode === 'ugc' ? (
+          {contentMode === 'ugc' ? (
             activeStep === 'source' ? (
               <UGCStudioStep key="ugc-studio" />
             ) : activeStep === 'analyze' ? (
@@ -224,19 +178,19 @@ const App: React.FC = () => {
           ) : longformTab === 'testing' ? (
             <AlurfilmTestingHub key="longform-testing-hub" />
           ) : activeStep === 'source' ? (
-            <AlurfilmSplitterStep key={`longform-source-${longformId}`} />
+            <AlurfilmSplitterStep key={`longform-source-${longformId}-${longformResetKey}`} />
           ) : activeStep === 'analyze' ? (
-            <AlurfilmAnalyzeStep key={`longform-analyze-${longformId}`} />
+            <AlurfilmAnalyzeStep key={`longform-analyze-${longformId}-${longformResetKey}`} />
           ) : activeStep === 'audio' ? (
-            <AlurfilmAudioStep key={`longform-audio-${longformId}`} />
+            <AlurfilmAudioStep key={`longform-audio-${longformId}-${longformResetKey}`} />
           ) : activeStep === 'transcript' ? (
-            <AlurfilmTranscriptStep key={`longform-transcript-${longformId}`} />
+            <AlurfilmTranscriptStep key={`longform-transcript-${longformId}-${longformResetKey}`} />
           ) : activeStep === 'mapping' ? (
-            <AlurfilmMappingStep key={`longform-mapping-${longformId}`} />
+            <AlurfilmMappingStep key={`longform-mapping-${longformId}-${longformResetKey}`} />
           ) : activeStep === 'render' ? (
-            <AlurfilmRenderStep key={`longform-render-${longformId}`} />
+            <AlurfilmRenderStep key={`longform-render-${longformId}-${longformResetKey}`} />
           ) : activeStep === 'upload' ? (
-            <AlurfilmMetadataStep key={`longform-metadata-${longformId}`} />
+            <AlurfilmMetadataStep key={`longform-metadata-${longformId}-${longformResetKey}`} />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
               <div className="w-20 h-20 bg-purple-600/10 text-purple-400 rounded-3xl flex items-center justify-center text-4xl border border-purple-500/20 shadow-xl shadow-purple-950/40">

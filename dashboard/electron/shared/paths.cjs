@@ -10,16 +10,6 @@ const SPENSIA_OUTPUT_DIR = path.join(PROJECT_ROOT, 'output', 'spensia');
 const SPENSIA_IMAGES_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'images');
 const SPENSIA_THUMBNAILS_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails');
 const SPENSIA_AUDIO_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'audio');
-const VANN_INPUT_DIR = path.join(PROJECT_ROOT, 'input', 'vann');
-const VANN_OUTPUT_DIR = path.join(PROJECT_ROOT, 'output', 'vann');
-const VANN_IMAGES_DIR = path.join(PROJECT_ROOT, 'input', 'vann', 'images');
-const VANN_THUMBNAILS_DIR = path.join(PROJECT_ROOT, 'input', 'vann', 'thumbnails');
-const VANN_AUDIO_DIR = path.join(PROJECT_ROOT, 'input', 'vann', 'audio');
-const WAKU_INPUT_DIR = VANN_INPUT_DIR;
-const WAKU_OUTPUT_DIR = VANN_OUTPUT_DIR;
-const WAKU_IMAGES_DIR = VANN_IMAGES_DIR;
-const WAKU_THUMBNAILS_DIR = VANN_THUMBNAILS_DIR;
-const WAKU_AUDIO_DIR = VANN_AUDIO_DIR;
 const ALURFILM_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm');
 const ALURFILM_CHUNKS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'chunks');
 const ALURFILM_COMPRESS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'compress');
@@ -39,11 +29,6 @@ const tsxBinPath = path.join(PROJECT_ROOT, 'node_modules', '.bin', 'tsx');
   TMP_DIR,
   SPENSIA_INPUT_DIR,
   SPENSIA_OUTPUT_DIR,
-  VANN_INPUT_DIR,
-  VANN_OUTPUT_DIR,
-  VANN_IMAGES_DIR,
-  VANN_THUMBNAILS_DIR,
-  VANN_AUDIO_DIR,
   ALURFILM_DIR,
   ALURFILM_CHUNKS_DIR,
   ALURFILM_COMPRESS_DIR,
@@ -59,19 +44,16 @@ const tsxBinPath = path.join(PROJECT_ROOT, 'node_modules', '.bin', 'tsx');
 });
 
 /**
- * Generate or retrieve content ID for a given mode (waku/shortform/longform/spensia)
+ * Generate or retrieve content ID for a given mode (longform/spensia/ugc)
  */
-function getOrGenerateContentId(mode = 'waku') {
+function getOrGenerateContentId(mode = 'spensia') {
   const isLongform = mode === 'longform';
   const isSpensia = mode === 'spensia';
-  const isWaku = mode === 'waku' || mode === 'shortform';
-  const mappingFile = isWaku
-    ? path.join(PROJECT_ROOT, 'input', 'vann', 'mappings', 'vann_mapping.json')
-    : isSpensia
-      ? path.join(PROJECT_ROOT, 'input', 'spensia', 'spensia_mapping.json')
-      : isLongform
-        ? path.join(PROJECT_ROOT, 'input', 'longform_mapping.json')
-        : path.join(PROJECT_ROOT, 'input', 'mapping.json');
+  const mappingFile = isSpensia
+    ? path.join(PROJECT_ROOT, 'input', 'spensia', 'spensia_mapping.json')
+    : isLongform
+      ? path.join(PROJECT_ROOT, 'input', 'longform_mapping.json')
+      : path.join(PROJECT_ROOT, 'input', 'mapping.json');
 
   const dir = path.dirname(mappingFile);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -87,7 +69,7 @@ function getOrGenerateContentId(mode = 'waku') {
 
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const randStr = Math.random().toString(36).substring(2, 6).toUpperCase();
-  const prefix = isWaku ? 'WV-VANN' : isSpensia ? 'WV-SPENSIA' : isLongform ? 'WV-FILM' : 'WV';
+  const prefix = isSpensia ? 'WV-SPENSIA' : isLongform ? 'WV-FILM' : 'WV';
   const newId = `${prefix}-${dateStr}-${randStr}`;
 
   try {
@@ -121,16 +103,6 @@ module.exports = {
   SPENSIA_IMAGES_DIR,
   SPENSIA_THUMBNAILS_DIR,
   SPENSIA_AUDIO_DIR,
-  VANN_INPUT_DIR,
-  VANN_OUTPUT_DIR,
-  VANN_IMAGES_DIR,
-  VANN_THUMBNAILS_DIR,
-  VANN_AUDIO_DIR,
-  WAKU_INPUT_DIR,
-  WAKU_OUTPUT_DIR,
-  WAKU_IMAGES_DIR,
-  WAKU_THUMBNAILS_DIR,
-  WAKU_AUDIO_DIR,
   ALURFILM_DIR,
   ALURFILM_CHUNKS_DIR,
   ALURFILM_COMPRESS_DIR,

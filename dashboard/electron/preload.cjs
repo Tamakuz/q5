@@ -144,6 +144,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('render-alurfilm-video', { part, chunkPart: part, mapping, mappingData: mapping, videoPath, audioPath, ...opts }),
   listProjectAssets: () =>
     ipcRenderer.invoke('list-project-assets'),
+  getRenderSettings: () =>
+    ipcRenderer.invoke('get-render-settings'),
+  saveRenderSettings: (settings) =>
+    ipcRenderer.invoke('save-render-settings', settings),
   concatAlurfilmFinalVideo: (parts, opts) =>
     ipcRenderer.invoke('concat-alurfilm-final-video', { parts, ...opts }),
   generateAlurfilmMetadata: (opts) =>
@@ -159,6 +163,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   renderAlurfilmIntroTest: (options) =>
     ipcRenderer.invoke('alurfilm:render-intro-test', options),
+  getAlurfilmIntro: (modeContentId) =>
+    ipcRenderer.invoke('get-alurfilm-intro', modeContentId),
   onAlurfilmIntroProgress: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('alurfilm:render-intro-progress', handler);
@@ -342,13 +348,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('render-waku-video', { config, timeline, outputPath, topicId }),
   renderWakuPreviewFrame: (config, imagePath) =>
     ipcRenderer.invoke('render-waku-preview-frame', { config, imagePath }),
-
-  generateVannTimeline: (topicId) => ipcRenderer.invoke('generate-vann-timeline', { topicId }),
-  getVannRenderResult: (topicId) => ipcRenderer.invoke('get-vann-render-result', { topicId }),
-  renderVannVideo: (config, timeline, outputPath, topicId) =>
-    ipcRenderer.invoke('render-vann-video', { config, timeline, outputPath, topicId }),
-  renderVannPreviewFrame: (config, imagePath) =>
-    ipcRenderer.invoke('render-vann-preview-frame', { config, imagePath }),
   generateWakuThumbnailPrompts: (scriptContent, topicTitle, selectedTitle, metadata, model, topicId) =>
     ipcRenderer.invoke('generate-waku-thumbnail-prompts', { scriptContent, topicTitle, selectedTitle, metadata, model, topicId }),
   onWakuThumbnailPromptsChunk: (callback) => {

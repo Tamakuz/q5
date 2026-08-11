@@ -10,10 +10,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   });
 
   // ─── Reset project workspace ───────────────────────────
-  ipcMain.handle('reset-project', async (_event, mode = 'shortform') => {
+  ipcMain.handle('reset-project', async (_event, mode = 'spensia') => {
     const isLongform = mode === 'longform';
     const isSpensia = mode === 'spensia';
-    const isVann = mode === 'vann' || mode === 'waku' || mode === 'shortform';
     try {
       const outputDir = path.join(p.PROJECT_ROOT, 'output');
       const inputDir = path.join(p.PROJECT_ROOT, 'input');
@@ -24,7 +23,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
       const randStr = Math.random().toString(36).substring(2, 6).toUpperCase();
-      const prefix = isSpensia ? 'WV-SPENSIA' : isLongform ? 'WV-FILM' : 'WV-VANN';
+      const prefix = isSpensia ? 'WV-SPENSIA' : isLongform ? 'WV-FILM' : 'WV';
       const newId = `${prefix}-${dateStr}-${randStr}`;
 
       if (isSpensia) {
@@ -70,17 +69,21 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
       if (isLongform) {
         console.log(`🧹 [Reset Longform] Clearing all longform files and setting new Content ID: ${newId}`);
-        if (fs.existsSync(alurfilmChunksDir)) {
-          const files = fs.readdirSync(alurfilmChunksDir);
-          for (const f of files) { try { fs.unlinkSync(path.join(alurfilmChunksDir, f)); } catch { } }
-        }
         if (fs.existsSync(alurfilmDir)) {
-          const files = fs.readdirSync(alurfilmDir);
-          for (const f of files) {
-            const fullPath = path.join(alurfilmDir, f);
-            try { if (fs.statSync(fullPath).isFile()) fs.unlinkSync(fullPath); } catch { }
+          try {
+            const items = fs.readdirSync(alurfilmDir);
+            for (const item of items) {
+              try { fs.rmSync(path.join(alurfilmDir, item), { recursive: true, force: true }); } catch (err) {
+                console.error(`[Reset Longform] Failed to delete ${item}:`, err);
+              }
+            }
+          } catch (e) {
+            console.error('[Reset Longform] Error reading input/alurfilm:', e);
           }
+        } else {
+          fs.mkdirSync(alurfilmDir, { recursive: true });
         }
+
         if (fs.existsSync(outputDir)) {
           const files = fs.readdirSync(outputDir);
           for (const f of files) { try { fs.unlinkSync(path.join(outputDir, f)); } catch { } }
@@ -96,69 +99,6 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
         return { success: true, content_id: newId };
       }
 
-      if (isVann) {
-        console.log(`🧹 [Reset Vann] Clearing all Vann workspace files & setting new Content ID: ${newId}`);
-        const vannInputDir = path.join(inputDir, 'vann');
-        const vannOutputDir = path.join(outputDir, 'vann');
-
-        // Clear input/vann directory completely
-        if (fs.existsSync(vannInputDir)) {
-          try {
-            const items = fs.readdirSync(vannInputDir);
-            for (const item of items) {
-              try { fs.rmSync(path.join(vannInputDir, item), { recursive: true, force: true }); } catch (err) {
-                console.error(`[Reset Vann] Failed to delete input item ${item}:`, err);
-              }
-            }
-          } catch (e) {
-            console.error('[Reset Vann] Error reading input/vann:', e);
-          }
-        } else { fs.mkdirSync(vannInputDir, { recursive: true }); }
-
-        // Clear output/vann directory completely
-        if (fs.existsSync(vannOutputDir)) {
-          try {
-            const items = fs.readdirSync(vannOutputDir);
-            for (const item of items) {
-              try { fs.rmSync(path.join(vannOutputDir, item), { recursive: true, force: true }); } catch (err) {
-                console.error(`[Reset Vann] Failed to delete output item ${item}:`, err);
-              }
-            }
-          } catch (e) {
-            console.error('[Reset Vann] Error reading output/vann:', e);
-          }
-        } else { fs.mkdirSync(vannOutputDir, { recursive: true }); }
-
-        // Clear legacy root input files if any exist
-        const legacyFiles = [
-          path.join(inputDir, 'mapping.json'),
-          path.join(inputDir, 'transcript.json'),
-          path.join(inputDir, 'analysis.json'),
-          path.join(inputDir, 'voiceover.json'),
-          path.join(inputDir, 'topics.json'),
-          path.join(inputDir, 'script.json'),
-          path.join(inputDir, 'breakdown.json'),
-          path.join(inputDir, 'segments.json'),
-          path.join(inputDir, 'image_prompts.json'),
-          path.join(inputDir, 'generated_images.json')
-        ];
-        for (const lf of legacyFiles) {
-          if (fs.existsSync(lf)) { try { fs.unlinkSync(lf); } catch {} }
-        }
-
-        // Initialize new Content ID & vann_mapping.json
-        const mappingsDir = path.join(vannInputDir, 'mappings');
-        if (!fs.existsSync(mappingsDir)) fs.mkdirSync(mappingsDir, { recursive: true });
-        const mappingFile = path.join(mappingsDir, 'vann_mapping.json');
-        const mapping = {
-          settings: { fps: 30, format: "16:9", fg_aspect: "16:9", bgm: "random", content_id: newId },
-          timeline: []
-        };
-        fs.writeFileSync(mappingFile, JSON.stringify(mapping, null, 2), 'utf-8');
-        fs.writeFileSync(path.join(vannInputDir, '.current_content_id'), newId, 'utf-8');
-        return { success: true, content_id: newId };
-      }
-
       return { success: true, content_id: newId };
     } catch (err) {
       console.error('Reset project error:', err);
@@ -171,18 +111,28 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     const assetsDir = path.join(p.PROJECT_ROOT, 'assets');
     if (!fs.existsSync(assetsDir)) return { logos: [], bgms: [] };
 
-    const files = fs.readdirSync(assetsDir);
-    const logos = files.filter(f => f.match(/\.(png|jpg|jpeg|webp)$/i)).map(f => ({
-      name: f,
-      path: path.join(assetsDir, f),
-      url: media.mediaUrl(path.join(assetsDir, f)),
-    }));
-    const bgms = files.filter(f => f.match(/\.(mp3|wav|m4a|aac|flac)$/i)).map(f => ({
-      name: f,
-      path: path.join(assetsDir, f),
-      url: media.mediaUrl(path.join(assetsDir, f)),
-    }));
+    const logos = [];
+    const bgms = [];
 
+    const scanDir = (dir) => {
+      if (!fs.existsSync(dir)) return;
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          scanDir(fullPath);
+        } else if (entry.isFile()) {
+          const relPath = path.relative(p.PROJECT_ROOT, fullPath);
+          if (entry.name.match(/\.(png|jpg|jpeg|webp)$/i)) {
+            logos.push({ name: entry.name, path: relPath, fullPath, url: media.mediaUrl(fullPath) });
+          } else if (entry.name.match(/\.(mp3|wav|m4a|aac|flac)$/i)) {
+            bgms.push({ name: entry.name, path: relPath, fullPath, url: media.mediaUrl(fullPath) });
+          }
+        }
+      }
+    };
+
+    scanDir(assetsDir);
     return { logos, bgms };
   });
 

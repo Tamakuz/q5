@@ -117,6 +117,15 @@ const AlurfilmMappingStep: React.FC = () => {
         const audioStartTimestamp = voiceoverSentences.length > 0 ? `${voiceoverSentences[0].start.toFixed(1)}s` : '0.0s';
         const audioEndTimestamp = voiceoverSentences.length > 0 ? `${voiceoverSentences[voiceoverSentences.length - 1].end.toFixed(1)}s` : `${totalAudioDurSec}s`;
 
+        const prevPartNum = partNum - 1;
+        const prevMapping = prevPartNum > 0 ? mappings[prevPartNum] : null;
+        let prevEndingBgm = 'None (Awal Part #1)';
+        const prevBgmList = (prevMapping as any)?.bgm_timeline || (prevMapping as any)?.data?.bgm_timeline;
+        if (Array.isArray(prevBgmList) && prevBgmList.length > 0) {
+          const lastBgm = prevBgmList[prevBgmList.length - 1];
+          prevEndingBgm = `"${lastBgm.category || lastBgm.category_name}" (${lastBgm.file || lastBgm.filename})`;
+        }
+
         formattedPrompt = promptTpl
           .replace(/\{\{chunk_part\}\}/g, String(partNum))
           .replace(/\{\{total_chunks\}\}/g, String(totalChunks))
@@ -128,7 +137,8 @@ const AlurfilmMappingStep: React.FC = () => {
           .replace(/\{\{total_audio_duration_formatted\}\}/g, totalAudioDurFormatted)
           .replace(/\{\{total_sentences_count\}\}/g, String(voiceoverSentences.length))
           .replace(/\{\{audio_start_timestamp\}\}/g, audioStartTimestamp)
-          .replace(/\{\{audio_end_timestamp\}\}/g, audioEndTimestamp);
+          .replace(/\{\{audio_end_timestamp\}\}/g, audioEndTimestamp)
+          .replace(/\{\{previous_part_ending_bgm\}\}/g, prevEndingBgm);
       }
 
       if (api.copyToClipboard) {

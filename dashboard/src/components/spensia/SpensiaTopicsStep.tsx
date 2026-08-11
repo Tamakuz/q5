@@ -821,42 +821,7 @@ const SpensiaTopicsStep: React.FC = () => {
                               )}
                             </div>
 
-                            {/* 3 Opsi Judul / Angles Selector */}
-                            {topic.angles && topic.angles.length > 0 && (
-                              <div className="pl-8 space-y-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
-                                <span className="text-[10px] text-gray-500 font-mono font-bold block uppercase tracking-wider">
-                                  3 Opsi Sudut Pandang Judul (Angles):
-                                </span>
-                                <div className="space-y-1.5">
-                                  {topic.angles.map((angleText, aIdx) => {
-                                    const isAngleActive =
-                                      (topic.selected_angle_index ?? 0) === aIdx || topic.title === angleText;
-                                    return (
-                                      <button
-                                        key={aIdx}
-                                        onClick={() => handleSelectAngle(topic.id, aIdx, angleText)}
-                                        className={`w-full text-left p-2 rounded-xl text-xs transition-all border flex items-start gap-2 ${
-                                          isAngleActive
-                                            ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-200 font-semibold shadow-sm ring-1 ring-emerald-500/30'
-                                            : 'bg-gray-950/90 border-gray-800 text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-                                        }`}
-                                      >
-                                        <span
-                                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 mt-0.5 ${
-                                            isAngleActive
-                                              ? 'bg-emerald-500 text-gray-950'
-                                              : 'bg-gray-800 text-gray-400'
-                                          }`}
-                                        >
-                                          {isAngleActive ? '✓ ' : ''}Angle {aIdx === 0 ? 'A' : aIdx === 1 ? 'B' : 'C'}
-                                        </span>
-                                        <span className="leading-snug">"{angleText}"</span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
+
 
                             {/* Ruthless Critique (Anti Yes-Man AI) */}
                             {topic.ruthless_critique && (

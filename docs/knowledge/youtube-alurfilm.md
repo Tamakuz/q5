@@ -168,14 +168,11 @@ Prompt thumbnail AI **TIDAK dibuat dari nol (0)**, melainkan dirancang sebagai p
 - **100% Menggunakan Setting Lokasi Asli Naskah**: Dilarang keras mengganti lokasi kejadian. Jika adegan di dalam rumah, tangga gedung, sekolah, atau rumah sakit ➔ `thumbnail_prompt` WAJIB 100% menggunakan setting lokasi riil tersebut.
 - **Tugas Prompt Hanya Menata Komposisi & Atmosfer**: Prompt AI hanya bertugas mempertegas ekspresi emosi karakter, menata pencahayaan dramatis, tekstur sinematik 8K, dan menata layout 16:9 tanpa menambahkan objek luar (seperti pesawat, gurun, atau monster) yang tidak ada di naskah.
 
-### 4. 📋 Format Prompt Utuh Siap Copas (Full Prompt Ready-to-Copy)
-Setiap `thumbnail_prompt` yang dihasilkan AI di-format utuh (tanpa contoh statis palsu) mencakup:
-- **YouTube 16:9 & Safe Zone**: Format rasio 16:9 dan instruksi menjaga area kanan bawah tetap bersih dari elemen penting agar tidak tertutup badge durasi YouTube.
-- **Scene Dramatization (Img2Img)**: Deskripsi adegan & fisik spesifik karakter utama dari film yang didramatisir.
-- **Atmosphere & Scale Paradox**: Kontras skala raksasa, asap volumetrik, tekstur sinematik 8K.
-- **Color Grading & Vignette**: Teal & orange / amber / crimson red contrast dengan vignette tebal untuk keterbacaan di layar HP.
-- **Top-Third Text Marker Spec**: Spesifikasi teks marker warna Kuning & Merah di posisi 1/3 bagian atas frame.
-- **Render Flags**: `Hyper-realistic 8k resolution, YouTube thumbnail style, photorealistic, octane render, wide cinematic shot --ar 16:9 --v 6.0`.
+### 4. 📋 Format Prompt Utuh Siap Copas (3-Block Modular Guidance Prompt)
+Setiap `thumbnail_prompt` yang dihasilkan AI di-format sebagai 3 blok aturan terstruktur yang fleksibel tanpa memaksakan detail mikro (karena pengguna mengunggah foto referensi sendiri):
+- **1. Movie Story Context**: Rangkuman singkat 1-2 kalimat konteks naskah film, karakter & kondisi fisik/emosional riilnya, setting lokasi asli, serta konflik emosional utama.
+- **2. Text Overlay Specification**: Spesifikasi teks marker warna Kuning Cerah (Part 1) & Merah Menyala + Stroke Hitam (Part 2) di posisi 1/3 bagian atas frame.
+- **3. YouTube Thumbnail Rendering Rules & Asset Guidance**: Format rasio 16:9 (`--ar 16:9`), area aman YouTube (*bottom-right safe zone*), pencahayaan sinematik kontras tinggi, tekstur poster film 8K, vignette gelap, dan panduan bagi generator AI untuk menentukan komposisi visual & penggunaan aset secara dinamis berdasarkan foto referensi dari pengguna.
 
 ---
 

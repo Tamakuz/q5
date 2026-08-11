@@ -277,31 +277,12 @@ function register(ipcMain, { paths: p, media, ffmpeg }) {
       console.warn('[save-to-project] Auto-mirror error:', e.message);
     }
 
-    if (subPath.includes('waku')) {
-      try {
-        const vannSubPath = subPath.replace(/\bwaku\b/g, 'vann');
-        const vannDest = path.join(p.PROJECT_ROOT, vannSubPath);
-        const vannDir = path.dirname(vannDest);
-        if (!fs.existsSync(vannDir)) fs.mkdirSync(vannDir, { recursive: true });
-        fs.writeFileSync(vannDest, data, 'utf-8');
-      } catch (e) {
-        console.warn('[save-to-project] Vann mirror error:', e.message);
-      }
-    }
-
     return true;
   });
 
   // ─── Read file from project ───────────────────────────
   ipcMain.handle('read-from-project', async (_event, subPath) => {
     let fp = path.join(p.PROJECT_ROOT, subPath);
-    if (!fs.existsSync(fp) && subPath.includes('waku')) {
-      const fallbackSubPath = subPath.replace(/\bwaku\b/g, 'vann');
-      const fallbackFp = path.join(p.PROJECT_ROOT, fallbackSubPath);
-      if (fs.existsSync(fallbackFp)) {
-        fp = fallbackFp;
-      }
-    }
     if (!fp.startsWith(p.PROJECT_ROOT)) throw new Error('Forbidden');
     if (!fs.existsSync(fp)) return null;
     return fs.readFileSync(fp, 'utf-8');

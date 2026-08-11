@@ -836,44 +836,53 @@ const AlurfilmTranscriptStep: React.FC = () => {
               <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
                 {filteredEntries.map((e, idx) => {
                   const isActive = (e.id || idx + 1) === activeEntryId;
+                  const isVisualOnly = (e as any).type === 'visual_only' || e.text?.includes('VISUAL_ONLY') || (e.speaker && e.speaker.toLowerCase().includes('visual'));
                   return (
                     <div
                       key={e.id || idx}
                       ref={isActive ? activeItemRef : null}
                       onClick={() => handleSeekToTime(e.start_seconds)}
                       className={`p-3 rounded-xl space-y-1.5 transition-all cursor-pointer group border ${
-                        isActive
-                          ? 'bg-purple-900/50 border-purple-500 shadow-lg shadow-purple-600/30 scale-[1.01]'
-                          : 'bg-gray-950 hover:bg-purple-950/40 border-gray-800 hover:border-purple-600/50'
+                        isVisualOnly
+                          ? isActive
+                            ? 'bg-amber-950/70 border-amber-500 shadow-lg shadow-amber-600/30 scale-[1.01]'
+                            : 'bg-amber-950/30 hover:bg-amber-950/50 border-amber-800/60 hover:border-amber-600'
+                          : isActive
+                            ? 'bg-purple-900/50 border-purple-500 shadow-lg shadow-purple-600/30 scale-[1.01]'
+                            : 'bg-gray-950 hover:bg-purple-950/40 border-gray-800 hover:border-purple-600/50'
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className={`text-xs font-mono font-bold ${isActive ? 'text-purple-300' : 'text-gray-500'}`}>
+                          <span className={`text-xs font-mono font-bold ${isVisualOnly ? 'text-amber-400' : isActive ? 'text-purple-300' : 'text-gray-500'}`}>
                             #{e.id || idx + 1}
                           </span>
                           <span
                             className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold transition-all border ${
-                              isActive
-                                ? 'bg-purple-600 text-white border-purple-400 shadow animate-pulse flex items-center gap-1'
-                                : 'bg-purple-950 text-purple-300 border-purple-800/50 group-hover:bg-purple-600 group-hover:text-white'
+                              isVisualOnly
+                                ? 'bg-amber-900/80 text-amber-200 border-amber-600/60'
+                                : isActive
+                                  ? 'bg-purple-600 text-white border-purple-400 shadow animate-pulse flex items-center gap-1'
+                                  : 'bg-purple-950 text-purple-300 border-purple-800/50 group-hover:bg-purple-600 group-hover:text-white'
                             }`}
                           >
-                            {isActive ? '🔊 PLAYING | ' : '▶️ '}{e.timestamp_minute}
+                            {isVisualOnly ? '🎥 VISUAL ONLY | ' : isActive ? '🔊 PLAYING | ' : '▶️ '}{e.timestamp_minute}
                           </span>
                         </div>
-                        <span className={`text-[11px] font-mono ${isActive ? 'text-purple-300 font-bold' : 'text-gray-500'}`}>
+                        <span className={`text-[11px] font-mono ${isVisualOnly ? 'text-amber-300 font-bold' : isActive ? 'text-purple-300 font-bold' : 'text-gray-500'}`}>
                           {(typeof e.start_seconds === 'number' && !isNaN(e.start_seconds) ? e.start_seconds : 0).toFixed(1)}s - {(typeof e.end_seconds === 'number' && !isNaN(e.end_seconds) ? e.end_seconds : 0).toFixed(1)}s
                         </span>
                       </div>
                       <p
                         className={`text-xs leading-relaxed font-normal p-2.5 rounded-lg border transition-all ${
-                          isActive
-                            ? 'bg-purple-950/80 text-white font-medium border-purple-500/60 shadow-inner'
-                            : 'text-gray-200 bg-gray-900 border-gray-800 group-hover:border-purple-500/30'
+                          isVisualOnly
+                            ? 'bg-amber-950/50 text-amber-200 font-mono border-amber-800/60'
+                            : isActive
+                              ? 'bg-purple-950/80 text-white font-medium border-purple-500/60 shadow-inner'
+                              : 'text-gray-200 bg-gray-900 border-gray-800 group-hover:border-purple-500/30'
                         }`}
                       >
-                        "{e.text}"
+                        {isVisualOnly ? `🎥 ${e.text}` : `"${e.text}"`}
                       </p>
                     </div>
                   );

@@ -1513,20 +1513,17 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       if (!fs.existsSync(dir)) continue;
       const files = fs.readdirSync(dir);
       for (const f of files) {
-        if (f.endsWith('.json') && f.includes('_transcript_part_')) {
-          const isExactContentId = f.startsWith(`${contentId}_transcript_part_`);
+        if (f.endsWith('.json') && f.startsWith(`${contentId}_transcript_part_`)) {
           const match = f.match(/_transcript_part_(\d+)/);
           if (match) {
             const part = parseInt(match[1], 10);
             const fullPath = path.join(dir, f);
             try {
               const stat = fs.statSync(fullPath);
-              if (stat.size > 0) {
-                if (!transcriptMap.has(part) || isExactContentId) {
-                  const data = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
-                  if (Array.isArray(data) && data.length > 0) {
-                    transcriptMap.set(part, { part, name: f, filePath: fullPath, data, entries: data });
-                  }
+              if (stat.size > 0 && !transcriptMap.has(part)) {
+                const data = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+                if (Array.isArray(data) && data.length > 0) {
+                  transcriptMap.set(part, { part, name: f, filePath: fullPath, data, entries: data });
                 }
               }
             } catch { }
@@ -1866,24 +1863,20 @@ Gaya teks mengikuti pola dua warna yang terbukti meledak di niche Alur Cerita Fi
 - Kata Pertama (Yellow Part): Teks penarik perhatian warna Kuning Cerah ALL CAPS.
 - Kata Kedua (Red Part): Teks klimaks emosi warna Merah Menyala dengan Outline Hitam ALL CAPS.
 
-🎨 ATURAN PROMPT GAMBAR THUMBNAIL (KHUSUS YOUTUBE THUMBNAIL 16:9 - FULL PROMPT READY TO COPY-PASTE):
-Nilai dari "thumbnail_prompt" WAJIB berupa FULL PROMPT LENGKAP PROFESIONAL (dalam Bahasa Inggris) yang SIAP DI-COPAS LANGSUNG oleh pengguna ke generator AI (Midjourney v6 / Flux / DALL-E 3 / ControlNet).
+🎨 ATURAN PROMPT GAMBAR THUMBNAIL (OUTPUT GUIDANCE & RULES PROMPT - SIAP COPAS):
+Nilai dari "thumbnail_prompt" WAJIB berupa PROMPT ATURAN & KONTEKS UTUH (dalam Bahasa Inggris) yang SIAP DI-COPAS LANGSUNG oleh pengguna ke generator AI (Midjourney v6 / Flux / DALL-E 3 / SDXL / ControlNet).
 
-🚨 ATURAN KETAT KESESUAIAN LOKASI & LINGKUNGAN (PRESERVE ORIGINAL ENVIRONMENT & NO SCENE HALLUCINATION):
-1. DILARANG KERAS MENGUBAH / MENGGANTI LOKASI & LINGKUNGAN CERITA: Visual tempat kejadian di "thumbnail_prompt" WAJIB 100% Menggunakan setting lokasi asli dari naskah film (misal: jika adegan di dalam rumah / tangga apartemen / sekolah / rumah sakit ➔ setting visual WAJIB 100% di lokasi tersebut!).
-2. DILARANG KERAS MENAMBAHKAN ELEMEN / PROPS LUAR YANG TIDAK ADA DI NASKAH: Jangan pernah menambahkan pesawat jatuh, gurun, monster, laut merah, atau bencana luar jika elemen tersebut TIDAK ADA di naskah film!
-3. TUGAS PROMPT HANYA MENATA KOMPOSISI & MENDRAMATISIR ELEMEN ASLI NASKAH: Prompt AI HANYA bertugas mempertegas kontras emosi karakter, menata sudut kamera sinematik (16:9), menambahkan lighting dramatis & tekstur sinematik 8K, serta memasukkan overlay teks warna Kuning & Merah pada elemen/lokasi asli yang sudah ada di naskah.
+DILARANG KERAS memaksakan detail adegan mikro atau mengarang objek fiksi luar karena pengguna akan mengunggah/menggunakan foto referensi adegan asli dari film.
+Setiap "thumbnail_prompt" WAJIB di-format utuh mencakup 3 blok utama berikut:
 
-Setiap "thumbnail_prompt" WAJIB menggabungkan 7 komponen sinematik secara utuh dalam 1 paragraf prompt Bahasa Inggris:
-1. YOUTUBE THUMBNAIL 16:9 COMPOSITION: High-impact 16:9 YouTube thumbnail layout with focal action subject positioned in center/lower-third.
-2. YOUTUBE SAFE ZONE: Keep bottom-right corner clean (free of text/action) to prevent YouTube video duration timestamp badge overlap.
-3. PRESERVED REAL MOVIE SCENE & SUBJECT DRAMATIZATION: Accurate cinematic description of the main character (physical condition/struggle from script) inside the EXACT location/environment from the movie script (no environment change!).
-4. DRAMATIC LIGHTING & ATMOSPHERE: Volumetric lighting, intense emotional atmospheric mood, cinematic depth, and gritty 8k film textures on the real movie environment.
-5. COLOR GRADING & LIGHTING: High contrast cinematic lighting matching scene mood, heavy dark vignette along frame edges for instant mobile thumb-stop power.
-6. TOP-THIRD EMBEDDED TEXT MARKER OVERLAY:
-   - Text Part 1: "[thumbnail_text_yellow]" in ultra-bold bright yellow font at top-center.
-   - Text Part 2: "[thumbnail_text_red]" in ultra-bold bright red font with thick black outline & drop shadow.
-7. RENDER FLAGS: Hyper-realistic 8k resolution, YouTube thumbnail style, photorealistic, octane render, wide shot --ar 16:9 --v 6.0.
+1. MOVIE STORY CONTEXT:
+"Movie Context: [Singkat 1-2 kalimat konteks naskah film, karakter utama & kondisi fisik/emosional riilnya, setting lokasi asli, serta konflik emosional utama]."
+
+2. TEXT OVERLAY SPECIFICATION:
+"Embed top-third text overlay in ultra-bold heavy impact font: Part 1 '[thumbnail_text_yellow]' in bright yellow font, Part 2 '[thumbnail_text_red]' in bright red font with thick black stroke and shadow."
+
+3. YOUTUBE THUMBNAIL RENDERING RULES & ASSET GUIDANCE:
+"YouTube 16:9 widescreen layout (--ar 16:9). Keep bottom-right corner clean for YouTube video duration badge. High-contrast cinematic lighting matching scene mood, 8k gritty film poster texture, heavy dark vignette along frame edges for instant mobile thumb-stopping power. Image Generator Guidance: Preserving the core movie context and user's input image reference, dynamically decide final asset composition, scale contrast, and camera framing matching the real movie setting without adding unscripted objects. Hyper-realistic 8k resolution, photorealistic, octane render --ar 16:9 --v 6.0"
 
 DESKRIPSI VIDEO YOUTUBE (TERSTRUKTUR & SEO FRIENDLY):
 1. 2 Baris Pertama: Hook pembuka tajam yang selaras dengan judul.

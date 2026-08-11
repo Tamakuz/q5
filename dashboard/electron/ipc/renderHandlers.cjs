@@ -109,8 +109,123 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
     });
   });
 
+  const DEFAULT_RENDER_SETTINGS = {
+    narrationVolume: 1.8,
+    bgmVolume: 0.18,
+    bgmEnabled: true,
+    bgmPath: 'assets/bgm/05_santai_misteri/Paper Map Morning.mp3',
+    logoEnabled: true,
+    logoPath: 'assets/logo.png',
+    logoOpacity: 0.6,
+    logoMargin: 40,
+    logoScale: 60,
+    introEnabled: true,
+    introTitleText: 'UNDER THE DOME',
+    introSubtitleText: 'ALUR CERITA FILM',
+    introStylePreset: 'cinematic_gold',
+    introDuration: 6.0,
+    introImpactTimestamp: 0.48,
+    introAudioPath: 'assets/The Final Horizon.mp3',
+  };
+
+  async function renderIntroVideoHelper(introOpts, cwd) {
+    return new Promise((resolve) => {
+      const optsJson = JSON.stringify(introOpts || {});
+      const runnerScript = `
+import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
+(async () => {
+  try {
+    const opts = ${optsJson};
+    const res = await renderIntroVideo(opts);
+    console.log('RESULT:' + JSON.stringify(res));
+  } catch (e) {
+    console.log('RESULT:' + JSON.stringify({ success: false, error: e.message }));
+  }
+})();
+      `;
+
+      const child = spawn('npx', ['tsx', '-e', runnerScript], { cwd, env: { ...process.env } });
+      let lastResult = { success: false, error: 'Unknown render failure' };
+
+      child.stdout.on('data', (data) => {
+        const text = data.toString();
+        const lines = text.split('\n').filter(Boolean);
+        for (const line of lines) {
+          if (line.startsWith('RESULT:')) {
+            try { lastResult = JSON.parse(line.replace('RESULT:', '')); } catch {}
+          }
+        }
+      });
+
+      child.on('close', (code) => {
+        if (code === 0 && lastResult.success) {
+          resolve(lastResult);
+        } else {
+          resolve({ success: false, error: lastResult.error || `Intro render exited with code ${code}` });
+        }
+      });
+
+      child.on('error', (err) => {
+        resolve({ success: false, error: err.message });
+      });
+    });
+  }
+
+  const getSettingsFilePath = () => path.join(p.PROJECT_ROOT, 'input', 'render_settings.json');
+
+  const loadSavedSettings = () => {
+    const filePath = getSettingsFilePath();
+    try {
+      if (fs.existsSync(filePath)) {
+        const raw = fs.readFileSync(filePath, 'utf-8');
+        return { ...DEFAULT_RENDER_SETTINGS, ...JSON.parse(raw) };
+      }
+    } catch (e) {
+      console.warn('⚠️ Error reading render_settings.json:', e.message);
+    }
+    return { ...DEFAULT_RENDER_SETTINGS };
+  };
+
+  ipcMain.handle('get-render-settings', async () => {
+    const settings = loadSavedSettings();
+    const filePath = getSettingsFilePath();
+    if (!fs.existsSync(filePath)) {
+      try {
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf-8');
+      } catch (e) {}
+    }
+    return settings;
+  });
+
+  ipcMain.handle('save-render-settings', async (_event, newSettings) => {
+    const filePath = getSettingsFilePath();
+    try {
+      const merged = { ...loadSavedSettings(), ...newSettings };
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(filePath, JSON.stringify(merged, null, 2), 'utf-8');
+      console.log('⚙️ [Render Settings] Saved to input/render_settings.json');
+      return { success: true, settings: merged };
+    } catch (e) {
+      console.error('❌ [Render Settings] Save failed:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
   // ─── Concat Alurfilm Final Video ───────────────────────
-  ipcMain.handle('concat-alurfilm-final-video', async (_event, { parts, bgmPath, bgmVolume, logoPath, logoOpacity, logoMargin, logoScale }) => {
+  ipcMain.handle('concat-alurfilm-final-video', async (_event, opts = {}) => {
+    const {
+      parts, bgmPath, bgmVolume, narrationVolume, logoPath, logoOpacity, logoMargin, logoScale, bgmEnabled, logoEnabled,
+      introEnabled, introTitleText, introSubtitleText, introStylePreset, introDuration, introImpactTimestamp, introAudioPath
+    } = opts;
+    const saved = loadSavedSettings();
+
+    const isBgmActive = bgmEnabled !== undefined ? bgmEnabled : saved.bgmEnabled;
+    const isLogoActive = logoEnabled !== undefined ? logoEnabled : saved.logoEnabled;
+    const isIntroActive = introEnabled !== undefined ? introEnabled : (saved.introEnabled !== undefined ? saved.introEnabled : true);
+
     const contentId = p.getOrGenerateContentId('longform');
     const outputDir = path.join(p.PROJECT_ROOT, 'output');
     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
@@ -118,96 +233,136 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
     const files = fs.readdirSync(outputDir);
     const partFiles = [];
 
-    for (const pt of parts) {
+    for (const pt of parts || []) {
       const partStr = String(pt).padStart(2, '0');
-      const matches = files.filter((f) => f.startsWith(`alurfilm_${contentId}_part_${partStr}_`) && f.endsWith('.mp4')).sort().reverse();
-      if (matches.length > 0) partFiles.push(path.join(outputDir, matches[0]));
+      const matches = files.filter((f) => f.startsWith(`alurfilm_${contentId}_part_${partStr}_`) && f.endsWith('.mp4'));
+      if (matches.length > 0) {
+        matches.sort((a, b) => {
+          const statA = fs.statSync(path.join(outputDir, a)).mtimeMs;
+          const statB = fs.statSync(path.join(outputDir, b)).mtimeMs;
+          return statB - statA;
+        });
+        partFiles.push(path.join(outputDir, matches[0]));
+      }
     }
 
     if (partFiles.length === 0) return { error: 'Belum ada video part yang dirender.' };
+
+    let introFilePath = null;
+    if (isIntroActive) {
+      const introTitle = introTitleText || saved.introTitleText || 'UNDER THE DOME';
+      const introSubtitle = introSubtitleText || saved.introSubtitleText || 'ALUR CERITA FILM';
+      const introPreset = introStylePreset || saved.introStylePreset || 'cinematic_gold';
+      const introDur = introDuration || saved.introDuration || 6.0;
+      const introImpact = introImpactTimestamp || saved.introImpactTimestamp || 0.48;
+      const introAudio = introAudioPath || saved.introAudioPath || 'assets/The Final Horizon.mp3';
+      const introOut = path.join(outputDir, `alurfilm_${contentId}_intro_${Date.now()}.mp4`);
+
+      console.log(`🎬 [Intro Generator] Generating intro title video: "${introTitle}"...`);
+      const introRes = await renderIntroVideoHelper({
+        titleText: introTitle,
+        subtitleText: introSubtitle,
+        stylePreset: introPreset,
+        duration: introDur,
+        impactTimestamp: introImpact,
+        audioPath: introAudio,
+        outputPath: introOut,
+      }, p.PROJECT_ROOT);
+
+      if (introRes.success && introRes.outputPath && fs.existsSync(introRes.outputPath)) {
+        introFilePath = introRes.outputPath;
+        console.log(`✅ [Intro Generator] Intro video generated successfully: ${path.basename(introFilePath)}`);
+      } else {
+        console.warn(`⚠️ [Intro Generator] Failed to generate intro video: ${introRes.error}`);
+      }
+    }
+
+    const allConcatFiles = [];
+    if (introFilePath) {
+      allConcatFiles.push(introFilePath);
+    }
+    allConcatFiles.push(...partFiles);
 
     const finalOutputName = contentId.startsWith('WV-FILM-') ? `${contentId}-FULL-FINAL.mp4` : `WV-FILM-${contentId}-FULL-FINAL.mp4`;
     const finalOutputPath = path.join(outputDir, finalOutputName);
 
     const listFile = path.join(p.TMP_DIR, `concat_list_${Date.now()}.txt`);
-    fs.writeFileSync(listFile, partFiles.map((f) => `file '${f}'`).join('\n'), 'utf-8');
+    fs.writeFileSync(listFile, allConcatFiles.map((f) => `file '${f}'`).join('\n'), 'utf-8');
 
-    let resolvedLogo = logoPath && fs.existsSync(logoPath) ? logoPath : null;
-    if (!resolvedLogo) {
-      const defaultLogo = path.join(p.PROJECT_ROOT, 'assets', 'logo.png');
-      const transparentLogo = path.join(p.PROJECT_ROOT, 'assets', 'logo-transparent.png');
-      if (fs.existsSync(defaultLogo)) resolvedLogo = defaultLogo;
-      else if (fs.existsSync(transparentLogo)) resolvedLogo = transparentLogo;
+    let resolvedLogo = null;
+    if (isLogoActive) {
+      const targetLogo = logoPath || saved.logoPath;
+      if (targetLogo && fs.existsSync(targetLogo)) {
+        resolvedLogo = targetLogo;
+      } else {
+        const defaultLogo = path.join(p.PROJECT_ROOT, 'assets', 'logo.png');
+        const transparentLogo = path.join(p.PROJECT_ROOT, 'assets', 'logo-transparent.png');
+        if (fs.existsSync(defaultLogo)) resolvedLogo = defaultLogo;
+        else if (fs.existsSync(transparentLogo)) resolvedLogo = transparentLogo;
+      }
     }
 
-    let resolvedBgm = bgmPath && fs.existsSync(bgmPath) ? bgmPath : null;
-    if (!resolvedBgm) {
-      const thomasNewmanPath = path.join(p.PROJECT_ROOT, 'assets', 'bgm', '05_santai_misteri', 'Piano music in style of Thomas Newman - sad mood - Royalty free music no copyright music.mp3');
-      if (fs.existsSync(thomasNewmanPath)) {
-        resolvedBgm = thomasNewmanPath;
+    let resolvedBgm = null;
+    if (isBgmActive) {
+      const targetBgm = bgmPath || saved.bgmPath;
+      if (targetBgm && fs.existsSync(targetBgm)) {
+        resolvedBgm = targetBgm;
       } else {
-        const assetsDir = path.join(p.PROJECT_ROOT, 'assets');
-        if (fs.existsSync(assetsDir)) {
-          const mp3s = fs.readdirSync(assetsDir).filter(f => f.toLowerCase().endsWith('.mp3'));
-          const thomasNewman = mp3s.find(f => f.toLowerCase().includes('thomas newman'));
-          if (thomasNewman) resolvedBgm = path.join(assetsDir, thomasNewman);
-          else if (mp3s.length > 0) resolvedBgm = path.join(assetsDir, mp3s[0]);
+        const thomasNewmanPath = path.join(p.PROJECT_ROOT, 'assets', 'bgm', '05_santai_misteri', 'Piano music in style of Thomas Newman - sad mood - Royalty free music no copyright music.mp3');
+        if (fs.existsSync(thomasNewmanPath)) {
+          resolvedBgm = thomasNewmanPath;
+        } else {
+          const assetsDir = path.join(p.PROJECT_ROOT, 'assets');
+          if (fs.existsSync(assetsDir)) {
+            const mp3s = fs.readdirSync(assetsDir).filter(f => f.toLowerCase().endsWith('.mp3'));
+            const thomasNewman = mp3s.find(f => f.toLowerCase().includes('thomas newman'));
+            if (thomasNewman) resolvedBgm = path.join(assetsDir, thomasNewman);
+            else if (mp3s.length > 0) resolvedBgm = path.join(assetsDir, mp3s[0]);
+          }
         }
       }
     }
 
-    const vol = bgmVolume ?? 0.18;
-    const opacity = logoOpacity ?? 0.6;
-    const margin = logoMargin ?? 40;
-    const scaleHeight = logoScale ?? 60;
+    const vol = bgmVolume ?? saved.bgmVolume ?? 0.18;
+    const opacity = logoOpacity ?? saved.logoOpacity ?? 0.6;
+    const margin = logoMargin ?? saved.logoMargin ?? 40;
+    const scaleHeight = logoScale ?? saved.logoScale ?? 60;
 
-    const args = ['-y', '-f', 'concat', '-safe', '0', '-i', listFile];
-    let streamIndex = 1;
-    let bgmIndex = null;
-    let logoIndex = null;
-
-    if (resolvedBgm && fs.existsSync(resolvedBgm)) {
-      console.log(`🎵 [Final Render] Injecting BGM: ${path.basename(resolvedBgm)} (Volume: ${vol})`);
-      args.push('-i', resolvedBgm);
-      bgmIndex = streamIndex++;
+    const args = ['-y'];
+    for (const f of allConcatFiles) {
+      args.push('-i', f);
     }
 
+    let logoIndex = null;
     if (resolvedLogo && fs.existsSync(resolvedLogo)) {
       console.log(`🎨 [Final Render] Injecting Logo Watermark: ${path.basename(resolvedLogo)} (Opacity: ${opacity}, Scale: ${scaleHeight}px, Margin: ${margin}px)`);
       args.push('-i', resolvedLogo);
-      logoIndex = streamIndex++;
+      logoIndex = allConcatFiles.length;
     }
 
     const filterParts = [];
-    let vMap = '0:v';
-    let aMap = '0:a';
+    for (let i = 0; i < allConcatFiles.length; i++) {
+      filterParts.push(`[${i}:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=30[v${i}]`);
+      filterParts.push(`[${i}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[a${i}]`);
+    }
+
+    const concatPairs = allConcatFiles.map((_, i) => `[v${i}][a${i}]`).join('');
+    filterParts.push(`${concatPairs}concat=n=${allConcatFiles.length}:v=1:a=1[vconcat][aout]`);
+
+    let vMap = '[vconcat]';
+    let aMap = '[aout]';
 
     if (logoIndex !== null) {
       filterParts.push(`[${logoIndex}:v]scale=-1:${scaleHeight},format=rgba,colorchannelmixer=aa=${opacity}[logo_alpha]`);
-      filterParts.push(`[0:v][logo_alpha]overlay=${margin}:${margin}[vout]`);
+      filterParts.push(`[vconcat][logo_alpha]overlay=${margin}:${margin}[vout]`);
       vMap = '[vout]';
     }
 
-    if (bgmIndex !== null) {
-      filterParts.push(`[0:a]volume=1.8[vo]`);
-      filterParts.push(`[${bgmIndex}:a]volume=${vol},aloop=loop=-1:size=2e+09[bgm]`);
-      filterParts.push(`[vo][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]`);
-      aMap = '[aout]';
-    } else {
-      filterParts.push(`[0:a]volume=1.8[vo]`);
-      aMap = '[vo]';
-    }
-
-    if (filterParts.length > 0) args.push('-filter_complex', filterParts.join(';'));
+    args.push('-filter_complex', filterParts.join(';'));
     args.push('-map', vMap, '-map', aMap);
-
-    if (logoIndex !== null) {
-      args.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '18', '-pix_fmt', 'yuv420p');
-    } else {
-      args.push('-c:v', 'copy');
-    }
-
-    args.push('-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', finalOutputPath);
+    args.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '18', '-r', '30', '-pix_fmt', 'yuv420p');
+    args.push('-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2');
+    args.push('-movflags', '+faststart', finalOutputPath);
 
     let estimatedTotalSec = 0;
     for (const pf of partFiles) {
@@ -306,7 +461,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
     const mapping = args.mapping || args.mappingData;
     const videoPath = args.videoPath;
     const audioPath = args.audioPath;
-    const { bgmPath, bgmVolume, logoPath, logoOpacity, logoMargin } = args;
+    const saved = loadSavedSettings();
+
+    const { bgmPath, bgmVolume, narrationVolume, logoPath, logoOpacity, logoMargin, logoScale, bgmEnabled, logoEnabled } = args;
 
     if (!mapping || !videoPath) return { error: 'Missing Alurfilm mapping or video path.' };
 
@@ -333,23 +490,57 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
 
     const mainWindow = getMainWindow();
 
+    const rawBgmPath = bgmPath || saved.bgmPath;
+    let finalBgmPath = null;
+    if (rawBgmPath) {
+      const absBgm = path.isAbsolute(rawBgmPath) ? rawBgmPath : path.resolve(p.PROJECT_ROOT, rawBgmPath);
+      if (fs.existsSync(absBgm)) finalBgmPath = absBgm;
+    }
+    const finalBgmVol = bgmVolume ?? saved.bgmVolume;
+    const finalNarrationVol = narrationVolume ?? saved.narrationVolume;
+
+    const rawLogoPath = logoPath || saved.logoPath;
+    let finalLogoPath = null;
+    if (rawLogoPath) {
+      const absLogo = path.isAbsolute(rawLogoPath) ? rawLogoPath : path.resolve(p.PROJECT_ROOT, rawLogoPath);
+      if (fs.existsSync(absLogo)) finalLogoPath = absLogo;
+    }
+    const finalLogoOpacity = logoOpacity ?? saved.logoOpacity;
+    const finalLogoMargin = logoMargin ?? saved.logoMargin;
+    const finalLogoScale = logoScale ?? saved.logoScale;
+
+    const isBgmActive = bgmEnabled !== undefined ? bgmEnabled : (saved.bgmEnabled !== undefined ? saved.bgmEnabled : true);
+    const isLogoActive = logoEnabled !== undefined ? logoEnabled : (saved.logoEnabled !== undefined ? saved.logoEnabled : true);
+
     return new Promise((resolve) => {
       const startTime = Date.now();
       const cliPath = path.join(p.PROJECT_ROOT, 'render-alurfilm.ts');
       let cmd = `npx tsx "${cliPath}" render "${mappingFile}" --video "${resolvedVideo}"`;
       if (resolvedAudio && fs.existsSync(resolvedAudio)) cmd += ` --audio "${resolvedAudio}"`;
-      if (bgmPath && fs.existsSync(bgmPath)) cmd += ` --bgm "${bgmPath}"`;
-      if (bgmVolume) cmd += ` --bgm-volume ${bgmVolume}`;
-      if (logoPath && fs.existsSync(logoPath)) cmd += ` --logo "${logoPath}"`;
-      if (logoOpacity) cmd += ` --logo-opacity ${logoOpacity}`;
-      if (logoMargin) cmd += ` --logo-margin ${logoMargin}`;
+
+      if (isBgmActive === false) {
+        cmd += ` --no-bgm`;
+      } else {
+        if (finalBgmPath) cmd += ` --bgm "${finalBgmPath}"`;
+        if (finalBgmVol !== undefined) cmd += ` --bgm-volume ${finalBgmVol}`;
+      }
+
+      if (finalNarrationVol !== undefined) cmd += ` --narration-volume ${finalNarrationVol}`;
+
+      if (isLogoActive && finalLogoPath) {
+        cmd += ` --logo "${finalLogoPath}"`;
+        if (finalLogoOpacity !== undefined) cmd += ` --logo-opacity ${finalLogoOpacity}`;
+        if (finalLogoMargin !== undefined) cmd += ` --logo-margin ${finalLogoMargin}`;
+        if (finalLogoScale !== undefined) cmd += ` --logo-scale ${finalLogoScale}`;
+      }
+
       cmd += ` -o "${outputPath}"`;
 
       const child = spawn('bash', ['-c', cmd], { cwd: p.PROJECT_ROOT, env: { ...process.env } });
 
       let fullStdout = '';
       let fullStderr = '';
-      let currentProgress = 0.05;
+      let currentProgress = 5;
 
       child.stdout.on('data', (d) => {
         const text = d.toString();
@@ -359,7 +550,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
           const line = rawLine.trim();
           if (!line) continue;
           const pctMatch = line.match(/(\d+)%/);
-          if (pctMatch) currentProgress = Math.min(0.99, parseInt(pctMatch[1], 10) / 100);
+          if (pctMatch) currentProgress = Math.min(99, parseInt(pctMatch[1], 10));
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('render-progress', { stage: 'render', progress: currentProgress, message: line });
           }
@@ -384,7 +575,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
         try { fs.unlinkSync(mappingFile); } catch { }
         if (code === 0) {
           if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('render-progress', { stage: 'done', progress: 1, message: `🎉 [Alurfilm Engine] Render Part #${part} Done in ${elapsed}s` });
+            mainWindow.webContents.send('render-progress', { stage: 'done', progress: 100, message: `🎉 [Alurfilm Engine] Render Part #${part} Done in ${elapsed}s` });
           }
           resolve({ part, outputPath, elapsed, name: outputFileName, mediaUrl: media.mediaUrl(outputPath) });
         } else {

@@ -1,7 +1,8 @@
 // dashboard/src/components/longform/AlurfilmAudioStep.tsx
 import React, { useState, useEffect } from 'react';
-import type { AlurfilmChunk, AlurfilmAudioResult } from '../../electron-api';
+import type { AlurfilmChunk, AlurfilmAudioResult, AlurfilmAnalysisResult } from '../../electron-api';
 import { GoogleAiStudioTtsPreset } from '../common/GoogleAiStudioTtsPreset';
+import { parseScriptSegments, convertToGeminiTtsScript } from '../../../../lib/alurfilm/script-parser';
 
 const api = window.electronAPI;
 
@@ -9,9 +10,11 @@ const AlurfilmAudioStep: React.FC = () => {
   const [contentId, setContentId] = useState<string | null>(null);
   const [chunks, setChunks] = useState<AlurfilmChunk[]>([]);
   const [audioList, setAudioList] = useState<AlurfilmAudioResult[]>([]);
+  const [analyses, setAnalyses] = useState<Record<number, AlurfilmAnalysisResult>>({});
   const [activePart, setActivePart] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
   const [uploading, setUploading] = useState<boolean>(false);
+  const [isSplicing, setIsSplicing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -32,6 +35,19 @@ const AlurfilmAudioStep: React.FC = () => {
 
         const list = await api.listAlurfilmAudios(id);
         setAudioList(list || []);
+
+        const analysisList = await api.listAlurfilmAnalyses(id);
+        const map: Record<number, AlurfilmAnalysisResult> = {};
+        if (analysisList) {
+          for (const item of analysisList) {
+            if (item.data && item.data.chunk_part) {
+              map[item.data.chunk_part] = item;
+            } else if (item.part) {
+              map[item.part] = item;
+            }
+          }
+        }
+        setAnalyses(map);
 
         if (chunkList && chunkList.length > 0) {
           setActivePart(chunkList[0].part);
@@ -176,6 +192,64 @@ const AlurfilmAudioStep: React.FC = () => {
               </span>
             </button>
           </div>
+
+          {/* SCRIPT & VISUAL-ONLY BREAKDOWN FOR ACTIVE PART */}
+          {(() => {
+            const activeAnalysis = analyses[activePart];
+            const rawScript = activeAnalysis?.data?.naskah_voiceover?.script_text || '';
+            if (!rawScript) return null;
+            const parsed = parseScriptSegments(rawScript);
+            return (
+              <div className="p-3.5 bg-gray-950/80 border border-purple-900/40 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                    <span>📜</span> Naskah & Visual-Only Part #{activePart}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ttsScript = convertToGeminiTtsScript(rawScript);
+                      if (api.copyToClipboard) {
+                        api.copyToClipboard(ttsScript);
+                        showToast(`🎙️ Copied Gemini TTS Script (<break time="..."/>) Part #${activePart}!`);
+                      }
+                    }}
+                    className="px-2.5 py-1 bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-700/60 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1"
+                    title="Copy naskah dengan tag <break time='...s'/> untuk AI Studio"
+                  >
+                    <span>⚡</span> Copy Gemini TTS
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono bg-gray-900/60 p-2 rounded-lg">
+                  <span>Narasi: <strong className="text-purple-300">{activeAnalysis?.data?.naskah_voiceover?.word_count || 0} Kata</strong></span>
+                  {parsed.totalVisualOnlyCount > 0 ? (
+                    <span className="text-amber-300 font-bold bg-amber-950/60 border border-amber-800/60 px-1.5 py-0.5 rounded text-[10px]">
+                      🎥 {parsed.totalVisualOnlyCount} Jeda Visual ({parsed.totalVisualOnlyDuration.toFixed(1)}s Total)
+                    </span>
+                  ) : (
+                    <span className="text-gray-500">Tanpa Jeda Visual</span>
+                  )}
+                </div>
+
+                {parsed.totalVisualOnlyCount > 0 && (
+                  <div className="space-y-1 pt-1 border-t border-gray-800">
+                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+                      Daftar Jeda Visual Murni:
+                    </span>
+                    {parsed.segments
+                      .filter((s) => s.type === 'visual_only')
+                      .map((seg, idx) => (
+                        <div key={idx} className="p-1.5 bg-amber-950/30 border border-amber-900/40 rounded text-[10px] font-mono text-amber-300 flex items-center justify-between gap-2">
+                          <span className="truncate">🎥 {seg.description}</span>
+                          <span className="font-bold text-amber-400 shrink-0">⏱️ {seg.durationSeconds.toFixed(1)}s</span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* AUDIO PLAYER CARD */}
           {currentAudio ? (

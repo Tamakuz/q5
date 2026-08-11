@@ -2,7 +2,7 @@
 import React from 'react';
 
 export type StepId = 'source' | 'analyze' | 'audio' | 'transcript' | 'mapping' | 'render' | 'upload' | 'publish' | 'thumbnail';
-export type ContentMode = 'vann' | 'waku' | 'longform' | 'spensia' | 'ugc' | 'shortform';
+export type ContentMode = 'longform' | 'spensia' | 'ugc';
 
 interface Step {
   id: StepId;
@@ -11,16 +11,6 @@ interface Step {
   subText: string;
   shortLabel?: string;
 }
-
-const VANN_STEPS: Step[] = [
-  { id: 'source', icon: '💡', label: '1. Topics Generator', subText: 'Ide topik & fakta kontraintuitif' },
-  { id: 'analyze', icon: '⚡', label: '2. Script Generator', subText: 'Naskah voiceover Style DNA Vann' },
-  { id: 'publish', icon: '🎙️', label: '3. Voice & Timeline Studio', subText: 'Transkrip, auto timeline & visual sync' },
-  { id: 'mapping', icon: '🎨', label: '4. Image Prompt Generator', subText: 'Visual Style DNA Vann prompts' },
-  { id: 'render', icon: '🖼️', label: '5. Image Generator', subText: 'Generate ilustrasi adegan Google Flow' },
-  { id: 'upload', icon: '🎬', label: '6. Render Studio (16:9)', subText: 'Watermark, caption, BGM & export' },
-  { id: 'thumbnail', icon: '🚀', label: '7. Publish Hub & Thumbnail', subText: 'AI SEO Title, Tags, Description & 3x Thumbnail' },
-];
 
 const LONGFORM_STEPS: Step[] = [
   { id: 'source', icon: '✂️', label: '1. Splitter (20 Min)', subText: 'Cut raw movie into parts' },
@@ -67,13 +57,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   onLongformTabChange,
 }) => {
   const activeStepsList =
-    contentMode === 'vann' || contentMode === 'waku' || contentMode === 'shortform'
-      ? VANN_STEPS
-      : contentMode === 'longform'
-        ? LONGFORM_STEPS
-        : contentMode === 'spensia'
-          ? SPENSIA_STEPS
-          : UGC_STEPS;
+    contentMode === 'longform'
+      ? LONGFORM_STEPS
+      : contentMode === 'spensia'
+        ? SPENSIA_STEPS
+        : UGC_STEPS;
 
   return (
     <nav className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col py-4 shrink-0 justify-between">
@@ -83,15 +71,15 @@ const Sidebar: React.FC<SidebarProps> = ({
           <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block px-1">
             Content Category
           </span>
-          <div className="grid grid-cols-4 gap-1 bg-gray-950 p-1 rounded-xl border border-gray-800">
+          <div className="grid grid-cols-3 gap-1 bg-gray-950 p-1 rounded-xl border border-gray-800">
             <button
-              onClick={() => onModeChange('vann')}
-              className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all text-center flex items-center justify-center gap-0.5 ${contentMode === 'vann' || contentMode === 'waku' || contentMode === 'shortform'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+              onClick={() => onModeChange('spensia')}
+              className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all text-center flex items-center justify-center gap-0.5 ${contentMode === 'spensia'
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
                 }`}
             >
-              <span>📱</span> Vann
+              <span>✨</span> Spensia
             </button>
             <button
               onClick={() => onModeChange('longform')}
@@ -101,15 +89,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                 }`}
             >
               <span>🍿</span> Film
-            </button>
-            <button
-              onClick={() => onModeChange('spensia')}
-              className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all text-center flex items-center justify-center gap-0.5 ${contentMode === 'spensia'
-                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-                }`}
-            >
-              <span>✨</span> Spensia
             </button>
             <button
               onClick={() => onModeChange('ugc')}
@@ -129,22 +108,18 @@ const Sidebar: React.FC<SidebarProps> = ({
             <span>WORKFLOW STEPS</span>
             <span
               className={
-                contentMode === 'waku' || contentMode === 'shortform'
-                  ? 'text-blue-400 font-bold'
-                  : contentMode === 'longform'
-                    ? 'text-purple-400 font-bold'
-                    : contentMode === 'spensia'
-                      ? 'text-emerald-400 font-bold'
-                      : 'text-cyan-400 font-bold'
+                contentMode === 'longform'
+                  ? 'text-purple-400 font-bold'
+                  : contentMode === 'spensia'
+                    ? 'text-emerald-400 font-bold'
+                    : 'text-cyan-400 font-bold'
               }
             >
-              {contentMode === 'waku' || contentMode === 'shortform'
-                ? 'Vann Workflow'
-                : contentMode === 'longform'
-                  ? '16:9 Alur Film'
-                  : contentMode === 'spensia'
-                    ? 'Spensia'
-                    : 'UGC Mode'}
+              {contentMode === 'longform'
+                ? '16:9 Alur Film'
+                : contentMode === 'spensia'
+                  ? 'Spensia'
+                  : 'UGC Mode'}
             </span>
           </div>
 
@@ -190,13 +165,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                     group flex items-start gap-3 px-3.5 py-2.5 mx-2 rounded-xl text-xs font-semibold
                     transition-all duration-150 text-left w-[calc(100%-16px)] border
                     ${isActive
-                      ? contentMode === 'waku' || contentMode === 'shortform'
-                        ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/30'
-                        : contentMode === 'longform'
-                          ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/30'
-                          : contentMode === 'spensia'
-                            ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-600/30'
-                            : 'bg-cyan-600 border-cyan-500 text-white shadow-lg shadow-cyan-600/30'
+                      ? contentMode === 'longform'
+                        ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/30'
+                        : contentMode === 'spensia'
+                          ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-600/30'
+                          : 'bg-cyan-600 border-cyan-500 text-white shadow-lg shadow-cyan-600/30'
                       : 'bg-transparent border-transparent text-gray-400 hover:bg-gray-800/80 hover:text-gray-200'
                     }
                   `}
@@ -229,22 +202,18 @@ const Sidebar: React.FC<SidebarProps> = ({
             ACTIVE WORKFLOW MODE
           </span>
           <span
-            className={`text-xs font-bold block ${contentMode === 'waku' || contentMode === 'shortform'
-              ? 'text-blue-400'
-              : contentMode === 'longform'
-                ? 'text-purple-400'
-                : contentMode === 'spensia'
-                  ? 'text-emerald-400'
-                  : 'text-cyan-400'
+            className={`text-xs font-bold block ${contentMode === 'longform'
+              ? 'text-purple-400'
+              : contentMode === 'spensia'
+                ? 'text-emerald-400'
+                : 'text-cyan-400'
               }`}
           >
-            {contentMode === 'waku' || contentMode === 'shortform'
-              ? '📱 Waku Workflow'
-              : contentMode === 'longform'
-                ? '🍿 Alur Cerita Film (16:9)'
-                : contentMode === 'spensia'
-                  ? '✨ Spensia Workflow'
-                  : '⚡ UGC Workflow'}
+            {contentMode === 'longform'
+              ? '🍿 Alur Cerita Film (16:9)'
+              : contentMode === 'spensia'
+                ? '✨ Spensia Workflow'
+                : '⚡ UGC Workflow'}
           </span>
         </div>
       </div>

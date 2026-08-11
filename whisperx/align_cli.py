@@ -111,7 +111,7 @@ def run_faster_whisper_pipeline(audio_path: str, raw_text: str, model_name: str 
         best_of=5,
         condition_on_previous_text=False,
         vad_filter=True,
-        vad_parameters=dict(min_silence_duration_ms=800, speech_pad_ms=400),
+        vad_parameters=dict(min_silence_duration_ms=400, speech_pad_ms=150),
         word_timestamps=True
     )
 

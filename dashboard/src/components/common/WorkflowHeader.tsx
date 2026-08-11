@@ -9,14 +9,6 @@ interface StepItem {
   shortLabel: string;
 }
 
-const WAKU_STEPS: StepItem[] = [
-{ id: 'source', label: '1. Topics Generator', shortLabel: 'Topics', icon: '💡' },
-{ id: 'analyze', label: '2. Script Generator', shortLabel: 'Script', icon: '⚡' },
-{ id: 'publish', label: '3. Voice Over', shortLabel: 'Voice', icon: '🎙️' },
-{ id: 'mapping', label: '4. Image Prompts', shortLabel: 'Prompts', icon: '🎨' },
-{ id: 'render', label: '5. Image Generator', shortLabel: 'Images', icon: '🖼️' },
-];
-
 const LONGFORM_STEPS: StepItem[] = [
   { id: 'source', label: '1. Splitter (10M)', shortLabel: 'Splitter', icon: '✂️' },
   { id: 'analyze', label: '2. Script Generator', shortLabel: 'Script', icon: '⚡' },
@@ -50,9 +42,7 @@ const WorkflowHeader: React.FC<WorkflowHeaderProps> = ({
   onOpenPreview,
 }) => {
   const steps =
-    contentMode === 'waku' || contentMode === 'shortform'
-      ? WAKU_STEPS
-      : contentMode === 'longform'
+    contentMode === 'longform'
       ? LONGFORM_STEPS
       : SPENSIA_STEPS;
   const activeIndex = steps.findIndex((s) => s.id === activeStep);
@@ -62,7 +52,7 @@ const WorkflowHeader: React.FC<WorkflowHeaderProps> = ({
       {/* Visual Workflow Steps Bar */}
       <div className="flex items-center gap-1.5 overflow-x-auto min-w-0 flex-1 py-0.5 no-scrollbar">
         {steps.length === 0 ? (
-          <span className="text-xs text-gray-500 italic">Workflow Waku (Belum ada step)</span>
+          <span className="text-xs text-gray-500 italic">Workflow (Belum ada step)</span>
         ) : (
           steps.map((step, index) => {
             const isActive = step.id === activeStep;
@@ -74,9 +64,7 @@ const WorkflowHeader: React.FC<WorkflowHeaderProps> = ({
                   onClick={() => onStepChange(step.id)}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 border ${
                     isActive
-                      ? contentMode === 'waku' || contentMode === 'shortform'
-                        ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/30'
-                        : contentMode === 'longform'
+                      ? contentMode === 'longform'
                         ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/30'
                         : 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-600/30'
                       : isPassed
@@ -98,9 +86,7 @@ const WorkflowHeader: React.FC<WorkflowHeaderProps> = ({
                   <div
                     className={`h-0.5 w-4 rounded-full shrink-0 transition-colors ${
                       index < activeIndex
-                        ? contentMode === 'waku' || contentMode === 'shortform'
-                          ? 'bg-blue-500/60'
-                          : contentMode === 'longform'
+                        ? contentMode === 'longform'
                           ? 'bg-purple-500/60'
                           : 'bg-emerald-500/60'
                         : 'bg-gray-800'

@@ -4,6 +4,7 @@ import type { AlurfilmChunk, AlurfilmAnalysisResult, AlurfilmAudioResult } from 
 
 import { validateScriptAnalysis } from '../../utils/scriptValidation';
 import { GoogleAiStudioTtsPreset } from '../common/GoogleAiStudioTtsPreset';
+import { parseScriptSegments, convertToGeminiTtsScript } from '../../../../lib/alurfilm/script-parser';
 
 const api = window.electronAPI;
 
@@ -101,7 +102,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
         if (!promptTpl) {
           promptTpl = await api.readFromProject('dashboard/prompts/longform/alurfilm-singlepass-prompt.md');
         }
-        const computedWords = 600;
+        const computedWords = 300;
         const isFirstPartStr = partNum === 1 ? 'YA (Part Pembuka)' : `TIDAK (Chunk #${partNum} / Part Lanjutan)`;
         const isLastPartStr = partNum === totalChunks ? 'YA (Part Penutup / Final Part)' : 'TIDAK (Part Bukan Penutup)';
         const prevCtxStr = prevContext ? JSON.stringify(prevContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
@@ -358,18 +359,34 @@ const AlurfilmAnalyzeStep: React.FC = () => {
             </div>
 
             {currentAnalysis && (
-              <button
-                onClick={() => {
-                  const text = currentAnalysis.naskah_voiceover?.script_text || '';
-                  if (api.copyToClipboard) {
-                    api.copyToClipboard(text);
-                    showToast(`📋 Copied Naskah Part #${activePart}!`);
-                  }
-                }}
-                className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-xs font-medium transition-all flex items-center gap-1 shrink-0"
-              >
-                📋 Copy
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={() => {
+                    const text = currentAnalysis.naskah_voiceover?.script_text || '';
+                    const ttsScript = convertToGeminiTtsScript(text);
+                    if (api.copyToClipboard) {
+                      api.copyToClipboard(ttsScript);
+                      showToast(`🎙️ Copied Gemini TTS Script (<break time="..."/>) Part #${activePart}!`);
+                    }
+                  }}
+                  className="px-2.5 py-1 bg-purple-950/60 hover:bg-purple-900 text-purple-300 border border-purple-800/60 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1"
+                  title="Copy naskah lengkap dengan tag <break time='...s'/> untuk AI Studio TTS"
+                >
+                  <span>⚡</span> Copy Gemini TTS
+                </button>
+                <button
+                  onClick={() => {
+                    const text = currentAnalysis.naskah_voiceover?.script_text || '';
+                    if (api.copyToClipboard) {
+                      api.copyToClipboard(text);
+                      showToast(`📋 Copied Naskah Raw Part #${activePart}!`);
+                    }
+                  }}
+                  className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-xs font-medium transition-all flex items-center gap-1"
+                >
+                  📋 Copy Raw
+                </button>
+              </div>
             )}
           </div>
 
@@ -377,36 +394,67 @@ const AlurfilmAnalyzeStep: React.FC = () => {
           <div className="p-5 flex-1 flex flex-col min-h-0 overflow-y-auto space-y-4">
             {currentAnalysis ? (
               <>
-                {activeTab === 'script' && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-xs bg-gray-950 p-3 rounded-xl border border-gray-800">
-                      <span className="text-gray-400">Word Count: <strong className="text-purple-400 font-mono">{currentAnalysis.naskah_voiceover?.word_count || 0} Kata</strong></span>
-                      <span className="text-gray-400">Status: <strong className="text-emerald-400 font-mono">✓ Script Ready</strong></span>
-                    </div>
-
-                    {currentAudio && (
-                      <div className="p-3 bg-indigo-950/30 border border-indigo-800/40 rounded-xl flex items-center justify-between gap-3 text-xs">
-                        <span className="text-indigo-300 font-bold flex items-center gap-1.5 truncate">
-                          <span>🎙️</span> Audio: {currentAudio.name}
-                        </span>
-                        <audio src={currentAudio.mediaUrl || currentAudio.url} controls className="h-8 w-44" />
+                {activeTab === 'script' && (() => {
+                  const rawScript = currentAnalysis.naskah_voiceover?.script_text || '';
+                  const parsed = parseScriptSegments(rawScript);
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-xs bg-gray-950 p-3 rounded-xl border border-gray-800 flex-wrap gap-2">
+                        <span className="text-gray-400">Word Count: <strong className="text-purple-400 font-mono">{currentAnalysis.naskah_voiceover?.word_count || 0} Kata</strong></span>
+                        {parsed.totalVisualOnlyCount > 0 ? (
+                          <span className="text-purple-300 bg-purple-950/60 border border-purple-800/60 px-2 py-0.5 rounded-lg text-[11px] font-semibold">
+                            🎥 {parsed.totalVisualOnlyCount} Jeda Visual ({parsed.totalVisualOnlyDuration.toFixed(1)}s Total)
+                          </span>
+                        ) : null}
+                        <span className="text-gray-400">Status: <strong className="text-emerald-400 font-mono">✓ Script Ready</strong></span>
                       </div>
-                    )}
 
-                    {currentAnalysis.naskah_voiceover?.macro_summary && (
-                      <div className="p-3.5 bg-purple-950/30 border border-purple-800/40 rounded-xl text-xs space-y-1">
-                        <span className="font-bold text-purple-300 block">📌 Macro Summary:</span>
-                        <p className="text-gray-300 leading-relaxed">{currentAnalysis.naskah_voiceover.macro_summary}</p>
+                      {currentAudio && (
+                        <div className="p-3 bg-indigo-950/30 border border-indigo-800/40 rounded-xl flex items-center justify-between gap-3 text-xs">
+                          <span className="text-indigo-300 font-bold flex items-center gap-1.5 truncate">
+                            <span>🎙️</span> Audio: {currentAudio.name}
+                          </span>
+                          <audio src={currentAudio.mediaUrl || currentAudio.url} controls className="h-8 w-44" />
+                        </div>
+                      )}
+
+                      {currentAnalysis.naskah_voiceover?.macro_summary && (
+                        <div className="p-3.5 bg-purple-950/30 border border-purple-800/40 rounded-xl text-xs space-y-1">
+                          <span className="font-bold text-purple-300 block">📌 Macro Summary:</span>
+                          <p className="text-gray-300 leading-relaxed">{currentAnalysis.naskah_voiceover.macro_summary}</p>
+                        </div>
+                      )}
+
+                      <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-2">
+                        {parsed.totalVisualOnlyCount > 0 ? (
+                          parsed.segments.map((seg, idx) => (
+                            seg.type === 'visual_only' ? (
+                              <div key={idx} className="my-2 p-2.5 bg-amber-950/40 border border-amber-800/60 rounded-xl text-amber-300 text-xs font-mono flex items-center justify-between gap-2 shadow-inner">
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2 py-0.5 bg-amber-900/80 text-amber-200 rounded font-bold text-[10px]">
+                                    🎥 VISUAL ONLY
+                                  </span>
+                                  <span>{seg.description}</span>
+                                </div>
+                                <span className="font-bold text-amber-400 shrink-0">
+                                  ⏱️ {seg.durationSeconds.toFixed(1)}s Jeda VO
+                                </span>
+                              </div>
+                            ) : (
+                              <p key={idx} className="text-xs text-gray-200 leading-relaxed whitespace-pre-wrap font-sans">
+                                {seg.text}
+                              </p>
+                            )
+                          ))
+                        ) : (
+                          <p className="text-xs text-gray-200 leading-relaxed whitespace-pre-wrap select-all font-sans">
+                            {rawScript}
+                          </p>
+                        )}
                       </div>
-                    )}
-
-                    <div className="bg-gray-950 p-4 rounded-xl border border-gray-800">
-                      <p className="text-xs text-gray-200 leading-relaxed whitespace-pre-wrap select-all font-sans">
-                        {currentAnalysis.naskah_voiceover?.script_text}
-                      </p>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {activeTab === 'characters' && (
                   <div className="space-y-3">
