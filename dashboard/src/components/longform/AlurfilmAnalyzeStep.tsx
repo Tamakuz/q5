@@ -66,8 +66,8 @@ const AlurfilmAnalyzeStep: React.FC = () => {
     if (isGenerating) return;
     setIsGenerating(true);
     setError(null);
-    setPipelineProgress({ percent: 5, step: 'init', message: `Initializing Gemini App pipeline for Part #${activePart}...` });
-    setPipelineLogs([{ level: 'info', message: `🚀 Starting Gemini Web App Pipeline for Part #${activePart}...`, timestamp: new Date().toLocaleTimeString() }]);
+    setPipelineProgress({ percent: 5, step: 'init', message: `Initializing Playwright pipeline for Part #${activePart}...` });
+    setPipelineLogs([{ level: 'info', message: `🚀 Starting Playwright Alurfilm Step 2 Pipeline for Part #${activePart}...`, timestamp: new Date().toLocaleTimeString() }]);
     setShowLogConsole(true);
 
     try {
@@ -104,7 +104,15 @@ const AlurfilmAnalyzeStep: React.FC = () => {
 
           if (dataToSave) {
             const report = validateScriptAnalysis(dataToSave, activePart);
-            const validData = report.isValid ? report.normalizedData : dataToSave;
+            if (!report.isValid) {
+              const errMsg = `Script Analysis Validation Error: ${report.issues.map(i => i.message).join(' | ')}`;
+              setError(errMsg);
+              setPipelineLogs(prev => [...prev, { level: 'error', message: `❌ ${errMsg}`, timestamp: new Date().toLocaleTimeString() }]);
+              showToast(`❌ ${errMsg}`);
+              return;
+            }
+
+            const validData = report.normalizedData || dataToSave;
             const targetPart = Number(validData?.chunk_part || activePart) || 1;
 
             const saveRes = await api.saveAlurfilmAnalysis(targetPart, validData);
@@ -125,15 +133,24 @@ const AlurfilmAnalyzeStep: React.FC = () => {
               map[targetPart] = saveRes;
             }
             setAnalyses(map);
-            showToast(`🎉 Gemini Pipeline completed for Part #${targetPart}! Script analysis JSON saved.`);
+            setPipelineProgress({ percent: 100, step: 'done', message: `🎉 Part #${targetPart} Script Analysis Completed & Saved!` });
+            setPipelineLogs(prev => [...prev, { level: 'info', message: `🎉 Part #${targetPart} Script Analysis Completed & Saved!`, timestamp: new Date().toLocaleTimeString() }]);
+            showToast(`🎉 Playwright Pipeline completed for Part #${targetPart}! Script analysis JSON saved.`);
           } else {
-            setError(`Gemini Pipeline completed but failed to parse valid JSON from response output.`);
+            const errMsg = `Playwright Pipeline completed but output is missing mandatory "naskah_voiceover" JSON structure. File was NOT saved.`;
+            setError(errMsg);
+            setPipelineProgress({ percent: 0, step: 'error', message: `❌ ${errMsg}` });
+            setPipelineLogs(prev => [...prev, { level: 'error', message: `❌ ${errMsg}`, timestamp: new Date().toLocaleTimeString() }]);
           }
         } else if (res.error) {
-          setError(`Gemini Pipeline error: ${res.error}`);
+          const errMsg = `Playwright Pipeline Error: ${res.error}`;
+          setError(errMsg);
+          setPipelineLogs(prev => [...prev, { level: 'error', message: `❌ ${errMsg}`, timestamp: new Date().toLocaleTimeString() }]);
         }
       } else {
-        setError('Gemini App Script Pipeline API is not available on window.electronAPI.');
+        const errMsg = 'Playwright Script Pipeline API is not available on window.electronAPI.';
+        setError(errMsg);
+        setPipelineLogs(prev => [...prev, { level: 'error', message: `❌ ${errMsg}`, timestamp: new Date().toLocaleTimeString() }]);
       }
     } catch (err: any) {
       setError(`Failed to execute Gemini Pipeline: ${err.message}`);
@@ -309,7 +326,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
             ) : (
               <>
                 <span>⚡</span>
-                <span>Auto Generate via Gemini App</span>
+                <span>Auto Generate via Playwright</span>
               </>
             )}
           </button>
@@ -445,7 +462,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
                   </div>
                 ))
               ) : (
-                <div className="text-gray-600 text-center py-3">No console logs recorded yet. Click "Auto Generate via Gemini App" to launch.</div>
+                <div className="text-gray-600 text-center py-3">No console logs recorded yet. Click "Auto Generate via Playwright" to launch.</div>
               )}
               <div ref={logEndRef} />
             </div>
@@ -710,7 +727,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
                   </div>
                   <h3 className="text-xs font-bold text-white">Belum Ada Script Generator Part #{activePart}</h3>
                   <p className="text-[11px] text-gray-400 max-w-xs mx-auto">
-                    Klik 1-tombol "Auto Generate via Gemini App" atau ikuti manual 3-langkah berikut:
+                    Klik 1-tombol "Auto Generate via Playwright" atau ikuti manual 3-langkah berikut:
                   </p>
                 </div>
 
@@ -720,7 +737,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
                     <span className="w-6 h-6 rounded-full bg-purple-600 text-white font-bold text-xs flex items-center justify-center shrink-0">1</span>
                     <div>
                       <h4 className="text-xs font-bold text-white">Auto Generate</h4>
-                      <p className="text-[10px] text-gray-400">Klik "Auto Generate via Gemini App" di kanan atas.</p>
+                      <p className="text-[10px] text-gray-400">Klik "Auto Generate via Playwright" di kanan atas.</p>
                     </div>
                   </div>
 

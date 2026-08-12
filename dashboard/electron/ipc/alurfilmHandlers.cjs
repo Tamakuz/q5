@@ -500,25 +500,32 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       .replace(/{{style_example}}/g, styleExampleStr);
 
     const runnerScript = `
-import { runGeminiScriptPipeline } from './playwright/pipelines/gemini-script-pipeline.ts';
+import { runAlurfilmStep2ScriptPipeline } from './playwright/pipelines/alurfilm-step2-script-pipeline.ts';
 
 (async () => {
   try {
-    const res = await runGeminiScriptPipeline({
-      partNum: ${JSON.stringify(partNum)},
+    const res = await runAlurfilmStep2ScriptPipeline({
+      targetVideoPath: ${JSON.stringify(videoFilePath)},
+      chunkPart: ${JSON.stringify(partNum)},
       totalChunks: ${JSON.stringify(totalChunks)},
-      promptText: ${JSON.stringify(formattedPrompt)},
-      videoFileName: ${JSON.stringify(targetFileName)},
-      videoFilePath: ${JSON.stringify(videoFilePath)},
-      onProgress: (prog) => {
-        console.log('PROGRESS_EVENT:' + JSON.stringify(prog));
-      },
-      onLog: (log) => {
-        console.log('LOG_EVENT:' + JSON.stringify(log));
-      }
+      isFirstPart: ${JSON.stringify(isFirstPart)},
+      isLastPart: ${JSON.stringify(isLastPart)},
+      targetWordsPerChunk: ${JSON.stringify(computedWordsPerChunk)},
+      previousContext: ${JSON.stringify(prevCtxStr)},
+      styleExample: ${JSON.stringify(styleExampleStr)},
+      headed: true
     });
-    console.log('RESULT_EVENT:' + JSON.stringify(res));
-    process.exit(0);
+    
+    const resultPayload = {
+      success: res.success,
+      partNum: ${partNum},
+      rawText: res.extractedText || '',
+      extractedJson: res.parsedJson || null,
+      error: res.error
+    };
+    
+    console.log('RESULT_EVENT:' + JSON.stringify(resultPayload));
+    process.exit(res.success ? 0 : 1);
   } catch (err) {
     console.log('RESULT_EVENT:' + JSON.stringify({ success: false, partNum: ${partNum}, rawText: '', error: err.message || String(err) }));
     process.exit(1);
@@ -554,6 +561,24 @@ import { runGeminiScriptPipeline } from './playwright/pipelines/gemini-script-pi
             } catch {}
           } else {
             console.log(`[Gemini Pipeline Subprocess] ${trimmed}`);
+            if (trimmed.includes('AUTO-SWITCH TRIGGERED') || trimmed.includes('Automatically rotating')) {
+              event.sender.send('alurfilm:log', { level: 'warn', message: `🔄 Quota/Permission error ("An internal error has occurred") detected! Automatically switching to next Playwright profile...`, partNum });
+            } else if (trimmed.includes('STEP 1: Pasting')) {
+              event.sender.send('alurfilm:progress', { percent: 20, step: 'paste_prompt', message: `Pasting script prompt into AI Studio...`, partNum });
+              event.sender.send('alurfilm:log', { level: 'info', message: `📝 Pasting script prompt into AI Studio...`, partNum });
+            } else if (trimmed.includes('STEP 2 & 3: Opening Drive Picker') || trimmed.includes('searchDriveFile')) {
+              event.sender.send('alurfilm:progress', { percent: 40, step: 'attach_drive', message: `Searching & attaching video file in Drive...`, partNum });
+              event.sender.send('alurfilm:log', { level: 'info', message: `📁 Searching & attaching video file in Drive...`, partNum });
+            } else if (trimmed.includes('STEP 4: Submitting Prompt')) {
+              event.sender.send('alurfilm:progress', { percent: 65, step: 'submit_prompt', message: `Submitting prompt to Gemini 3.1 Pro Preview...`, partNum });
+              event.sender.send('alurfilm:log', { level: 'info', message: `🚀 Submitting prompt to Gemini 3.1 Pro Preview...`, partNum });
+            } else if (trimmed.includes('STEP 5: Waiting & Extracting')) {
+              event.sender.send('alurfilm:progress', { percent: 80, step: 'extract_output', message: `Extracting streaming response narration...`, partNum });
+              event.sender.send('alurfilm:log', { level: 'info', message: `⏳ Extracting streaming response narration...`, partNum });
+            } else if (trimmed.includes('STEP 6: Validating')) {
+              event.sender.send('alurfilm:progress', { percent: 95, step: 'saving', message: `Validating JSON & saving script files...`, partNum });
+              event.sender.send('alurfilm:log', { level: 'info', message: `💾 Validating JSON & saving script files...`, partNum });
+            }
           }
         }
       });
@@ -563,12 +588,9 @@ import { runGeminiScriptPipeline } from './playwright/pipelines/gemini-script-pi
       });
 
       child.on('close', () => {
-        if (finalResult.success && finalResult.rawText) {
-          const destPath = path.join(p.ALURFILM_DIR, `${contentId}_analysis_part_${partStr}.json`);
-          if (!fs.existsSync(p.ALURFILM_DIR)) fs.mkdirSync(p.ALURFILM_DIR, { recursive: true });
-
+        if (finalResult.success && (finalResult.extractedJson || finalResult.rawText)) {
           let dataToSave = finalResult.extractedJson;
-          if (!dataToSave) {
+          if (!dataToSave && finalResult.rawText) {
             let raw = finalResult.rawText.trim();
             const firstBrace = raw.indexOf('{');
             const lastBrace = raw.lastIndexOf('}');
@@ -583,12 +605,30 @@ import { runGeminiScriptPipeline } from './playwright/pipelines/gemini-script-pi
             }
           }
 
-          if (dataToSave) {
+          const hasValidVoiceover = dataToSave && typeof dataToSave === 'object' && (
+            (dataToSave.naskah_voiceover && typeof dataToSave.naskah_voiceover.script_text === 'string' && dataToSave.naskah_voiceover.script_text.trim().length > 0) ||
+            (typeof dataToSave.narration === 'string' && dataToSave.narration.trim().length > 0)
+          );
+
+          if (hasValidVoiceover) {
+            const destPath = path.join(p.ALURFILM_DIR, `${contentId}_analysis_part_${partStr}.json`);
+            if (!fs.existsSync(p.ALURFILM_DIR)) fs.mkdirSync(p.ALURFILM_DIR, { recursive: true });
             dataToSave.chunk_part = partNum;
             dataToSave.status = dataToSave.status || 'done';
             fs.writeFileSync(destPath, JSON.stringify(dataToSave, null, 2), 'utf-8');
+            event.sender.send('alurfilm:progress', { percent: 100, step: 'done', message: `🎉 Part #${partNum} Script Analysis Completed & Saved!`, partNum });
             event.sender.send('alurfilm:log', { level: 'info', message: `✅ Saved Analysis JSON to ${destPath}`, partNum });
+          } else {
+            const errMsg = 'Script Analysis Error: Missing mandatory "naskah_voiceover" object in JSON output. Output was not saved.';
+            console.error(`[Alurfilm Handlers] ❌ ${errMsg}`);
+            event.sender.send('alurfilm:progress', { percent: 0, step: 'error', message: `❌ ${errMsg}`, partNum });
+            event.sender.send('alurfilm:log', { level: 'error', message: `❌ ${errMsg}`, partNum });
+            finalResult.success = false;
+            finalResult.error = errMsg;
           }
+        } else if (!finalResult.success) {
+          event.sender.send('alurfilm:progress', { percent: 0, step: 'error', message: `❌ Pipeline failed: ${finalResult.error || 'Unknown error'}`, partNum });
+          event.sender.send('alurfilm:log', { level: 'error', message: `❌ Pipeline failed: ${finalResult.error || 'Unknown error'}`, partNum });
         }
         resolve(finalResult);
       });

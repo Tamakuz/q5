@@ -1,6 +1,7 @@
 import { runInitUserDataPipeline, InitUserDataPipelineOptions, PipelineResult } from './pipelines/init-user-data';
 import { runCreateProjectPipeline, CreateProjectPipelineOptions } from './pipelines/create-project';
 import { runGenerateFlowImagesPipeline, GenerateFlowImagesPipelineOptions } from './pipelines/generate-flow-images';
+import { runAlurfilmStep2ScriptPipeline, AlurfilmStep2PipelineOptions, AlurfilmStep2PipelineResult } from './pipelines/alurfilm-step2-script-pipeline';
 import { launchBrowser, BrowserSession, LaunchOptions } from './actions/launch-browser';
 import { navigateToUrl, NavigateOptions } from './actions/navigate';
 import { checkAuthStatus, AuthStatus } from './actions/auth/check-auth';
@@ -44,6 +45,13 @@ export class PlaywrightService {
    */
   public static async generateImagesPureApi(options: PureApiOptions): Promise<PureApiResult> {
     return generateFlowImagesPureApi(options);
+  }
+
+  /**
+   * Alurfilm Step 2 Pipeline: Generates movie recap narration script using Chrome Extension actions.
+   */
+  public static async runAlurfilmStep2Script(options?: AlurfilmStep2PipelineOptions): Promise<AlurfilmStep2PipelineResult> {
+    return runAlurfilmStep2ScriptPipeline(options);
   }
 
   /**

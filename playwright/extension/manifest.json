@@ -3,9 +3,6 @@
   "name": "AI Studio Automator Extension",
   "version": "1.0.0",
   "description": "Minimal Chrome Extension for AI Studio Automation",
-  "background": {
-    "service_worker": "background.js"
-  },
   "content_scripts": [
     {
       "matches": [
@@ -13,8 +10,16 @@
         "https://docs.google.com/*",
         "https://drive.google.com/*"
       ],
+      "world": "MAIN",
       "all_frames": true,
       "js": [
+        "actions/input-prompt.js",
+        "actions/submit-prompt.js",
+        "actions/extract-output.js",
+        "actions/open-drive-picker.js",
+        "actions/search-drive-file.js",
+        "actions/select-drive-file.js",
+        "actions/upload-local-file.js",
         "content.js"
       ],
       "run_at": "document_end"

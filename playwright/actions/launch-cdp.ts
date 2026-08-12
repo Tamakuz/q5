@@ -47,7 +47,7 @@ export async function launchCDPBrowser(port: number = 9222): Promise<CDPSession>
       fs.mkdirSync(profileDir, { recursive: true });
     }
 
-    const command = `${chromeBin} --remote-debugging-port=${port} --user-data-dir="${profileDir}" "https://aistudio.google.com/prompts/new_chat?model=gemini-3.6-flash" > /dev/null 2>&1 &`;
+    const command = `${chromeBin} --remote-debugging-port=${port} --user-data-dir="${profileDir}" "https://aistudio.google.com/prompts/new_chat?model=gemini-3.1-pro-preview" > /dev/null 2>&1 &`;
     exec(command);
 
     // Wait up to 10s for CDP port to initialize

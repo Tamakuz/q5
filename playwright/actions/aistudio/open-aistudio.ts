@@ -22,7 +22,7 @@ export interface OpenAIStudioSession {
   isCDP?: boolean;
 }
 
-export const AI_STUDIO_NEW_CHAT_URL = 'https://aistudio.google.com/prompts/new_chat?model=gemini-3.6-flash';
+export const AI_STUDIO_NEW_CHAT_URL = 'https://aistudio.google.com/prompts/new_chat?model=gemini-3.1-pro-preview';
 
 /**
  * Action: Opens Google AI Studio using CDP Remote Debugging (Real Chrome) or Persistent Context.
