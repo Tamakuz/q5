@@ -150,6 +150,76 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     const fullPrompt = promptTemplate.replace('{{transcript_text}}', transcriptText || 'Video Recap Anime/Cartoon');
     return aiClient.generateYoutubeTitles({ fullPrompt });
   });
+
+  // ─── Generate YouTube Shorts Sourcing Keywords via 9router AI ────
+  ipcMain.handle('generate-shorts-keywords', async (_event, opts = {}) => {
+    const promptFile = path.join(p.PROMPTS_DIR, 'shortform', 'shorts-sourcing-keywords.md');
+    let promptTemplate = '';
+    if (fs.existsSync(promptFile)) {
+      promptTemplate = fs.readFileSync(promptFile, 'utf-8');
+    } else {
+      promptTemplate = `You are a YouTube Shorts Sourcing Strategist for US audiences. Generate 4 search keywords in English for footage sourcing: 1. Mass Food Production, 2. Industrial Manufacturing, 3. Master Crafting & Rare Processing, 4. Woodworking & Resin Crafting. Rules: DO NOT use active blacklisted keywords: {{ACTIVE_KEYWORDS_BLACKLIST}}. Return JSON array with "sub_niche" and "keyword".`;
+    }
+
+    const historyFile = path.join(p.PROJECT_ROOT, 'input', 'shorts', 'keywords-history.json');
+    let historyData = { cooldown_days: 14, history: [] };
+    if (fs.existsSync(historyFile)) {
+      try {
+        historyData = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
+      } catch (e) {
+        console.error('Error reading keywords history file:', e);
+      }
+    }
+
+    const now = new Date();
+    const activeKeywords = (historyData.history || []).filter((item) => new Date(item.expires_at) > now);
+    const blacklist = activeKeywords.map((k) => k.keyword.toLowerCase());
+
+    const fullPrompt = promptTemplate.replace('{{ACTIVE_KEYWORDS_BLACKLIST}}', JSON.stringify(blacklist, null, 2));
+
+    const rawText = await aiClient.chatCompletion({
+      prompt: fullPrompt,
+      systemPrompt: 'You are an expert YouTube Shorts Production Strategist. Output strictly valid JSON arrays.',
+      model: opts.model || 'ag/gemini-3-flash-agent',
+      jsonMode: true,
+    });
+
+    let cleaned = rawText.trim();
+    if (cleaned.includes('```')) {
+      const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+      if (match && match[1]) cleaned = match[1].trim();
+    }
+    const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      throw new Error(`Invalid JSON format returned from 9router: ${rawText}`);
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(parsed) || parsed.length !== 4) {
+      throw new Error(`Invalid keyword count returned (Expected 4, received ${parsed?.length || 0})`);
+    }
+
+    const expires = new Date(now.getTime() + (historyData.cooldown_days || 14) * 24 * 60 * 60 * 1000);
+    const newItems = parsed.map((item, idx) => ({
+      id: `kw_${now.getTime()}_${idx}`,
+      sub_niche: item.sub_niche || 'Sub-Niche',
+      keyword: item.keyword,
+      youtube_search_url: `https://www.youtube.com/results?search_query=${encodeURIComponent(item.keyword)}`,
+      target_market: 'US',
+      used_at: now.toISOString(),
+      expires_at: expires.toISOString(),
+    }));
+
+    historyData.history = [...newItems, ...(historyData.history || [])];
+    fs.mkdirSync(path.dirname(historyFile), { recursive: true });
+    fs.writeFileSync(historyFile, JSON.stringify(historyData, null, 2), 'utf-8');
+
+    return {
+      success: true,
+      keywords: newItems,
+      activeHistory: historyData.history.filter((item) => new Date(item.expires_at) > now),
+    };
+  });
 }
 
 module.exports = { register };

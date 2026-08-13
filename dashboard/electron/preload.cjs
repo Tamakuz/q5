@@ -271,6 +271,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   saveToProject: (subPath, data) => ipcRenderer.invoke('save-to-project', { subPath, data }),
   readFromProject: (subPath) => ipcRenderer.invoke('read-from-project', subPath),
+  generateShortsKeywords: (opts) => ipcRenderer.invoke('generate-shorts-keywords', opts),
 
   // Spensia Render Engine & Thumbnail Studio
   generateSpensiaTimeline: (topicId) => ipcRenderer.invoke('generate-spensia-timeline', { topicId }),

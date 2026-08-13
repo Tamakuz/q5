@@ -24,7 +24,8 @@
     "playwright:check": "npx tsx playwright/cli.ts check-session",
     "playwright:create": "npx tsx playwright/cli.ts create-project",
     "playwright:generate": "npx tsx playwright/cli.ts generate-images",
-    "playwright:cli": "npx tsx playwright/cli.ts"
+    "playwright:cli": "npx tsx playwright/cli.ts",
+    "keywords:shorts": "npx tsx dashboard/scripts/generate-shorts-keywords.ts"
   },
   "dependencies": {
     "@remotion/bundler": "^4.0.0",

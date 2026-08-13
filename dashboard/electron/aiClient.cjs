@@ -82,11 +82,36 @@ async function chatCompletion({
     throw new Error(`9router API Error (${response.status}): ${errText}`);
   }
 
-  const json = await response.json();
-  const content = json.choices?.[0]?.message?.content;
+  const rawText = await response.text();
+  let content = '';
+
+  const trimmed = rawText.trim();
+  if (trimmed.startsWith('data:')) {
+    const lines = trimmed.split('\n');
+    for (const line of lines) {
+      if (line.startsWith('data:')) {
+        const jsonStr = line.slice(5).trim();
+        if (jsonStr === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(jsonStr);
+          const delta = parsed.choices?.[0]?.delta?.content || parsed.choices?.[0]?.message?.content || '';
+          content += delta;
+        } catch {
+          // ignore chunk parse errors
+        }
+      }
+    }
+  } else {
+    try {
+      const json = JSON.parse(rawText);
+      content = json.choices?.[0]?.message?.content || json.choices?.[0]?.text || '';
+    } catch {
+      content = rawText;
+    }
+  }
 
   if (!content) {
-    throw new Error('No content returned from AI API response.');
+    throw new Error('No content returned from 9router AI API response.');
   }
 
   let raw = content.trim();
