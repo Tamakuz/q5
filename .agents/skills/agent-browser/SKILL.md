@@ -13,7 +13,7 @@ Install: `npm i -g agent-browser && agent-browser install`
 
 ## Start here
 
-This file is a discovery stub, not the usage guide. Before running any `agent-browser` command, load the actual workflow content from the CLI:
+This file is a discovery stub. Offline reference content is saved in [references/core.md](file:///home/jovan/project/content-auto/.agents/skills/agent-browser/references/core.md). You can also load live workflow content directly from the CLI:
 
 ```bash
 agent-browser skills get core             # start here — workflows, common patterns, troubleshooting

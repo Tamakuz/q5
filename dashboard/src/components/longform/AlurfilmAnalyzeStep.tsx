@@ -34,10 +34,24 @@ const AlurfilmAnalyzeStep: React.FC = () => {
 
   const logEndRef = useRef<HTMLDivElement | null>(null);
 
+  // User Profile Browser Selection State
+  const [availableProfiles, setAvailableProfiles] = useState<string[]>(['user_1', 'user_2']);
+  const [selectedProfile, setSelectedProfile] = useState<string>('user_1');
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
   };
+
+  useEffect(() => {
+    if (api.getBrowserUserProfiles) {
+      api.getBrowserUserProfiles().then((profs) => {
+        if (Array.isArray(profs) && profs.length > 0) {
+          setAvailableProfiles(profs);
+        }
+      }).catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     if (logEndRef.current) {
@@ -50,9 +64,8 @@ const AlurfilmAnalyzeStep: React.FC = () => {
       const unsubProgress = api.onAlurfilmProgress((data) => {
         setPipelineProgress({ percent: data.percent, step: data.step, message: data.message });
       });
-      const unsubLog = api.onAlurfilmLog ? api.onAlurfilmLog((logData) => {
-        const timeStr = new Date().toLocaleTimeString();
-        setPipelineLogs((prev) => [...prev, { level: logData.level, message: logData.message, timestamp: timeStr }]);
+      const unsubLog = api.onAlurfilmLog ? api.onAlurfilmLog((data) => {
+        setPipelineLogs(prev => [...prev, { level: data.level, message: data.message, timestamp: new Date().toLocaleTimeString() }]);
       }) : () => {};
 
       return () => {
@@ -66,12 +79,11 @@ const AlurfilmAnalyzeStep: React.FC = () => {
     if (isGenerating) return;
     setIsGenerating(true);
     setError(null);
-    setPipelineProgress({ percent: 5, step: 'init', message: `Initializing Playwright pipeline for Part #${activePart}...` });
-    setPipelineLogs([{ level: 'info', message: `🚀 Starting Playwright Alurfilm Step 2 Pipeline for Part #${activePart}...`, timestamp: new Date().toLocaleTimeString() }]);
-    setShowLogConsole(true);
+    setPipelineLogs([]);
+    setPipelineProgress({ percent: 5, step: 'INIT', message: `Initializing Playwright Automation (Profile: ${selectedProfile})...` });
 
     try {
-      let previousContext = null;
+      let previousContext: any = null;
       if (activePart > 1 && analyses[activePart - 1]?.data) {
         const prevData = analyses[activePart - 1].data;
         previousContext = {
@@ -88,6 +100,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
           partNum: activePart,
           totalChunks,
           previousContext,
+          profileName: selectedProfile,
         });
 
         if (res.success && (res.extractedJson || res.rawText)) {
@@ -220,17 +233,22 @@ const AlurfilmAnalyzeStep: React.FC = () => {
 
     try {
       const totalChunks = chunks.length || 1;
+      const activeChunk = chunks.find((c) => c.part === partNum);
+      const chunkDur = activeChunk?.durationSec || activeChunk?.duration || 0;
+      const computedWords = Math.max(40, Math.min(400, Math.round(chunkDur * 1.2)));
+
       let formattedPrompt = '';
       if (api.getAlurfilmPrompt) {
-        formattedPrompt = await api.getAlurfilmPrompt(partNum, totalChunks, prevContext);
+        try {
+          formattedPrompt = await api.getAlurfilmPrompt({ chunkPart: partNum, totalChunks, previousContext: prevContext, durationSec: chunkDur, contentId } as any);
+        } catch {}
       }
       
-      if (!formattedPrompt || formattedPrompt.includes('Kamu adalah Master Scriptwriter Alur Film. Tulis naskah')) {
-        let promptTpl = await api.readFromProject('dashboard/prompts/longform/script-prompt.md');
-        if (!promptTpl) {
-          promptTpl = await api.readFromProject('dashboard/prompts/longform/alurfilm-singlepass-prompt.md');
-        }
-        const computedWords = 300;
+      if (!formattedPrompt) {
+        let promptTpl = await api.readFromProject('dashboard/prompts/longform/alurfilm-singlepass-prompt.md');
+        const chunkDurText = chunkDur < 60
+          ? `${Math.round(chunkDur)} Detik`
+          : `${(chunkDur / 60).toFixed(1)} Menit`;
         const isFirstPartStr = partNum === 1 ? 'YA (Part Pembuka)' : `TIDAK (Chunk #${partNum} / Part Lanjutan)`;
         const isLastPartStr = partNum === totalChunks ? 'YA (Part Penutup / Final Part)' : 'TIDAK (Part Bukan Penutup)';
         const prevCtxStr = prevContext ? JSON.stringify(prevContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
@@ -240,6 +258,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
           .replace(/\{\{is_first_part\}\}/g, isFirstPartStr)
           .replace(/\{\{is_last_part\}\}/g, isLastPartStr)
           .replace(/\{\{target_words_per_chunk\}\}/g, String(computedWords))
+          .replace(/\{\{chunk_duration_text\}\}/g, chunkDurText)
           .replace(/\{\{previous_context\}\}/g, prevCtxStr)
           .replace(/\{\{style_example\}\}/g, 'Gunakan gaya penceritaan alur film santai, jernih, dan mengalir.');
       }
@@ -313,6 +332,23 @@ const AlurfilmAnalyzeStep: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+          {/* User Profile Browser Selection Dropdown */}
+          <div className="flex items-center gap-1.5 bg-gray-900 border border-emerald-500/40 rounded-xl px-2.5 py-1.5 shadow-md">
+            <span className="text-xs text-gray-300 font-bold">👤 Profile:</span>
+            <select
+              value={selectedProfile}
+              onChange={(e) => setSelectedProfile(e.target.value)}
+              disabled={isGenerating}
+              className="bg-gray-950 text-emerald-400 text-xs font-bold font-mono rounded-lg px-2 py-1 border border-emerald-500/40 focus:outline-none focus:border-emerald-400 cursor-pointer disabled:opacity-50"
+            >
+              {availableProfiles.map((prof) => (
+                <option key={prof} value={prof}>
+                  {prof}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button
             onClick={handleRunGeminiPipeline}
             disabled={isGenerating}
@@ -515,7 +551,21 @@ const AlurfilmAnalyzeStep: React.FC = () => {
           {/* Prompt Configuration Box */}
           <div className="flex-1 bg-gray-950 p-4 rounded-xl border border-gray-800 overflow-y-auto space-y-2 font-mono text-xs text-gray-300 leading-relaxed min-h-0 shadow-inner">
             <p className="text-purple-400 font-bold">// Context & Parameter Values for Part #{activePart}</p>
-            <p>- Target Word Count: ~300 Kata (~2.5 Menit Voiceover)</p>
+            {(() => {
+              const activeChunk = chunks.find((c) => c.part === activePart);
+              const chunkDur = activeChunk?.durationSec || activeChunk?.duration || 0;
+              const computedWords = Math.max(40, Math.min(400, Math.round(chunkDur * 1.2)));
+              const durText = chunkDur < 60
+                ? `${Math.round(chunkDur)} Detik`
+                : `${(chunkDur / 60).toFixed(1)} Menit`;
+              const voMinutes = (computedWords / 130).toFixed(1);
+              return (
+                <>
+                  <p>- Split Video Duration: <span className="text-emerald-400 font-bold">{durText}</span></p>
+                  <p>- Target Word Count: <span className="text-emerald-400 font-bold">~{computedWords} Kata</span> (~{voMinutes} Menit Voiceover)</p>
+                </>
+              );
+            })()}
             <p>- First Part (Intro): {activePart === 1 ? 'YA (Part Pembuka)' : 'TIDAK'}</p>
             <p>- Final Part (Outro): {activePart === (chunks.length || 4) ? 'YA (Part Penutup)' : 'TIDAK'}</p>
             {activePart > 1 && analyses[activePart - 1]?.data && (

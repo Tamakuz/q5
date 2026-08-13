@@ -47,10 +47,34 @@ Jika kamu melampirkan (attach) File Audio & Video Source di AI Studio:
    - **PENUTUPAN JEDA HENING**: Jika terdapat jeda hening antar kalimat (`next_start > current_end`), sertakan durasi jeda tersebut ke klip terakhir kalimat agar total timeline visual menutup 100% durasi total audio {{total_audio_duration_sec}}s tanpa ada desync.
    - DILARANG KURANG ATAU LEBIH WALAUPUN 0.1 DETIK!
 
-2. **MAKSIMAL 1.5 - 2.5 DETIK PER KLIP VISUAL (RATA-RATA 2.0 DETIK)**:
-   - Target utama durasi per klip visual adalah **1.5 hingga 2.5 detik** (idealnya ~2.0 detik per potongan klip).
-   - DILARANG KERAS membiarkan 1 klip berjalan lebih dari 2.5 detik (kecuali `freeze_frame_with_zoom` maksimal 2.0 - 3.0 detik).
-   - Pecah setiap kalimat narasi menjadi potongan-potongan klip cepat (*fast-paced cuts*) ~2.0 detik yang dinamis.
+2. **FORMULA RITME VISUAL (SAMPEL ADEGAN ASLI MAKSIMAL 2 DETIK)**:
+   - **Aturan Pengambilan Adegan Asli (`source_start_seconds`)**: MAKSIMAL **2.0 DETIK** sampel dari video mentah asli. DILARANG KERAS mengambil sampel adegan bergerak lebih dari 2.0 detik dari video film.
+   - **Klip `video_cut`**: Sampel 2.0s dari video asli ➔ durasi timeline output = 1.5 - 2.0 detik.
+   - **Klip `slow_motion`**: Sampel 2.0s dari video asli ➔ di-slow motion (faktor 0.5 - 0.6) ➔ durasi timeline output memanjang jadi ~3.3 - 4.0 detik.
+   - **Klip `freeze_frame_with_zoom`**: 1 Frame diam ➔ durasi timeline output = 4.0 hingga 5.0 detik (dengan efek Slow Zoom-In ke tengah).
+   - Selangi ritme secara dinamis antara `video_cut` (2s), `slow_motion` (2s source ➔ 4s timeline), dan `freeze_frame_with_zoom` (4-5s).
+
+       ┌────────────────────────┐         ┌───────────────────────────────────┐
+       │   MOTION / SLOWMO      │         │   FREEZE FRAME (1 FRAME DIAM)     │
+       │   • Sampel Asli: 2.0s  │ ──────► │   • Durasi Timeline: 5.0 Detik    │
+       │   • Action / Motion    │         │   • Slow Zoom-In ke Tengah        │
+       └────────────────────────┘         └───────────────────────────────────┘
+                    ▲                                       │
+                    └───────────────────────────────────────┘
+                                 (LOOPING CONTINUOUS)
+
+==================================================
+📷 ATURAN MUTLAK PEMILIHAN FRAME FREEZE SCREEN / FREEZE FRAME ("freeze_frame_with_zoom"):
+==================================================
+Saat memilih timestamp (`source_start_seconds`) untuk tipe visual `"freeze_frame_with_zoom"`:
+1. 🎯 **FRAME WAJIB STABIL, TAJAM, & IN-FOCUS (FOKUS OBJEKTIF MAKSIMAL)**:
+   - WAJIB memilih detik di mana subjek/karakter/objek sedang **posisi diam/puncak ekspresi stabil** dengan pencahayaan terang dan ketajaman gambar 100% fokus.
+2. 🛑 **DILARANG KERAS MEMILIH FRAME BERIKUT**:
+   - DILARANG KERAS memilih detik yang memuat **MOTION BLUR** (saat kepala berputar cepat, kamera mengayun/pan cepat, atau karakter sedang berlari kencang).
+   - DILARANG KERAS memilih detik yang **OVER-ZOOM / CROPPED DISTORTION** (wajah terpotong ekstrem atau piksel buram pecah).
+   - DILARANG KERAS memilih detik yang **BERKEDIP / EKSPRESI MEREM / GELAP TANPA FOKUS** atau tepat di detik pergantian cut-scene/transisi layar yang masih berbayang.
+3. 📐 **OFFSET PRESISI MULTI-FRAME (0.2s - 0.5s SETELAH CUT SCENE)**:
+   - Pilih timestamp `source_start_seconds` di pertengahan adegan (misal +0.3s s/d +0.5s setelah potong adegan) di mana kamera dan karakter sudah 100% terkunci diam dan jernih, bukan tepat di awal detik pergantian shot yang masih memiliki motion blur.
 
 ==================================================
 🎨 ATURAN VARIASI TIPE VISUAL FAIR-USE & NON-LINEAR CUTTING (CONTENT ID BYPASS):
@@ -60,14 +84,13 @@ Jika kamu melampirkan (attach) File Audio & Video Source di AI Studio:
    - WAJIB gunakan **Sequence Breaking & Insert Shots**: Selingi pemotongan klip dengan adegan reaksi (*reaction shot*), *close-up* objek/detail, B-roll suasana, atau potongan adegan relevan dari timestamp/menit lain yang tidak berurutan, selama maknanya 100% mendukung dan relevan dengan narasi VO saat itu.
    - Memutus urutan linier visual secara acak namun tetap mendukung narasi VO akan membuat Content ID YouTube **100% gagal mencocokkan pola urutan visual asli film**.
 
-2. 🎭 **KOMBINASI TIPE VISUAL (PRIORITAS SLOW-MOTION & FREEZE FRAME)**:
+2. 🎭 **KOMBINASI TIPE VISUAL (PRIORITAS SLOW-MOTION & FREEZE FRAME ZOOM-IN)**:
 Kamu WAJIB mengutamakan `slow_motion` dan `freeze_frame_with_zoom` sesuai persentase berikut:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-| 1. "slow_motion"            | ~35% - 40% | Sinematik utama (slow_mo_factor: 0.5 atau 0.6) |
-| 2. "freeze_frame_with_zoom" | ~30% - 35% | Momen emosi/ikonik di-freeze + slow zoom        |
-| 3. "mirror_cut"             | ~15%       | Variasi mirror (mirror_mode: "horizontal")      |
-| 4. "pan_and_zoom_cut"       | ~10%       | Landscape/wide shot (pan_direction)            |
-| 5. "video_cut"              | ~5%        | Kecepatan normal (minimal)                      |
+| 1. "freeze_frame_with_zoom" | ~45% - 50% | Momen emosi/ikonik di-freeze 4-5s + Slow Zoom-In |
+| 2. "slow_motion"            | ~25% - 30% | Sinematik gerak lambat max 2s (slow_mo_factor 0.5/0.6) |
+| 3. "mirror_cut"             | ~15%       | Variasi mirror (mirror_mode: "horizontal") max 2s |
+| 4. "video_cut"              | ~10%       | Kecepatan normal max 2s                          |
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Wajib sertakan `color_grading_shift` acak pada setiap klip (contrast: 1.02-1.07, brightness: 0.002-0.01, saturation: 1.03-1.08).

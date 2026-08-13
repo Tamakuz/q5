@@ -189,7 +189,7 @@ export interface AlurfilmVisualClip {
   source_timestamp_seconds?: number;
   slow_mo_factor?: number;
   mirror_mode?: 'horizontal' | 'vertical';
-  pan_direction?: 'left' | 'right' | 'up' | 'down';
+  pan_direction?: 'left' | 'right' | 'up' | 'down' | 'center';
   zoom_speed?: number;
   color_grading_shift?: {
     contrast?: number;
@@ -368,7 +368,7 @@ export interface ElectronAPI {
   compressAlurfilmChunk: (opts: { part: number; filePath?: string }) => Promise<AlurfilmChunk>;
   analyzeAlurfilmChunk: (chunkPath: string, chunkPart: number, previousContext?: any) => Promise<AlurfilmAnalysisResult>;
   listAlurfilmAnalyses: (modeContentId?: string) => Promise<AlurfilmAnalysisResult[]>;
-  getAlurfilmPrompt: (chunkPart: number, totalChunks?: number, previousContext?: any) => Promise<string>;
+  getAlurfilmPrompt: (optsOrPartNum: any, totalChunks?: number, previousContext?: any) => Promise<string>;
   saveAlurfilmAnalysis: (contentIdOrPart: string | number, partOrData?: number | any, jsonTextOrPart?: any) => Promise<AlurfilmAnalysisResult>;
   uploadAlurfilmAudio: (contentId: string, parts: number[], filePath: string) => Promise<AlurfilmAudioResult>;
   listAlurfilmAudios: (modeContentId?: string) => Promise<AlurfilmAudioResult[]>;
@@ -428,7 +428,8 @@ export interface ElectronAPI {
   generateAlurfilmMetadata: (opts?: { modeContentId?: string; model?: string; customNotes?: string }) => Promise<AlurfilmMetadataResult>;
   saveAlurfilmMetadata: (opts: { modeContentId?: string; metadata: AlurfilmMetadataResult }) => Promise<{ success: boolean; filePath: string; metadata: AlurfilmMetadataResult }>;
   getAlurfilmMetadata: (modeContentId?: string) => Promise<AlurfilmMetadataResult | null>;
-  runAlurfilmGeminiScriptPipeline?: (opts: { partNum: number; totalChunks?: number; previousContext?: any }) => Promise<{ success: boolean; partNum: number; rawText: string; extractedJson?: any; source?: string; error?: string }>;
+  getBrowserUserProfiles?: () => Promise<string[]>;
+  runAlurfilmGeminiScriptPipeline?: (opts: { partNum: number; totalChunks?: number; previousContext?: any; profileName?: string }) => Promise<{ success: boolean; partNum: number; rawText: string; extractedJson?: any; source?: string; error?: string }>;
   onAlurfilmProgress?: (callback: (data: { percent: number; step: string; message: string; partNum: number }) => void) => () => void;
   onAlurfilmLog?: (callback: (data: { level: 'info' | 'warn' | 'error'; message: string; partNum: number }) => void) => () => void;
   onAlurfilmMetadataChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;

@@ -69,6 +69,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
     return ipcRenderer.invoke('run-alurfilm-gemini-script-pipeline', opts);
   },
+  getBrowserUserProfiles: () => ipcRenderer.invoke('get-browser-user-profiles'),
   onAlurfilmProgress: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('alurfilm:progress', handler);
@@ -79,8 +80,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('alurfilm:log', handler);
     return () => ipcRenderer.removeListener('alurfilm:log', handler);
   },
-  getAlurfilmPrompt: (chunkPart, totalChunks, previousContext) =>
-    ipcRenderer.invoke('get-alurfilm-prompt', { chunkPart, totalChunks, previousContext }),
+  getAlurfilmPrompt: (optsOrPartNum, totalChunks, previousContext) => {
+    if (typeof optsOrPartNum === 'object' && optsOrPartNum !== null) {
+      return ipcRenderer.invoke('get-alurfilm-prompt', optsOrPartNum);
+    }
+    return ipcRenderer.invoke('get-alurfilm-prompt', { chunkPart: optsOrPartNum, totalChunks, previousContext });
+  },
   saveAlurfilmAnalysis: (...args) => {
     let chunkPart = 1;
     let jsonText = null;

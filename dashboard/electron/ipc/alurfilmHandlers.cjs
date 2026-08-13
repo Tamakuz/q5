@@ -417,18 +417,29 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     }
 
     const sortedNames = Array.from(foundFilesMap.keys()).sort();
-    const chunks = sortedNames.map((f, idx) => {
+    const chunks = await Promise.all(sortedNames.map(async (f, idx) => {
       const fullPath = foundFilesMap.get(f);
       const stat = fs.statSync(fullPath);
+      let durationSec = 0;
+      try {
+        const meta = await ffmpeg.getVideoMetaHelper(fullPath);
+        if (meta && meta.duration && meta.duration > 0) {
+          durationSec = Number(meta.duration.toFixed(2));
+        }
+      } catch (e) {}
+
       return {
         part: idx + 1,
         name: f,
         size: stat.size,
+        durationSec: durationSec,
+        duration: durationSec,
         filePath: fullPath,
         url: media.mediaUrl(fullPath),
+        mediaUrl: media.mediaUrl(fullPath),
         isCompressed: fullPath.includes('/compress/')
       };
-    });
+    }));
 
     return chunks;
   });
@@ -452,193 +463,18 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     return true;
   });
 
-  // ─── Run Alurfilm Gemini Script Pipeline ───────────────────
-  ipcMain.handle('run-alurfilm-gemini-script-pipeline', async (event, rawOpts = {}) => {
-    const opts = (typeof rawOpts === 'object' && rawOpts !== null) ? rawOpts : {};
-    const partNum = Number(opts.partNum) || 1;
-    const totalChunks = Number(opts.totalChunks) || 4;
-    const previousContext = (typeof opts.previousContext !== 'undefined' && opts.previousContext) ? opts.previousContext : null;
-
-    const contentId = p.getOrGenerateContentId('longform');
-    const partStr = String(partNum).padStart(2, '0');
-    
-    // Find video chunk filename & path
-    const targetFileName = `${contentId}_part_${partStr}.mp4`;
-    const compressPath = path.join(p.ALURFILM_COMPRESS_DIR, targetFileName);
-    const chunkPath = path.join(p.ALURFILM_CHUNKS_DIR, targetFileName);
-    
-    let videoFilePath = compressPath;
-    if (!fs.existsSync(videoFilePath) && fs.existsSync(chunkPath)) {
-      videoFilePath = chunkPath;
+  // ─── Get Available Browser User Profiles ─────────────────────
+  ipcMain.handle('get-browser-user-profiles', async () => {
+    const userDataDir = path.resolve(p.PROJECT_ROOT, 'playwright/user_data');
+    if (!fs.existsSync(userDataDir)) {
+      return ['user_1'];
     }
-
-    // Formulate prompt template
-    const promptFileName = 'alurfilm-singlepass-prompt.md';
-    const promptFile = path.join(p.PROMPTS_DIR, 'longform', promptFileName);
-    let promptTemplate = '';
-    if (fs.existsSync(promptFile)) {
-      promptTemplate = fs.readFileSync(promptFile, 'utf-8');
-    } else {
-      promptTemplate = `Kamu adalah Master Scriptwriter Alur Film. Tulis naskah voiceover recap Macro Storytelling. Output JSON valid.`;
-    }
-
-    const computedWordsPerChunk = 300;
-    const prevCtxStr = (typeof previousContext !== 'undefined' && previousContext) ? JSON.stringify(previousContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
-    const isFirstPart = Number(partNum) === 1;
-    const isLastPart = Number(partNum) === Number(totalChunks);
-    const isFirstPartStr = isFirstPart ? 'YA (Chunk #1 / Part Pembuka Film)' : `TIDAK (Chunk #${partNum} / Part Lanjutan)`;
-    const isLastPartStr = isLastPart ? 'YA (Chunk Terakhir / Part Penutup Film)' : `TIDAK (Part Bukan Penutup)`;
-    const styleExampleStr = 'Gunakan gaya penceritaan alur film santai, jernih, dan mengalir.';
-    
-    const formattedPrompt = promptTemplate
-      .replace(/{{chunk_part}}/g, String(partNum))
-      .replace(/{{total_chunks}}/g, String(totalChunks))
-      .replace(/{{is_first_part}}/g, isFirstPartStr)
-      .replace(/{{is_last_part}}/g, isLastPartStr)
-      .replace(/{{target_words_per_chunk}}/g, String(computedWordsPerChunk))
-      .replace(/{{previous_context}}/g, prevCtxStr)
-      .replace(/{{style_example}}/g, styleExampleStr);
-
-    const runnerScript = `
-import { runAlurfilmStep2ScriptPipeline } from './playwright/pipelines/alurfilm-step2-script-pipeline.ts';
-
-(async () => {
-  try {
-    const res = await runAlurfilmStep2ScriptPipeline({
-      targetVideoPath: ${JSON.stringify(videoFilePath)},
-      chunkPart: ${JSON.stringify(partNum)},
-      totalChunks: ${JSON.stringify(totalChunks)},
-      isFirstPart: ${JSON.stringify(isFirstPart)},
-      isLastPart: ${JSON.stringify(isLastPart)},
-      targetWordsPerChunk: ${JSON.stringify(computedWordsPerChunk)},
-      previousContext: ${JSON.stringify(prevCtxStr)},
-      styleExample: ${JSON.stringify(styleExampleStr)},
-      headed: true
-    });
-    
-    const resultPayload = {
-      success: res.success,
-      partNum: ${partNum},
-      rawText: res.extractedText || '',
-      extractedJson: res.parsedJson || null,
-      error: res.error
-    };
-    
-    console.log('RESULT_EVENT:' + JSON.stringify(resultPayload));
-    process.exit(res.success ? 0 : 1);
-  } catch (err) {
-    console.log('RESULT_EVENT:' + JSON.stringify({ success: false, partNum: ${partNum}, rawText: '', error: err.message || String(err) }));
-    process.exit(1);
-  }
-})();
-    `;
-
-    return new Promise((resolve) => {
-      const child = spawn('npx', ['tsx', '-e', runnerScript], {
-        cwd: p.PROJECT_ROOT,
-        env: { ...process.env },
-      });
-
-      let finalResult = { success: false, partNum, rawText: '', error: 'Subprocess exited without result' };
-
-      child.stdout.on('data', (data) => {
-        const lines = data.toString().split('\n').filter(Boolean);
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (trimmed.startsWith('PROGRESS_EVENT:')) {
-            try {
-              const prog = JSON.parse(trimmed.substring('PROGRESS_EVENT:'.length));
-              event.sender.send('alurfilm:progress', { ...prog, partNum });
-            } catch {}
-          } else if (trimmed.startsWith('LOG_EVENT:')) {
-            try {
-              const log = JSON.parse(trimmed.substring('LOG_EVENT:'.length));
-              event.sender.send('alurfilm:log', { ...log, partNum });
-            } catch {}
-          } else if (trimmed.startsWith('RESULT_EVENT:')) {
-            try {
-              finalResult = JSON.parse(trimmed.substring('RESULT_EVENT:'.length));
-            } catch {}
-          } else {
-            console.log(`[Gemini Pipeline Subprocess] ${trimmed}`);
-            if (trimmed.includes('AUTO-SWITCH TRIGGERED') || trimmed.includes('Automatically rotating')) {
-              event.sender.send('alurfilm:log', { level: 'warn', message: `🔄 Quota/Permission error ("An internal error has occurred") detected! Automatically switching to next Playwright profile...`, partNum });
-            } else if (trimmed.includes('STEP 1: Pasting')) {
-              event.sender.send('alurfilm:progress', { percent: 20, step: 'paste_prompt', message: `Pasting script prompt into AI Studio...`, partNum });
-              event.sender.send('alurfilm:log', { level: 'info', message: `📝 Pasting script prompt into AI Studio...`, partNum });
-            } else if (trimmed.includes('STEP 2 & 3: Opening Drive Picker') || trimmed.includes('searchDriveFile')) {
-              event.sender.send('alurfilm:progress', { percent: 40, step: 'attach_drive', message: `Searching & attaching video file in Drive...`, partNum });
-              event.sender.send('alurfilm:log', { level: 'info', message: `📁 Searching & attaching video file in Drive...`, partNum });
-            } else if (trimmed.includes('STEP 4: Submitting Prompt')) {
-              event.sender.send('alurfilm:progress', { percent: 65, step: 'submit_prompt', message: `Submitting prompt to Gemini 3.1 Pro Preview...`, partNum });
-              event.sender.send('alurfilm:log', { level: 'info', message: `🚀 Submitting prompt to Gemini 3.1 Pro Preview...`, partNum });
-            } else if (trimmed.includes('STEP 5: Waiting & Extracting')) {
-              event.sender.send('alurfilm:progress', { percent: 80, step: 'extract_output', message: `Extracting streaming response narration...`, partNum });
-              event.sender.send('alurfilm:log', { level: 'info', message: `⏳ Extracting streaming response narration...`, partNum });
-            } else if (trimmed.includes('STEP 6: Validating')) {
-              event.sender.send('alurfilm:progress', { percent: 95, step: 'saving', message: `Validating JSON & saving script files...`, partNum });
-              event.sender.send('alurfilm:log', { level: 'info', message: `💾 Validating JSON & saving script files...`, partNum });
-            }
-          }
-        }
-      });
-
-      child.stderr.on('data', (data) => {
-        console.error(`[Gemini Pipeline Stderr] ${data.toString()}`);
-      });
-
-      child.on('close', () => {
-        if (finalResult.success && (finalResult.extractedJson || finalResult.rawText)) {
-          let dataToSave = finalResult.extractedJson;
-          if (!dataToSave && finalResult.rawText) {
-            let raw = finalResult.rawText.trim();
-            const firstBrace = raw.indexOf('{');
-            const lastBrace = raw.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-              raw = raw.substring(firstBrace, lastBrace + 1).trim();
-            }
-            try {
-              dataToSave = JSON.parse(raw);
-            } catch {
-              const cleaned = raw.replace(/,\s*([}\]])/g, '$1');
-              try { dataToSave = JSON.parse(cleaned); } catch {}
-            }
-          }
-
-          const hasValidVoiceover = dataToSave && typeof dataToSave === 'object' && (
-            (dataToSave.naskah_voiceover && typeof dataToSave.naskah_voiceover.script_text === 'string' && dataToSave.naskah_voiceover.script_text.trim().length > 0) ||
-            (typeof dataToSave.narration === 'string' && dataToSave.narration.trim().length > 0)
-          );
-
-          if (hasValidVoiceover) {
-            const destPath = path.join(p.ALURFILM_DIR, `${contentId}_analysis_part_${partStr}.json`);
-            if (!fs.existsSync(p.ALURFILM_DIR)) fs.mkdirSync(p.ALURFILM_DIR, { recursive: true });
-            dataToSave.chunk_part = partNum;
-            dataToSave.status = dataToSave.status || 'done';
-            fs.writeFileSync(destPath, JSON.stringify(dataToSave, null, 2), 'utf-8');
-            event.sender.send('alurfilm:progress', { percent: 100, step: 'done', message: `🎉 Part #${partNum} Script Analysis Completed & Saved!`, partNum });
-            event.sender.send('alurfilm:log', { level: 'info', message: `✅ Saved Analysis JSON to ${destPath}`, partNum });
-          } else {
-            const errMsg = 'Script Analysis Error: Missing mandatory "naskah_voiceover" object in JSON output. Output was not saved.';
-            console.error(`[Alurfilm Handlers] ❌ ${errMsg}`);
-            event.sender.send('alurfilm:progress', { percent: 0, step: 'error', message: `❌ ${errMsg}`, partNum });
-            event.sender.send('alurfilm:log', { level: 'error', message: `❌ ${errMsg}`, partNum });
-            finalResult.success = false;
-            finalResult.error = errMsg;
-          }
-        } else if (!finalResult.success) {
-          event.sender.send('alurfilm:progress', { percent: 0, step: 'error', message: `❌ Pipeline failed: ${finalResult.error || 'Unknown error'}`, partNum });
-          event.sender.send('alurfilm:log', { level: 'error', message: `❌ Pipeline failed: ${finalResult.error || 'Unknown error'}`, partNum });
-        }
-        resolve(finalResult);
-      });
-
-      child.on('error', (err) => {
-        event.sender.send('alurfilm:log', { level: 'error', message: `❌ Subprocess execution error: ${err.message}`, partNum });
-        resolve({ success: false, partNum, rawText: '', error: err.message });
-      });
-    });
+    const items = fs.readdirSync(userDataDir);
+    const profiles = items.filter(f => (f.startsWith('user_') || f === 'cdp_profile') && fs.statSync(path.join(userDataDir, f)).isDirectory());
+    return profiles.sort();
   });
+
+
 
   // ─── Analyze Alurfilm Chunk (disabled) ─────────────────
   ipcMain.handle('analyze-alurfilm-chunk', async () => {
@@ -668,8 +504,13 @@ import { runAlurfilmStep2ScriptPipeline } from './playwright/pipelines/alurfilm-
 
   // ─── Get Alurfilm Prompt ───────────────────────────────
   ipcMain.handle('get-alurfilm-prompt', async (_event, rawOpts = {}) => {
-    const opts = (typeof rawOpts === 'object' && rawOpts !== null) ? rawOpts : {};
-    const chunkPart = Number(opts.chunkPart) || 1;
+    let opts = {};
+    if (typeof rawOpts === 'object' && rawOpts !== null) {
+      opts = rawOpts;
+    } else if (typeof rawOpts === 'number' || typeof rawOpts === 'string') {
+      opts = { chunkPart: Number(rawOpts) };
+    }
+    const chunkPart = Number(opts.chunkPart || opts.partNum || opts.part) || 1;
     const totalChunks = Number(opts.totalChunks) || 2;
     const previousContext = (typeof opts.previousContext !== 'undefined' && opts.previousContext) ? opts.previousContext : null;
     const styleExample = opts.styleExample;
@@ -683,7 +524,36 @@ import { runAlurfilmStep2ScriptPipeline } from './playwright/pipelines/alurfilm-
       promptTemplate = `Kamu adalah Master Scriptwriter Alur Film. Tulis naskah voiceover recap Macro Storytelling. Output JSON valid.`;
     }
 
-    const computedWordsPerChunk = 300;
+    let durationSec = Number(opts.durationSec || opts.duration) || 0;
+    if (durationSec <= 0) {
+      const targetContentId = opts.contentId || opts.modeContentId;
+      const partStr = String(chunkPart).padStart(2, '0');
+      const searchDirs = [p.ALURFILM_COMPRESS_DIR, p.ALURFILM_CHUNKS_DIR].filter(d => d && fs.existsSync(d));
+      for (const dir of searchDirs) {
+        const files = fs.readdirSync(dir);
+        let matchFile = files.find(f => targetContentId && f.startsWith(targetContentId) && (f.includes(`_part_${partStr}.mp4`) || f.includes(`_part_${chunkPart}.mp4`)));
+        if (!matchFile) {
+          matchFile = files.find(f => f.includes(`_part_${partStr}.mp4`) || f.includes(`_part_${chunkPart}.mp4`));
+        }
+        if (matchFile) {
+          const targetVideo = path.join(dir, matchFile);
+          try {
+            const meta = await ffmpeg.getVideoMetaHelper(targetVideo);
+            if (meta && meta.duration && meta.duration > 0) {
+              durationSec = meta.duration;
+              break;
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    const safeDuration = Math.max(1, durationSec);
+    const computedWordsPerChunk = Math.max(40, Math.min(400, Math.round(safeDuration * 1.2)));
+    const chunkDurationText = safeDuration < 60
+      ? `${Math.round(safeDuration)} Detik`
+      : `${(safeDuration / 60).toFixed(1)} Menit`;
+
     const prevCtxStr = (typeof previousContext !== 'undefined' && previousContext) ? JSON.stringify(previousContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
     const isFirstPart = Number(chunkPart) === 1;
     const isLastPart = Number(chunkPart) === Number(totalChunks);
@@ -696,6 +566,7 @@ import { runAlurfilmStep2ScriptPipeline } from './playwright/pipelines/alurfilm-
       .replace(/{{is_first_part}}/g, isFirstPartStr)
       .replace(/{{is_last_part}}/g, isLastPartStr)
       .replace(/{{target_words_per_chunk}}/g, String(computedWordsPerChunk))
+      .replace(/{{chunk_duration_text}}/g, chunkDurationText)
       .replace(/{{previous_context}}/g, prevCtxStr)
       .replace(/{{style_example}}/g, styleExampleStr);
 

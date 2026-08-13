@@ -23,7 +23,7 @@ const VisualClipSchema = z.object({
   slow_mo_factor: z.number().optional(),
   mirror_mode: z.enum(['horizontal', 'vertical']).optional(),
   zoom_speed: z.number().optional(),
-  pan_direction: z.enum(['left', 'right', 'up', 'down']).optional(),
+  pan_direction: z.enum(['left', 'right', 'up', 'down', 'center']).optional(),
   color_grading_shift: z.object({
     contrast: z.number().optional(),
     brightness: z.number().optional(),
@@ -381,10 +381,10 @@ program
           let inputReadDur = '';
 
           if (clip.type === 'freeze_frame_with_zoom') {
-            // Extract first frame at sourceStart, loop, scale/crop, apply smooth zoompan (1.00x -> 1.08x) & limit output to duration
+            // Extract first frame at sourceStart, loop, scale/crop, apply smooth subtle zoompan (1.00x -> 1.035x) & limit output to duration with bicubic sharpness
             inputReadDur = '0.5';
             const clipFrames = Math.max(1, Math.round(clip.duration * 30));
-            scaleFilter = `loop=loop=-1:size=1:start=0,scale=${scaledWidth}:${scaledHeight}:force_original_aspect_ratio=increase,crop=${width}:${height},zoompan=z='1+0.08*(on/${clipFrames})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${width}x${height}:fps=30,setsar=1${fxChain}`;
+            scaleFilter = `loop=loop=-1:size=1:start=0,scale=${width}:${height}:force_original_aspect_ratio=increase:flags=bicubic,crop=${width}:${height},zoompan=z='1+0.035*(on/${clipFrames})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${width}x${height}:fps=30,setsar=1${fxChain}`;
           } else {
             scaleFilter = `scale=${scaledWidth}:${scaledHeight}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1${fxChain}`;
             inputReadDur = (clip.type === 'slow_motion' && clip.slowMoFactor && clip.slowMoFactor > 0)
