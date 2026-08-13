@@ -238,6 +238,95 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       activeHistory: historyData.history.filter((item) => new Date(item.expires_at) > now),
     };
   });
+
+  // ─── Download YouTube Shorts Video via yt-dlp ─────────────────
+  ipcMain.handle('shorts:download-video', async (event, { keywordId, subNiche, keyword, youtubeUrl }) => {
+    const ytDlpPath = path.resolve(p.PROJECT_ROOT, 'bin', 'yt-dlp');
+    const outputDir = path.resolve(p.PROJECT_ROOT, 'input', 'shorts', 'raw_videos');
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+
+    const safeSlug = (subNiche || 'short').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    const outputFilename = `${safeSlug}_${keywordId}.mp4`;
+    const outputPath = path.join(outputDir, outputFilename);
+
+    return new Promise((resolve) => {
+      console.log(`📥 [shorts:download-video] Downloading YouTube video for keyword (${keywordId}): ${youtubeUrl}`);
+      const args = [
+        '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        '--merge-output-format', 'mp4',
+        '-o', outputPath,
+        '--newline',
+        youtubeUrl
+      ];
+
+      const child = spawn(ytDlpPath, args);
+      let errorOutput = '';
+
+      child.stdout.on('data', (data) => {
+        const text = data.toString();
+        const match = text.match(/\[download\]\s+([\d\.]+)%\s+of\s+([~\d\.\w]+)\s+at\s+([~\d\.\w\/]+)/);
+        if (match) {
+          event.sender.send('shorts:download-progress', {
+            keywordId,
+            percentage: parseFloat(match[1]),
+            totalSize: match[2],
+            speed: match[3]
+          });
+        }
+      });
+
+      child.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          let stats = { size: 0 };
+          try { stats = fs.statSync(outputPath); } catch (e) {}
+
+          const sourcesFile = path.resolve(p.PROJECT_ROOT, 'input', 'shorts', 'video-sources.json');
+          let sourcesData = { items: [] };
+          if (fs.existsSync(sourcesFile)) {
+            try {
+              sourcesData = JSON.parse(fs.readFileSync(sourcesFile, 'utf-8'));
+            } catch (e) {}
+          }
+
+          const now = new Date().toISOString();
+          const existingIdx = (sourcesData.items || []).findIndex(i => i.keyword_id === keywordId);
+          const existingItem = existingIdx >= 0 ? sourcesData.items[existingIdx] : {};
+          const newItem = {
+            ...existingItem,
+            keyword_id: keywordId,
+            sub_niche: subNiche,
+            keyword,
+            youtube_url: youtubeUrl,
+            video_filename: outputFilename,
+            video_path: `input/shorts/raw_videos/${outputFilename}`,
+            status: 'downloaded',
+            downloaded_at: now,
+            file_size_bytes: stats.size
+          };
+
+          if (existingIdx >= 0) {
+            sourcesData.items[existingIdx] = newItem;
+          } else {
+            sourcesData.items = [newItem, ...(sourcesData.items || [])];
+          }
+
+          fs.mkdirSync(path.dirname(sourcesFile), { recursive: true });
+          fs.writeFileSync(sourcesFile, JSON.stringify(sourcesData, null, 2), 'utf-8');
+
+          resolve({ success: true, videoPath: `input/shorts/raw_videos/${outputFilename}`, fileSizeBytes: stats.size });
+        } else {
+          console.error(`❌ [shorts:download-video] Failed code ${code}:`, errorOutput);
+          resolve({ success: false, error: errorOutput || `yt-dlp process exited with code ${code}` });
+        }
+      });
+    });
+  });
 }
 
 module.exports = { register };

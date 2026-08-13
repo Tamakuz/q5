@@ -215,6 +215,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getContentId: (mode) => ipcRenderer.invoke('get-content-id', mode),
   resetProject: (mode) => ipcRenderer.invoke('reset-project', mode),
   generateYoutubeTitles: (transcriptText) => ipcRenderer.invoke('generate-youtube-titles', transcriptText),
+  downloadShortsVideo: (data) => ipcRenderer.invoke('shorts:download-video', data),
+  onShortsDownloadProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('shorts:download-progress', handler);
+    return () => ipcRenderer.removeListener('shorts:download-progress', handler);
+  },
   generateSpensiaTopics: (promptText, model) => ipcRenderer.invoke('generate-spensia-topics', { promptText, model }),
   generateSpensiaScript: (promptText, model) => ipcRenderer.invoke('generate-spensia-script', { promptText, model }),
   generateSpensiaBreakdown: (promptText, model) => ipcRenderer.invoke('generate-spensia-breakdown', { promptText, model }),

@@ -490,6 +490,8 @@ export interface ElectronAPI {
   saveToProject: (subPath: string, data: string) => Promise<boolean>;
   readFromProject: (subPath: string) => Promise<string | null>;
   generateShortsKeywords?: (opts?: { model?: string }) => Promise<{ success: boolean; keywords: any[]; activeHistory: any[] }>;
+  downloadShortsVideo?: (data: { keywordId: string; subNiche: string; keyword: string; youtubeUrl: string }) => Promise<{ success: boolean; videoPath?: string; fileSizeBytes?: number; error?: string }>;
+  onShortsDownloadProgress?: (callback: (data: { keywordId: string; percentage: number; totalSize: string; speed: string }) => void) => () => void;
   renderVideo: (mapping: object, videoPath: string, audioPath?: string) => Promise<RenderResult | { error: string }>;
   onRenderProgress: (callback: (data: RenderProgress) => void) => () => void;
   generateYoutubeTitles: (transcriptText: string) => Promise<YoutubeTitleResult>;
