@@ -64,3 +64,17 @@ export function addKeywordsToHistory(newItems: Omit<KeywordItem, 'id' | 'used_at
   saveKeywordsHistory(data);
   return created;
 }
+
+export function getTodaysKeywords(): KeywordItem[] {
+  const data = loadKeywordsHistory();
+  const now = new Date();
+  return (data.history || []).filter((item) => {
+    if (!item.used_at) return false;
+    const d = new Date(item.used_at);
+    return (
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    );
+  });
+}

@@ -15,14 +15,85 @@ function resolveModelName(model) {
 function extractCleanJsonObject(raw) {
   if (!raw) return '';
   let str = raw.trim();
+
+  // Try direct JSON parsing first
+  try {
+    JSON.parse(str);
+    return str;
+  } catch (e) {}
+
+  // Strip code fences if present
   if (str.includes('```')) {
     const match = str.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
     if (match && match[1]) {
-      str = match[1].trim();
+      const fenceContent = match[1].trim();
+      try {
+        JSON.parse(fenceContent);
+        return fenceContent;
+      } catch (e) {
+        str = fenceContent;
+      }
     } else {
       str = str.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/g, '').trim();
     }
   }
+
+  // Find balanced bracket structure starting at first '{' or '['
+  const startObj = str.indexOf('{');
+  const startArr = str.indexOf('[');
+  
+  const starts = [];
+  if (startObj !== -1) starts.push({ pos: startObj, type: '{' });
+  if (startArr !== -1) starts.push({ pos: startArr, type: '[' });
+  starts.sort((a, b) => a.pos - b.pos);
+
+  for (const start of starts) {
+    const startIndex = start.pos;
+    const stack = [];
+    let inString = false;
+    let escape = false;
+
+    for (let i = startIndex; i < str.length; i++) {
+      const ch = str[i];
+
+      if (escape) {
+        escape = false;
+        continue;
+      }
+
+      if (ch === '\\' && inString) {
+        escape = true;
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (inString) continue;
+
+      if (ch === '{' || ch === '[') {
+        stack.push(ch);
+      } else if (ch === '}' || ch === ']') {
+        const last = stack[stack.length - 1];
+        if ((ch === '}' && last === '{') || (ch === ']' && last === '[')) {
+          stack.pop();
+          if (stack.length === 0) {
+            const candidate = str.substring(startIndex, i + 1).trim();
+            try {
+              JSON.parse(candidate);
+              return candidate;
+            } catch (e) {
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Fallback if balanced bracket parsing didn't return valid JSON
   const firstObj = str.indexOf('{');
   const firstArr = str.indexOf('[');
   if (firstObj !== -1 && (firstArr === -1 || firstObj < firstArr)) {
@@ -36,6 +107,7 @@ function extractCleanJsonObject(raw) {
       return str.substring(firstArr, lastArr + 1).trim();
     }
   }
+
   return str;
 }
 

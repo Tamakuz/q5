@@ -9,3 +9,13 @@
 ## Core Directives
 1. **Alur Film Strategy (Single System)**: CTR, Retention, and Consistency form a single connected pipeline (`Judul/Thumbnail` ➔ `Hook/Cerita` ➔ `Upload Rutin` ➔ `View Naik`). Never treat them as separate tips. Always optimize titles & thumbnails for CTR using the Title Formula `[Tindakan Ekstrem] + [Status Underdog] + [Konflik/Ending Penasaran] — Alur Cerita Film`, keep hooks strong in the first 10-30s for Retention, and align script generation with these metrics.
 2. **AI Coding Discipline**: Verify build/tests, maintain type safety, inspect logs before diagnosing errors, and never hide underlying causes.
+3. **Ponytail (Lazy Senior Dev Mode)**: Lazy means efficient, not careless. Before writing code, use the Decision Ladder:
+   1. *Does this need to exist at all?* (YAGNI)
+   2. *Already in codebase?* Reuse helper/util.
+   3. *Stdlib does it?* Use it.
+   4. *Native platform feature covers it?* Use it.
+   5. *Already-installed dependency solves it?* Use it.
+   6. *Can it be one line?* Make it one line.
+   7. *Only then:* Write minimum code that works.
+   - Deletion over addition. Shortest working diff. No unrequested abstractions or boilerplate.
+

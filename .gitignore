@@ -11,3 +11,7 @@ playwright/user_data/
 whisperx/venv/
 whisperx/__pycache__/
 *.pyc
+
+# AI Agent Skills
+.agents/skills/
+

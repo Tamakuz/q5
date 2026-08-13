@@ -172,6 +172,28 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     }
 
     const now = new Date();
+
+    // Check if keywords were already generated today
+    const todaysKeywords = (historyData.history || []).filter((item) => {
+      if (!item.used_at) return false;
+      const d = new Date(item.used_at);
+      return (
+        d.getFullYear() === now.getFullYear() &&
+        d.getMonth() === now.getMonth() &&
+        d.getDate() === now.getDate()
+      );
+    });
+
+    if (todaysKeywords.length >= 4 && !opts.force) {
+      console.log('📌 [generate-shorts-keywords] Returning existing keywords generated today.');
+      return {
+        success: true,
+        keywords: todaysKeywords.slice(0, 4),
+        alreadyGeneratedToday: true,
+        activeHistory: (historyData.history || []).filter((item) => new Date(item.expires_at) > now),
+      };
+    }
+
     const activeKeywords = (historyData.history || []).filter((item) => new Date(item.expires_at) > now);
     const blacklist = activeKeywords.map((k) => k.keyword.toLowerCase());
 
@@ -184,17 +206,13 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       jsonMode: true,
     });
 
-    let cleaned = rawText.trim();
-    if (cleaned.includes('```')) {
-      const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-      if (match && match[1]) cleaned = match[1].trim();
-    }
-    const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
+    const cleaned = aiClient.extractCleanJsonObject(rawText);
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (err) {
       throw new Error(`Invalid JSON format returned from 9router: ${rawText}`);
     }
-
-    const parsed = JSON.parse(jsonMatch[0]);
     if (!Array.isArray(parsed) || parsed.length !== 4) {
       throw new Error(`Invalid keyword count returned (Expected 4, received ${parsed?.length || 0})`);
     }

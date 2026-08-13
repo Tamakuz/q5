@@ -31,7 +31,7 @@ const ShortsSourceStep: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeHistory, setActiveHistory] = useState<GeneratedKeyword[]>([]);
 
-  // Load active history on component mount
+  // Load active history & today's keywords on component mount
   useEffect(() => {
     const loadHistory = async () => {
       try {
@@ -42,6 +42,21 @@ const ShortsSourceStep: React.FC = () => {
             const now = new Date();
             const active = (data.history || []).filter((item) => new Date(item.expires_at) > now);
             setActiveHistory(active);
+
+            // Automatically load keywords generated today if present
+            const todays = (data.history || []).filter((item) => {
+              if (!item.used_at) return false;
+              const d = new Date(item.used_at);
+              return (
+                d.getFullYear() === now.getFullYear() &&
+                d.getMonth() === now.getMonth() &&
+                d.getDate() === now.getDate()
+              );
+            });
+
+            if (todays.length >= 4) {
+              setCurrentKeywords(todays.slice(0, 4));
+            }
           }
         }
       } catch (err) {
@@ -50,6 +65,13 @@ const ShortsSourceStep: React.FC = () => {
     };
     loadHistory();
   }, []);
+
+  const isGeneratedToday = currentKeywords.length >= 4 && currentKeywords.some((item) => {
+    if (!item.used_at) return false;
+    const d = new Date(item.used_at);
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  });
 
   const handleGenerateKeywords = async () => {
     setIsGenerating(true);
@@ -226,23 +248,39 @@ Format: Return ONLY a valid JSON array of 4 objects with fields "sub_niche" and 
             </p>
           </div>
 
-          <button
-            onClick={handleGenerateKeywords}
-            disabled={isGenerating}
-            className="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-gray-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-600/25 transition-all transform active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 whitespace-nowrap"
-          >
-            {isGenerating ? (
-              <>
-                <div className="w-4 h-4 border-2 border-gray-950 border-t-transparent rounded-full animate-spin"></div>
-                <span>Generating via 9router...</span>
-              </>
-            ) : (
-              <>
-                <span>🚀</span>
-                <span>Generate 4 Keywords Hari Ini</span>
-              </>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              onClick={handleGenerateKeywords}
+              disabled={isGenerating || isGeneratedToday}
+              className={`px-6 py-3 font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 whitespace-nowrap ${
+                isGeneratedToday
+                  ? 'bg-emerald-950/90 text-emerald-300 border border-emerald-700/60 cursor-default opacity-90 shadow-emerald-950/30'
+                  : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-gray-950 shadow-amber-600/25 transform active:scale-95 disabled:opacity-50'
+              }`}
+            >
+              {isGenerating ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-gray-950 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Generating via 9router...</span>
+                </>
+              ) : isGeneratedToday ? (
+                <>
+                  <span>✅</span>
+                  <span>Keywords Hari Ini Sudah Digenerate</span>
+                </>
+              ) : (
+                <>
+                  <span>🚀</span>
+                  <span>Generate 4 Keywords Hari Ini</span>
+                </>
+              )}
+            </button>
+            {isGeneratedToday && (
+              <span className="text-[10px] text-emerald-400/80 font-mono">
+                Generasi baru tersedia keesokan harinya
+              </span>
             )}
-          </button>
+          </div>
         </div>
 
         {errorMessage && (
