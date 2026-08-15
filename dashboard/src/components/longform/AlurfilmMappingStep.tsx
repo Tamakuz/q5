@@ -161,7 +161,18 @@ const AlurfilmMappingStep: React.FC = () => {
       const parsed = JSON.parse(raw);
 
       const res = await api.saveAlurfilmMapping(contentId || 'default', activePart, raw);
-      setMappings((prev) => ({ ...prev, [activePart]: res }));
+      if (api.listAlurfilmMappings) {
+        const updatedList = await api.listAlurfilmMappings(contentId || undefined);
+        const mapObj: Record<number, any> = {};
+        if (Array.isArray(updatedList)) {
+          updatedList.forEach((m: any) => {
+            mapObj[m.part] = m;
+          });
+        }
+        setMappings(mapObj);
+      } else {
+        setMappings((prev) => ({ ...prev, [activePart]: res }));
+      }
       setShowImportModal(false);
       setPasteJsonInput('');
       showToast(`🎉 Saved Video Mapping for Part #${activePart}!`);

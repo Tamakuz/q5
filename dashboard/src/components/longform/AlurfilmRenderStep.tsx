@@ -19,7 +19,7 @@ const DEFAULT_SETTINGS: RenderSettings = {
   introStylePreset: 'cinematic_gold',
   introDuration: 6.0,
   introImpactTimestamp: 0.48,
-  introAudioPath: 'assets/The Final Horizon.mp3',
+  introAudioPath: 'assets/Denied Access - Density & Time.mp3',
 };
 
 const AlurfilmRenderStep: React.FC = () => {
@@ -154,6 +154,8 @@ const AlurfilmRenderStep: React.FC = () => {
             if (match) {
               const partNum = parseInt(match[1], 10);
               rMap[partNum] = r.fullPath || r.filePath;
+            } else if (r.name?.toLowerCase().includes('intro')) {
+              rMap[0] = r.fullPath || r.filePath;
             }
           }
         }
@@ -241,7 +243,7 @@ const AlurfilmRenderStep: React.FC = () => {
       const res = await api.renderAlurfilmIntroTest({
         titleText: settings.introTitleText || 'UNDER THE DOME',
         subtitleText: settings.introSubtitleText || 'ALUR CERITA FILM',
-        audioPath: settings.introAudioPath || 'assets/The Final Horizon.mp3',
+        audioPath: settings.introAudioPath || 'assets/Denied Access - Density & Time.mp3',
         impactTimestamp: settings.introImpactTimestamp ?? 0.48,
         duration: settings.introDuration ?? 6.0,
         stylePreset: (settings.introStylePreset as any) || 'cinematic_gold',
@@ -251,6 +253,7 @@ const AlurfilmRenderStep: React.FC = () => {
         const mediaUrl = api.getMediaUrl ? api.getMediaUrl(res.outputPath) : `media://content-auto/${encodeURIComponent(res.outputPath)}`;
         const resultObj = { filePath: res.outputPath, mediaUrl, fileName: res.outputPath.split('/').pop() || 'intro.mp4' };
         setIntroResult(resultObj);
+        setRenderedOutputs((prev) => ({ ...prev, [0]: res.outputPath }));
         addLog(`🎉 Cinematic Intro Video Ready: ${res.outputPath}`, 'success');
         showToast('🎉 Render Intro Sinematik Berhasil!');
         return { success: true, filePath: res.outputPath };

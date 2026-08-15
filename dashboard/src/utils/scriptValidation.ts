@@ -118,7 +118,7 @@ export function validateScriptAnalysis(
           id: 'SHORT_SCRIPT_TEXT',
           severity: 'warning',
           field: 'naskah_voiceover.script_text',
-          message: `Script narration is unusually short (${words.length} words). Target is 300-400 words per chunk.`,
+          message: `Script narration is unusually short (${words.length} words). Target is ~500 words per chunk.`,
         });
       }
       // Auto-correct or update word_count
@@ -156,7 +156,8 @@ export function validateScriptAnalysis(
   }
 
   // Normalize defaults
-  data.chunk_part = Number(data.chunk_part || fallbackPartNum) || fallbackPartNum;
+  const parsedPart = Number(data.chunk_part);
+  data.chunk_part = !isNaN(parsedPart) ? parsedPart : fallbackPartNum;
   data.status = data.status || 'done';
 
   const errors = issues.filter((i) => i.severity === 'error');

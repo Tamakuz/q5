@@ -398,6 +398,169 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     };
   });
 
+  // ─── Generate Alurfilm Auto Intro from Movie Chunks (FFmpeg) ─────────
+  ipcMain.handle('generate-alurfilm-auto-intro', async (event, { contentId: passedContentId, clipDurationPerPart = 15 }) => {
+    const contentId = passedContentId || p.getOrGenerateContentId('longform');
+    
+    // 1. Get all chunks for contentId with part >= 1
+    const searchDirs = [p.ALURFILM_COMPRESS_DIR, p.ALURFILM_CHUNKS_DIR].filter(d => d && fs.existsSync(d));
+    if (searchDirs.length === 0) {
+      return { success: false, error: 'Tidak ada folder video part ditemukan.' };
+    }
+
+    const foundFilesMap = new Map();
+    for (const dir of searchDirs) {
+      const files = fs.readdirSync(dir);
+      files
+        .filter(f => f.startsWith(contentId) && f.endsWith('.mp4') && !f.includes('intro'))
+        .forEach(f => {
+          if (!foundFilesMap.has(f)) {
+            foundFilesMap.set(f, path.join(dir, f));
+          }
+        });
+    }
+
+    const sortedFiles = Array.from(foundFilesMap.keys()).sort();
+    if (sortedFiles.length === 0) {
+      return { success: false, error: 'Tidak ada video Part #1, #2, dst yang ditemukan untuk dibuatkan intro.' };
+    }
+
+    const tempSegmentPaths = [];
+    const timestamp = Date.now();
+
+    try {
+      // 2. Extract clip from each part
+      for (let i = 0; i < sortedFiles.length; i++) {
+        const fileKey = sortedFiles[i];
+        const fullPath = foundFilesMap.get(fileKey);
+        
+        event.sender.send('alurfilm:auto-intro-progress', {
+          step: i + 1,
+          totalSteps: sortedFiles.length + 1,
+          percent: Math.round(((i + 1) / (sortedFiles.length + 1)) * 80),
+          message: `Memotong klip acak (${i + 1}/${sortedFiles.length}) dari ${fileKey}...`
+        });
+
+        let durationSec = 120;
+        try {
+          const meta = await ffmpeg.getVideoMetaHelper(fullPath);
+          if (meta && meta.duration && meta.duration > 0) {
+            durationSec = meta.duration;
+          }
+        } catch (e) {}
+
+        const clipLen = Math.min(clipDurationPerPart, Math.max(5, durationSec - 10));
+        const maxStart = Math.max(5, Math.floor(durationSec - clipLen - 5));
+        const minStart = 5;
+        const randomStartSec = Math.floor(Math.random() * (maxStart - minStart + 1)) + minStart;
+
+        const tempSegmentPath = path.join(p.ALURFILM_CHUNKS_DIR, `temp_intro_segment_${timestamp}_part_${i + 1}.mp4`);
+        
+        // Fast trim via FFmpeg
+        await new Promise((resolve, reject) => {
+          const args = [
+            '-ss', String(randomStartSec),
+            '-i', fullPath,
+            '-t', String(clipLen),
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-pix_fmt', 'yuv420p',
+            '-r', '30',
+            '-c:a', 'aac',
+            '-ar', '44100',
+            '-ac', '2',
+            '-y',
+            tempSegmentPath
+          ];
+          const proc = spawn(ffmpeg.ffmpegPath, args);
+          proc.on('close', (code) => code === 0 && fs.existsSync(tempSegmentPath) ? resolve() : reject(new Error(`FFmpeg trim clip part #${i + 1} failed code ${code}`)));
+          proc.on('error', reject);
+        });
+
+        tempSegmentPaths.push(tempSegmentPath);
+      }
+
+      // 3. Concatenate all segment clips using FFmpeg concat list
+      event.sender.send('alurfilm:auto-intro-progress', {
+        step: sortedFiles.length + 1,
+        totalSteps: sortedFiles.length + 1,
+        percent: 90,
+        message: 'Menggabungkan klip-klip acak menjadi video Intro (Part #0)...'
+      });
+
+      const listFilePath = path.join(p.ALURFILM_CHUNKS_DIR, `concat_intro_list_${timestamp}.txt`);
+      const listContent = tempSegmentPaths.map(f => `file '${f.replace(/'/g, "'\\''")}'`).join('\n');
+      fs.writeFileSync(listFilePath, listContent, 'utf-8');
+
+      const outputFilename = `${contentId}_part_00_intro.mp4`;
+      const outputPath = path.join(p.ALURFILM_CHUNKS_DIR, outputFilename);
+
+      await new Promise((resolve, reject) => {
+        const args = [
+          '-f', 'concat',
+          '-safe', '0',
+          '-i', listFilePath,
+          '-c:v', 'libx264',
+          '-preset', 'ultrafast',
+          '-pix_fmt', 'yuv420p',
+          '-r', '30',
+          '-c:a', 'aac',
+          '-ar', '44100',
+          '-ac', '2',
+          '-y',
+          outputPath
+        ];
+        const proc = spawn(ffmpeg.ffmpegPath, args);
+        proc.on('close', (code) => code === 0 && fs.existsSync(outputPath) ? resolve() : reject(new Error(`FFmpeg concat intro video failed code ${code}`)));
+        proc.on('error', reject);
+      });
+
+      // Clean up temporary segment files & list file
+      try { fs.unlinkSync(listFilePath); } catch (e) {}
+      for (const tempPath of tempSegmentPaths) {
+        try { fs.unlinkSync(tempPath); } catch (e) {}
+      }
+
+      let stats = { size: 0 };
+      let finalDurationSec = 0;
+      try {
+        stats = fs.statSync(outputPath);
+        const meta = await ffmpeg.getVideoMetaHelper(outputPath);
+        if (meta && meta.duration && meta.duration > 0) {
+          finalDurationSec = Number(meta.duration.toFixed(2));
+        }
+      } catch (e) {}
+
+      const chunk = {
+        part: 0,
+        name: outputFilename,
+        size: stats.size,
+        durationSec: finalDurationSec,
+        duration: finalDurationSec,
+        filePath: outputPath,
+        url: media.mediaUrl(outputPath),
+        mediaUrl: media.mediaUrl(outputPath),
+        isCompressed: false
+      };
+
+      event.sender.send('alurfilm:auto-intro-progress', {
+        step: sortedFiles.length + 1,
+        totalSteps: sortedFiles.length + 1,
+        percent: 100,
+        message: '🎉 Video Intro Part #0 dari klip part berhasil dibuat!'
+      });
+
+      return { success: true, chunk, videoPath: outputPath, fileSizeBytes: stats.size };
+    } catch (err) {
+      console.error('❌ [generate-alurfilm-auto-intro] Error:', err);
+      // Clean up any temp files created
+      for (const tempPath of tempSegmentPaths) {
+        try { fs.unlinkSync(tempPath); } catch (e) {}
+      }
+      return { success: false, error: err.message || String(err) };
+    }
+  });
+
   // ─── List Alurfilm Chunks ──────────────────────────────
   ipcMain.handle('list-alurfilm-chunks', async (_event, modeContentId) => {
     const contentId = modeContentId || p.getOrGenerateContentId('longform');
@@ -428,8 +591,11 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
         }
       } catch (e) {}
 
+      const partMatch = f.match(/part_(\d+)/);
+      const partNum = partMatch ? parseInt(partMatch[1], 10) : (f.includes('intro') ? 0 : idx + 1);
+
       return {
-        part: idx + 1,
+        part: partNum,
         name: f,
         size: stat.size,
         durationSec: durationSec,
@@ -510,7 +676,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     } else if (typeof rawOpts === 'number' || typeof rawOpts === 'string') {
       opts = { chunkPart: Number(rawOpts) };
     }
-    const chunkPart = Number(opts.chunkPart || opts.partNum || opts.part) || 1;
+    const chunkPart = typeof opts.chunkPart !== 'undefined' ? Number(opts.chunkPart) : (typeof opts.partNum !== 'undefined' ? Number(opts.partNum) : (typeof opts.part !== 'undefined' ? Number(opts.part) : 1));
     const totalChunks = Number(opts.totalChunks) || 2;
     const previousContext = (typeof opts.previousContext !== 'undefined' && opts.previousContext) ? opts.previousContext : null;
     const styleExample = opts.styleExample;
@@ -538,7 +704,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
         if (matchFile) {
           const targetVideo = path.join(dir, matchFile);
           try {
-            const meta = await ffmpeg.getVideoMetaHelper(targetVideo);
+            const meta = me.getVideoMetaHelper ? await me.getVideoMetaHelper(targetVideo) : await ffmpeg.getVideoMetaHelper(targetVideo);
             if (meta && meta.duration && meta.duration > 0) {
               durationSec = meta.duration;
               break;
@@ -549,7 +715,10 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     }
 
     const safeDuration = Math.max(1, durationSec);
-    const computedWordsPerChunk = Math.max(40, Math.min(400, Math.round(safeDuration * 1.2)));
+    const isIntroPart = Number(chunkPart) === 0;
+    const computedWordsPerChunk = isIntroPart
+      ? Math.max(40, Math.min(250, Math.round(safeDuration * 1.2)))
+      : Math.max(40, Math.min(500, Math.round(safeDuration * 1.2)));
     const chunkDurationText = safeDuration < 60
       ? `${Math.round(safeDuration)} Detik`
       : `${(safeDuration / 60).toFixed(1)} Menit`;
@@ -557,12 +726,24 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     const prevCtxStr = (typeof previousContext !== 'undefined' && previousContext) ? JSON.stringify(previousContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
     const isFirstPart = Number(chunkPart) === 1;
     const isLastPart = Number(chunkPart) === Number(totalChunks);
-    const isFirstPartStr = isFirstPart ? 'YA (Chunk #1 / Part Pembuka Film)' : `TIDAK (Chunk #${chunkPart} / Part Lanjutan)`;
+    const isFirstPartStr = isIntroPart
+      ? 'YA (Part #0 Intro Teaser Highlight - Sapa penonton secara friendly & santai seperti gaya IQ7/Alurfilm)'
+      : isFirstPart
+      ? 'YA (Chunk #1 / Part Pembuka Film Utama)'
+      : `TIDAK (Chunk #${chunkPart} / Part Lanjutan)`;
     const isLastPartStr = isLastPart ? 'YA (Chunk Terakhir / Part Penutup Film)' : `TIDAK (Part Bukan Penutup)`;
-    const styleExampleStr = styleExample ? String(styleExample) : 'Gunakan gaya penceritaan alur film santai, jernih, dan mengalir.';
+    const styleExampleStr = isIntroPart
+      ? 'Gunakan gaya penceritaan yang super friendly, santai, mengalir hangat, dan akrab khas pencerita alur film populer (seperti IQ7 dan Alurfilm). Buka dengan salam hangat yang santai (misal: "Halo guys, balik lagi bareng...", "Halo bro & sis..."), lalu sampaikan narasi teaser intro yang membakar rasa penasaran penonton (hooking) dan mengalir mulus tanpa kaku!'
+      : styleExample ? String(styleExample) : 'Gunakan gaya penceritaan alur film santai, jernih, dan mengalir.';
+    const movieTitleStr = String(opts.movieTitle || opts.movie_title || opts.title || '').trim() || 'Film Ini';
+    const movieYearStr = String(opts.movieYear || opts.movie_year || opts.year || '').trim();
+    const movieYearFormatted = movieYearStr ? `tahun ${movieYearStr}` : '';
+
     const fullPrompt = promptTemplate
       .replace(/{{chunk_part}}/g, String(chunkPart))
       .replace(/{{total_chunks}}/g, String(totalChunks))
+      .replace(/{{movie_title}}/g, movieTitleStr)
+      .replace(/{{movie_year}}/g, movieYearFormatted)
       .replace(/{{is_first_part}}/g, isFirstPartStr)
       .replace(/{{is_last_part}}/g, isLastPartStr)
       .replace(/{{target_words_per_chunk}}/g, String(computedWordsPerChunk))
@@ -603,9 +784,15 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     if (!resultData.naskah_voiceover.script_text || typeof resultData.naskah_voiceover.script_text !== 'string') {
       throw new Error('Script Analysis Error: Missing or invalid "naskah_voiceover.script_text" string.');
     }
+    // Clean unwanted [AUDIO: ...] sound effect tags if present
+    resultData.naskah_voiceover.script_text = resultData.naskah_voiceover.script_text
+      .replace(/\[AUDIO:\s*[^\]]+\]/gi, '')
+      .replace(/  +/g, ' ')
+      .trim();
 
-    const partNum = Number(resultData.chunk_part || chunkPart) || 1;
-    const words = resultData.naskah_voiceover.script_text.trim().split(/\s+/).filter(Boolean);
+    const rawPartNum = typeof resultData.chunk_part !== 'undefined' ? Number(resultData.chunk_part) : (typeof chunkPart !== 'undefined' ? Number(chunkPart) : 0);
+    const partNum = isNaN(rawPartNum) ? 0 : rawPartNum;
+    const words = resultData.naskah_voiceover.script_text.split(/\s+/).filter(Boolean);
     resultData.naskah_voiceover.word_count = words.length;
     resultData.chunk_part = partNum;
     resultData.status = resultData.status || 'done';
@@ -1039,7 +1226,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
 
     if (typeof arg1 === 'object' && arg1 !== null && !Array.isArray(arg1)) {
       if ('chunkPart' in arg1 || 'jsonText' in arg1) {
-        chunkPart = Number(arg1.chunkPart) || 1;
+        chunkPart = typeof arg1.chunkPart !== 'undefined' && arg1.chunkPart !== null ? Number(arg1.chunkPart) : 1;
         jsonText = arg1.jsonText;
       } else {
         jsonText = arg1;
@@ -1179,7 +1366,10 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
 
     for (const pt of sortedParts) {
       const partStr = String(pt).padStart(2, '0');
-      const analysisPath = path.join(p.ALURFILM_DIR, `${contentId}_analysis_part_${partStr}.json`);
+      let analysisPath = path.join(p.ALURFILM_DIR, `${contentId}_analysis_part_${partStr}.json`);
+      if (!fs.existsSync(analysisPath)) {
+        analysisPath = path.join(p.ALURFILM_DIR, `${contentId}_analysis_part_${pt}.json`);
+      }
       let scriptText = '';
       if (fs.existsSync(analysisPath)) {
         try {
@@ -1748,7 +1938,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
 
     if (typeof arg1 === 'object' && arg1 !== null && !Array.isArray(arg1)) {
       if ('chunkPart' in arg1 || 'jsonText' in arg1) {
-        chunkPart = Number(arg1.chunkPart) || 1;
+        chunkPart = typeof arg1.chunkPart !== 'undefined' && arg1.chunkPart !== null ? Number(arg1.chunkPart) : 1;
         jsonText = arg1.jsonText;
       } else {
         jsonText = arg1;
@@ -1777,8 +1967,8 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     if (Array.isArray(parsed) && parsed.length > 1) {
       for (const item of parsed) {
         let pNum = chunkPart;
-        if (item.chunk_part || item.part) {
-          pNum = Number(item.chunk_part || item.part);
+        if (typeof item.chunk_part !== 'undefined' || typeof item.part !== 'undefined') {
+          pNum = Number(typeof item.chunk_part !== 'undefined' ? item.chunk_part : item.part);
         } else if (item.scene_id) {
           const match = String(item.scene_id).match(/(\d+)/);
           if (match) pNum = parseInt(match[1], 10);
@@ -1797,12 +1987,19 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     }
 
     if (!targetResult) {
-      const normalizedData = normalizeMappingObj(parsed, chunkPart) || parsed;
-      const partStr = String(chunkPart).padStart(2, '0');
+      let pNum = chunkPart;
+      if (typeof parsed.chunk_part !== 'undefined' || typeof parsed.part !== 'undefined') {
+        pNum = Number(typeof parsed.chunk_part !== 'undefined' ? parsed.chunk_part : parsed.part);
+      } else if (parsed.scene_id) {
+        const match = String(parsed.scene_id).match(/(\d+)/);
+        if (match) pNum = parseInt(match[1], 10);
+      }
+      const normalizedData = normalizeMappingObj(parsed, pNum) || parsed;
+      const partStr = String(pNum).padStart(2, '0');
       const outputName = `${contentId}_mapping_part_${partStr}.json`;
       const destPath = path.join(p.ALURFILM_DIR, outputName);
       fs.writeFileSync(destPath, JSON.stringify(normalizedData, null, 2), 'utf-8');
-      targetResult = { part: chunkPart, name: outputName, filePath: destPath, data: normalizedData };
+      targetResult = { part: pNum, name: outputName, filePath: destPath, data: normalizedData };
     }
 
     return targetResult;
@@ -1923,10 +2120,10 @@ Anda harus menghasilkan tepat 5 variasi judul dengan kategori emosi berikut:
 5. "misteri": Mengincar Gendang Kepo Terlarang (Rahasia, Motivasi Tersembunyi & Curiosity Gap Dari Naskah).
 
 ATURAN TEKS THUMBNAIL (GAYA DUA WARNA VIRAL):
-Teks thumbnail harus 2-4 kata yang sangat singkat & kontras tajam.
+Teks thumbnail harus 2-4 kata yang sangat singkat & kontras tajam (misal: "TAK BISA KABUR", "100 TAHUN DIKURUNG", "LEPAS = MATI").
 Gaya teks mengikuti pola dua warna yang terbukti meledak di niche Alur Cerita Film:
-- Kata Pertama (Yellow Part): Teks penarik perhatian warna Kuning Cerah ALL CAPS.
-- Kata Kedua (Red Part): Teks klimaks emosi warna Merah Menyala dengan Outline Hitam ALL CAPS.
+- Kata Pertama (Yellow Part): Teks penarik perhatian warna Kuning Cerah (#FFD700) ALL CAPS (misal: "TAK BISA", "100 TAHUN", "LEPAS =").
+- Kata Kedua (Red Part): Teks klimaks emosi warna Merah Menyala (#FF0000) dengan Outline Hitam ALL CAPS (misal: "KABUR", "DIKURUNG", "MATI").
 
 🎨 ATURAN PROMPT GAMBAR THUMBNAIL (OUTPUT GUIDANCE & RULES PROMPT - SIAP COPAS):
 Nilai dari "thumbnail_prompt" WAJIB berupa PROMPT ATURAN & KONTEKS UTUH (dalam Bahasa Inggris) yang SIAP DI-COPAS LANGSUNG oleh pengguna ke generator AI (Midjourney v6 / Flux / DALL-E 3 / SDXL / ControlNet).
@@ -1934,14 +2131,14 @@ Nilai dari "thumbnail_prompt" WAJIB berupa PROMPT ATURAN & KONTEKS UTUH (dalam B
 DILARANG KERAS memaksakan detail adegan mikro atau mengarang objek fiksi luar karena pengguna akan mengunggah/menggunakan foto referensi adegan asli dari film.
 Setiap "thumbnail_prompt" WAJIB di-format utuh mencakup 3 blok utama berikut:
 
-1. MOVIE STORY CONTEXT:
-"Movie Context: [Singkat 1-2 kalimat konteks naskah film, karakter utama & kondisi fisik/emosional riilnya, setting lokasi asli, serta konflik emosional utama]."
+1. MOVIE STORY CONTEXT & EXTREME SURVIVAL / COLOSSAL SCALE FRAMING:
+"Movie Context & Extreme Framing: [Singkat 1-2 kalimat konteks naskah film, framing adegan berisiko tinggi (misal: manusia terikat/tergantung di tebing jurang/dalam rantai raksasa atau siluet di hadapan anomali kolosal), ekspresi ketakutan/teriakan survival ekstrem, serta pencahayaan dramatis]."
 
 2. TEXT OVERLAY SPECIFICATION:
-"Embed top-third text overlay in ultra-bold heavy impact font: Part 1 '[thumbnail_text_yellow]' in bright yellow font, Part 2 '[thumbnail_text_red]' in bright red font with thick black stroke and shadow."
+"Embed top-third text overlay in ultra-bold heavy impact font: Part 1 '[thumbnail_text_yellow]' in bright gold yellow (#FFD700), Part 2 '[thumbnail_text_red]' in intense bright red (#FF0000) with thick solid black stroke outline and drop shadow."
 
 3. YOUTUBE THUMBNAIL RENDERING RULES & ASSET GUIDANCE:
-"YouTube 16:9 widescreen layout (--ar 16:9). Keep bottom-right corner clean for YouTube video duration badge. High-contrast cinematic lighting matching scene mood, 8k gritty film poster texture, heavy dark vignette along frame edges for instant mobile thumb-stopping power. Image Generator Guidance: Preserving the core movie context and user's input image reference, dynamically decide final asset composition, scale contrast, and camera framing matching the real movie setting without adding unscripted objects. Hyper-realistic 8k resolution, photorealistic, octane render --ar 16:9 --v 6.0"
+"YouTube 16:9 widescreen layout (--ar 16:9). Keep bottom-right corner clean for YouTube duration badge. High-contrast cinematic lighting, extreme camera angle (high-angle birds-eye view or dramatic low-angle perspective), 8k gritty film poster texture, volumetric mist/dust/sand, heavy dark vignette along frame edges for instant mobile thumb-stopping power. Image Generator Guidance: Preserving core movie context, high-stakes survival contrast, and dramatic camera framing matching the real movie setting. Hyper-realistic 8k resolution, photorealistic, octane render --ar 16:9 --v 6.0"
 
 DESKRIPSI VIDEO YOUTUBE (TERSTRUKTUR & SEO FRIENDLY):
 1. 2 Baris Pertama: Hook pembuka tajam yang selaras dengan judul.

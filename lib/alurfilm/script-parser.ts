@@ -28,27 +28,35 @@ export interface ParsedScriptResult {
 export const VISUAL_ONLY_TAG_REGEX = /\[VISUAL_ONLY:\s*([\d.]+)\s*s?\s*(?:\|\s*([^\]]+))?\]/gi;
 
 /**
+ * Regex pattern to match [EXPRESSION: ...], [AUDIO: ...], [SFX: ...] direction tags and vocal tags [laugh], [chuckle], [sigh], [gasp], [whisper], [shout], [hyped], etc.
+ */
+export const EXPRESSION_TAG_REGEX = /\[(EXPRESSION|AUDIO|SFX|VOICE|laugh|chuckle|chuckles|sigh|gasp|whisper|excited|curious|pause|shout|shouting|screaming|hyped|yell|cheer)(?::\s*([^\]]*))?\]/gi;
+
+/**
  * Converts script containing [VISUAL_ONLY: 5.0s | ...] into Gemini TTS SSML break tags.
  * Example: "Hello [VISUAL_ONLY: 5.0s | action] world" -> "Hello <break time="5.0s"/> world"
  */
 export function convertToGeminiTtsScript(rawScript: string): string {
   if (!rawScript) return '';
-  return rawScript.replace(
-    VISUAL_ONLY_TAG_REGEX,
-    (_match, secStr) => {
-      const sec = parseFloat(secStr) || 5;
-      return `<break time="${sec.toFixed(1)}s"/>`;
-    }
-  );
+  return rawScript
+    .replace(
+      VISUAL_ONLY_TAG_REGEX,
+      (_match, secStr) => {
+        const sec = parseFloat(secStr) || 5;
+        return `<break time="${sec.toFixed(1)}s"/>`;
+      }
+    )
+    .replace(EXPRESSION_TAG_REGEX, '');
 }
 
 /**
- * Strips all [VISUAL_ONLY: ...] tags from the script, leaving clean narration text.
+ * Strips all [VISUAL_ONLY: ...], [EXPRESSION: ...], [AUDIO: ...] tags from the script, leaving clean narration text.
  */
 export function stripVisualOnlyTags(rawScript: string): string {
   if (!rawScript) return '';
   return rawScript
     .replace(VISUAL_ONLY_TAG_REGEX, '')
+    .replace(EXPRESSION_TAG_REGEX, '')
     .replace(/\n\s*\n\s*\n/g, '\n\n')
     .trim();
 }

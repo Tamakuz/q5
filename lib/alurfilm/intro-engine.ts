@@ -20,7 +20,7 @@ export async function renderIntroVideo(
   const {
     titleText = 'UNDER THE DOME',
     subtitleText = 'FILM 2013',
-    audioPath = 'assets/The Final Horizon.mp3',
+    audioPath = 'assets/Denied Access - Density & Time.mp3',
     impactTimestamp = 0.48,
     duration = 6.0,
     stylePreset = 'cinematic_gold',

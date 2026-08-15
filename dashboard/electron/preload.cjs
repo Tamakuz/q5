@@ -50,6 +50,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   splitAlurfilmMasterRange: (masterPath, startSec, durationSec, partNum) =>
     ipcRenderer.invoke('split-alurfilm-master-range', { masterPath, startSec, durationSec, partNum }),
+  generateAlurfilmAutoIntro: (contentId, clipDurationPerPart) =>
+    ipcRenderer.invoke('generate-alurfilm-auto-intro', { contentId, clipDurationPerPart }),
+  onAlurfilmAutoIntroProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('alurfilm:auto-intro-progress', handler);
+    return () => ipcRenderer.removeListener('alurfilm:auto-intro-progress', handler);
+  },
   listAlurfilmChunks: (modeContentId) => ipcRenderer.invoke('list-alurfilm-chunks', modeContentId),
   deleteAlurfilmChunk: (part) => ipcRenderer.invoke('delete-alurfilm-chunk', { part }),
   compressAlurfilmChunk: (opts) => ipcRenderer.invoke('compress-alurfilm-chunk', opts),
@@ -62,7 +69,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       opts = args[0];
     } else {
       opts = {
-        partNum: Number(args[0]) || 1,
+        partNum: typeof args[0] !== 'undefined' && args[0] !== null ? Number(args[0]) : 1,
         totalChunks: Number(args[1]) || 4,
         previousContext: args[2] || null,
       };
@@ -97,7 +104,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         chunkPart = Number(args[0]);
         jsonText = args[1];
       } else {
-        chunkPart = Number(args[1]) || 1;
+        chunkPart = typeof args[1] !== 'undefined' && args[1] !== null ? Number(args[1]) : 1;
         jsonText = args[0] || args[2];
       }
     } else if (args.length === 1) {
@@ -124,7 +131,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         chunkPart = Number(args[0]);
         jsonText = args[1];
       } else {
-        chunkPart = Number(args[1]) || 1;
+        chunkPart = typeof args[1] !== 'undefined' && args[1] !== null ? Number(args[1]) : 1;
         jsonText = args[0];
       }
     } else if (args.length === 1) {
@@ -154,7 +161,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         chunkPart = Number(args[0]);
         jsonText = args[1];
       } else {
-        chunkPart = Number(args[1]) || 1;
+        chunkPart = typeof args[1] !== 'undefined' && args[1] !== null ? Number(args[1]) : 1;
         jsonText = args[0];
       }
     } else if (args.length === 1) {

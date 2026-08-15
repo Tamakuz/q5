@@ -125,7 +125,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
     introStylePreset: 'cinematic_gold',
     introDuration: 6.0,
     introImpactTimestamp: 0.48,
-    introAudioPath: 'assets/The Final Horizon.mp3',
+    introAudioPath: 'assets/Denied Access - Density & Time.mp3',
   };
 
   async function renderIntroVideoHelper(introOpts, cwd) {
@@ -255,7 +255,7 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
       const introPreset = introStylePreset || saved.introStylePreset || 'cinematic_gold';
       const introDur = introDuration || saved.introDuration || 6.0;
       const introImpact = introImpactTimestamp || saved.introImpactTimestamp || 0.48;
-      const introAudio = introAudioPath || saved.introAudioPath || 'assets/The Final Horizon.mp3';
+      const introAudio = introAudioPath || saved.introAudioPath || 'assets/Denied Access - Density & Time.mp3';
       const introOut = path.join(outputDir, `alurfilm_${contentId}_intro_${Date.now()}.mp4`);
 
       console.log(`🎬 [Intro Generator] Generating intro title video: "${introTitle}"...`);
@@ -457,7 +457,7 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
 
   // ─── Render Alurfilm Video (per-part) ──────────────────
   ipcMain.handle('render-alurfilm-video', async (_event, args = {}) => {
-    const part = args.part || args.chunkPart || 1;
+    const part = typeof args.part !== 'undefined' && args.part !== null ? Number(args.part) : (typeof args.chunkPart !== 'undefined' && args.chunkPart !== null ? Number(args.chunkPart) : 1);
     const mapping = args.mapping || args.mappingData;
     const videoPath = args.videoPath;
     const audioPath = args.audioPath;

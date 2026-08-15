@@ -362,7 +362,8 @@ export interface ElectronAPI {
   splitAlurfilmVideo: (masterPath: string, startTime: string | number, endTime: string | number) => Promise<AlurfilmChunk[]>;
   splitAlurfilmMaster: (masterPath: string, intervalSeconds?: number, startTime?: string | number, endTime?: string | number) => Promise<{ chunks: AlurfilmChunk[]; content_id?: string }>;
   onAlurfilmSplitProgress?: (callback: (data: AlurfilmSplitProgressPayload) => void) => () => void;
-  splitAlurfilmMasterRange: (masterPath: string, startSec: number, durationSec: number, partNum: number) => Promise<{ chunks: AlurfilmChunk[]; content_id?: string }>;
+  generateAlurfilmAutoIntro?: (contentId?: string, clipDurationPerPart?: number) => Promise<{ success: boolean; chunk?: AlurfilmChunk; videoPath?: string; error?: string }>;
+  onAlurfilmAutoIntroProgress?: (callback: (data: { step: number; totalSteps: number; percent: number; message: string }) => void) => () => void;
   listAlurfilmChunks: (modeContentId?: string) => Promise<AlurfilmChunk[]>;
   deleteAlurfilmChunk: (part: number) => Promise<boolean>;
   compressAlurfilmChunk: (opts: { part: number; filePath?: string }) => Promise<AlurfilmChunk>;
@@ -443,7 +444,7 @@ export interface ElectronAPI {
     outputPath?: string;
   }) => Promise<{ success: boolean; outputPath: string; error?: string }>;
   getAlurfilmIntro?: (modeContentId?: string) => Promise<{ filePath: string; mediaUrl: string; fileName: string } | null>;
-  onAlurfilmIntroProgress?: (callback: (data: { percent: number; msg?: string }) => void) => () => void;
+  onAlurfilmIntroProgress?: (callback: (data: { percent?: number; percentage?: number; totalSize?: string; speed?: string; msg?: string }) => void) => () => void;
   generateAlurfilmTestTtsWithSilence?: (scriptText: string) => Promise<{
     success: boolean;
     audioPath: string;

@@ -38,6 +38,44 @@ const AlurfilmAnalyzeStep: React.FC = () => {
   const [availableProfiles, setAvailableProfiles] = useState<string[]>(['user_1', 'user_2']);
   const [selectedProfile, setSelectedProfile] = useState<string>('user_1');
 
+  // Auto Intro Downloader State
+  const [isGeneratingAutoIntro, setIsGeneratingAutoIntro] = useState<boolean>(false);
+  const [autoIntroProgress, setAutoIntroProgress] = useState<{ step: number; totalSteps: number; percent: number; message: string } | null>(null);
+
+  const handleGenerateAutoIntro = async () => {
+    if (isGeneratingAutoIntro) return;
+    setIsGeneratingAutoIntro(true);
+    setError(null);
+    setAutoIntroProgress({ step: 1, totalSteps: 5, percent: 10, message: 'Menginisialisasi pemotongan cuplikan acak...' });
+
+    let unsub: (() => void) | null = null;
+    if (api.onAlurfilmAutoIntroProgress) {
+      unsub = api.onAlurfilmAutoIntroProgress((data) => {
+        setAutoIntroProgress(data);
+      });
+    }
+
+    try {
+      if (api.generateAlurfilmAutoIntro) {
+        const res = await api.generateAlurfilmAutoIntro(contentId || undefined, 15);
+        if (res.success) {
+          showToast('🎉 Video Intro Part #0 dari klip part berhasil dibuat!');
+          const chunkList = await api.listAlurfilmChunks(contentId || undefined);
+          setChunks(chunkList || []);
+          setActivePart(0);
+        } else {
+          setError(`Gagal membuat auto intro: ${res.error}`);
+        }
+      }
+    } catch (err: any) {
+      setError(`Error generate auto intro: ${err.message}`);
+    } finally {
+      if (unsub) unsub();
+      setIsGeneratingAutoIntro(false);
+      setAutoIntroProgress(null);
+    }
+  };
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
@@ -84,7 +122,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
 
     try {
       let previousContext: any = null;
-      if (activePart > 1 && analyses[activePart - 1]?.data) {
+      if (activePart > 0 && analyses[activePart - 1]?.data) {
         const prevData = analyses[activePart - 1].data;
         previousContext = {
           previous_script_text: prevData.naskah_voiceover?.script_text || '',
@@ -135,9 +173,9 @@ const AlurfilmAnalyzeStep: React.FC = () => {
             const map: Record<number, AlurfilmAnalysisResult> = {};
             if (analysisList) {
               for (const item of analysisList) {
-                if (item.data && item.data.chunk_part) {
+                if (item.data && typeof item.data.chunk_part === 'number') {
                   map[item.data.chunk_part] = item;
-                } else if (item.part) {
+                } else if (typeof item.part === 'number') {
                   map[item.part] = item;
                 }
               }
@@ -186,9 +224,9 @@ const AlurfilmAnalyzeStep: React.FC = () => {
           const map: Record<number, AlurfilmAnalysisResult> = {};
           if (analysisList) {
             for (const item of analysisList) {
-              if (item.data && item.data.chunk_part) {
+              if (item.data && typeof item.data.chunk_part === 'number') {
                 map[item.data.chunk_part] = item;
-              } else if (item.part) {
+              } else if (typeof item.part === 'number') {
                 map[item.part] = item;
               }
             }
@@ -220,14 +258,39 @@ const AlurfilmAnalyzeStep: React.FC = () => {
 
   const [copiedPromptPart, setCopiedPromptPart] = useState<number | null>(null);
 
+  // Movie Info Metadata State (Title & Year)
+  const [movieTitle, setMovieTitle] = useState<string>('');
+  const [movieYear, setMovieYear] = useState<string>('');
+
+  useEffect(() => {
+    if (contentId) {
+      const savedTitle = localStorage.getItem(`alurfilm_movie_title_${contentId}`);
+      if (savedTitle !== null) setMovieTitle(savedTitle);
+      const savedYear = localStorage.getItem(`alurfilm_movie_year_${contentId}`);
+      if (savedYear !== null) setMovieYear(savedYear);
+    }
+  }, [contentId]);
+
+  const handleTitleChange = (val: string) => {
+    setMovieTitle(val);
+    if (contentId) localStorage.setItem(`alurfilm_movie_title_${contentId}`, val);
+  };
+
+  const handleYearChange = (val: string) => {
+    setMovieYear(val);
+    if (contentId) localStorage.setItem(`alurfilm_movie_year_${contentId}`, val);
+  };
+
   const handleCopyPromptForPart = async (partNum: number) => {
-    let prevContext = null;
+    setError(null);
+
+    let prevContext: any = null;
     if (partNum > 1 && analyses[partNum - 1]?.data) {
-      const prevData = analyses[partNum - 1].data;
+      const prevAnalysis = analyses[partNum - 1].data;
       prevContext = {
-        previous_script_text: prevData.naskah_voiceover?.script_text || '',
-        macro_summary: prevData.naskah_voiceover?.macro_summary || '',
-        character_registry: prevData.character_registry || [],
+        previous_script_text: prevAnalysis.naskah_voiceover?.script_text || '',
+        macro_summary: prevAnalysis.naskah_voiceover?.macro_summary || '',
+        character_registry: prevAnalysis.character_registry || [],
       };
     }
 
@@ -235,12 +298,23 @@ const AlurfilmAnalyzeStep: React.FC = () => {
       const totalChunks = chunks.length || 1;
       const activeChunk = chunks.find((c) => c.part === partNum);
       const chunkDur = activeChunk?.durationSec || activeChunk?.duration || 0;
-      const computedWords = Math.max(40, Math.min(400, Math.round(chunkDur * 1.2)));
+      const isIntroPart = partNum === 0;
+      const computedWords = isIntroPart
+        ? Math.max(40, Math.min(250, Math.round(chunkDur * 1.2)))
+        : Math.max(40, Math.min(500, Math.round(chunkDur * 1.2)));
 
       let formattedPrompt = '';
       if (api.getAlurfilmPrompt) {
         try {
-          formattedPrompt = await api.getAlurfilmPrompt({ chunkPart: partNum, totalChunks, previousContext: prevContext, durationSec: chunkDur, contentId } as any);
+          formattedPrompt = await api.getAlurfilmPrompt({
+            chunkPart: partNum,
+            totalChunks,
+            previousContext: prevContext,
+            durationSec: chunkDur,
+            contentId,
+            movieTitle,
+            movieYear
+          } as any);
         } catch {}
       }
       
@@ -249,18 +323,29 @@ const AlurfilmAnalyzeStep: React.FC = () => {
         const chunkDurText = chunkDur < 60
           ? `${Math.round(chunkDur)} Detik`
           : `${(chunkDur / 60).toFixed(1)} Menit`;
-        const isFirstPartStr = partNum === 1 ? 'YA (Part Pembuka)' : `TIDAK (Chunk #${partNum} / Part Lanjutan)`;
+        const isIntroPart = partNum === 0;
+        const isFirstPartStr = isIntroPart
+          ? 'YA (Part #0 Intro Teaser Highlight - Sapa penonton secara friendly & santai seperti gaya IQ7/Alurfilm)'
+          : partNum === 1
+          ? 'YA (Part Pembuka Film Utama)'
+          : `TIDAK (Chunk #${partNum} / Part Lanjutan)`;
         const isLastPartStr = partNum === totalChunks ? 'YA (Part Penutup / Final Part)' : 'TIDAK (Part Bukan Penutup)';
-        const prevCtxStr = prevContext ? JSON.stringify(prevContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
+        const prevCtxStr = prevContext ? JSON.stringify(prevContext, null, 2) : 'Tidak ada (Part #0 / Awal Film)';
+        const styleExampleStr = isIntroPart
+          ? 'Gunakan gaya penceritaan yang super friendly, santai, mengalir hangat, dan akrab khas pencerita alur film populer (seperti IQ7 dan Alurfilm). Buka dengan salam hangat yang santai (misal: "Halo guys, balik lagi bareng...", "Halo bro & sis..."), lalu sampaikan narasi teaser intro yang membakar rasa penasaran penonton (hooking) dan mengalir mulus tanpa kaku!'
+          : 'Gunakan gaya penceritaan alur film santai, jernih, dan mengalir.';
+
         formattedPrompt = (promptTpl || '')
           .replace(/\{\{chunk_part\}\}/g, String(partNum))
           .replace(/\{\{total_chunks\}\}/g, String(totalChunks))
+          .replace(/\{\{movie_title\}\}/g, movieTitle.trim() || 'Film Ini')
+          .replace(/\{\{movie_year\}\}/g, movieYear.trim() ? `tahun ${movieYear.trim()}` : '')
           .replace(/\{\{is_first_part\}\}/g, isFirstPartStr)
           .replace(/\{\{is_last_part\}\}/g, isLastPartStr)
           .replace(/\{\{target_words_per_chunk\}\}/g, String(computedWords))
           .replace(/\{\{chunk_duration_text\}\}/g, chunkDurText)
           .replace(/\{\{previous_context\}\}/g, prevCtxStr)
-          .replace(/\{\{style_example\}\}/g, 'Gunakan gaya penceritaan alur film santai, jernih, dan mengalir.');
+          .replace(/\{\{style_example\}\}/g, styleExampleStr);
       }
 
       let copied = false;
@@ -332,41 +417,6 @@ const AlurfilmAnalyzeStep: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-          {/* User Profile Browser Selection Dropdown */}
-          <div className="flex items-center gap-1.5 bg-gray-900 border border-emerald-500/40 rounded-xl px-2.5 py-1.5 shadow-md">
-            <span className="text-xs text-gray-300 font-bold">👤 Profile:</span>
-            <select
-              value={selectedProfile}
-              onChange={(e) => setSelectedProfile(e.target.value)}
-              disabled={isGenerating}
-              className="bg-gray-950 text-emerald-400 text-xs font-bold font-mono rounded-lg px-2 py-1 border border-emerald-500/40 focus:outline-none focus:border-emerald-400 cursor-pointer disabled:opacity-50"
-            >
-              {availableProfiles.map((prof) => (
-                <option key={prof} value={prof}>
-                  {prof}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            onClick={handleRunGeminiPipeline}
-            disabled={isGenerating}
-            className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/25 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isGenerating ? (
-              <>
-                <span className="animate-spin text-sm">⏳</span>
-                <span>Generating Part #{activePart}...</span>
-              </>
-            ) : (
-              <>
-                <span>⚡</span>
-                <span>Auto Generate via Playwright</span>
-              </>
-            )}
-          </button>
-
           <button
             onClick={() => handleCopyPromptForPart(activePart)}
             className={`px-3.5 py-2.5 text-white rounded-xl text-xs font-bold shadow-lg transition-all flex items-center gap-1.5 ${
@@ -388,41 +438,81 @@ const AlurfilmAnalyzeStep: React.FC = () => {
         </div>
       </div>
 
+      {/* Movie Info Input Bar (Judul & Tahun Film) */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-900/90 border border-purple-500/30 rounded-2xl p-3 shadow-lg shrink-0">
+        <div className="flex items-center gap-2 flex-1 w-full">
+          <span className="text-xs font-bold text-purple-300 shrink-0 flex items-center gap-1.5">
+            <span>🎬</span> Judul Film:
+          </span>
+          <input
+            type="text"
+            placeholder="Masukkan Judul Film (misal: Avatar, Inception, dll)..."
+            value={movieTitle}
+            onChange={(e) => handleTitleChange(e.target.value)}
+            className="flex-1 bg-gray-950 border border-gray-800 focus:border-purple-500 rounded-xl px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none shadow-inner"
+          />
+        </div>
+        <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+          <span className="text-xs font-bold text-amber-300 shrink-0 flex items-center gap-1.5">
+            <span>📅</span> Tahun Rilis:
+          </span>
+          <input
+            type="text"
+            placeholder="cth: 2024"
+            value={movieYear}
+            onChange={(e) => handleYearChange(e.target.value)}
+            className="w-24 bg-gray-950 border border-gray-800 focus:border-amber-500 rounded-xl px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none font-mono text-center shadow-inner"
+          />
+        </div>
+      </div>
+
       {/* Horizontal Parts Selector Bar */}
       <div className="flex items-center justify-between bg-gray-900/80 border border-gray-800 rounded-2xl p-2.5 shrink-0 shadow-lg gap-2">
         <div className="flex items-center gap-2 overflow-x-auto py-0.5 px-1">
           <span className="text-xs font-bold text-gray-400 uppercase tracking-wider px-2 shrink-0">
             PARTS ({chunks.length || 4}):
           </span>
-          {(chunks.length > 0 ? chunks : [1, 2, 3, 4].map(p => ({ part: p }))).map((chunkItem: any) => {
-            const partNum = typeof chunkItem === 'number' ? chunkItem : chunkItem.part;
-            const isDone = !!analyses[partNum]?.data;
-            const isActive = activePart === partNum;
-            const isRunning = isGenerating && activePart === partNum;
+          {(() => {
+            const hasPart0 = chunks.some(c => c.part === 0);
+            const displayList = hasPart0
+              ? chunks
+              : [{ part: 0, isIntro: true }, ...(chunks.length > 0 ? chunks : [1, 2, 3, 4].map(p => ({ part: p })))];
 
-            return (
-              <button
-                key={partNum}
-                onClick={() => setActivePart(partNum)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-2 border shrink-0 ${
-                  isActive
-                    ? 'bg-purple-600 border-purple-400 text-white shadow-lg shadow-purple-600/40 scale-105'
-                    : isDone
-                    ? 'bg-purple-950/40 border-purple-800/60 text-purple-300 hover:bg-purple-900/50'
-                    : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                <span>Part #{partNum}</span>
-                {isRunning ? (
-                  <span className="animate-spin text-emerald-400">⏳</span>
-                ) : isDone ? (
-                  <span className="text-emerald-400 text-xs font-bold">✓</span>
-                ) : (
-                  <span className="text-gray-600 text-xs">○</span>
-                )}
-              </button>
-            );
-          })}
+            return displayList.map((chunkItem: any) => {
+              const partNum = typeof chunkItem === 'number' ? chunkItem : chunkItem.part;
+              const isDone = !!analyses[partNum]?.data;
+              const isActive = activePart === partNum;
+              const isRunning = isGenerating && activePart === partNum;
+              const isIntro = partNum === 0;
+
+              return (
+                <button
+                  key={partNum}
+                  onClick={() => setActivePart(partNum)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold font-mono transition-all flex items-center gap-2 border shrink-0 ${
+                    isActive
+                      ? isIntro
+                        ? 'bg-amber-600 border-amber-400 text-white shadow-lg shadow-amber-600/40 scale-105'
+                        : 'bg-purple-600 border-purple-400 text-white shadow-lg shadow-purple-600/40 scale-105'
+                      : isDone
+                      ? 'bg-purple-950/40 border-purple-800/60 text-purple-300 hover:bg-purple-900/50'
+                      : isIntro
+                      ? 'bg-amber-950/30 border-amber-800/50 text-amber-300 hover:bg-amber-900/40'
+                      : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  <span>{isIntro ? 'Part #0 (Intro)' : `Part #${partNum}`}</span>
+                  {isRunning ? (
+                    <span className="animate-spin text-emerald-400">⏳</span>
+                  ) : isDone ? (
+                    <span className="text-emerald-400 text-xs font-bold">✓</span>
+                  ) : (
+                    <span className="text-gray-600 text-xs">○</span>
+                  )}
+                </button>
+              );
+            });
+          })()}
         </div>
 
         <div className="text-[11px] text-purple-400 font-mono font-bold px-3 py-1 bg-purple-950/60 rounded-xl border border-purple-800/40 shrink-0 hidden md:block">
@@ -529,6 +619,63 @@ const AlurfilmAnalyzeStep: React.FC = () => {
             </button>
           </div>
 
+          {/* Auto Intro Video Generator Widget for Part #0 (FFmpeg) */}
+          {activePart === 0 && (
+            <div className="bg-gray-950 p-4 rounded-xl border border-amber-500/40 space-y-3.5 shadow-lg shrink-0">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                  <span>🎬</span> Intro Video Creator (Part #0)
+                </h4>
+                {currentChunk && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded-md flex items-center gap-1">
+                    <span>✓</span> Video Ready
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-3 bg-gray-900/60 p-3 rounded-xl border border-gray-800">
+                <p className="text-[11px] text-gray-300 leading-relaxed">
+                  Sistem akan otomatis mengambil <span className="text-amber-400 font-bold">cuplikan 15 detik secara acak</span> dari setiap Part film, lalu menggabungkannya menjadi 1 video Intro Part #0.
+                </p>
+                
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    onClick={handleGenerateAutoIntro}
+                    disabled={isGeneratingAutoIntro}
+                    className="w-full py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-600/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    {isGeneratingAutoIntro ? (
+                      <>
+                        <span className="animate-spin text-sm">⏳</span>
+                        <span>Memotong & Menggabungkan Klip Intro...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>⚡</span>
+                        <span>Generate Auto Intro dari Klip Part</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {autoIntroProgress && isGeneratingAutoIntro && (
+                  <div className="space-y-1.5 font-mono text-[11px]">
+                    <div className="flex justify-between text-gray-400">
+                      <span className="truncate pr-2">{autoIntroProgress.message}</span>
+                      <span className="text-amber-400 font-bold shrink-0">{autoIntroProgress.percent}%</span>
+                    </div>
+                    <div className="w-full bg-gray-950 h-2 rounded-full overflow-hidden border border-gray-800">
+                      <div
+                        className="bg-amber-500 h-full transition-all duration-200"
+                        style={{ width: `${autoIntroProgress.percent}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Integrated Video Player */}
           {showChunkVideo && (
             <div className="bg-black rounded-xl overflow-hidden border border-gray-800 h-56 flex items-center justify-center relative shadow-inner shrink-0">
@@ -566,8 +713,8 @@ const AlurfilmAnalyzeStep: React.FC = () => {
                 </>
               );
             })()}
-            <p>- First Part (Intro): {activePart === 1 ? 'YA (Part Pembuka)' : 'TIDAK'}</p>
-            <p>- Final Part (Outro): {activePart === (chunks.length || 4) ? 'YA (Part Penutup)' : 'TIDAK'}</p>
+            <p>- First Part (Intro): {activePart === 0 ? 'YA (Intro Pembuka YouTube)' : activePart === 1 ? 'YA (Part Pembuka Film)' : 'TIDAK'}</p>
+            <p>- Final Part (Outro): {activePart === (chunks.length ? chunks[chunks.length - 1].part : 4) ? 'YA (Part Penutup)' : 'TIDAK'}</p>
             {activePart > 1 && analyses[activePart - 1]?.data && (
               <div className="p-3 bg-purple-950/40 rounded-xl border border-purple-800/40 text-[11px] text-purple-300 mt-2 space-y-1">
                 <span className="font-bold block">✓ Connected Context from Part #{activePart - 1}:</span>
