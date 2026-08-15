@@ -255,6 +255,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       console.log(`📥 [shorts:download-video] Downloading YouTube video for keyword (${keywordId}): ${youtubeUrl}`);
       const args = [
         '--js-runtimes', 'node:/home/jovan/.nvm/versions/node/v22.21.1/bin/node',
+        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        '--referer', 'https://www.youtube.com/',
+        '--http-chunk-size', '10M',
         '--ffmpeg-location', '/usr/bin/ffmpeg',
         '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
         '--merge-output-format', 'mp4',
