@@ -476,6 +476,107 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       compressedPath: relativeCompressedPath,
     };
   });
+
+  // ─── Upload Shorts VO Audio ──────────────────────────────────
+  ipcMain.handle('shorts:upload-vo-audio', async (_event, { segmentId, lang = 'id', sourcePath, bufferArray, extension = 'mp3' }) => {
+    const audioDir = path.resolve(p.PROJECT_ROOT, 'input', 'shorts', 'audio');
+    if (!fs.existsSync(audioDir)) fs.mkdirSync(audioDir, { recursive: true });
+
+    const filename = `seg_${segmentId}_vo_${lang}.${extension.replace('.', '')}`;
+    const targetPath = path.join(audioDir, filename);
+
+    if (sourcePath && fs.existsSync(sourcePath)) {
+      fs.copyFileSync(sourcePath, targetPath);
+    } else if (bufferArray) {
+      const buf = Buffer.from(bufferArray);
+      fs.writeFileSync(targetPath, buf);
+    } else {
+      throw new Error('File audio source atau buffer tidak valid.');
+    }
+
+    const relativePath = `input/shorts/audio/${filename}`;
+    const stats = fs.statSync(targetPath);
+    return {
+      success: true,
+      audioPath: relativePath,
+      audioFilename: filename,
+      fileSizeBytes: stats.size,
+    };
+  });
+
+  // ─── Run Shorts Faster-Whisper Alignment ───────────────────────
+  ipcMain.handle('shorts:run-whisper-alignment', async (event, { audioPath, scriptText }) => {
+    return new Promise((resolve) => {
+      const sendProgress = (step, percent, detail) => {
+        if (event?.sender) {
+          event.sender.send('shorts:whisper-progress', { step, percent, detail });
+        }
+      };
+
+      sendProgress('init', 5, 'Menyiapkan file audio dan naskah narasi...');
+
+      let resolvedAudio = audioPath;
+      if (!path.isAbsolute(resolvedAudio)) {
+        resolvedAudio = path.resolve(p.PROJECT_ROOT, resolvedAudio);
+      }
+
+      if (!fs.existsSync(resolvedAudio)) {
+        return resolve({ success: false, error: `File audio narasi tidak ditemukan di: ${resolvedAudio}` });
+      }
+
+      const pythonBin = '/usr/bin/python3';
+      const alignCli = path.join(p.PROJECT_ROOT, 'whisperx', 'align_cli.py');
+      if (!fs.existsSync(alignCli)) {
+        return resolve({ success: false, error: `Align CLI script tidak ditemukan di: ${alignCli}` });
+      }
+
+      const tmpDir = path.join(p.PROJECT_ROOT, 'tmp');
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+
+      const tmpScriptPath = path.join(tmpDir, `shorts_align_${Date.now()}.txt`);
+      const outJsonPath = path.join(tmpDir, `shorts_align_${Date.now()}.json`);
+      fs.writeFileSync(tmpScriptPath, scriptText || '', 'utf-8');
+
+      sendProgress('loading_model', 20, 'Memuat engine Faster-Whisper...');
+
+      const child = spawn(pythonBin, [alignCli, '--audio', resolvedAudio, '--text', tmpScriptPath, '--output', outJsonPath, '--model', 'small'], {
+        env: { ...process.env },
+      });
+
+      let errorLogs = '';
+
+      child.stderr.on('data', (data) => {
+        const text = data.toString();
+        errorLogs += text;
+        sendProgress('aligning', 50, 'Memproses alignment audio & naskah...');
+      });
+
+      child.on('close', (code) => {
+        try {
+          if (fs.existsSync(tmpScriptPath)) fs.unlinkSync(tmpScriptPath);
+        } catch (e) {}
+
+        if (code === 0 && fs.existsSync(outJsonPath)) {
+          try {
+            const rawJson = fs.readFileSync(outJsonPath, 'utf-8');
+            const resultData = JSON.parse(rawJson);
+            if (fs.existsSync(outJsonPath)) fs.unlinkSync(outJsonPath);
+
+            sendProgress('done', 100, 'Alignment naskah & audio berhasil!');
+            resolve({ success: true, result: resultData });
+          } catch (err) {
+            resolve({ success: false, error: `Gagal membaca hasil JSON alignment: ${err.message}` });
+          }
+        } else {
+          resolve({ success: false, error: errorLogs || `Proses alignment keluar dengan exit code ${code}` });
+        }
+      });
+
+      child.on('error', (err) => {
+        resolve({ success: false, error: `Kesalahan sistem spawn python: ${err.message}` });
+      });
+    });
+  });
 }
 
 module.exports = { register };
