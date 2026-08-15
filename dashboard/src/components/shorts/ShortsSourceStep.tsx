@@ -259,6 +259,16 @@ const ShortsSourceStep: React.FC = () => {
     return `media://content-auto/${encodeURIComponent(filePath)}`;
   };
 
+  // Format file size in B, KB, MB, GB
+  const formatFileSize = (bytes?: number): string => {
+    if (!bytes || bytes <= 0) return '0 MB';
+    if (bytes >= 1024 * 1024 * 1024) {
+      return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const totalBytesDownloaded = cards.reduce((acc, c) => acc + (c.file_size_bytes || 0), 0);
   const downloadedCount = cards.filter((c) => c.status === 'downloaded').length;
 
   return (
@@ -273,11 +283,11 @@ const ShortsSourceStep: React.FC = () => {
             <h1 className="text-xl font-bold text-white flex items-center gap-2.5">
               Step 1: Shorts Video Downloader
               <span className="px-2.5 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800/60 text-xs font-mono font-semibold">
-                Dynamic Cards Mode
+                Dynamic Cards (1080p/720p HD)
               </span>
             </h1>
             <p className="text-xs text-gray-400 mt-0.5">
-              Input link YouTube secara dinamis, unduh video mentahan (*raw source*), dan preview hasil download.
+              Input link YouTube secara dinamis, unduh video mentahan HD (*1080p/720p*), dan preview hasil download.
             </p>
           </div>
         </div>
@@ -290,6 +300,9 @@ const ShortsSourceStep: React.FC = () => {
             <span className="text-gray-600">|</span>
             <span className="text-gray-400">Downloaded:</span>
             <span className="text-emerald-400 font-bold">{downloadedCount}</span>
+            <span className="text-gray-600">|</span>
+            <span className="text-gray-400">Total Size:</span>
+            <span className="text-cyan-400 font-bold">{formatFileSize(totalBytesDownloaded)}</span>
           </div>
 
           <button
@@ -343,9 +356,7 @@ const ShortsSourceStep: React.FC = () => {
               const isDownloaded = card.status === 'downloaded';
               const isError = card.status === 'error';
               const mediaUrl = isDownloaded ? getMediaUrl(card.video_path) : '';
-              const fileSizeMB = card.file_size_bytes
-                ? (card.file_size_bytes / (1024 * 1024)).toFixed(2)
-                : null;
+              const formattedSize = formatFileSize(card.file_size_bytes);
 
               return (
                 <div
@@ -371,11 +382,16 @@ const ShortsSourceStep: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {/* Status Badge */}
+                        {/* Status & Size Badges */}
                         {isDownloaded && (
-                          <span className="px-2.5 py-0.5 bg-emerald-950/90 text-emerald-400 border border-emerald-800/80 rounded-full text-[10px] font-mono font-semibold flex items-center gap-1">
-                            <span>✅</span> Downloaded
-                          </span>
+                          <>
+                            <span className="px-2.5 py-0.5 bg-emerald-950/90 text-emerald-400 border border-emerald-800/80 rounded-full text-[10px] font-mono font-semibold flex items-center gap-1">
+                              <span>✅</span> Downloaded
+                            </span>
+                            <span className="px-2 py-0.5 bg-cyan-950/90 text-cyan-300 border border-cyan-800/80 rounded-full text-[10px] font-mono font-semibold flex items-center gap-1">
+                              <span>💾</span> {formattedSize}
+                            </span>
+                          </>
                         )}
                         {isDownloading && (
                           <span className="px-2.5 py-0.5 bg-amber-950/90 text-amber-300 border border-amber-800/80 rounded-full text-[10px] font-mono font-semibold flex items-center gap-1.5">
@@ -472,14 +488,17 @@ const ShortsSourceStep: React.FC = () => {
                     {isDownloaded && mediaUrl && (
                       <div className="bg-black/90 p-3 rounded-xl border border-emerald-800/60 space-y-2">
                         <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
-                          <span className="truncate max-w-[200px] text-emerald-300">
+                          <span className="truncate max-w-[180px] text-emerald-300">
                             📹 {card.video_filename || 'video.mp4'}
                           </span>
-                          {fileSizeMB && (
-                            <span className="text-gray-400 bg-gray-900 px-2 py-0.5 rounded border border-gray-800">
-                              {fileSizeMB} MB
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-purple-300 bg-purple-950/90 px-2 py-0.5 rounded border border-purple-800/60 font-bold">
+                              ✨ 1080p HD
                             </span>
-                          )}
+                            <span className="text-cyan-300 bg-cyan-950/90 px-2 py-0.5 rounded border border-cyan-800/60 font-bold">
+                              💾 {formattedSize}
+                            </span>
+                          </div>
                         </div>
                         <video
                           src={mediaUrl}

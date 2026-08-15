@@ -254,15 +254,21 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     return new Promise((resolve) => {
       console.log(`📥 [shorts:download-video] Downloading YouTube video for keyword (${keywordId}): ${youtubeUrl}`);
       const args = [
-        '--extractor-args', 'youtube:player_client=android,web',
-        '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        '--js-runtimes', 'node:/home/jovan/.nvm/versions/node/v22.21.1/bin/node',
+        '--ffmpeg-location', '/usr/bin/ffmpeg',
+        '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
         '--merge-output-format', 'mp4',
         '-o', outputPath,
         '--newline',
         youtubeUrl
       ];
 
-      const child = spawn(ytDlpPath, args);
+      const env = {
+        ...process.env,
+        PATH: `/home/jovan/.nvm/versions/node/v22.21.1/bin:${process.env.PATH || ''}`
+      };
+
+      const child = spawn(ytDlpPath, args, { env });
       let errorOutput = '';
 
       child.stdout.on('data', (data) => {
