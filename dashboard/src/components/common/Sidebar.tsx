@@ -23,7 +23,8 @@ const LONGFORM_STEPS: Step[] = [
 ];
 
 const SHORTS_STEPS: Step[] = [
-  { id: 'source', icon: '📥', label: '1. Video Downloader', subText: 'Download YouTube video source' },
+  { id: 'source', icon: '📥', label: '1. Video Downloader', subText: 'Download & kompres raw video' },
+  { id: 'analyze', icon: '⚡', label: '2. Segment & Script Generator', subText: 'Ekstrak segmen & naskah Shorts' },
 ];
 
 const SPENSIA_STEPS: Step[] = [
