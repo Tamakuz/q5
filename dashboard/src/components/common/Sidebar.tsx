@@ -23,11 +23,7 @@ const LONGFORM_STEPS: Step[] = [
 ];
 
 const SHORTS_STEPS: Step[] = [
-  { id: 'source', icon: '✂️', label: '1. Clip Selection', subText: 'Pilih & potong klip pabrik 9:16' },
-  { id: 'analyze', icon: '⚡', label: '2. Factory Script', subText: 'AI Storytelling & Hook Generator' },
-  { id: 'audio', icon: '🎙️', label: '3. Voice & ASMR', subText: 'TTS Voice-over & Sound FX' },
-  { id: 'render', icon: '🎬', label: '4. Render Studio (9:16)', subText: 'Render Shorts, Subtitle & BGM' },
-  { id: 'upload', icon: '🚀', label: '5. Metadata & SEO', subText: 'SEO Title, Hashtags & Affiliate' },
+  { id: 'source', icon: '📥', label: '1. Video Downloader', subText: 'Download YouTube video source' },
 ];
 
 const SPENSIA_STEPS: Step[] = [

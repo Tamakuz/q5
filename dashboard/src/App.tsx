@@ -33,12 +33,10 @@ import UGCProductsManager from './components/ugc/UGCProductsManager';
 import UGCVideoAssetsManager from './components/ugc/UGCVideoAssetsManager';
 import UGCRenderStudioStep from './components/ugc/UGCRenderStudioStep';
 
-// Shorts (Pabrik & Crafting) Feature Components
+// Shorts Feature Components
 import ShortsSourceStep from './components/shorts/ShortsSourceStep';
-import ShortsAnalyzeStep from './components/shorts/ShortsAnalyzeStep';
-import ShortsAudioStep from './components/shorts/ShortsAudioStep';
-import ShortsRenderStep from './components/shorts/ShortsRenderStep';
-import ShortsMetadataStep from './components/shorts/ShortsMetadataStep';
+
+
 
 type Status = 'ready' | 'rendering' | 'error';
 
@@ -117,30 +115,9 @@ const App: React.FC = () => {
           {contentMode === 'shorts' ? (
             activeStep === 'source' ? (
               <ShortsSourceStep key="shorts-source" />
-            ) : activeStep === 'analyze' ? (
-              <ShortsAnalyzeStep key="shorts-analyze" />
-            ) : activeStep === 'audio' ? (
-              <ShortsAudioStep key="shorts-audio" />
-            ) : activeStep === 'render' ? (
-              <ShortsRenderStep key="shorts-render" />
-            ) : activeStep === 'upload' ? (
-              <ShortsMetadataStep key="shorts-metadata" />
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950 border border-dashed border-gray-800 rounded-3xl space-y-4">
-                <div className="w-20 h-20 bg-amber-600/10 text-amber-400 rounded-3xl flex items-center justify-center text-4xl border border-amber-500/20 shadow-xl shadow-amber-950/40">
-                  🎬
-                </div>
-                <div className="max-w-md space-y-2">
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="px-3 py-1 rounded-full bg-amber-950 text-amber-300 border border-amber-800 text-xs font-mono font-bold uppercase tracking-wider">
-                      Workflow Shorts Pabrik
-                    </span>
-                  </div>
-                  <h2 className="text-lg font-bold text-white pt-1">Step Belum Konfigurasi</h2>
-                  <p className="text-xs text-gray-400 leading-relaxed">
-                    Langkah ini belum dikonfigurasi untuk Shorts Pabrik.
-                  </p>
-                </div>
+              <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950/50 border border-dashed border-gray-800/60 rounded-3xl">
+                <span className="text-gray-600 text-xs font-mono">Modul Shorts Kosong</span>
               </div>
             )
           ) : contentMode === 'ugc' ? (
