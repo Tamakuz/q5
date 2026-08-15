@@ -272,8 +272,15 @@ const ShortsAnalyzeStep: React.FC = () => {
         rawSegmentsArr = parsed;
       } else if (parsed && Array.isArray(parsed.segments)) {
         rawSegmentsArr = parsed.segments;
+      } else if (parsed && Array.isArray(parsed.data)) {
+        rawSegmentsArr = parsed.data;
+      } else if (parsed && Array.isArray(parsed.shorts)) {
+        rawSegmentsArr = parsed.shorts;
+      } else if (parsed && typeof parsed === 'object' && (parsed.title || parsed.narration_script || parsed.formatted_start)) {
+        // Single segment object fallback
+        rawSegmentsArr = [parsed];
       } else {
-        throw new Error('Format JSON harus memuat array "segments" atau array object segmen.');
+        throw new Error('Format JSON harus berupa Array Object `[...]` atau Object yang memuat segmen video.');
       }
 
       const formattedSegments: ShortsSegment[] = rawSegmentsArr.map((item: any, idx: number) => {
