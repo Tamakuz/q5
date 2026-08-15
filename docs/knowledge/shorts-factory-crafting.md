@@ -41,23 +41,58 @@ Niche **Shorts Pabrik & Industrial Process** difokuskan pada pengolahan video *B
 
 ---
 
-## 🎬 Struktur & Formula Shorts Pabrik (Durasi Ideal: 30–55 Detik)
+## 🎬 Struktur & Formula Script Shorts Viral (Durasi Ideal: 25–45 Detik)
 
 ```text
-[00:00 - 00:03] HOOK VISUAL (Pergerakan Mesin Terunik / Hasil Jadi Menakjubkan)
+[00:00 - 00:04] HOOK (Curiosity Gap / Pattern Interrupt Ekstrem)
        │
-[00:03 - 00:35] PROSES OTOMATISASI (Langkah Mesin / Presisi Pemotongan Master)
+[00:04 - 00:10] RETAINER & SETUP (Latar Belakang / Alat Dramatis)
        │
-[00:35 - 00:45] HIGHLIGHT KECEPATAN / HASIL MASSAL (Benda Siap Pakai/Dikemas)
+[00:10 - 00:18] ESCALATION & BREAKDOWN (Detail Teknik / Kecepatan Presisi)
        │
-[00:45 - 00:50] CALL TO ACTION (Like, Comment & Subscribe)
+[00:18 - 00:25] THE CLIMAX / SATISFYING MOMENT (Oddly Satisfying Peak)
+       │
+[00:25 - 00:30] THE PAYOFF / RESULT (Hasil Akhir Mulus / Produk Sempurna)
+       │
+[00:30 - 00:35] SEAMLESS LOOP ENDING (Menyambung Kembali ke Hook 00:00)
 ```
 
-### 1. ⚡ Hook 3 Detik Pertama (Visual & Audio)
-- **Visual**: Tunjukkan pergerakan mesin paling cepat/unik atau fakta mengejutkan di awal.
-- **Teks Overlay / Subtitle**: Kata-kata yang memicu rasa penasaran (*Curiosity Gap*):
-  - *"Ini alasan kenapa pabrik ini bisa bikin 10.000 pensil cuma dalam 1 jam!"*
-  - *"Lihat gimana caranya koki Jepang memotong ikan tuna seharga 2 Miliar Rupiah!"*
+---
+
+## 🏆 3 Contoh Emas Commentary & Narasi Viral (Golden References)
+
+### 🛠️ CONTOH 1: Commentary "Mekanik Handal / Engineering Gila"
+- **Trik Psikologi**: Oddly Satisfying + Membangun Antisipasi (nungguin hasil akhirnya).
+- **Visual**: Perbaikan blok mesin tua / alat berat presisi.
+- **Naskah**:
+  - `(0:00 - Hook)`: *"Sumpah, mekanik ini otaknya udah bukan manusia lagi."*
+  - `(0:04 - Setup)`: *"Lihat baik-baik. Dia cuma pakai satu alat rongsokan ini, buat ngebongkar blok mesin yang udah karatan puluhan tahun."*
+  - `(0:10 - Escalation)`: *"Kalau orang biasa, pasti udah dipotong pakai gerinda. Tapi perhatiin detail tangannya... dia nemuin celah rahasia yang cuma mekanik level dewa yang tahu."*
+  - `(0:18 - Climax)`: *"Tunggu... lihat momen pas besi ini copot. Asli, ini lebih satisfying daripada meletusin bubble wrap."*
+  - `(0:25 - Result)`: *"Mesin yang tadinya mau dibuang, sekarang mulus kayak baru keluar dari pabrik."*
+  - `(0:30 - Loop Ending)`: *"Beneran deh, kalau kalian butuh bukti skill tingkat tinggi, tonton lagi karena..."* ➔ **(Video mengulang ke Hook: "Sumpah, mekanik ini...")**
+
+### 🍜 CONTOH 2: Commentary "Makanan Korea (Street Food / Porsi Brutal)"
+- **Trik Psikologi**: Visual Cravings + Culture Shock.
+- **Visual**: Keju melorot mendidih / daging bakar blowtorch.
+- **Naskah**:
+  - `(0:00 - Hook)`: *"Jangan nonton video ini kalau kalian lagi kelaparan jam 12 malam."*
+  - `(0:04 - Setup)`: *"Ini adalah street food paling brutal di Korea, dan porsinya bikin ginjal merinding."*
+  - `(0:09 - Escalation)`: *"Lihat itu! Daging wagyu tebelnya se-bata, dibakar pakai blowtorch sampai lemaknya meleleh kemana-mana."*
+  - `(0:16 - Climax)`: *"Tapi tunggu... belum selesai. Tiba-tiba ibunya nuangin setengah ember keju mozzarella langsung ke atasnya. Are you kidding me?!"*
+  - `(0:23 - Sensory)`: *"Dengerin suara sizzle-nya. Teksturnya pas ditarik bener-bener kriminal banget."*
+  - `(0:30 - Loop Ending)`: *"Otomatis tiket ke Seoul masuk wishlist sekarang. Makanya aku bilang..."* ➔ **(Video mengulang ke Hook: "Jangan nonton video ini...")**
+
+### 🌶️ CONTOH 3: Kombinasi Aneh (Mekanik Masak / Alat Raksasa)
+- **Visual**: Masak telur gulung di wajan raksasa ban traktor.
+- **Naskah**:
+  - `(0:00 - Hook)`: *"Ini adalah cara masak paling bar-bar yang pernah direkam kamera."*
+  - `(0:04 - Setup)`: *"Kenapa masak telur gulung Korea harus pakai wajan sebesar ban traktor?!"*
+  - `(0:09 - Breakdown)`: *"Lihat kecepatan tangannya. Dia nuang 50 butir telur sekaligus, dan ngegulungnya cuma pakai dua sumpit panjang."*
+  - `(0:16 - Payoff)`: *"Hasil akhirnya? Telur gulung raksasa seberat 5 kilo yang lumer di tengahnya."*
+  - `(0:22 - Loop Ending)`: *"Kalau ada kompetisi masak kelas berat, bapak ini pemenangnya. Gak heran ini disebut..."* ➔ **(Video mengulang ke Hook: "Cara masak paling bar-bar...")**
+
+---
   - *"Pernah mikir gak gimana kelereng kaca dibuat dari cairan membara?"*
 
 ### 2. ✂️ Pacing & Editing (Vertical 9:16)
