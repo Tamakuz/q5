@@ -4,13 +4,25 @@ import React, { useState, useEffect, useRef } from 'react';
 export interface ShortsSegment {
   id: string;
   title: string;
-  hook_text: string;
+
+  // Indonesian version
+  hook_text_id: string;
+  narration_script_id: string;
+  sentences_id: string[];
+
+  // English version
+  hook_text_en: string;
+  narration_script_en: string;
+  sentences_en: string[];
+
+  // Time range
   formatted_start: string;
   formatted_end: string;
   start_time_sec: number;
   end_time_sec: number;
-  narration_script: string;
-  sentences: string[];
+
+  // Active view language tab ('id' | 'en')
+  activeLang?: 'id' | 'en';
 }
 
 export interface ScriptSegmentsJSON {
@@ -43,14 +55,14 @@ interface VideoSourcesJSON {
 const DEFAULT_PROMPT_TEMPLATE = `Kamu adalah "Viral Social Media Growth Hacker & Master Scriptwriter" spesialis YouTube Shorts & TikTok FYP berniche Pabrik, Industri, Mekanik Handal, dan Street Food / Crafting.
 
 TUGAS UTAMA:
-Analisislah video mentah berikut dan pecahkan menjadi 2 HINGGA 4 SEGMEN SHORTS (durasi 25–45 detik per segmen) yang paling satisfying dan berpotensi viral tinggi:
+Analisislah video mentah berikut dan tentukan jumlah segmen Shorts terbaik (1 hingga beberapa segmen). Setiap segmen WAJIB dilengkapi DUA VERSI NASKAH NARASI: **Versi Bahasa Indonesia (🇮🇩)** dan **Versi Bahasa Inggris (🇺🇸)**.
 
 NAMA VIDEO: {{video_title}}
 URL / KETERANGAN: {{video_url}}
 
 ---
 
-FORMULA & TRIK PSIKOLOGI SCRIPTWRITING (WAJIB DIIKUTI):
+FORMULA & TRIK PSIKOLOGI SCRIPTWRITING (WAJIB DIIKUTI UNTUK KEDUA BAHASA):
 1. ⚡ **HOOK (00:00 - 00:04)**: Kalimat pembuka ekstrem yang memicu rasa penasaran (*Curiosity Gap* / *Pattern Interrupt*).
 2. 🍿 **RETAINER & SETUP (00:04 - 00:10)**: Menjelaskan latar belakang/alat secara dramatis.
 3. 🚀 **ESCALATION & BREAKDOWN (00:10 - 00:18)**: Detail teknik/kecepatan/presisi yang membuat penonton takjub.
@@ -60,40 +72,19 @@ FORMULA & TRIK PSIKOLOGI SCRIPTWRITING (WAJIB DIIKUTI):
 
 ---
 
-REFERENSI CONTOH STYLE NASKAH (CONTOH EMAS):
-
-[Contoh 1: Commentary Mekanik Handal / Engineering Gila]
-- Hook: "Sumpah, mekanik ini otaknya udah bukan manusia lagi."
-- Retainer: "Lihat baik-baik. Dia cuma pakai satu alat rongsokan ini, buat ngebongkar blok mesin yang udah karatan puluhan tahun."
-- Escalation: "Kalau orang biasa, pasti udah dipotong pakai gerinda. Tapi perhatiin detail tangannya... dia nemuin celah rahasia yang cuma mekanik level dewa yang tahu."
-- Climax: "Tunggu... lihat momen pas besi ini copot. Asli, ini lebih satisfying daripada meletusin bubble wrap."
-- Result: "Mesin yang tadinya mau dibuang, sekarang mulus kayak baru keluar dari pabrik."
-- Loop Ending: "Beneran deh, kalau kalian butuh bukti skill tingkat tinggi, tonton lagi karena..." ➔ (Loop ke Hook: "Sumpah, mekanik ini otaknya...")
-
-[Contoh 2: Commentary Street Food / Porsi Brutal]
-- Hook: "Jangan nonton video ini kalau kalian lagi kelaparan jam 12 malam."
-- Retainer: "Ini adalah street food paling brutal, dan porsinya bikin ginjal merinding."
-- Escalation: "Lihat itu! Daging tebelnya se-bata, dibakar pakai blowtorch sampai lemaknya meleleh kemana-mana."
-- Climax: "Tapi tunggu... belum selesai. Tiba-tiba nuangin setengah ember keju mozzarella langsung ke atasnya!"
-- Result: "Dengerin suara sizzle-nya. Teksturnya pas ditarik bener-bener kriminal banget."
-- Loop Ending: "Otomatis tiket masuk wishlist sekarang. Makanya aku bilang..." ➔ (Loop ke Hook: "Jangan nonton video ini...")
-
----
-
-FORMAT OUTPUT (STRICTLY VALID JSON OBJECT MURNI, TANPA TEKS PENGANTAR/MARKDOWN):
+FORMAT OUTPUT (STRICTLY VALID JSON ARRAY OBJECT BILINGUAL, TANPA MARKDOWN PENGANTAR):
 
 \`\`\`json
-{
-  "source_video_title": "{{video_title}}",
-  "segments": [
-    {
-      "id": "seg_1",
-      "title": "Mekanik Level Dewa Bongkar Mesin Karatan",
+[
+  {
+    "id": "seg_1",
+    "title": "Mekanik Level Dewa Bongkar Mesin Karatan",
+    "formatted_start": "01:15",
+    "formatted_end": "01:45",
+    "start_time_sec": 75,
+    "end_time_sec": 105,
+    "id_version": {
       "hook_text": "Sumpah, mekanik ini otaknya udah bukan manusia lagi!",
-      "formatted_start": "01:15",
-      "formatted_end": "01:45",
-      "start_time_sec": 75,
-      "end_time_sec": 105,
       "narration_script": "Sumpah, mekanik ini otaknya udah bukan manusia lagi. Lihat baik-baik. Dia cuma pakai satu alat rongsokan ini buat ngebongkar blok mesin karatan puluhan tahun. Kalau orang biasa pasti udah dipotong pakai gerinda. Tapi perhatiin detail tangannya, dia nemuin celah rahasia yang cuma mekanik level dewa yang tahu. Tunggu... lihat momen pas besi ini copot. Asli, ini lebih satisfying daripada meletusin bubble wrap. Mesin yang tadinya mau dibuang sekarang mulus kayak baru keluar dari pabrik. Beneran deh, kalau kalian butuh bukti skill tingkat tinggi, tonton lagi karena...",
       "sentences": [
         "Sumpah, mekanik ini otaknya udah bukan manusia lagi.",
@@ -104,14 +95,29 @@ FORMAT OUTPUT (STRICTLY VALID JSON OBJECT MURNI, TANPA TEKS PENGANTAR/MARKDOWN):
         "Mesin yang tadinya mau dibuang sekarang mulus kayak baru keluar dari pabrik.",
         "Beneran deh, kalau kalian butuh bukti skill tingkat tinggi, tonton lagi karena..."
       ]
+    },
+    "en_version": {
+      "hook_text": "I swear, this mechanic’s brain operates in 4D!",
+      "narration_script": "I swear, this mechanic’s brain operates in 4D. Look closely. He only uses this single scrap tool to disassemble an engine block that's been rusted for decades. A normal person would've cut it with a grinder. But look at his hands, he found a secret clearance only a god-level mechanic knows. Wait... look at the moment this iron pops out. Honestly, this is more satisfying than popping bubble wrap. An engine that was about to be scrapped is now smooth as new. Seriously, if you need proof of high-level skill, watch again because...",
+      "sentences": [
+        "I swear, this mechanic’s brain operates in 4D.",
+        "Look closely. He only uses this single scrap tool to disassemble an engine block that's been rusted for decades.",
+        "A normal person would've cut it with a grinder.",
+        "But look at his hands, he found a secret clearance only a god-level mechanic knows.",
+        "Wait... look at the moment this iron pops out.",
+        "Honestly, this is more satisfying than popping bubble wrap.",
+        "An engine that was about to be scrapped is now smooth as new.",
+        "Seriously, if you need proof of high-level skill, watch again because..."
+      ]
     }
-  ]
-}
+  }
+]
 \`\`\`
 
 ATURAN STRICT:
-- HANYA keluarkan JSON murni tanpa triple backtick atau pengantar.
-- Naskah harus memiliki **Hook kuat di awal** dan **Seamless Loop Ending di akhir**!`;
+- HANYA keluarkan Array JSON murni \`[...]\` tanpa triple backtick atau teks pengantar.
+- Setiap segmen WAJIB memuat objek \`id_version\` (Bahasa Indonesia) dan \`en_version\` (Bahasa Inggris).
+- Kedua versi naskah harus menggunakan **Hook kuat di awal** dan **Seamless Loop Ending di akhir**!`;
 
 const ShortsAnalyzeStep: React.FC = () => {
   const [videoSources, setVideoSources] = useState<VideoSourceItem[]>([]);
@@ -124,6 +130,7 @@ const ShortsAnalyzeStep: React.FC = () => {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(null);
+  const [globalLang, setGlobalLang] = useState<'id' | 'en'>('id');
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -248,7 +255,16 @@ const ShortsAnalyzeStep: React.FC = () => {
     }
   };
 
-  // Import and Parse JSON from AI Studio
+  // Helper to split script text into sentences array
+  const splitSentences = (text: string): string[] => {
+    if (!text || !text.trim()) return [];
+    return text
+      .split(/(?<=[.!?])\s+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  };
+
+  // Import and Parse JSON from AI Studio (Supports Bilingual id_version & en_version)
   const handleImportJSON = () => {
     setImportError(null);
     if (!jsonInput.trim()) {
@@ -276,8 +292,7 @@ const ShortsAnalyzeStep: React.FC = () => {
         rawSegmentsArr = parsed.data;
       } else if (parsed && Array.isArray(parsed.shorts)) {
         rawSegmentsArr = parsed.shorts;
-      } else if (parsed && typeof parsed === 'object' && (parsed.title || parsed.narration_script || parsed.formatted_start)) {
-        // Single segment object fallback
+      } else if (parsed && typeof parsed === 'object') {
         rawSegmentsArr = [parsed];
       } else {
         throw new Error('Format JSON harus berupa Array Object `[...]` atau Object yang memuat segmen video.');
@@ -286,26 +301,42 @@ const ShortsAnalyzeStep: React.FC = () => {
       const formattedSegments: ShortsSegment[] = rawSegmentsArr.map((item: any, idx: number) => {
         const startSec = item.start_time_sec !== undefined ? Number(item.start_time_sec) : parseFormattedTimeToSec(item.formatted_start);
         const endSec = item.end_time_sec !== undefined ? Number(item.end_time_sec) : parseFormattedTimeToSec(item.formatted_end);
-        const scriptText = item.narration_script || item.script || '';
 
-        let sentencesArr: string[] = item.sentences;
-        if (!sentencesArr || !Array.isArray(sentencesArr) || sentencesArr.length === 0) {
-          sentencesArr = scriptText
-            .split(/(?<=[.!?])\s+/)
-            .map((s: string) => s.trim())
-            .filter((s: string) => s.length > 0);
+        // Parse Indonesian Version
+        const idVer = item.id_version || {};
+        const hookId = idVer.hook_text || item.hook_text_id || item.hook_id || item.hook_text || 'Hook Shorts Bahasa Indonesia';
+        const scriptId = idVer.narration_script || item.narration_script_id || item.script_id || item.narration_script || item.script || '';
+        let sentencesIdArr: string[] = idVer.sentences || item.sentences_id;
+        if (!sentencesIdArr || !Array.isArray(sentencesIdArr) || sentencesIdArr.length === 0) {
+          sentencesIdArr = splitSentences(scriptId);
+        }
+
+        // Parse English Version
+        const enVer = item.en_version || {};
+        const hookEn = enVer.hook_text || item.hook_text_en || item.hook_en || item.hook_text || 'Shorts English Hook Text';
+        const scriptEn = enVer.narration_script || item.narration_script_en || item.script_en || item.narration_script || item.script || '';
+        let sentencesEnArr: string[] = enVer.sentences || item.sentences_en;
+        if (!sentencesEnArr || !Array.isArray(sentencesEnArr) || sentencesEnArr.length === 0) {
+          sentencesEnArr = splitSentences(scriptEn);
         }
 
         return {
           id: item.id || `seg_${Date.now()}_${idx + 1}`,
           title: item.title || `Shorts Segment #${idx + 1}`,
-          hook_text: item.hook_text || item.hook || '',
           formatted_start: item.formatted_start || formatSecToFormattedTime(startSec),
           formatted_end: item.formatted_end || formatSecToFormattedTime(endSec),
           start_time_sec: startSec,
           end_time_sec: endSec,
-          narration_script: scriptText,
-          sentences: sentencesArr,
+
+          hook_text_id: hookId,
+          narration_script_id: scriptId,
+          sentences_id: sentencesIdArr,
+
+          hook_text_en: hookEn,
+          narration_script_en: scriptEn,
+          sentences_en: sentencesEnArr,
+
+          activeLang: 'id',
         };
       });
 
@@ -348,11 +379,11 @@ const ShortsAnalyzeStep: React.FC = () => {
         if (updates.end_time_sec !== undefined) {
           updated.formatted_end = formatSecToFormattedTime(updates.end_time_sec);
         }
-        if (updates.narration_script !== undefined) {
-          updated.sentences = updates.narration_script
-            .split(/(?<=[.!?])\s+/)
-            .map((s) => s.trim())
-            .filter((s) => s.length > 0);
+        if (updates.narration_script_id !== undefined) {
+          updated.sentences_id = splitSentences(updates.narration_script_id);
+        }
+        if (updates.narration_script_en !== undefined) {
+          updated.sentences_en = splitSentences(updates.narration_script_en);
         }
         return updated;
       }
@@ -374,13 +405,20 @@ const ShortsAnalyzeStep: React.FC = () => {
     const newSeg: ShortsSegment = {
       id: `seg_${Date.now()}_${(segmentsData?.segments.length || 0) + 1}`,
       title: `Shorts Segment #${(segmentsData?.segments.length || 0) + 1}`,
-      hook_text: 'Wait until you see how this is made!',
       formatted_start: '00:00',
       formatted_end: '00:45',
       start_time_sec: 0,
       end_time_sec: 45,
-      narration_script: 'Enter your narration script here for voiceover reading.',
-      sentences: ['Enter your narration script here for voiceover reading.'],
+
+      hook_text_id: 'Sumpah, mekanik ini otaknya udah bukan manusia lagi!',
+      narration_script_id: 'Sumpah, mekanik ini otaknya udah bukan manusia lagi. Lihat baik-baik...',
+      sentences_id: ['Sumpah, mekanik ini otaknya udah bukan manusia lagi.', 'Lihat baik-baik...'],
+
+      hook_text_en: "I swear, this mechanic's brain operates in 4D!",
+      narration_script_en: "I swear, this mechanic's brain operates in 4D. Look closely...",
+      sentences_en: ["I swear, this mechanic's brain operates in 4D.", 'Look closely...'],
+
+      activeLang: globalLang,
     };
 
     const updatedSegments = [...(segmentsData?.segments || []), newSeg];
@@ -432,21 +470,36 @@ const ShortsAnalyzeStep: React.FC = () => {
             <h1 className="text-xl font-bold text-white flex items-center gap-2.5">
               Step 2: Multi-Segment & AI Script Generator
               <span className="px-2.5 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800/60 text-xs font-mono font-semibold">
-                AI Studio Prompt Hub
+                Bilingual (🇮🇩 Indo & 🇺🇸 English)
               </span>
             </h1>
             <p className="text-xs text-gray-400 mt-0.5">
-              Pilih video di panel kiri, copy prompt ke Google AI Studio, tempel output JSON untuk mengimpor segmen Shorts.
+              Copy prompt ke Google AI Studio, tempel output JSON untuk mengimpor segmen Shorts bilingual (Bahasa Indonesia & Bahasa Inggris).
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="px-3.5 py-1.5 bg-gray-900 border border-gray-800 rounded-xl text-xs font-mono flex items-center gap-2">
-            <span className="text-gray-400">Selected:</span>
-            <span className="text-amber-400 font-bold truncate max-w-[180px]">
-              {activeVideo?.title || activeVideo?.video_filename || 'No Video'}
-            </span>
+          <div className="px-3 py-1 bg-gray-900 border border-gray-800 rounded-xl text-xs font-mono flex items-center gap-2">
+            <span className="text-gray-400">Tampilan Naskah:</span>
+            <div className="flex bg-gray-950 rounded-lg p-0.5 border border-gray-800">
+              <button
+                onClick={() => setGlobalLang('id')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                  globalLang === 'id' ? 'bg-amber-500 text-gray-950 shadow' : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                🇮🇩 Indo
+              </button>
+              <button
+                onClick={() => setGlobalLang('en')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                  globalLang === 'en' ? 'bg-amber-500 text-gray-950 shadow' : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                🇺🇸 English
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -536,12 +589,12 @@ const ShortsAnalyzeStep: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <h2 className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-2 font-mono">
-                      <span>📋</span> 1. Prompt AI Studio
+                      <span>📋</span> 1. Prompt AI Studio (Bilingual)
                     </h2>
                     <span className="text-[10px] text-gray-500 font-mono">Template Ready</span>
                   </div>
                   <p className="text-xs text-gray-400 leading-relaxed">
-                    Prompt terisi otomatis berdasarkan video <span className="text-amber-300 font-semibold">{activeVideo?.title || 'Selected Video'}</span>.
+                    Prompt terisi otomatis dengan instruksi naskah dual-language (🇮🇩 Indo & 🇺🇸 English).
                   </p>
                   <textarea
                     value={compiledPrompt}
@@ -575,7 +628,7 @@ const ShortsAnalyzeStep: React.FC = () => {
                     <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2 font-mono">
                       <span>📥</span> 2. Paste Output JSON
                     </h2>
-                    <span className="text-[10px] text-gray-500 font-mono">JSON Importer</span>
+                    <span className="text-[10px] text-gray-500 font-mono">Bilingual Parser</span>
                   </div>
                   <p className="text-xs text-gray-400 leading-relaxed">
                     Tempelkan output JSON dari AI Studio di sini lalu klik Import.
@@ -583,7 +636,7 @@ const ShortsAnalyzeStep: React.FC = () => {
                   <textarea
                     value={jsonInput}
                     onChange={(e) => setJsonInput(e.target.value)}
-                    placeholder='{"segments": [{"title": "...", "formatted_start": "01:15", "formatted_end": "02:00", "narration_script": "..."}]}'
+                    placeholder='[{"id": "seg_1", "id_version": {"hook_text": "...", "narration_script": "..."}, "en_version": {"hook_text": "...", "narration_script": "..."}}]'
                     rows={7}
                     className="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-[11px] text-emerald-300 font-mono focus:outline-none focus:border-emerald-500 transition-all placeholder:text-gray-700 leading-relaxed"
                   />
@@ -603,7 +656,7 @@ const ShortsAnalyzeStep: React.FC = () => {
                     className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-gray-950 font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2 disabled:opacity-40"
                   >
                     <span>📥</span>
-                    <span>Import & Parse Data Segmen</span>
+                    <span>Import & Parse Segmen Bilingual</span>
                   </button>
                 </div>
               </div>
@@ -613,7 +666,7 @@ const ShortsAnalyzeStep: React.FC = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-gray-800 pb-3">
                 <h2 className="text-sm font-bold text-white flex items-center gap-2.5">
-                  <span>✂️</span> Daftar Segmen Shorts Extracted ({segmentsData?.segments.length || 0} Segmen)
+                  <span>✂️</span> Daftar Segmen Shorts ({segmentsData?.segments.length || 0} Segmen)
                 </h2>
 
                 <button
@@ -637,6 +690,12 @@ const ShortsAnalyzeStep: React.FC = () => {
                   {segmentsData.segments.map((seg, idx) => {
                     const duration = Math.max(0, seg.end_time_sec - seg.start_time_sec);
                     const isActive = activeSegmentId === seg.id;
+                    const cardLang = seg.activeLang || globalLang;
+
+                    const isIndo = cardLang === 'id';
+                    const activeHook = isIndo ? seg.hook_text_id : seg.hook_text_en;
+                    const activeScript = isIndo ? seg.narration_script_id : seg.narration_script_en;
+                    const activeSentences = isIndo ? seg.sentences_id : seg.sentences_en;
 
                     return (
                       <div
@@ -661,6 +720,26 @@ const ShortsAnalyzeStep: React.FC = () => {
                           </div>
 
                           <div className="flex items-center gap-3">
+                            {/* Card Language Tab Switcher */}
+                            <div className="flex bg-gray-950 rounded-lg p-0.5 border border-gray-800">
+                              <button
+                                onClick={() => handleUpdateSegment(seg.id, { activeLang: 'id' })}
+                                className={`px-2.5 py-0.5 rounded text-[10px] font-bold transition-all ${
+                                  isIndo ? 'bg-amber-500 text-gray-950' : 'text-gray-400 hover:text-gray-200'
+                                }`}
+                              >
+                                🇮🇩 Indo
+                              </button>
+                              <button
+                                onClick={() => handleUpdateSegment(seg.id, { activeLang: 'en' })}
+                                className={`px-2.5 py-0.5 rounded text-[10px] font-bold transition-all ${
+                                  !isIndo ? 'bg-amber-500 text-gray-950' : 'text-gray-400 hover:text-gray-200'
+                                }`}
+                              >
+                                🇺🇸 English
+                              </button>
+                            </div>
+
                             <span className="px-2.5 py-1 bg-amber-950/80 text-amber-300 border border-amber-800/60 rounded-full text-[10px] font-mono font-bold">
                               Durasi: {duration} Detik
                             </span>
@@ -743,14 +822,17 @@ const ShortsAnalyzeStep: React.FC = () => {
 
                             {/* Hook Text Input */}
                             <div>
-                              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
-                                Hook Text (Teks Visual 3 Detik Pertama)
+                              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                                <span>Hook Text ({isIndo ? '🇮🇩 Bahasa Indonesia' : '🇺🇸 English'})</span>
+                                <span className="text-gray-500">3 Detik Pertama</span>
                               </label>
                               <input
                                 type="text"
-                                value={seg.hook_text}
-                                onChange={(e) => handleUpdateSegment(seg.id, { hook_text: e.target.value })}
-                                placeholder="Contoh: Machine cuts 10,000 ice creams in 1 hour!"
+                                value={activeHook}
+                                onChange={(e) =>
+                                  handleUpdateSegment(seg.id, isIndo ? { hook_text_id: e.target.value } : { hook_text_en: e.target.value })
+                                }
+                                placeholder={isIndo ? 'Contoh: Sumpah, mekanik ini otaknya...' : 'Example: I swear, this mechanic’s brain...'}
                                 className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-xs text-amber-300 focus:outline-none focus:border-amber-500 font-mono"
                               />
                             </div>
@@ -758,19 +840,29 @@ const ShortsAnalyzeStep: React.FC = () => {
 
                           {/* Narration Script Textarea */}
                           <div className="space-y-1">
-                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                              Naskah Narasi Voiceover (English VO)
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between">
+                              <span>Naskah Narasi Voiceover ({isIndo ? '🇮🇩 Bahasa Indonesia' : '🇺🇸 English'})</span>
+                              <span className="text-amber-400">{isIndo ? '🇮🇩 Indo' : '🇺🇸 English'} Active</span>
                             </label>
                             <textarea
-                              value={seg.narration_script}
-                              onChange={(e) => handleUpdateSegment(seg.id, { narration_script: e.target.value })}
-                              placeholder="Tempel atau ketik naskah narasi Bahasa Inggris di sini..."
+                              value={activeScript}
+                              onChange={(e) =>
+                                handleUpdateSegment(
+                                  seg.id,
+                                  isIndo ? { narration_script_id: e.target.value } : { narration_script_en: e.target.value }
+                                )
+                              }
+                              placeholder={
+                                isIndo
+                                  ? 'Tempel atau ketik naskah narasi Bahasa Indonesia di sini...'
+                                  : 'Enter or paste English narration script here...'
+                              }
                               rows={5}
                               className="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-xs text-gray-200 focus:outline-none focus:border-amber-500 transition-all font-sans leading-relaxed resize-none"
                             />
                             <div className="flex items-center justify-between text-[10px] text-gray-500 font-mono px-1">
-                              <span>Estimasi Kata: {seg.narration_script.trim().split(/\s+/).filter(Boolean).length} Kata</span>
-                              <span>Jumlah Kalimat: {seg.sentences.length} Kalimat</span>
+                              <span>Kata: {activeScript.trim().split(/\s+/).filter(Boolean).length} Kata</span>
+                              <span>Kalimat: {activeSentences.length} Kalimat</span>
                             </div>
                           </div>
                         </div>
