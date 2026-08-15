@@ -7,12 +7,17 @@ export interface VideoSourceItem {
   youtube_url: string;
   video_filename?: string;
   video_path?: string;
-  status: 'idle' | 'downloading' | 'downloaded' | 'error';
+  compressed_video_filename?: string;
+  compressed_video_path?: string;
+  compressed_file_size_bytes?: number;
+  is_compressed?: boolean;
+  status: 'idle' | 'downloading' | 'compressing' | 'downloaded' | 'error';
   file_size_bytes?: number;
   downloaded_at?: string;
   error?: string;
   progressPercentage?: number;
   progressSpeed?: string;
+  compressPercentage?: number;
 }
 
 interface VideoSourcesJSON {
@@ -93,6 +98,31 @@ const ShortsSourceStep: React.FC = () => {
     };
   }, []);
 
+  // Listen for real-time compression progress events
+  useEffect(() => {
+    if (!window.electronAPI?.onShortsCompressProgress) return;
+
+    const cleanup = window.electronAPI.onShortsCompressProgress((progressData: any) => {
+      const { keywordId, percentage } = progressData;
+      setCards((prevCards) =>
+        prevCards.map((card) => {
+          if (card.id === keywordId) {
+            return {
+              ...card,
+              status: 'compressing',
+              compressPercentage: Math.min(100, Math.max(0, percentage || 0)),
+            };
+          }
+          return card;
+        })
+      );
+    });
+
+    return () => {
+      if (cleanup && typeof cleanup === 'function') cleanup();
+    };
+  }, []);
+
   // Save current cards list to input/shorts/video-sources.json
   const persistCards = async (updatedCards: VideoSourceItem[]) => {
     if (!window.electronAPI?.saveToProject) return;
@@ -105,6 +135,10 @@ const ShortsSourceStep: React.FC = () => {
           youtube_url: c.youtube_url,
           video_filename: c.video_filename,
           video_path: c.video_path,
+          compressed_video_filename: c.compressed_video_filename,
+          compressed_video_path: c.compressed_video_path,
+          compressed_file_size_bytes: c.compressed_file_size_bytes,
+          is_compressed: c.is_compressed,
           status: c.status,
           file_size_bytes: c.file_size_bytes,
           downloaded_at: c.downloaded_at,
@@ -193,6 +227,10 @@ const ShortsSourceStep: React.FC = () => {
                 status: 'downloaded' as const,
                 video_path: res.videoPath,
                 video_filename: res.videoPath ? res.videoPath.split('/').pop() : undefined,
+                compressed_video_filename: res.compressedPath ? res.compressedPath.split('/').pop() : c.compressed_video_filename,
+                compressed_video_path: res.compressedPath || c.compressed_video_path,
+                compressed_file_size_bytes: res.compressedSizeBytes || c.compressed_file_size_bytes,
+                is_compressed: res.compressedPath ? true : c.is_compressed,
                 file_size_bytes: res.fileSizeBytes,
                 downloaded_at: now,
                 progressPercentage: 100,
@@ -224,6 +262,70 @@ const ShortsSourceStep: React.FC = () => {
         persistCards(updated);
         return updated;
       });
+    }
+  };
+
+  // Trigger manual FFmpeg compression (<400MB)
+  const handleCompressSingle = async (cardId: string) => {
+    const card = cards.find((c) => c.id === cardId);
+    if (!card || !card.video_path) {
+      setGlobalError('File video mentah belum diunduh.');
+      return;
+    }
+
+    setGlobalError(null);
+
+    setCards((prev) =>
+      prev.map((c) =>
+        c.id === cardId ? { ...c, status: 'compressing', compressPercentage: 0 } : c
+      )
+    );
+
+    try {
+      if (!window.electronAPI?.compressShortsVideo) {
+        throw new Error('Electron API compressShortsVideo tidak tersedia.');
+      }
+
+      const res = await window.electronAPI.compressShortsVideo({
+        keywordId: card.id,
+        videoPath: card.video_path,
+      });
+
+      if (res && res.success && res.compressedPath) {
+        setCards((prev) => {
+          const updated = prev.map((c) => {
+            if (c.id === cardId) {
+              return {
+                ...c,
+                status: 'downloaded' as const,
+                compressed_video_filename: res.compressedPath?.split('/').pop(),
+                compressed_video_path: res.compressedPath,
+                compressed_file_size_bytes: res.compressedSizeBytes,
+                is_compressed: true,
+                compressPercentage: 100,
+              };
+            }
+            return c;
+          });
+          persistCards(updated);
+          return updated;
+        });
+      } else {
+        const errMsg = res?.error || 'Gagal mengompres video.';
+        setCards((prev) => {
+          const updated = prev.map((c) =>
+            c.id === cardId ? { ...c, status: 'error' as const, error: errMsg } : c
+          );
+          persistCards(updated);
+          return updated;
+        });
+      }
+    } catch (err: any) {
+      console.error('Compression error:', err);
+      setGlobalError(err.message || 'Terjadi kesalahan saat mengompres video.');
+      setCards((prev) =>
+        prev.map((c) => (c.id === cardId ? { ...c, status: 'downloaded' as const } : c))
+      );
     }
   };
 
@@ -268,7 +370,7 @@ const ShortsSourceStep: React.FC = () => {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
-  const totalBytesDownloaded = cards.reduce((acc, c) => acc + (c.file_size_bytes || 0), 0);
+  const totalBytesDownloaded = cards.reduce((acc, c) => acc + (c.compressed_file_size_bytes || c.file_size_bytes || 0), 0);
   const downloadedCount = cards.filter((c) => c.status === 'downloaded').length;
 
   return (
@@ -283,11 +385,11 @@ const ShortsSourceStep: React.FC = () => {
             <h1 className="text-xl font-bold text-white flex items-center gap-2.5">
               Step 1: Shorts Video Downloader
               <span className="px-2.5 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800/60 text-xs font-mono font-semibold">
-                Dynamic Cards (1080p/720p HD)
+                Dynamic Cards (Auto Compress &lt;400MB)
               </span>
             </h1>
             <p className="text-xs text-gray-400 mt-0.5">
-              Input link YouTube secara dinamis, unduh video mentahan HD (*1080p/720p*), dan preview hasil download.
+              Input link YouTube dinamis, unduh HD 1080p, dan kompres video di bawah 400MB untuk preview optimal.
             </p>
           </div>
         </div>
@@ -353,10 +455,16 @@ const ShortsSourceStep: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {cards.map((card, index) => {
               const isDownloading = card.status === 'downloading';
+              const isCompressing = card.status === 'compressing';
               const isDownloaded = card.status === 'downloaded';
               const isError = card.status === 'error';
-              const mediaUrl = isDownloaded ? getMediaUrl(card.video_path) : '';
-              const formattedSize = formatFileSize(card.file_size_bytes);
+              const hasCompressed = Boolean(card.compressed_video_path);
+
+              // Priority: Use compressed video path for preview if present, fallback to raw video path
+              const previewPath = card.compressed_video_path || card.video_path;
+              const mediaUrl = isDownloaded && previewPath ? getMediaUrl(previewPath) : '';
+              const rawSizeFormatted = formatFileSize(card.file_size_bytes);
+              const compressedSizeFormatted = formatFileSize(card.compressed_file_size_bytes);
 
               return (
                 <div
@@ -364,7 +472,7 @@ const ShortsSourceStep: React.FC = () => {
                   className={`bg-gray-900/70 border ${
                     isDownloaded
                       ? 'border-emerald-500/40 hover:border-emerald-500/60'
-                      : isDownloading
+                      : isDownloading || isCompressing
                       ? 'border-amber-500/60 shadow-amber-950/20'
                       : isError
                       ? 'border-red-500/50'
@@ -388,9 +496,15 @@ const ShortsSourceStep: React.FC = () => {
                             <span className="px-2.5 py-0.5 bg-emerald-950/90 text-emerald-400 border border-emerald-800/80 rounded-full text-[10px] font-mono font-semibold flex items-center gap-1">
                               <span>✅</span> Downloaded
                             </span>
-                            <span className="px-2 py-0.5 bg-cyan-950/90 text-cyan-300 border border-cyan-800/80 rounded-full text-[10px] font-mono font-semibold flex items-center gap-1">
-                              <span>💾</span> {formattedSize}
-                            </span>
+                            {hasCompressed ? (
+                              <span className="px-2 py-0.5 bg-cyan-950/90 text-cyan-300 border border-cyan-800/80 rounded-full text-[10px] font-mono font-semibold flex items-center gap-1">
+                                <span>📦</span> {compressedSizeFormatted}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-gray-800 text-gray-300 border border-gray-700 rounded-full text-[10px] font-mono flex items-center gap-1">
+                                <span>💾</span> {rawSizeFormatted}
+                              </span>
+                            )}
                           </>
                         )}
                         {isDownloading && (
@@ -399,12 +513,18 @@ const ShortsSourceStep: React.FC = () => {
                             Downloading...
                           </span>
                         )}
+                        {isCompressing && (
+                          <span className="px-2.5 py-0.5 bg-purple-950/90 text-purple-300 border border-purple-800/80 rounded-full text-[10px] font-mono font-semibold flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping"></span>
+                            Compressing...
+                          </span>
+                        )}
                         {isError && (
                           <span className="px-2.5 py-0.5 bg-red-950/90 text-red-300 border border-red-800/80 rounded-full text-[10px] font-mono font-semibold flex items-center gap-1">
                             <span>⚠️</span> Error
                           </span>
                         )}
-                        {!isDownloaded && !isDownloading && !isError && (
+                        {!isDownloaded && !isDownloading && !isCompressing && !isError && (
                           <span className="px-2.5 py-0.5 bg-gray-800 text-gray-400 border border-gray-700 rounded-full text-[10px] font-mono">
                             Ready
                           </span>
@@ -413,7 +533,7 @@ const ShortsSourceStep: React.FC = () => {
                         {/* Delete Card Button */}
                         <button
                           onClick={() => handleDeleteCard(card.id)}
-                          disabled={isDownloading}
+                          disabled={isDownloading || isCompressing}
                           className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition-all disabled:opacity-30"
                           title="Hapus Card"
                         >
@@ -435,7 +555,7 @@ const ShortsSourceStep: React.FC = () => {
                           onChange={(e) =>
                             handleFieldChange(card.id, 'youtube_url', e.target.value)
                           }
-                          disabled={isDownloading}
+                          disabled={isDownloading || isCompressing}
                           className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-gray-200 focus:outline-none focus:border-amber-500 transition-all placeholder:text-gray-600 font-mono"
                         />
                       </div>
@@ -449,7 +569,7 @@ const ShortsSourceStep: React.FC = () => {
                           placeholder="Contoh: Factory Process / Woodworking Clips"
                           value={card.title}
                           onChange={(e) => handleFieldChange(card.id, 'title', e.target.value)}
-                          disabled={isDownloading}
+                          disabled={isDownloading || isCompressing}
                           className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-gray-200 focus:outline-none focus:border-amber-500 transition-all placeholder:text-gray-600"
                         />
                       </div>
@@ -477,6 +597,24 @@ const ShortsSourceStep: React.FC = () => {
                       </div>
                     )}
 
+                    {/* Compress Progress Bar */}
+                    {isCompressing && (
+                      <div className="bg-gray-950 p-3 rounded-xl border border-purple-500/30 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-mono">
+                          <span className="text-purple-300 font-bold">
+                            Compressing FFmpeg (&lt;400MB): {card.compressPercentage || 0}%
+                          </span>
+                          <span className="text-gray-400 text-[10px]">H.264 Target 350MB</span>
+                        </div>
+                        <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-gradient-to-r from-purple-500 to-purple-400 h-full transition-all duration-200"
+                            style={{ width: `${card.compressPercentage || 0}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Error Banner on Card */}
                     {isError && card.error && (
                       <div className="p-3 bg-red-950/60 border border-red-800/80 rounded-xl text-red-300 text-xs font-mono">
@@ -487,24 +625,47 @@ const ShortsSourceStep: React.FC = () => {
                     {/* Downloaded Video Preview Player */}
                     {isDownloaded && mediaUrl && (
                       <div className="bg-black/90 p-3 rounded-xl border border-emerald-800/60 space-y-2">
-                        <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
-                          <span className="truncate max-w-[180px] text-emerald-300">
-                            📹 {card.video_filename || 'video.mp4'}
-                          </span>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-purple-300 bg-purple-950/90 px-2 py-0.5 rounded border border-purple-800/60 font-bold">
-                              ✨ 1080p HD
-                            </span>
-                            <span className="text-cyan-300 bg-cyan-950/90 px-2 py-0.5 rounded border border-cyan-800/60 font-bold">
-                              💾 {formattedSize}
+                        <div className="flex flex-wrap items-center justify-between text-[11px] text-gray-400 font-mono gap-1.5">
+                          <div className="flex items-center gap-1.5 truncate max-w-[220px]">
+                            <span className="text-emerald-300 truncate">
+                              📹 {hasCompressed ? card.compressed_video_filename : card.video_filename}
                             </span>
                           </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {hasCompressed ? (
+                              <span className="text-cyan-300 bg-cyan-950/90 px-2 py-0.5 rounded border border-cyan-800/60 font-bold text-[10px]">
+                                📦 Compressed Preview: {compressedSizeFormatted}
+                              </span>
+                            ) : (
+                              <span className="text-purple-300 bg-purple-950/90 px-2 py-0.5 rounded border border-purple-800/60 font-bold text-[10px]">
+                                💾 Raw: {rawSizeFormatted}
+                              </span>
+                            )}
+                          </div>
                         </div>
+
                         <video
                           src={mediaUrl}
                           controls
                           className="w-full rounded-lg max-h-48 bg-black object-contain border border-gray-800"
                         />
+
+                        {/* File details & manual compress trigger */}
+                        <div className="flex items-center justify-between text-[10px] font-mono text-gray-400 pt-1">
+                          <span className="truncate max-w-[250px]">
+                            Path: <code className="text-gray-300">{previewPath}</code>
+                          </span>
+                          {!hasCompressed && card.video_path && (
+                            <button
+                              onClick={() => handleCompressSingle(card.id)}
+                              disabled={isCompressing}
+                              className="px-2.5 py-1 bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-700/60 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1"
+                            >
+                              <span>⚡</span> Compress (&lt;400MB)
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -519,7 +680,7 @@ const ShortsSourceStep: React.FC = () => {
 
                     <button
                       onClick={() => handleDownloadSingle(card.id)}
-                      disabled={isDownloading || !card.youtube_url.trim()}
+                      disabled={isDownloading || isCompressing || !card.youtube_url.trim()}
                       className={`px-4 py-2 font-bold text-xs rounded-xl shadow transition-all flex items-center gap-1.5 ${
                         isDownloaded
                           ? 'bg-gray-800 hover:bg-gray-700 text-amber-300 border border-amber-500/30'
@@ -530,6 +691,11 @@ const ShortsSourceStep: React.FC = () => {
                         <>
                           <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
                           <span>Downloading...</span>
+                        </>
+                      ) : isCompressing ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-purple-300 border-t-transparent rounded-full animate-spin"></div>
+                          <span>Compressing...</span>
                         </>
                       ) : isDownloaded ? (
                         <>
@@ -564,11 +730,9 @@ const ShortsSourceStep: React.FC = () => {
 
       {/* Footer Info & Storage Path Consistency */}
       <div className="border-t border-gray-800/80 pt-4 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-2">
-        <div className="flex items-center gap-2 font-mono">
-          <span>📂 Output MP4:</span>
-          <code className="text-amber-300 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/40">
-            input/shorts/raw_videos/
-          </code>
+        <div className="flex flex-wrap items-center gap-3 font-mono">
+          <span>📂 Raw: <code className="text-amber-300 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/40">input/shorts/raw_videos/</code></span>
+          <span>📦 Compressed: <code className="text-cyan-300 bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/40">input/shorts/compressed_videos/</code></span>
         </div>
         <div className="flex items-center gap-2 font-mono">
           <span>📄 Persistence:</span>

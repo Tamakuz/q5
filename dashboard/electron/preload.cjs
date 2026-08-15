@@ -228,6 +228,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('shorts:download-progress', handler);
     return () => ipcRenderer.removeListener('shorts:download-progress', handler);
   },
+  compressShortsVideo: (data) => ipcRenderer.invoke('shorts:compress-video', data),
+  onShortsCompressProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('shorts:compress-progress', handler);
+    return () => ipcRenderer.removeListener('shorts:compress-progress', handler);
+  },
   generateSpensiaTopics: (promptText, model) => ipcRenderer.invoke('generate-spensia-topics', { promptText, model }),
   generateSpensiaScript: (promptText, model) => ipcRenderer.invoke('generate-spensia-script', { promptText, model }),
   generateSpensiaBreakdown: (promptText, model) => ipcRenderer.invoke('generate-spensia-breakdown', { promptText, model }),

@@ -307,6 +307,23 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
           const now = new Date().toISOString();
           const existingIdx = (sourcesData.items || []).findIndex(i => i.keyword_id === keywordId);
           const existingItem = existingIdx >= 0 ? sourcesData.items[existingIdx] : {};
+          // Auto compress if raw file size > 400 MB or check compressed folder
+          const compressedDir = path.resolve(p.PROJECT_ROOT, 'input', 'shorts', 'compressed_videos');
+          const compressedFilename = `${safeSlug}_${keywordId}_compressed.mp4`;
+          const compressedPath = path.join(compressedDir, compressedFilename);
+          const relativeCompressedPath = `input/shorts/compressed_videos/${compressedFilename}`;
+
+          let compressedInfo = {};
+          if (fs.existsSync(compressedPath)) {
+            const compStats = fs.statSync(compressedPath);
+            compressedInfo = {
+              compressed_video_filename: compressedFilename,
+              compressed_video_path: relativeCompressedPath,
+              compressed_file_size_bytes: compStats.size,
+              is_compressed: true,
+            };
+          }
+
           const newItem = {
             ...existingItem,
             keyword_id: keywordId,
@@ -315,6 +332,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
             youtube_url: youtubeUrl,
             video_filename: outputFilename,
             video_path: `input/shorts/raw_videos/${outputFilename}`,
+            ...compressedInfo,
             status: 'downloaded',
             downloaded_at: now,
             file_size_bytes: stats.size
@@ -329,13 +347,134 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
           fs.mkdirSync(path.dirname(sourcesFile), { recursive: true });
           fs.writeFileSync(sourcesFile, JSON.stringify(sourcesData, null, 2), 'utf-8');
 
-          resolve({ success: true, videoPath: `input/shorts/raw_videos/${outputFilename}`, fileSizeBytes: stats.size });
+          resolve({
+            success: true,
+            videoPath: `input/shorts/raw_videos/${outputFilename}`,
+            compressedPath: compressedInfo.compressed_video_path,
+            compressedSizeBytes: compressedInfo.compressed_file_size_bytes,
+            fileSizeBytes: stats.size
+          });
         } else {
           console.error(`❌ [shorts:download-video] Failed code ${code}:`, errorOutput);
           resolve({ success: false, error: errorOutput || `yt-dlp process exited with code ${code}` });
         }
       });
     });
+  });
+
+  // ─── Compress Shorts Video Helper & IPC Handler ───────────────
+  async function compressShortsVideoHelper(inputPath, outputPath, keywordId, event) {
+    return new Promise(async (resolve) => {
+      if (!fs.existsSync(inputPath)) {
+        return resolve({ success: false, error: `File video mentah tidak ditemukan: ${inputPath}` });
+      }
+
+      const compressedDir = path.dirname(outputPath);
+      if (!fs.existsSync(compressedDir)) {
+        fs.mkdirSync(compressedDir, { recursive: true });
+      }
+
+      let meta = { duration: 600 };
+      try {
+        if (ffmpeg.getVideoMetaHelper) {
+          meta = await ffmpeg.getVideoMetaHelper(inputPath);
+        }
+      } catch (e) {}
+
+      const durationSec = Math.max(10, meta.duration || 600);
+      const targetSizeBytes = 350 * 1024 * 1024; // Target 350MB safe limit (<400MB)
+      const totalTargetBitrateBps = (targetSizeBytes * 8) / durationSec;
+      const audioBitrateBps = 128 * 1024;
+      let videoBitrateKbps = Math.floor((totalTargetBitrateBps - audioBitrateBps) / 1000);
+
+      if (videoBitrateKbps < 500) videoBitrateKbps = 500;
+      if (videoBitrateKbps > 4000) videoBitrateKbps = 4000;
+
+      const ffmpegBin = ffmpeg.ffmpegPath || '/usr/bin/ffmpeg';
+      const args = [
+        '-i', inputPath,
+        '-c:v', 'libx264',
+        '-b:v', `${videoBitrateKbps}k`,
+        '-maxrate', `${Math.floor(videoBitrateKbps * 1.2)}k`,
+        '-bufsize', `${videoBitrateKbps * 2}k`,
+        '-preset', 'fast',
+        '-vf', "scale='min(1920,iw)':-2",
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-y',
+        outputPath
+      ];
+
+      console.log(`⚡ [shorts:compress-video] Compressing video for ${keywordId} to ${outputPath} (bitrate: ${videoBitrateKbps}k)...`);
+      const child = spawn(ffmpegBin, args);
+      let errorOutput = '';
+
+      child.stderr.on('data', (data) => {
+        const text = data.toString();
+        errorOutput += text;
+        const timeMatch = text.match(/time=(\d{2}):(\d{2}):(\d{2}\.\d+)/);
+        if (timeMatch && durationSec > 0 && event?.sender) {
+          const hours = parseFloat(timeMatch[1]);
+          const mins = parseFloat(timeMatch[2]);
+          const secs = parseFloat(timeMatch[3]);
+          const currentSec = hours * 3600 + mins * 60 + secs;
+          const percentage = Math.min(100, Math.round((currentSec / durationSec) * 100));
+          event.sender.send('shorts:compress-progress', { keywordId, percentage });
+        }
+      });
+
+      child.on('close', (code) => {
+        if (code === 0 && fs.existsSync(outputPath)) {
+          const stats = fs.statSync(outputPath);
+          console.log(`✅ [shorts:compress-video] Compression finished: ${(stats.size / (1024 * 1024)).toFixed(2)} MB`);
+          if (event?.sender) {
+            event.sender.send('shorts:compress-progress', { keywordId, percentage: 100 });
+          }
+          resolve({ success: true, compressedPath: outputPath, compressedSizeBytes: stats.size });
+        } else {
+          console.error(`❌ [shorts:compress-video] Compression failed code ${code}:`, errorOutput);
+          resolve({ success: false, error: errorOutput || `FFmpeg process exited with code ${code}` });
+        }
+      });
+
+      child.on('error', (err) => {
+        resolve({ success: false, error: err.message });
+      });
+    });
+  }
+
+  ipcMain.handle('shorts:compress-video', async (event, { keywordId, videoPath }) => {
+    const inputPath = path.resolve(p.PROJECT_ROOT, videoPath);
+    const compressedDir = path.resolve(p.PROJECT_ROOT, 'input', 'shorts', 'compressed_videos');
+    const baseName = path.basename(videoPath, path.extname(videoPath));
+    const outputFilename = `${baseName}_compressed.mp4`;
+    const outputPath = path.join(compressedDir, outputFilename);
+    const relativeCompressedPath = `input/shorts/compressed_videos/${outputFilename}`;
+
+    const res = await compressShortsVideoHelper(inputPath, outputPath, keywordId, event);
+    if (res.success) {
+      const sourcesFile = path.resolve(p.PROJECT_ROOT, 'input', 'shorts', 'video-sources.json');
+      if (fs.existsSync(sourcesFile)) {
+        try {
+          const sourcesData = JSON.parse(fs.readFileSync(sourcesFile, 'utf-8'));
+          const idx = (sourcesData.items || []).findIndex(i => i.keyword_id === keywordId || i.id === keywordId);
+          if (idx >= 0) {
+            sourcesData.items[idx] = {
+              ...sourcesData.items[idx],
+              compressed_video_filename: outputFilename,
+              compressed_video_path: relativeCompressedPath,
+              compressed_file_size_bytes: res.compressedSizeBytes,
+              is_compressed: true,
+            };
+            fs.writeFileSync(sourcesFile, JSON.stringify(sourcesData, null, 2), 'utf-8');
+          }
+        } catch (e) {}
+      }
+    }
+    return {
+      ...res,
+      compressedPath: relativeCompressedPath,
+    };
   });
 }
 
