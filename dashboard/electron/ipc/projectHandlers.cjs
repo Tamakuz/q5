@@ -524,7 +524,10 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
         return resolve({ success: false, error: `File audio narasi tidak ditemukan di: ${resolvedAudio}` });
       }
 
-      const pythonBin = '/usr/bin/python3';
+      let pythonBin = path.join(p.PROJECT_ROOT, 'whisperx', 'venv', 'bin', 'python3');
+      if (!fs.existsSync(pythonBin)) {
+        pythonBin = '/usr/bin/python3';
+      }
       const alignCli = path.join(p.PROJECT_ROOT, 'whisperx', 'align_cli.py');
       if (!fs.existsSync(alignCli)) {
         return resolve({ success: false, error: `Align CLI script tidak ditemukan di: ${alignCli}` });
