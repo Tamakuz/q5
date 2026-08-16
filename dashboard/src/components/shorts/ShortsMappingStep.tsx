@@ -78,6 +78,9 @@ const ShortsMappingStep: React.FC = () => {
 
   const [selectedLang, setSelectedLang] = useState<'id' | 'en'>('id');
   const [isLoading, setIsLoading] = useState(true);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [jsonInput, setJsonInput] = useState('');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -209,58 +212,178 @@ const ShortsMappingStep: React.FC = () => {
     }
   };
 
-  // Auto-Generate Video Cuts Mapping from Step 2 & Step 3
-  const handleAutoMapCuts = () => {
-    if (!activeSegment) return;
+  // Build AI Studio Prompt for current segment & language
+  const buildAiStudioPrompt = () => {
+    if (!activeSegment) return '';
     const isIndo = selectedLang === 'id';
     const audioData = audioDataMap[activeSegment.id];
     const sentences = isIndo ? audioData?.sentences_id || [] : audioData?.sentences_en || [];
 
-    if (sentences.length === 0) {
-      setErrorMsg('Belum ada data transkrip audio dari Step 3 untuk dipetakan.');
-      return;
-    }
+    const activeVideoItem = videoSources[0];
+    const sourceVideoTitle = activeVideoItem?.title || activeVideoPath.split('/').pop() || 'Raw Video Source';
+    const sourceVideoDuration = activeVideoItem?.duration_sec || 300;
 
-    const baseOffset = activeSegment.start_time_sec || 0;
-    const defaultHookText = isIndo
-      ? activeSegment.hook_text_id || activeSegment.title
-      : activeSegment.hook_text_en || activeSegment.title;
-
-    const generatedCuts: VideoCutMappingItem[] = sentences.map((sent, idx) => {
-      const dur = parseFloat(Math.max(0.5, sent.end - sent.start).toFixed(2));
-      const vStart = parseFloat((baseOffset + sent.start).toFixed(2));
-      const vEnd = parseFloat((baseOffset + sent.end).toFixed(2));
-
-      return {
-        id: `cut_${selectedLang}_${idx + 1}`,
+    const transcriptJsonStr = JSON.stringify(
+      sentences.map((sent, idx) => ({
         sentence_index: idx,
         text: sent.text,
         audio_start: sent.start,
         audio_end: sent.end,
-        duration: dur,
-        video_start: vStart,
-        video_end: vEnd,
-        overlay_text: idx === 0 ? defaultHookText : sent.text,
+        duration: parseFloat(Math.max(0.5, sent.end - sent.start).toFixed(2)),
+      })),
+      null,
+      2
+    );
+
+    return `Kamu adalah "AI Video Director & Precision Visual Clipper" khusus untuk format YouTube Shorts & TikTok Vertikal (9:16).
+
+---
+
+### INPUT YANG DIBERIKAN:
+- **Video Sumber Mentah**: \`${sourceVideoTitle}\` (Durasi Total: \`${sourceVideoDuration}\`s)
+- **Segmen Shorts #${segments.findIndex((s) => s.id === selectedSegmentId) + 1}**: \`${activeSegment.title}\`
+- **Rentang Waktu Segmen di Video**: \`${activeSegment.start_time_sec || 0}\`s - \`${activeSegment.end_time_sec || 60}\`s
+- **Bahasa Narasi**: \`${isIndo ? 'Bahasa Indonesia' : 'English'}\`
+- **DATA TRANSKRIP NASKAH AUDIO (VO)**:
+\`\`\`json
+${transcriptJsonStr}
+\`\`\`
+
+---
+
+### 🚨 TUGAS UTAMA:
+Cocokkan SETIAP KALIMAT NARASI pada transkrip audio di atas dengan potongan adegan visual (clip cuts) dari video mentah sumber secara sinematik, dramatis, dan sangat menarik perhatian penonton Shorts!
+
+---
+
+### 📌 ATURAN TIMELINE & VISUAL CUTS:
+1. **EXACT DURATION MATCH**: Durasi visual (\`duration\`) untuk setiap klip WAJIB SAMA PERSIS dengan durasi pengucapan di Voice Over (\`audio_end - audio_start\`).
+2. **SEEK START (\`video_start\`)**: Tentukan waktu mulai adegan (\`video_start\` dalam detik desimal) dari video mentah yang paling dramatis, oddly satisfying, atau menggambarkan kalimat narasi tersebut.
+3. **SEEK END (\`video_end\`)**: \`video_end = video_start + duration\`.
+4. **VISUAL HOOK & SUBTITLE (\`overlay_text\`)**:
+   - **Kalimat #1 (Hook 0:00 - 0:03s)**: Wajib beri Teks Hook Visual tebal & bikin penasaran dalam **HURUF KAPITAL** (contoh: "${isIndo ? 'MEKANIK GILA VS MESIN TUA!' : 'INSANE MECHANIC VS OLD ENGINE!'}").
+   - **Kalimat berikutnya**: Beri teks subtitle ringkas yang menarik penonton.
+
+---
+
+### 📦 FORMAT OUTPUT (MURNI JSON ARRAY):
+
+\`\`\`json
+[
+  {
+    "sentence_index": 0,
+    "text": "${sentences[0]?.text || 'Sentence text here'}",
+    "audio_start": 0.0,
+    "audio_end": 4.5,
+    "duration": 4.5,
+    "video_start": ${activeSegment.start_time_sec || 0},
+    "video_end": ${(activeSegment.start_time_sec || 0) + 4.5},
+    "overlay_text": "${isIndo ? 'HOOK VISUAL MENARIK!' : 'ATTENTION HOOK TEXT!'}"
+  }
+]
+\`\`\`
+
+PENTING: MURNI JSON ARRAY tanpa markdown \`\`\`json.`;
+  };
+
+  // Copy AI Studio Prompt to Clipboard
+  const handleCopyPrompt = () => {
+    const promptText = buildAiStudioPrompt();
+    if (promptText) {
+      navigator.clipboard.writeText(promptText);
+      setCopiedPrompt(true);
+      showToast('📋 Prompt AI Studio Video Mapping berhasil disalin!');
+      setTimeout(() => setCopiedPrompt(false), 2500);
+    }
+  };
+
+  // Open Google AI Studio in External Browser
+  const handleOpenAiStudio = () => {
+    window.open('https://aistudio.google.com/', '_blank');
+  };
+
+  // Import JSON Output from AI Studio
+  const handleImportJson = () => {
+    setErrorMsg(null);
+    try {
+      if (!jsonInput.trim()) {
+        throw new Error('Paste teks JSON dari AI Studio terlebih dahulu.');
+      }
+
+      // Clean potential markdown formatting ```json
+      let cleaned = jsonInput.trim();
+      if (cleaned.startsWith('```json')) {
+        cleaned = cleaned.replace(/^```json/, '').replace(/```$/, '').trim();
+      } else if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```/, '').replace(/```$/, '').trim();
+      }
+
+      const parsed = JSON.parse(cleaned);
+      let cutsArray: any[] = [];
+
+      if (Array.isArray(parsed)) {
+        cutsArray = parsed;
+      } else if (parsed && typeof parsed === 'object') {
+        if (Array.isArray(parsed.timeline)) cutsArray = parsed.timeline;
+        else if (Array.isArray(parsed.cuts)) cutsArray = parsed.cuts;
+        else if (Array.isArray(parsed.items)) cutsArray = parsed.items;
+        else if (selectedLang === 'id' && Array.isArray(parsed.cuts_id)) cutsArray = parsed.cuts_id;
+        else if (selectedLang === 'en' && Array.isArray(parsed.cuts_en)) cutsArray = parsed.cuts_en;
+      }
+
+      if (!cutsArray || cutsArray.length === 0) {
+        throw new Error('Format JSON tidak valid atau tidak berisi array potongan video (cuts/timeline).');
+      }
+
+      const isIndo = selectedLang === 'id';
+      const audioData = audioDataMap[activeSegment.id];
+      const sentences = isIndo ? audioData?.sentences_id || [] : audioData?.sentences_en || [];
+
+      const formattedCuts: VideoCutMappingItem[] = cutsArray.map((item: any, idx: number) => {
+        const matchingSent = sentences[idx] || sentences.find((s) => s.text === item.text);
+        const aStart = item.audio_start !== undefined ? item.audio_start : (matchingSent ? matchingSent.start : idx * 4.5);
+        const aEnd = item.audio_end !== undefined ? item.audio_end : (matchingSent ? matchingSent.end : (idx + 1) * 4.5);
+        const dur = parseFloat(Math.max(0.5, item.duration || (aEnd - aStart)).toFixed(2));
+        const vStart = parseFloat(Number(item.video_start !== undefined ? item.video_start : (item.ss !== undefined ? item.ss : (activeSegment.start_time_sec || 0) + aStart)).toFixed(2));
+        const vEnd = parseFloat(Number(item.video_end !== undefined ? item.video_end : (item.se !== undefined ? item.se : (vStart + dur))).toFixed(2));
+
+        return {
+          id: `cut_${selectedLang}_${idx + 1}`,
+          sentence_index: item.sentence_index !== undefined ? item.sentence_index : idx,
+          text: item.text || matchingSent?.text || '',
+          audio_start: aStart,
+          audio_end: aEnd,
+          duration: dur,
+          video_start: vStart,
+          video_end: vEnd,
+          overlay_text: item.overlay_text || item.hook_text || item.subtitle || (idx === 0 ? (isIndo ? activeSegment.hook_text_id : activeSegment.hook_text_en) : item.text),
+        };
+      });
+
+      const currentMapping = getSegmentMappingData(activeSegment.id);
+      const updatedMapping: ShortsSegmentMappingData = {
+        ...currentMapping,
+        source_video_path: activeVideoPath,
+        ...(isIndo
+          ? { cuts_id: formattedCuts, audio_path_id: audioData?.audio_path_id }
+          : { cuts_en: formattedCuts, audio_path_en: audioData?.audio_path_en }),
       };
-    });
 
-    const currentMapping = getSegmentMappingData(activeSegment.id);
-    const updatedMapping: ShortsSegmentMappingData = {
-      ...currentMapping,
-      source_video_path: activeVideoPath,
-      ...(isIndo
-        ? { cuts_id: generatedCuts, audio_path_id: audioData?.audio_path_id }
-        : { cuts_en: generatedCuts, audio_path_en: audioData?.audio_path_en }),
-    };
+      const updatedMap = {
+        ...mappingMap,
+        [activeSegment.id]: updatedMapping,
+      };
 
-    const updatedMap = {
-      ...mappingMap,
-      [activeSegment.id]: updatedMapping,
-    };
+      setMappingMap(updatedMap);
+      persistMappingManifest(updatedMap);
 
-    setMappingMap(updatedMap);
-    persistMappingManifest(updatedMap);
-    showToast(`⚡ Berhasil auto-map ${generatedCuts.length} klip video untuk ${isIndo ? '🇮🇩 Indo' : '🇺🇸 English'}!`);
+      setShowImportModal(false);
+      setJsonInput('');
+      showToast(`🎉 Berhasil mengimpor ${formattedCuts.length} Video Cut Mapping dari AI Studio!`);
+    } catch (err: any) {
+      console.error('Import JSON Mapping Error:', err);
+      setErrorMsg(err.message || 'Gagal mengimpor JSON mapping.');
+    }
   };
 
   // Test Play single video cut range in video player
@@ -344,11 +467,11 @@ const ShortsMappingStep: React.FC = () => {
             <h1 className="text-xl font-bold text-white flex items-center gap-2.5">
               Step 4: Shorts Video Mapping Studio
               <span className="px-2.5 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800/60 text-xs font-mono font-semibold">
-                FFmpeg Clip Cutter Prep
+                AI Studio Mapping Hub
               </span>
             </h1>
             <p className="text-xs text-gray-400 mt-0.5">
-              Petakan potongan klip video sumber ke setiap kalimat narasi audio voiceover untuk persediaan render FFmpeg.
+              Salin prompt AI Studio, dapatkan pemetaan potong adegan video sinematik khusus Shorts, lalu impor JSON hasilnya.
             </p>
           </div>
         </div>
@@ -439,37 +562,53 @@ const ShortsMappingStep: React.FC = () => {
             )}
           </div>
 
-          {/* Right Workspace: Video Preview & Mapping Table */}
+          {/* Right Workspace: AI Studio Hub Bar & Mapping Table */}
           <div className="flex-1 min-w-0 space-y-8 w-full">
-            {/* Top Bar: Source Video Player & Auto-Map Trigger */}
+            {/* AI Studio Prompt Hub Box */}
             <div className="bg-gray-900/70 border border-gray-800 p-5 rounded-2xl space-y-4 shadow-md">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800/80 pb-4">
                 <div>
                   <h2 className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-2 font-mono">
-                    <span>🎬</span> Source Video Preview ({activeVideoPath ? activeVideoPath.split('/').pop() : 'No Video'})
+                    <span>⚡</span> AI Studio Video Mapping Hub ({selectedLang === 'id' ? '🇮🇩 Bahasa Indonesia' : '🇺🇸 English'})
                   </h2>
                   <p className="text-[11px] text-gray-400 mt-0.5">
                     Segment: #{segments.findIndex((s) => s.id === selectedSegmentId) + 1} - {activeSegment?.title}
                   </p>
                 </div>
 
-                <button
-                  onClick={handleAutoMapCuts}
-                  className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-gray-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-600/20 transition-all flex items-center gap-2 shrink-0"
-                >
-                  <span>⚡</span>
-                  <span>Auto-Map Cuts dari Step 2 & 3</span>
-                </button>
+                {/* AI Studio Action Buttons */}
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    onClick={handleCopyPrompt}
+                    className="px-4 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow"
+                  >
+                    <span>{copiedPrompt ? '✅ Copied!' : '📋 Copy Prompt AI Studio'}</span>
+                  </button>
+
+                  <button
+                    onClick={handleOpenAiStudio}
+                    className="px-4 py-2 bg-gray-950 hover:bg-gray-800 text-gray-200 border border-gray-800 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5"
+                  >
+                    <span>↗</span> Open AI Studio
+                  </button>
+
+                  <button
+                    onClick={() => setShowImportModal(true)}
+                    className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-gray-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-600/20 transition-all flex items-center gap-1.5"
+                  >
+                    <span>📥</span> Import JSON Mapping
+                  </button>
+                </div>
               </div>
 
-              {/* Video Player */}
+              {/* Source Video Preview Player */}
               {activeMediaUrl ? (
                 <div className="bg-gray-950 p-3 rounded-2xl border border-gray-800 flex flex-col items-center">
                   <video
                     ref={videoRef}
                     src={activeMediaUrl}
                     controls
-                    className="w-full max-h-[320px] rounded-xl object-contain bg-black"
+                    className="w-full max-h-[300px] rounded-xl object-contain bg-black"
                   />
                 </div>
               ) : (
@@ -492,10 +631,10 @@ const ShortsMappingStep: React.FC = () => {
               <div className="flex items-center justify-between border-b border-gray-800 pb-3">
                 <div>
                   <h2 className="text-sm font-bold text-white flex items-center gap-2.5">
-                    <span>🎬</span> Tabel Video Mapping Clip Cuts ({currentCuts.length} Klip Video)
+                    <span>🎬</span> Hasil Video Mapping Clip Cuts ({currentCuts.length} Klip Video)
                   </h2>
                   <p className="text-[11px] text-gray-400 mt-0.5">
-                    Potongan video dari video sumber yang dicrop untuk mengisi setiap kalimat narasi audio.
+                    Potongan adegan video dari AI Studio yang dicrop untuk mengisi setiap kalimat narasi voiceover.
                   </p>
                 </div>
               </div>
@@ -505,7 +644,7 @@ const ShortsMappingStep: React.FC = () => {
                   <div className="text-4xl text-amber-500/50">🎯</div>
                   <h3 className="text-sm font-bold text-gray-300">Belum Ada Video Cut Mapping</h3>
                   <p className="text-xs text-gray-500 max-w-md mx-auto">
-                    Klik <strong>Auto-Map Cuts dari Step 2 & 3</strong> di atas untuk membuat potongan video otomatis dari timestamp transkrip narasi.
+                    Klik <strong>Copy Prompt AI Studio</strong>, masukkan ke AI Studio, lalu klik <strong>Import JSON Mapping</strong> untuk memasukkan hasil potongan adegan video AI.
                   </p>
                 </div>
               ) : (
@@ -601,6 +740,52 @@ const ShortsMappingStep: React.FC = () => {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* JSON Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-amber-500/40 rounded-3xl p-6 w-full max-w-2xl space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+              <h2 className="text-sm font-bold text-amber-300 flex items-center gap-2 font-mono">
+                <span>📥</span> Import JSON Video Mapping dari AI Studio ({selectedLang === 'id' ? '🇮🇩 Indo' : '🇺🇸 English'})
+              </h2>
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="text-gray-500 hover:text-gray-200 text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-400">
+              Paste teks hasil JSON dari AI Studio di bawah ini:
+            </p>
+
+            <textarea
+              rows={10}
+              value={jsonInput}
+              onChange={(e) => setJsonInput(e.target.value)}
+              placeholder='Paste JSON array [...] di sini...'
+              className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-4 text-xs font-mono text-amber-200 focus:outline-none focus:border-amber-500"
+            />
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-bold"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleImportJson}
+                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-gray-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-600/20"
+              >
+                ⚡ Process & Apply AI Mapping
+              </button>
             </div>
           </div>
         </div>
