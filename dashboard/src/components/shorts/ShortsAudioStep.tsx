@@ -1,5 +1,5 @@
 // dashboard/src/components/shorts/ShortsAudioStep.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 
 export interface TranscriptSentence {
   id: string;
@@ -63,8 +63,12 @@ const ShortsAudioStep: React.FC = () => {
   const [alignProgress, setAlignProgress] = useState<{ step: string; percent: number; detail: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Playback currentTime tracking for Alurfilm-style live transcript highlighting
+  const [currentTime, setCurrentTime] = useState<number>(0);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const activeSentenceRef = useRef<HTMLDivElement | null>(null);
 
   // Load Step 2 script-segments.json and audio-transcripts.json on mount
   useEffect(() => {
@@ -72,7 +76,6 @@ const ShortsAudioStep: React.FC = () => {
       setIsLoading(true);
       try {
         if (window.electronAPI?.readFromProject) {
-          // Read Step 2 segments
           const rawSegs = await window.electronAPI.readFromProject('input/shorts/script-segments.json');
           if (rawSegs) {
             const data: ScriptSegmentsJSONFromStep2 = typeof rawSegs === 'string' ? JSON.parse(rawSegs) : rawSegs;
@@ -82,7 +85,6 @@ const ShortsAudioStep: React.FC = () => {
             }
           }
 
-          // Read existing audio-transcripts.json
           const rawAudio = await window.electronAPI.readFromProject('input/shorts/audio-transcripts.json');
           if (rawAudio) {
             const manifest: AudioTranscriptsManifest = typeof rawAudio === 'string' ? JSON.parse(rawAudio) : rawAudio;
@@ -180,6 +182,23 @@ const ShortsAudioStep: React.FC = () => {
   const activeAudioPath = selectedLang === 'id' ? activeAudioData?.audio_path_id : activeAudioData?.audio_path_en;
   const activeMediaUrl = getMediaUrl(activeAudioPath);
   const isAligned = selectedLang === 'id' ? Boolean(activeAudioData?.aligned_id) : Boolean(activeAudioData?.aligned_en);
+  const currentSentences = selectedLang === 'id' ? activeAudioData?.sentences_id || [] : activeAudioData?.sentences_en || [];
+
+  // Active sentence ID based on real-time playback currentTime
+  const activeSentenceId = useMemo(() => {
+    if (!currentTime || !currentSentences.length) return null;
+    const found = currentSentences.find(
+      (s) => currentTime >= s.start && currentTime <= s.end
+    );
+    return found ? found.id : null;
+  }, [currentTime, currentSentences]);
+
+  // Auto-scroll active sentence into view during playback
+  useEffect(() => {
+    if (activeSentenceRef.current) {
+      activeSentenceRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [activeSentenceId]);
 
   // Copy narration script text to clipboard
   const handleCopyScript = () => {
@@ -317,18 +336,20 @@ const ShortsAudioStep: React.FC = () => {
   };
 
   // Test Play single sentence line in audio player
-  const handleTestPlaySentence = (startSec: number, endSec: number) => {
+  const handleTestPlaySentence = (startSec: number, endSec?: number) => {
     if (audioRef.current) {
       audioRef.current.currentTime = startSec;
       audioRef.current.play().catch((e) => console.warn('Audio play error:', e));
 
-      const checkPause = () => {
-        if (audioRef.current && audioRef.current.currentTime >= endSec) {
-          audioRef.current.pause();
-          audioRef.current.removeEventListener('timeupdate', checkPause);
-        }
-      };
-      audioRef.current.addEventListener('timeupdate', checkPause);
+      if (endSec !== undefined) {
+        const checkPause = () => {
+          if (audioRef.current && audioRef.current.currentTime >= endSec) {
+            audioRef.current.pause();
+            audioRef.current.removeEventListener('timeupdate', checkPause);
+          }
+        };
+        audioRef.current.addEventListener('timeupdate', checkPause);
+      }
     }
   };
 
@@ -416,8 +437,6 @@ const ShortsAudioStep: React.FC = () => {
     persistAudioManifest(updatedMap);
   };
 
-  const currentSentences = selectedLang === 'id' ? activeAudioData?.sentences_id || [] : activeAudioData?.sentences_en || [];
-
   return (
     <div className="p-6 bg-gray-950/90 border border-gray-800 rounded-3xl min-h-full space-y-8 text-gray-100">
       {/* Step Header */}
@@ -430,7 +449,7 @@ const ShortsAudioStep: React.FC = () => {
             <h1 className="text-xl font-bold text-white flex items-center gap-2.5">
               Step 3: Voiceover Audio & Transcript Sync Studio
               <span className="px-2.5 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800/60 text-xs font-mono font-semibold">
-                Faster-Whisper AI Alignment
+                Alurfilm Real-Time Sync & Highlight
               </span>
             </h1>
             <p className="text-xs text-gray-400 mt-0.5">
@@ -585,7 +604,13 @@ const ShortsAudioStep: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <audio ref={audioRef} src={activeMediaUrl} controls className="h-9 max-w-[260px]" />
+                      <audio
+                        ref={audioRef}
+                        src={activeMediaUrl}
+                        controls
+                        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+                        className="h-9 max-w-[260px]"
+                      />
                     </div>
                   </div>
                 ) : (
@@ -648,9 +673,14 @@ const ShortsAudioStep: React.FC = () => {
             {/* Section 2: Sentence Transcript Timestamps Table (ONLY WHEN ALIGNED OR SENTENCES CREATED) */}
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-gray-800 pb-3">
-                <h2 className="text-sm font-bold text-white flex items-center gap-2.5">
-                  <span>📜</span> Tabel Transkrip Kalimat & Timestamps {isAligned ? `(${currentSentences.length} Kalimat)` : ''}
-                </h2>
+                <div>
+                  <h2 className="text-sm font-bold text-white flex items-center gap-2.5">
+                    <span>📜</span> Tabel Transkrip Kalimat & Timestamps {isAligned ? `(${currentSentences.length} Kalimat)` : ''}
+                  </h2>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Klik kalimat untuk memutar & seek audio secara otomatis di posisi tersebut.
+                  </p>
+                </div>
 
                 <button
                   onClick={handleAddSentence}
@@ -673,72 +703,111 @@ const ShortsAudioStep: React.FC = () => {
                   Belum ada kalimat transkrip. Klik Tambah Kalimat Manual untuk menyusun.
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
                   {currentSentences.map((sent, idx) => {
                     const durationSec = Math.max(0, sent.end - sent.start).toFixed(2);
+                    const isActive = sent.id === activeSentenceId;
 
                     return (
                       <div
                         key={sent.id}
-                        className="bg-gray-900/70 border border-gray-800 hover:border-gray-700 p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all"
+                        ref={isActive ? activeSentenceRef : null}
+                        onClick={() => handleTestPlaySentence(sent.start)}
+                        className={`p-4 rounded-2xl space-y-2.5 transition-all cursor-pointer border ${
+                          isActive
+                            ? 'bg-amber-950/70 border-amber-500 shadow-lg shadow-amber-600/30 scale-[1.01]'
+                            : 'bg-gray-900/70 hover:bg-amber-950/30 border-gray-800 hover:border-amber-500/50'
+                        }`}
                       >
-                        <div className="flex items-center gap-3 flex-1">
-                          <span className="w-6 h-6 bg-amber-500/10 text-amber-400 rounded-md flex items-center justify-center text-xs font-mono font-bold border border-amber-500/20 shrink-0">
-                            #{idx + 1}
+                        {/* Sentence Card Header (Index, Active Status & Time Range) */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <span
+                              className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-mono font-bold border shrink-0 ${
+                                isActive
+                                  ? 'bg-amber-500 text-gray-950 border-amber-400'
+                                  : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              }`}
+                            >
+                              #{idx + 1}
+                            </span>
+
+                            <span
+                              className={`px-2.5 py-0.5 rounded text-[11px] font-mono font-bold transition-all border ${
+                                isActive
+                                  ? 'bg-amber-500 text-gray-950 border-amber-300 shadow animate-pulse flex items-center gap-1'
+                                  : 'bg-amber-950/60 text-amber-300 border-amber-800/50'
+                              }`}
+                            >
+                              {isActive ? '🔊 PLAYING | ' : '▶️ '}
+                              {sent.start.toFixed(1)}s - {sent.end.toFixed(1)}s
+                            </span>
+                          </div>
+
+                          <span className="text-[11px] font-mono font-semibold text-gray-400">
+                            Durasi: {durationSec}s
                           </span>
+                        </div>
+
+                        {/* Sentence Text Input */}
+                        <div className="flex items-center gap-3">
                           <input
                             type="text"
                             value={sent.text}
                             onChange={(e) => handleUpdateSentence(sent.id, { text: e.target.value })}
-                            className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-xs text-gray-100 focus:outline-none focus:border-amber-500 font-sans"
+                            onClick={(e) => e.stopPropagation()}
+                            className={`w-full border rounded-xl px-3 py-2 text-xs font-sans transition-all focus:outline-none ${
+                              isActive
+                                ? 'bg-amber-950/90 border-amber-500 text-white font-medium shadow-inner'
+                                : 'bg-gray-950 border-gray-800 text-gray-200 focus:border-amber-500'
+                            }`}
                             placeholder="Teks kalimat narasi"
                           />
                         </div>
 
-                        {/* Timestamp Controls & Actions */}
-                        <div className="flex items-center gap-3 shrink-0">
-                          <div className="flex items-center gap-1.5 bg-gray-950 px-3 py-1.5 rounded-lg border border-gray-800 text-xs font-mono">
-                            <span className="text-gray-500 text-[10px]">Start:</span>
+                        {/* Timestamp Controls & Action Buttons */}
+                        <div
+                          className="flex items-center justify-between pt-1 border-t border-gray-800/60 text-xs font-mono"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500 text-[10px]">Start (s):</span>
                             <input
                               type="number"
                               step="0.1"
                               value={sent.start}
                               onChange={(e) => handleUpdateSentence(sent.id, { start: parseFloat(e.target.value) || 0 })}
-                              className="w-16 bg-gray-900 border border-gray-800 rounded px-1.5 py-0.5 text-amber-300 font-mono focus:outline-none"
+                              className="w-16 bg-gray-950 border border-gray-800 rounded px-2 py-0.5 text-amber-300 font-mono focus:outline-none focus:border-amber-500"
                             />
-                            <span className="text-gray-600">s</span>
 
-                            <span className="text-gray-500 text-[10px] ml-1">End:</span>
+                            <span className="text-gray-500 text-[10px] ml-2">End (s):</span>
                             <input
                               type="number"
                               step="0.1"
                               value={sent.end}
                               onChange={(e) => handleUpdateSentence(sent.id, { end: parseFloat(e.target.value) || 0 })}
-                              className="w-16 bg-gray-900 border border-gray-800 rounded px-1.5 py-0.5 text-amber-300 font-mono focus:outline-none"
+                              className="w-16 bg-gray-950 border border-gray-800 rounded px-2 py-0.5 text-amber-300 font-mono focus:outline-none focus:border-amber-500"
                             />
-                            <span className="text-gray-600">s</span>
                           </div>
 
-                          <span className="px-2 py-1 bg-amber-950/80 text-amber-300 border border-amber-800/60 rounded text-[10px] font-mono font-bold">
-                            {durationSec}s
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleTestPlaySentence(sent.start, sent.end)}
+                              disabled={!activeAudioPath}
+                              className="px-3 py-1 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 text-xs font-bold rounded-lg transition-all flex items-center gap-1 disabled:opacity-30"
+                              title="Play audio pada kalimat ini"
+                            >
+                              <span>▶ Play Line</span>
+                            </button>
 
-                          <button
-                            onClick={() => handleTestPlaySentence(sent.start, sent.end)}
-                            disabled={!activeAudioPath}
-                            className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 text-xs font-bold rounded-lg transition-all flex items-center gap-1 disabled:opacity-30"
-                            title="Play audio pada kalimat ini"
-                          >
-                            <span>▶ Line</span>
-                          </button>
-
-                          <button
-                            onClick={() => handleDeleteSentence(sent.id)}
-                            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition-all text-xs"
-                            title="Hapus Kalimat"
-                          >
-                            🗑️
-                          </button>
+                            <button
+                              onClick={() => handleDeleteSentence(sent.id)}
+                              className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition-all text-xs"
+                              title="Hapus Kalimat"
+                            >
+                              🗑️
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
