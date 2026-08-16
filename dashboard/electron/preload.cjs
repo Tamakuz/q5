@@ -241,6 +241,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('shorts:whisper-progress', handler);
     return () => ipcRenderer.removeListener('shorts:whisper-progress', handler);
   },
+  renderShortsSegment: (data) => ipcRenderer.invoke('shorts:render-segment', data),
+  onShortsRenderProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('shorts:render-progress', handler);
+    return () => ipcRenderer.removeListener('shorts:render-progress', handler);
+  },
   generateSpensiaTopics: (promptText, model) => ipcRenderer.invoke('generate-spensia-topics', { promptText, model }),
   generateSpensiaScript: (promptText, model) => ipcRenderer.invoke('generate-spensia-script', { promptText, model }),
   generateSpensiaBreakdown: (promptText, model) => ipcRenderer.invoke('generate-spensia-breakdown', { promptText, model }),

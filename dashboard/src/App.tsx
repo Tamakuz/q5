@@ -38,6 +38,7 @@ import ShortsSourceStep from './components/shorts/ShortsSourceStep';
 import ShortsAnalyzeStep from './components/shorts/ShortsAnalyzeStep';
 import ShortsAudioStep from './components/shorts/ShortsAudioStep';
 import ShortsMappingStep from './components/shorts/ShortsMappingStep';
+import ShortsRenderStep from './components/shorts/ShortsRenderStep';
 
 
 
@@ -124,6 +125,8 @@ const App: React.FC = () => {
               <ShortsAudioStep key="shorts-audio" />
             ) : activeStep === 'mapping' ? (
               <ShortsMappingStep key="shorts-mapping" />
+            ) : activeStep === 'render' ? (
+              <ShortsRenderStep key="shorts-render" />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center p-12 bg-gray-950/50 border border-dashed border-gray-800/60 rounded-3xl">
                 <span className="text-gray-600 text-xs font-mono">Modul Shorts Kosong</span>

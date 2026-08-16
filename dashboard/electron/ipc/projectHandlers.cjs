@@ -589,6 +589,149 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       });
     });
   });
+
+  // ─── Render Shorts Segment Video via FFmpeg ────────────────────
+  ipcMain.handle('shorts:render-segment', async (event, { segmentId, lang = 'id' }) => {
+    return new Promise((resolve) => {
+      const sendProgress = (percent, detail) => {
+        if (event?.sender) {
+          event.sender.send('shorts:render-progress', { segmentId, lang, percent, detail });
+        }
+      };
+
+      sendProgress(5, 'Menyiapkan data video mapping & audio...');
+
+      const mappingPath = path.join(p.PROJECT_ROOT, 'input/shorts/video-mapping.json');
+      if (!fs.existsSync(mappingPath)) {
+        return resolve({ success: false, error: 'Data video mapping (Step 4) belum ditemukan di input/shorts/video-mapping.json' });
+      }
+
+      let rawMapping = '';
+      try {
+        rawMapping = fs.readFileSync(mappingPath, 'utf-8');
+      } catch (e) {
+        return resolve({ success: false, error: `Gagal membaca file video mapping: ${e.message}` });
+      }
+
+      const manifest = JSON.parse(rawMapping);
+      const segData = manifest.items ? manifest.items[segmentId] : null;
+
+      if (!segData) {
+        return resolve({ success: false, error: `Data mapping untuk segmen #${segmentId} belum diimpor/dibuat di Step 4.` });
+      }
+
+      const cuts = lang === 'id' ? segData.cuts_id : segData.cuts_en;
+      if (!cuts || cuts.length === 0) {
+        return resolve({ success: false, error: `Belum ada potongan video (cuts) untuk Bahasa ${lang === 'id' ? 'Indonesia' : 'Inggris'}.` });
+      }
+
+      let videoPath = segData.source_video_path;
+      if (!videoPath || !fs.existsSync(videoPath)) {
+        const sourcesPath = path.join(p.PROJECT_ROOT, 'input/shorts/video-sources.json');
+        if (fs.existsSync(sourcesPath)) {
+          const sManifest = JSON.parse(fs.readFileSync(sourcesPath, 'utf-8'));
+          if (sManifest.items && sManifest.items[0]) {
+            videoPath = sManifest.items[0].compressed_video_path || sManifest.items[0].raw_video_path || '';
+          }
+        }
+      }
+
+      if (!videoPath || !fs.existsSync(videoPath)) {
+        return resolve({ success: false, error: `File video sumber tidak ditemukan di: ${videoPath}` });
+      }
+
+      const audioPath = lang === 'id' ? segData.audio_path_id : segData.audio_path_en;
+      if (audioPath && !fs.existsSync(audioPath)) {
+        console.warn(`Audio VO tidak ditemukan di: ${audioPath}, render tanpa audio VO.`);
+      }
+
+      const timeline = cuts.map((cut, idx) => ({
+        id: idx + 1,
+        text: cut.text || '',
+        ss: typeof cut.video_start === 'number' ? cut.video_start : 0,
+        t: typeof cut.duration === 'number' ? cut.duration : 3.0,
+      }));
+
+      const renderMapping = {
+        settings: {
+          fps: 30,
+          format: '9:16',
+          captions: false,
+        },
+        timeline,
+      };
+
+      const tmpDir = path.join(p.PROJECT_ROOT, 'tmp');
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+
+      const tmpMappingFile = path.join(tmpDir, `shorts_render_map_${Date.now()}.json`);
+      fs.writeFileSync(tmpMappingFile, JSON.stringify(renderMapping, null, 2), 'utf-8');
+
+      const outputDir = path.join(p.PROJECT_ROOT, 'output/shorts');
+      if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+      const outputFileName = `seg_${segmentId}_${lang}_final.mp4`;
+      const outputPath = path.join(outputDir, outputFileName);
+
+      sendProgress(15, 'Mulai merender video klip dengan FFmpeg (9:16)...');
+
+      const cliPath = path.join(p.PROJECT_ROOT, 'cli.ts');
+      let cmd = `npx tsx "${cliPath}" render "${tmpMappingFile}" --video "${videoPath}"`;
+      if (audioPath && fs.existsSync(audioPath)) {
+        cmd += ` --audio "${audioPath}"`;
+      }
+      cmd += ` -o "${outputPath}"`;
+
+      const startTime = Date.now();
+      const child = spawn('bash', ['-c', cmd], { cwd: p.PROJECT_ROOT, env: { ...process.env } });
+
+      let fullStderr = '';
+
+      child.stdout.on('data', (d) => {
+        const text = d.toString();
+        const pctMatch = text.match(/(\d+)%/);
+        if (pctMatch) {
+          const pct = Math.min(99, Math.max(15, parseInt(pctMatch[1], 10)));
+          sendProgress(pct, `Merender video FFmpeg (${pct}%)...`);
+        } else {
+          sendProgress(35, 'Memproses gabungan adegan klip video...');
+        }
+      });
+
+      child.stderr.on('data', (d) => {
+        fullStderr += d.toString();
+      });
+
+      child.on('close', (code) => {
+        try {
+          if (fs.existsSync(tmpMappingFile)) fs.unlinkSync(tmpMappingFile);
+        } catch (e) {}
+
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+        if (code === 0 && fs.existsSync(outputPath)) {
+          const stats = fs.statSync(outputPath);
+          sendProgress(100, `Selesai merender segmen Shorts dalam ${elapsed}s!`);
+          resolve({
+            success: true,
+            outputPath,
+            outputFilename: outputFileName,
+            fileSizeBytes: stats.size,
+            elapsedSec: elapsed,
+          });
+        } else {
+          resolve({
+            success: false,
+            error: fullStderr.split('\n').slice(-10).join('\n') || `Render gagal dengan exit code ${code}`,
+          });
+        }
+      });
+
+      child.on('error', (err) => {
+        resolve({ success: false, error: `Kesalahan spawn process FFmpeg: ${err.message}` });
+      });
+    });
+  });
 }
 
 module.exports = { register };

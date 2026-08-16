@@ -27,6 +27,7 @@ const SHORTS_STEPS: Step[] = [
   { id: 'analyze', icon: '⚡', label: '2. Segment & Script Generator', subText: 'Ekstrak segmen & naskah Shorts' },
   { id: 'audio', icon: '🎙️', label: '3. Audio & Transcript', subText: 'Upload VO & align timestamp' },
   { id: 'mapping', icon: '🎯', label: '4. Video Mapping', subText: 'Mapping klip video per kalimat' },
+  { id: 'render', icon: '🎬', label: '5. Video Render Studio', subText: 'Render & gabung video FFmpeg (9:16)' },
 ];
 
 const SPENSIA_STEPS: Step[] = [
