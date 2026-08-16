@@ -25,9 +25,6 @@ Cocokkan SETIAP KALIMAT NARASI pada transkrip audio dengan potongan adegan visua
 1. **EXACT DURATION MATCH**: Durasi visual (`duration`) untuk setiap klip WAJIB SAMA PERSIS dengan durasi pengucapan di Voice Over (`audio_end - audio_start`).
 2. **SEEK START (`video_start`)**: Tentukan waktu mulai adegan (`video_start` dalam detik desimal) dari video mentah yang paling dramatis, oddly satisfying, atau menggambarkan kalimat narasi tersebut.
 3. **SEEK END (`video_end`)**: `video_end = video_start + duration`.
-4. **VISUAL HOOK & SUBTITLE (`overlay_text`)**:
-   - **Kalimat #1 (Hook 0:00 - 0:03s)**: Wajib beri Teks Hook Visual tebal & bikin penasaran dalam **HURUF KAPITAL** (contoh: `"MEKANIK GILA VS MESIN TUA!"`).
-   - **Kalimat berikutnya**: Beri teks subtitle ringkas yang menarik penonton.
 
 ---
 
@@ -42,8 +39,7 @@ Cocokkan SETIAP KALIMAT NARASI pada transkrip audio dengan potongan adegan visua
     "audio_end": 4.5,
     "duration": 4.5,
     "video_start": 75.0,
-    "video_end": 79.5,
-    "overlay_text": "MEKANIK GILA VS MESIN TUA!"
+    "video_end": 79.5
   },
   {
     "sentence_index": 1,
@@ -52,10 +48,9 @@ Cocokkan SETIAP KALIMAT NARASI pada transkrip audio dengan potongan adegan visua
     "audio_end": 9.0,
     "duration": 4.5,
     "video_start": 82.0,
-    "video_end": 86.5,
-    "overlay_text": "MODAL PALU RAKSASA!"
+    "video_end": 86.5
   }
 ]
 ```
 
-PENTING: MURNI JSON ARRAY tanpa markdown ```json atau pengantar.
+PENTING: MURNI JSON ARRAY tanpa markdown ```json.

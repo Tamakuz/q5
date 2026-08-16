@@ -11,7 +11,6 @@ export interface VideoCutMappingItem {
   duration: number;
   video_start: number;
   video_end: number;
-  overlay_text?: string;
 }
 
 export interface ShortsSegmentMappingData {
@@ -252,17 +251,14 @@ ${transcriptJsonStr}
 ---
 
 ### 🚨 TUGAS UTAMA:
-Cocokkan SETIAP KALIMAT NARASI pada transkrip audio di atas dengan potongan adegan visual (clip cuts) dari video mentah sumber secara sinematik, dramatis, dan sangat menarik perhatian penonton Shorts!
+Cocokkan SETIAP KALIMAT NARASI pada transkrip audio di atas dengan potongan adegan visual (clip cuts) dari video mentah sumber secara sinematik dan dramatis!
 
 ---
 
 ### 📌 ATURAN TIMELINE & VISUAL CUTS:
 1. **EXACT DURATION MATCH**: Durasi visual (\`duration\`) untuk setiap klip WAJIB SAMA PERSIS dengan durasi pengucapan di Voice Over (\`audio_end - audio_start\`).
-2. **SEEK START (\`video_start\`)**: Tentukan waktu mulai adegan (\`video_start\` dalam detik desimal) dari video mentah yang paling dramatis, oddly satisfying, atau menggambarkan kalimat narasi tersebut.
+2. **SEEK START (\`video_start\`)**: Tentukan waktu mulai adegan (\`video_start\` dalam detik desimal) dari video mentah yang paling dramatis atau menggambarkan kalimat narasi tersebut.
 3. **SEEK END (\`video_end\`)**: \`video_end = video_start + duration\`.
-4. **VISUAL HOOK & SUBTITLE (\`overlay_text\`)**:
-   - **Kalimat #1 (Hook 0:00 - 0:03s)**: Wajib beri Teks Hook Visual tebal & bikin penasaran dalam **HURUF KAPITAL** (contoh: "${isIndo ? 'MEKANIK GILA VS MESIN TUA!' : 'INSANE MECHANIC VS OLD ENGINE!'}").
-   - **Kalimat berikutnya**: Beri teks subtitle ringkas yang menarik penonton.
 
 ---
 
@@ -277,8 +273,7 @@ Cocokkan SETIAP KALIMAT NARASI pada transkrip audio di atas dengan potongan adeg
     "audio_end": 4.5,
     "duration": 4.5,
     "video_start": ${activeSegment.start_time_sec || 0},
-    "video_end": ${(activeSegment.start_time_sec || 0) + 4.5},
-    "overlay_text": "${isIndo ? 'HOOK VISUAL MENARIK!' : 'ATTENTION HOOK TEXT!'}"
+    "video_end": ${(activeSegment.start_time_sec || 0) + 4.5}
   }
 ]
 \`\`\`
@@ -310,7 +305,6 @@ PENTING: MURNI JSON ARRAY tanpa markdown \`\`\`json.`;
         throw new Error('Paste teks JSON dari AI Studio terlebih dahulu.');
       }
 
-      // Clean potential markdown formatting ```json
       let cleaned = jsonInput.trim();
       if (cleaned.startsWith('```json')) {
         cleaned = cleaned.replace(/^```json/, '').replace(/```$/, '').trim();
@@ -356,7 +350,6 @@ PENTING: MURNI JSON ARRAY tanpa markdown \`\`\`json.`;
           duration: dur,
           video_start: vStart,
           video_end: vEnd,
-          overlay_text: item.overlay_text || item.hook_text || item.subtitle || (idx === 0 ? (isIndo ? activeSegment.hook_text_id : activeSegment.hook_text_en) : item.text),
         };
       });
 
@@ -467,11 +460,11 @@ PENTING: MURNI JSON ARRAY tanpa markdown \`\`\`json.`;
             <h1 className="text-xl font-bold text-white flex items-center gap-2.5">
               Step 4: Shorts Video Mapping Studio
               <span className="px-2.5 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800/60 text-xs font-mono font-semibold">
-                AI Studio Mapping Hub
+                Pure Video Clip Cuts
               </span>
             </h1>
             <p className="text-xs text-gray-400 mt-0.5">
-              Salin prompt AI Studio, dapatkan pemetaan potong adegan video sinematik khusus Shorts, lalu impor JSON hasilnya.
+              Salin prompt AI Studio, dapatkan pemetaan potong adegan video sinematik (pure video cuts) per segmen Shorts, lalu impor JSON hasilnya.
             </p>
           </div>
         </div>
@@ -648,93 +641,74 @@ PENTING: MURNI JSON ARRAY tanpa markdown \`\`\`json.`;
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {currentCuts.map((cut, idx) => (
                     <div
                       key={cut.id}
-                      className="bg-gray-900/70 border border-gray-800 hover:border-gray-700 p-4 rounded-2xl space-y-3 transition-all"
+                      className="bg-gray-900/70 border border-gray-800 hover:border-gray-700 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all"
                     >
-                      {/* Cut Header */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <span className="w-6 h-6 bg-amber-500/10 text-amber-400 rounded-md flex items-center justify-center text-xs font-mono font-bold border border-amber-500/20 shrink-0">
-                            #{idx + 1}
+                      {/* Left: Cut Index, Voiceover Sentence Text */}
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <span className="w-6 h-6 bg-amber-500/10 text-amber-400 rounded-md flex items-center justify-center text-xs font-mono font-bold border border-amber-500/20 shrink-0">
+                          #{idx + 1}
+                        </span>
+
+                        <div className="flex flex-col gap-1 min-w-0 flex-1">
+                          <span className="text-xs text-gray-200 font-sans truncate">
+                            "{cut.text}"
                           </span>
-                          <span className="px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-950/60 text-amber-300 border border-amber-800/50">
-                            🎙️ Audio VO: {cut.audio_start.toFixed(1)}s - {cut.audio_end.toFixed(1)}s ({cut.duration}s)
+                          <span className="text-[10px] font-mono text-gray-500">
+                            🎙️ Audio VO: <strong className="text-amber-400">{cut.audio_start.toFixed(1)}s - {cut.audio_end.toFixed(1)}s</strong> ({cut.duration}s)
                           </span>
+                        </div>
+                      </div>
+
+                      {/* Right: Video Crop Controls & Play Cut Button */}
+                      <div className="flex items-center gap-3 shrink-0 font-mono">
+                        <div className="flex items-center gap-1.5 bg-gray-950 p-2 rounded-xl border border-gray-800 text-xs">
+                          <span className="text-amber-400 font-bold text-[10px]">Crop:</span>
+                          
+                          <span className="text-gray-500 text-[10px]">Start:</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={cut.video_start}
+                            onChange={(e) => handleUpdateCut(cut.id, { video_start: parseFloat(e.target.value) || 0 })}
+                            className="w-16 bg-gray-900 border border-gray-800 rounded px-1.5 py-0.5 text-amber-300 focus:outline-none text-xs"
+                          />
+                          <button
+                            onClick={() => handleSetStartFromPlayer(cut.id)}
+                            className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-amber-300 rounded text-[10px]"
+                            title="Set Video Start dari posisi Player saat ini"
+                          >
+                            ⏱️ Player
+                          </button>
+
+                          <span className="text-gray-500 text-[10px] ml-1">End:</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={cut.video_end}
+                            onChange={(e) => handleUpdateCut(cut.id, { video_end: parseFloat(e.target.value) || 0 })}
+                            className="w-16 bg-gray-900 border border-gray-800 rounded px-1.5 py-0.5 text-amber-300 focus:outline-none text-xs"
+                          />
+                          <button
+                            onClick={() => handleSetEndFromPlayer(cut.id)}
+                            className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-amber-300 rounded text-[10px]"
+                            title="Set Video End dari posisi Player saat ini"
+                          >
+                            ⏱️ Player
+                          </button>
                         </div>
 
                         <button
                           onClick={() => handleTestPlayCut(cut.video_start, cut.video_end)}
                           disabled={!activeVideoPath}
-                          className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-30"
+                          className="px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 disabled:opacity-30 shrink-0"
                           title="Play potongan video ini"
                         >
                           <span>▶ Play Cut ({cut.video_start}s - {cut.video_end}s)</span>
                         </button>
-                      </div>
-
-                      {/* Sentence Text Display */}
-                      <div className="text-xs text-gray-300 font-sans bg-gray-950 p-2.5 rounded-xl border border-gray-800/80">
-                        <span className="text-gray-500 font-mono text-[10px] mr-2">Kalimat:</span>
-                        <span>"{cut.text}"</span>
-                      </div>
-
-                      {/* Video Crop Controls & Overlay Text */}
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center pt-1 border-t border-gray-800/60 text-xs font-mono">
-                        {/* Video Start & End Inputs */}
-                        <div className="md:col-span-6 flex items-center gap-2 bg-gray-950 p-2 rounded-xl border border-gray-800">
-                          <span className="text-amber-400 font-bold text-[10px]">Video Crop (s):</span>
-                          
-                          <div className="flex items-center gap-1">
-                            <span className="text-gray-500 text-[10px]">Start:</span>
-                            <input
-                              type="number"
-                              step="0.1"
-                              value={cut.video_start}
-                              onChange={(e) => handleUpdateCut(cut.id, { video_start: parseFloat(e.target.value) || 0 })}
-                              className="w-16 bg-gray-900 border border-gray-800 rounded px-1.5 py-0.5 text-amber-300 focus:outline-none"
-                            />
-                            <button
-                              onClick={() => handleSetStartFromPlayer(cut.id)}
-                              className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-amber-300 rounded text-[10px]"
-                              title="Set Video Start dari posisi Player saat ini"
-                            >
-                              ⏱️ Player
-                            </button>
-                          </div>
-
-                          <div className="flex items-center gap-1 ml-2">
-                            <span className="text-gray-500 text-[10px]">End:</span>
-                            <input
-                              type="number"
-                              step="0.1"
-                              value={cut.video_end}
-                              onChange={(e) => handleUpdateCut(cut.id, { video_end: parseFloat(e.target.value) || 0 })}
-                              className="w-16 bg-gray-900 border border-gray-800 rounded px-1.5 py-0.5 text-amber-300 focus:outline-none"
-                            />
-                            <button
-                              onClick={() => handleSetEndFromPlayer(cut.id)}
-                              className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-amber-300 rounded text-[10px]"
-                              title="Set Video End dari posisi Player saat ini"
-                            >
-                              ⏱️ Player
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Overlay / Subtitle Text */}
-                        <div className="md:col-span-6 flex items-center gap-2">
-                          <span className="text-gray-400 text-[10px] shrink-0">Visual Subtitle:</span>
-                          <input
-                            type="text"
-                            value={cut.overlay_text || ''}
-                            onChange={(e) => handleUpdateCut(cut.id, { overlay_text: e.target.value })}
-                            className="w-full bg-gray-950 border border-gray-800 rounded-lg px-2.5 py-1 text-xs text-amber-200 focus:outline-none focus:border-amber-500 font-sans"
-                            placeholder="Visual overlay text"
-                          />
-                        </div>
                       </div>
                     </div>
                   ))}
