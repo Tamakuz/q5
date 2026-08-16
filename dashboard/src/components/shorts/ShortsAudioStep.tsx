@@ -15,10 +15,12 @@ export interface ShortsAudioSegmentData {
   audio_path_id?: string;
   audio_filename_id?: string;
   sentences_id: TranscriptSentence[];
+  aligned_id?: boolean;
 
   audio_path_en?: string;
   audio_filename_en?: string;
   sentences_en: TranscriptSentence[];
+  aligned_en?: boolean;
 }
 
 export interface AudioTranscriptsManifest {
@@ -57,6 +59,7 @@ const ShortsAudioStep: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isAligning, setIsAligning] = useState(false);
+  const [copiedScript, setCopiedScript] = useState(false);
   const [alignProgress, setAlignProgress] = useState<{ step: string; percent: number; detail: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -119,7 +122,6 @@ const ShortsAudioStep: React.FC = () => {
     const scriptIdSentences = seg?.sentences_id || [];
     const scriptEnSentences = seg?.sentences_en || [];
 
-    // Estimate initial timestamps evenly across ~35 seconds
     const initIdSentences: TranscriptSentence[] = scriptIdSentences.map((text, idx) => ({
       id: `sent_id_${idx + 1}`,
       text,
@@ -138,7 +140,9 @@ const ShortsAudioStep: React.FC = () => {
       segment_id: segId,
       segment_title: segTitle || seg?.title || `Segment ${segId}`,
       sentences_id: initIdSentences,
+      aligned_id: false,
       sentences_en: initEnSentences,
+      aligned_en: false,
     };
   };
 
@@ -175,6 +179,22 @@ const ShortsAudioStep: React.FC = () => {
 
   const activeAudioPath = selectedLang === 'id' ? activeAudioData?.audio_path_id : activeAudioData?.audio_path_en;
   const activeMediaUrl = getMediaUrl(activeAudioPath);
+  const isAligned = selectedLang === 'id' ? Boolean(activeAudioData?.aligned_id) : Boolean(activeAudioData?.aligned_en);
+
+  // Copy narration script text to clipboard
+  const handleCopyScript = () => {
+    if (!activeSegment) return;
+    const isIndo = selectedLang === 'id';
+    const textToCopy = isIndo
+      ? activeSegment.narration_script_id || (activeSegment.sentences_id || []).join(' ')
+      : activeSegment.narration_script_en || (activeSegment.sentences_en || []).join(' ');
+
+    if (textToCopy) {
+      navigator.clipboard.writeText(textToCopy);
+      setCopiedScript(true);
+      setTimeout(() => setCopiedScript(false), 2000);
+    }
+  };
 
   // File Upload Handler (browse / drag drop)
   const handleFileUpload = async (file: File) => {
@@ -250,7 +270,6 @@ const ShortsAudioStep: React.FC = () => {
       if (res && res.success && res.result) {
         let alignedSentences: TranscriptSentence[] = [];
 
-        // Parse whisper alignment result output format
         const rawJson = res.result;
         if (Array.isArray(rawJson.sentences)) {
           alignedSentences = rawJson.sentences.map((item: any, idx: number) => ({
@@ -272,7 +291,9 @@ const ShortsAudioStep: React.FC = () => {
           const currentData = getAudioSegmentData(activeSegment.id, activeSegment.title);
           const updatedSegmentData: ShortsAudioSegmentData = {
             ...currentData,
-            ...(isIndo ? { sentences_id: alignedSentences } : { sentences_en: alignedSentences }),
+            ...(isIndo
+              ? { sentences_id: alignedSentences, aligned_id: true }
+              : { sentences_en: alignedSentences, aligned_en: true }),
           };
 
           const updatedMap = {
@@ -301,7 +322,6 @@ const ShortsAudioStep: React.FC = () => {
       audioRef.current.currentTime = startSec;
       audioRef.current.play().catch((e) => console.warn('Audio play error:', e));
 
-      // Auto pause at endSec
       const checkPause = () => {
         if (audioRef.current && audioRef.current.currentTime >= endSec) {
           audioRef.current.pause();
@@ -328,7 +348,9 @@ const ShortsAudioStep: React.FC = () => {
 
     const updatedSegmentData: ShortsAudioSegmentData = {
       ...currentData,
-      ...(isIndo ? { sentences_id: updatedSentences } : { sentences_en: updatedSentences }),
+      ...(isIndo
+        ? { sentences_id: updatedSentences, aligned_id: true }
+        : { sentences_en: updatedSentences, aligned_en: true }),
     };
 
     const updatedMap = {
@@ -358,7 +380,9 @@ const ShortsAudioStep: React.FC = () => {
     const updatedSentences = [...targetSentences, newSentence];
     const updatedSegmentData: ShortsAudioSegmentData = {
       ...currentData,
-      ...(isIndo ? { sentences_id: updatedSentences } : { sentences_en: updatedSentences }),
+      ...(isIndo
+        ? { sentences_id: updatedSentences, aligned_id: true }
+        : { sentences_en: updatedSentences, aligned_en: true }),
     };
 
     const updatedMap = {
@@ -512,9 +536,21 @@ const ShortsAudioStep: React.FC = () => {
                 <h2 className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-2 font-mono">
                   <span>🎙️</span> Voiceover Audio ({selectedLang === 'id' ? '🇮🇩 Bahasa Indonesia' : '🇺🇸 English'})
                 </h2>
-                <span className="text-[10px] text-gray-500 font-mono">
-                  Segment: #{segments.findIndex((s) => s.id === selectedSegmentId) + 1} - {activeSegment?.title}
-                </span>
+                
+                {/* Copy Script Button */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleCopyScript}
+                    className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5"
+                    title="Copy naskah narasi ke clipboard untuk dubbing / TTS"
+                  >
+                    <span>{copiedScript ? '✅ Copied!' : '📋 Copy Naskah Narasi'}</span>
+                  </button>
+
+                  <span className="text-[10px] text-gray-500 font-mono">
+                    Segment: #{segments.findIndex((s) => s.id === selectedSegmentId) + 1} - {activeSegment?.title}
+                  </span>
+                </div>
               </div>
 
               {/* Drag-and-Drop / Upload Trigger Box */}
@@ -609,28 +645,32 @@ const ShortsAudioStep: React.FC = () => {
               )}
             </div>
 
-            {/* Section 2: Sentence Transcript Timestamps Table */}
+            {/* Section 2: Sentence Transcript Timestamps Table (ONLY WHEN ALIGNED OR SENTENCES CREATED) */}
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-gray-800 pb-3">
                 <h2 className="text-sm font-bold text-white flex items-center gap-2.5">
-                  <span>📜</span> Tabel Transkrip Kalimat & Timestamps ({currentSentences.length} Kalimat)
+                  <span>📜</span> Tabel Transkrip Kalimat & Timestamps {isAligned ? `(${currentSentences.length} Kalimat)` : ''}
                 </h2>
 
                 <button
                   onClick={handleAddSentence}
                   className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-amber-300 border border-amber-500/30 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5"
                 >
-                  <span>➕</span> Tambah Kalimat
+                  <span>➕</span> Tambah Kalimat Manual
                 </button>
               </div>
 
-              {currentSentences.length === 0 ? (
+              {!isAligned ? (
                 <div className="bg-gray-900/40 border border-dashed border-gray-800 p-10 rounded-2xl text-center space-y-3">
                   <div className="text-4xl text-amber-500/50">🎙️</div>
-                  <h3 className="text-sm font-bold text-gray-300">Belum Ada Transkrip Kalimat</h3>
+                  <h3 className="text-sm font-bold text-gray-300">Transkrip Alignment Belum Dihasilkan</h3>
                   <p className="text-xs text-gray-500 max-w-md mx-auto">
-                    Upload audio narasi VO di atas lalu klik Run Auto Alignment, atau klik Tambah Kalimat untuk menyusun manual.
+                    Upload file audio voiceover di atas lalu klik <strong>Run Auto Alignment (Faster-Whisper)</strong> untuk menghitung timestamp transkrip per kalimat secara otomatis.
                   </p>
+                </div>
+              ) : currentSentences.length === 0 ? (
+                <div className="bg-gray-900/40 border border-dashed border-gray-800 p-8 rounded-2xl text-center text-xs text-gray-500">
+                  Belum ada kalimat transkrip. Klik Tambah Kalimat Manual untuk menyusun.
                 </div>
               ) : (
                 <div className="space-y-3">
