@@ -78,7 +78,7 @@ def format_minute(sec: float) -> str:
     return f"{m:02d}:{s:02d}"
 
 
-def run_faster_whisper_pipeline(audio_path: str, raw_text: str, model_name: str = "small", device: str = "cpu") -> list:
+def run_faster_whisper_pipeline(audio_path: str, raw_text: str, model_name: str = "small", device: str = "cpu", language: str = None) -> list:
     import os
     from faster_whisper import WhisperModel
 
@@ -100,19 +100,24 @@ def run_faster_whisper_pipeline(audio_path: str, raw_text: str, model_name: str 
     log(f"✅ [3/4] Loaded Faster-Whisper model '{model_name}' into RAM in {t_load_dur:.2f}s!")
 
     audio_dur = get_audio_duration(audio_path)
-    log(f"🎙️ [4/4] Audio Target: {os.path.basename(audio_path)} (Total: {format_minute(audio_dur)} / {audio_dur:.1f}s)")
+    log(f"🎙️ [4/4] Audio Target: {os.path.basename(audio_path)} (Total: {format_minute(audio_dur)} / {audio_dur:.1f}s, Language: {language or 'auto-detect'})")
     log(f"🚀 Starting Silero VAD & Faster-Whisper live audio transcription...")
 
     start_t = time.time()
-    segments_gen, info = model.transcribe(
-        audio_path,
-        language="id",
+    transcribe_kwargs = dict(
         beam_size=5,
         best_of=5,
         condition_on_previous_text=False,
         vad_filter=True,
         vad_parameters=dict(min_silence_duration_ms=400, speech_pad_ms=150),
         word_timestamps=True
+    )
+    if language:
+        transcribe_kwargs["language"] = language
+
+    segments_gen, info = model.transcribe(
+        audio_path,
+        **transcribe_kwargs
     )
 
     fw_segments = []
@@ -353,17 +358,18 @@ def main():
     parser.add_argument("--output", help="Path output JSON (default: stdout)")
     parser.add_argument("--model", default="small", help="Whisper model: tiny|base|small|medium|large-v2|large-v3")
     parser.add_argument("--device", default="cpu", help="cpu|cuda")
+    parser.add_argument("--language", default=None, help="Language code: id|en|etc. (default: auto-detect)")
     args = parser.parse_args()
 
     log(f"Audio: {args.audio}")
     log(f"Teks:  {args.text}")
-    log(f"Model: {args.model} on {args.device}")
+    log(f"Model: {args.model} on {args.device} (Lang: {args.language or 'auto'})")
 
     audio_dur = get_audio_duration(args.audio)
     log(f"Durasi audio: {audio_dur:.1f}s")
 
     raw_text = load_narration_text(args.text)
-    entries, all_words = run_faster_whisper_pipeline(args.audio, raw_text, model_name=args.model, device=args.device)
+    entries, all_words = run_faster_whisper_pipeline(args.audio, raw_text, model_name=args.model, device=args.device, language=args.language)
 
     total_end = entries[-1]["end_seconds"] if entries else 0.0
     log(f"Selesai! {len(entries)} entri, total durasi transkrip {total_end:.1f}s / audio {audio_dur:.1f}s")

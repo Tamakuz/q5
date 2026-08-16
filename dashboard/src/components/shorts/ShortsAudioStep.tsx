@@ -284,6 +284,7 @@ const ShortsAudioStep: React.FC = () => {
       const res = await window.electronAPI.runShortsWhisperAlignment({
         audioPath: activeAudioPath,
         scriptText,
+        lang: selectedLang,
       });
 
       if (res && res.success && res.result) {

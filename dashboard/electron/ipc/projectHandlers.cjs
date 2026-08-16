@@ -505,7 +505,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
   });
 
   // ─── Run Shorts Faster-Whisper Alignment ───────────────────────
-  ipcMain.handle('shorts:run-whisper-alignment', async (event, { audioPath, scriptText }) => {
+  ipcMain.handle('shorts:run-whisper-alignment', async (event, { audioPath, scriptText, lang = 'id' }) => {
     return new Promise((resolve) => {
       const sendProgress = (step, percent, detail) => {
         if (event?.sender) {
@@ -540,9 +540,18 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       const outJsonPath = path.join(tmpDir, `shorts_align_${Date.now()}.json`);
       fs.writeFileSync(tmpScriptPath, scriptText || '', 'utf-8');
 
-      sendProgress('loading_model', 20, 'Memuat engine Faster-Whisper...');
+      sendProgress('loading_model', 20, `Memuat engine Faster-Whisper (${lang.toUpperCase()})...`);
 
-      const child = spawn(pythonBin, [alignCli, '--audio', resolvedAudio, '--text', tmpScriptPath, '--output', outJsonPath, '--model', 'small'], {
+      const spawnArgs = [
+        alignCli,
+        '--audio', resolvedAudio,
+        '--text', tmpScriptPath,
+        '--output', outJsonPath,
+        '--model', 'small',
+        '--language', lang
+      ];
+
+      const child = spawn(pythonBin, spawnArgs, {
         env: { ...process.env },
       });
 
