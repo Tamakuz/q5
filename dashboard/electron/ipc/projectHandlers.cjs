@@ -678,9 +678,25 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
         return resolve({ success: false, error: `File video sumber asli (HD Raw) tidak ditemukan di: input/shorts/raw_videos/` });
       }
 
-      const audioPath = lang === 'id' ? segData.audio_path_id : segData.audio_path_en;
-      if (audioPath && !fs.existsSync(audioPath)) {
-        console.warn(`Audio VO tidak ditemukan di: ${audioPath}, render tanpa audio VO.`);
+      let rawAudioPath = lang === 'id' ? segData.audio_path_id : segData.audio_path_en;
+      let resolvedAudioPath = null;
+      if (rawAudioPath) {
+        const candidate = path.isAbsolute(rawAudioPath) ? rawAudioPath : path.join(p.PROJECT_ROOT, rawAudioPath);
+        if (fs.existsSync(candidate)) {
+          resolvedAudioPath = candidate;
+        } else {
+          const filename = path.basename(rawAudioPath);
+          const inAudioDir = path.join(p.PROJECT_ROOT, 'input/shorts/audio', filename);
+          if (fs.existsSync(inAudioDir)) {
+            resolvedAudioPath = inAudioDir;
+          }
+        }
+      }
+
+      if (!resolvedAudioPath) {
+        sendProgress(10, '⚠️ Audio voiceover tidak ditemukan, video akan dirender tanpa audio VO.', '[Warning] Audio VO tidak ditemukan');
+      } else {
+        sendProgress(10, `Audio VO ditemukan: ${path.basename(resolvedAudioPath)}`, `[Audio] VO: ${resolvedAudioPath}`);
       }
 
       const timeline = cuts.map((cut, idx) => ({
@@ -711,14 +727,16 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       const outputFileName = `seg_${segmentId}_${lang}_final.mp4`;
       const outputPath = path.join(outputDir, outputFileName);
 
-      sendProgress(15, 'Mulai merender video klip dengan FFmpeg (9:16)...');
+      sendProgress(15, 'Mulai merender video klip dengan FFmpeg (9:16)...', `[FFmpeg] Output Target: ${outputPath}`);
 
       const cliPath = path.join(p.PROJECT_ROOT, 'cli.ts');
       let cmd = `npx tsx "${cliPath}" render "${tmpMappingFile}" --video "${videoPath}"`;
-      if (audioPath && fs.existsSync(audioPath)) {
-        cmd += ` --audio "${audioPath}"`;
+      if (resolvedAudioPath && fs.existsSync(resolvedAudioPath)) {
+        cmd += ` --audio "${resolvedAudioPath}"`;
       }
       cmd += ` -o "${outputPath}"`;
+
+      sendProgress(18, 'Menjalankan perintah FFmpeg CLI...', `[CMD] ${cmd}`);
 
       const startTime = Date.now();
       const child = spawn('bash', ['-c', cmd], { cwd: p.PROJECT_ROOT, env: { ...process.env } });
@@ -727,17 +745,24 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
       child.stdout.on('data', (d) => {
         const text = d.toString();
-        const pctMatch = text.match(/(\d+)%/);
-        if (pctMatch) {
-          const pct = Math.min(99, Math.max(15, parseInt(pctMatch[1], 10)));
-          sendProgress(pct, `Merender video FFmpeg (${pct}%)...`);
-        } else {
-          sendProgress(35, 'Memproses gabungan adegan klip video...');
+        const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+        for (const line of lines) {
+          const pctMatch = line.match(/(\d+)%/);
+          let pct = 40;
+          if (pctMatch) {
+            pct = Math.min(99, Math.max(15, parseInt(pctMatch[1], 10)));
+          }
+          sendProgress(pct, `Merender video FFmpeg (${pct}%)...`, line);
         }
       });
 
       child.stderr.on('data', (d) => {
-        fullStderr += d.toString();
+        const text = d.toString();
+        fullStderr += text;
+        const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+        for (const line of lines) {
+          sendProgress(35, 'Memproses rendering FFmpeg...', `[FFmpeg] ${line}`);
+        }
       });
 
       child.on('close', (code) => {

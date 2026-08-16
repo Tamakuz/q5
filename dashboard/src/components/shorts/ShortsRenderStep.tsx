@@ -1,5 +1,5 @@
 // dashboard/src/components/shorts/ShortsRenderStep.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { ShortsSegmentFromStep2, ScriptSegmentsJSONFromStep2, ShortsSegmentMappingData, VideoMappingManifest } from './ShortsMappingStep';
 
 export interface ShortsRenderProgress {
@@ -7,6 +7,7 @@ export interface ShortsRenderProgress {
   lang: 'id' | 'en';
   percent: number;
   detail: string;
+  logLine?: string;
 }
 
 export interface RenderResultItem {
@@ -28,8 +29,12 @@ const ShortsRenderStep: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRendering, setIsRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState<ShortsRenderProgress | null>(null);
+  const [renderLogs, setRenderLogs] = useState<string[]>([]);
+  const [copiedLogs, setCopiedLogs] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const logsEndRef = useRef<HTMLDivElement | null>(null);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -71,16 +76,27 @@ const ShortsRenderStep: React.FC = () => {
     initData();
   }, []);
 
-  // Listen for real-time render progress events
+  // Listen for real-time render progress & log lines
   useEffect(() => {
     if (!window.electronAPI?.onShortsRenderProgress) return;
     const cleanup = window.electronAPI.onShortsRenderProgress((progressData: ShortsRenderProgress) => {
       setRenderProgress(progressData);
+      if (progressData.logLine) {
+        const timeStr = new Date().toLocaleTimeString();
+        setRenderLogs((prev) => [...prev, `[${timeStr}] ${progressData.logLine}`]);
+      }
     });
     return () => {
       if (cleanup && typeof cleanup === 'function') cleanup();
     };
   }, []);
+
+  // Auto-scroll logs box to bottom when logs update
+  useEffect(() => {
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [renderLogs]);
 
   const activeSegment = segments.find((s) => s.id === selectedSegmentId) || segments[0];
   const activeMapping = selectedSegmentId ? mappingMap[selectedSegmentId] : null;
@@ -102,6 +118,21 @@ const ShortsRenderStep: React.FC = () => {
 
   const activeRenderedMediaUrl = getMediaUrl(activeRenderResult?.outputPath);
 
+  // Copy logs to clipboard
+  const handleCopyLogs = () => {
+    if (renderLogs.length > 0) {
+      navigator.clipboard.writeText(renderLogs.join('\n'));
+      setCopiedLogs(true);
+      showToast('📋 Log rendering berhasil disalin!');
+      setTimeout(() => setCopiedLogs(false), 2000);
+    }
+  };
+
+  // Clear logs
+  const handleClearLogs = () => {
+    setRenderLogs([]);
+  };
+
   // Trigger FFmpeg Render for single active segment
   const handleRenderActiveSegment = async () => {
     if (!activeSegment) return;
@@ -112,6 +143,7 @@ const ShortsRenderStep: React.FC = () => {
 
     setIsRendering(true);
     setErrorMsg(null);
+    setRenderLogs([`[${new Date().toLocaleTimeString()}] Memulai pengerjaan render segmen #${activeSegment.id} (${selectedLang.toUpperCase()})...`]);
     setRenderProgress({
       segmentId: activeSegment.id,
       lang: selectedLang,
@@ -144,6 +176,11 @@ const ShortsRenderStep: React.FC = () => {
           [renderKey]: item,
         }));
 
+        setRenderLogs((prev) => [
+          ...prev,
+          `[${new Date().toLocaleTimeString()}] ✅ Selesai! Video tersimpan di: ${res.outputPath} (${((res.fileSizeBytes || 0) / 1024 / 1024).toFixed(2)} MB, Durasi Render: ${res.elapsedSec}s)`,
+        ]);
+
         showToast(`🎉 Segmen #${activeSegment.id} (${selectedLang.toUpperCase()}) Berhasil Dirender dalam ${res.elapsedSec}s!`);
       } else {
         throw new Error(res?.error || 'Gagal merender video segmen Shorts.');
@@ -151,6 +188,7 @@ const ShortsRenderStep: React.FC = () => {
     } catch (err: any) {
       console.error('Render Shorts Segment Error:', err);
       setErrorMsg(err.message || 'Terjadi kesalahan saat merender video.');
+      setRenderLogs((prev) => [...prev, `[ERROR] ${err.message || 'Render gagal.'}`]);
     } finally {
       setIsRendering(false);
       setRenderProgress(null);
@@ -162,6 +200,7 @@ const ShortsRenderStep: React.FC = () => {
     if (segments.length === 0) return;
     setIsRendering(true);
     setErrorMsg(null);
+    setRenderLogs([`[${new Date().toLocaleTimeString()}] Memulai Batch Render untuk ${segments.length} segmen Shorts...`]);
 
     let successCount = 0;
     for (let i = 0; i < segments.length; i++) {
@@ -169,8 +208,12 @@ const ShortsRenderStep: React.FC = () => {
       const segMapping = mappingMap[seg.id];
       const cuts = selectedLang === 'id' ? segMapping?.cuts_id || [] : segMapping?.cuts_en || [];
 
-      if (cuts.length === 0) continue;
+      if (cuts.length === 0) {
+        setRenderLogs((prev) => [...prev, `[Skip] Segmen #${seg.id} (${seg.title}) tidak memiliki data mapping di Step 4.`]);
+        continue;
+      }
 
+      setRenderLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] [${i + 1}/${segments.length}] Merender segmen #${seg.id}: ${seg.title}...`]);
       setRenderProgress({
         segmentId: seg.id,
         lang: selectedLang,
@@ -196,11 +239,13 @@ const ShortsRenderStep: React.FC = () => {
               elapsedSec: res.elapsedSec || '0',
             };
             setRenderedResults((prev) => ({ ...prev, [key]: item }));
+            setRenderLogs((prev) => [...prev, `[OK] Segmen #${seg.id} selesai dirender dalam ${res.elapsedSec}s`]);
             successCount++;
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn(`Batch render error for segment ${seg.id}:`, err);
+        setRenderLogs((prev) => [...prev, `[Error Segmen #${seg.id}] ${err.message}`]);
       }
     }
 
@@ -333,7 +378,7 @@ const ShortsRenderStep: React.FC = () => {
             )}
           </div>
 
-          {/* Right Workspace: Render Control & Preview Player */}
+          {/* Right Workspace: Render Control, Live Console Logs & Preview Player */}
           <div className="flex-1 min-w-0 space-y-8 w-full">
             {/* Render Settings & Controls Box */}
             <div className="bg-gray-900/70 border border-gray-800 p-5 rounded-2xl space-y-4 shadow-md">
@@ -422,6 +467,62 @@ const ShortsRenderStep: React.FC = () => {
                 <div className="p-3.5 bg-red-950/80 border border-red-800/80 rounded-xl text-red-200 text-xs font-mono flex items-center justify-between">
                   <span>⚠️ {errorMsg}</span>
                   <button onClick={() => setErrorMsg(null)} className="text-red-400 hover:text-red-200">✕</button>
+                </div>
+              )}
+            </div>
+
+            {/* REAL-TIME TERMINAL CONSOLE LOG BOX */}
+            <div className="bg-gray-900/80 border border-gray-800 p-5 rounded-2xl space-y-3 shadow-xl">
+              <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-emerald-400 text-sm">💻</span>
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                    Detail Log Proses Render FFmpeg ({renderLogs.length} Baris Log)
+                  </h3>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopyLogs}
+                    disabled={renderLogs.length === 0}
+                    className="px-3 py-1 bg-gray-950 hover:bg-gray-800 text-amber-300 border border-gray-800 text-[11px] font-mono font-bold rounded-lg transition-all disabled:opacity-30"
+                  >
+                    <span>{copiedLogs ? '✅ Copied' : '📋 Copy Logs'}</span>
+                  </button>
+
+                  <button
+                    onClick={handleClearLogs}
+                    disabled={renderLogs.length === 0}
+                    className="px-3 py-1 bg-gray-950 hover:bg-gray-800 text-gray-400 border border-gray-800 text-[11px] font-mono rounded-lg transition-all disabled:opacity-30"
+                  >
+                    <span>🧹 Clear</span>
+                  </button>
+                </div>
+              </div>
+
+              {renderLogs.length === 0 ? (
+                <div className="bg-gray-950 p-6 rounded-xl border border-gray-800/80 text-center text-xs font-mono text-gray-600 italic">
+                  Belum ada log proses pengerjaan render. Klik "Render Segmen Ini" untuk memicu pengerjaan.
+                </div>
+              ) : (
+                <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 max-h-64 overflow-y-auto space-y-1.5 font-mono text-xs text-emerald-400 leading-relaxed shadow-inner">
+                  {renderLogs.map((log, index) => (
+                    <div
+                      key={index}
+                      className={`break-words ${
+                        log.includes('[ERROR]') || log.includes('Gagal') || log.includes('error')
+                          ? 'text-red-400 font-bold'
+                          : log.includes('✅') || log.includes('Selesai')
+                          ? 'text-emerald-300 font-bold'
+                          : log.includes('[Warning]')
+                          ? 'text-amber-400'
+                          : 'text-emerald-400/90'
+                      }`}
+                    >
+                      {log}
+                    </div>
+                  ))}
+                  <div ref={logsEndRef} />
                 </div>
               )}
             </div>

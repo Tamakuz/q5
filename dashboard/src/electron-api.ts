@@ -499,7 +499,7 @@ export interface ElectronAPI {
   runShortsWhisperAlignment?: (data: { audioPath: string; scriptText: string; lang?: 'id' | 'en' }) => Promise<{ success: boolean; result?: any; error?: string }>;
   onShortsWhisperProgress?: (callback: (data: { step: string; percent: number; detail: string }) => void) => () => void;
   renderShortsSegment?: (data: { segmentId: string; lang?: 'id' | 'en' }) => Promise<{ success: boolean; outputPath?: string; outputFilename?: string; fileSizeBytes?: number; elapsedSec?: string; error?: string }>;
-  onShortsRenderProgress?: (callback: (data: { segmentId: string; lang: 'id' | 'en'; percent: number; detail: string }) => void) => () => void;
+  onShortsRenderProgress?: (callback: (data: { segmentId: string; lang: 'id' | 'en'; percent: number; detail: string; logLine?: string }) => void) => () => void;
   renderVideo: (mapping: object, videoPath: string, audioPath?: string) => Promise<RenderResult | { error: string }>;
   onRenderProgress: (callback: (data: RenderProgress) => void) => () => void;
   generateYoutubeTitles: (transcriptText: string) => Promise<YoutubeTitleResult>;
