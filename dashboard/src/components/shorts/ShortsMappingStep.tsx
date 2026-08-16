@@ -149,13 +149,13 @@ const ShortsMappingStep: React.FC = () => {
   const activeSegment = segments.find((s) => s.id === selectedSegmentId) || segments[0];
   const activeAudioData = selectedSegmentId ? audioDataMap[selectedSegmentId] : null;
 
-  // Active raw/compressed video path
+  // Active raw video path (prioritizing original HD video)
   const activeVideoPath = useMemo(() => {
-    if (sourceVideoPath) return sourceVideoPath;
     if (videoSources.length > 0) {
       const item = videoSources[0];
-      return item.compressed_video_path || item.raw_video_path || '';
+      return item.raw_video_path || (item as any).video_path || item.compressed_video_path || '';
     }
+    if (sourceVideoPath) return sourceVideoPath;
     return '';
   }, [sourceVideoPath, videoSources]);
 

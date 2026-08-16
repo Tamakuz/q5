@@ -625,19 +625,57 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
         return resolve({ success: false, error: `Belum ada potongan video (cuts) untuk Bahasa ${lang === 'id' ? 'Indonesia' : 'Inggris'}.` });
       }
 
-      let videoPath = segData.source_video_path;
-      if (!videoPath || !fs.existsSync(videoPath)) {
-        const sourcesPath = path.join(p.PROJECT_ROOT, 'input/shorts/video-sources.json');
-        if (fs.existsSync(sourcesPath)) {
+      let videoPath = null;
+
+      // 1. Always prioritize original raw video from input/shorts/video-sources.json
+      const sourcesPath = path.join(p.PROJECT_ROOT, 'input/shorts/video-sources.json');
+      if (fs.existsSync(sourcesPath)) {
+        try {
           const sManifest = JSON.parse(fs.readFileSync(sourcesPath, 'utf-8'));
           if (sManifest.items && sManifest.items[0]) {
-            videoPath = sManifest.items[0].compressed_video_path || sManifest.items[0].raw_video_path || '';
+            const item = sManifest.items[0];
+            const rawCandidate = item.video_path || item.raw_video_path;
+            if (rawCandidate) {
+              const resolvedRaw = path.isAbsolute(rawCandidate) ? rawCandidate : path.join(p.PROJECT_ROOT, rawCandidate);
+              if (fs.existsSync(resolvedRaw)) {
+                videoPath = resolvedRaw;
+              }
+            }
+          }
+        } catch (e) {}
+      }
+
+      // 2. If segData.source_video_path is provided, try converting compressed path to raw path
+      if (!videoPath && segData.source_video_path) {
+        let candidate = segData.source_video_path;
+        if (candidate.includes('/compressed_videos/')) {
+          const rawCandidate = candidate
+            .replace('/compressed_videos/', '/raw_videos/')
+            .replace('_compressed.mp4', '.mp4');
+          const resolvedCandidate = path.isAbsolute(rawCandidate) ? rawCandidate : path.join(p.PROJECT_ROOT, rawCandidate);
+          if (fs.existsSync(resolvedCandidate)) {
+            candidate = resolvedCandidate;
+          }
+        }
+        const resolved = path.isAbsolute(candidate) ? candidate : path.join(p.PROJECT_ROOT, candidate);
+        if (fs.existsSync(resolved)) {
+          videoPath = resolved;
+        }
+      }
+
+      // 3. Fallback to any valid video file in input/shorts/raw_videos/
+      if (!videoPath) {
+        const rawDir = path.join(p.PROJECT_ROOT, 'input/shorts/raw_videos');
+        if (fs.existsSync(rawDir)) {
+          const files = fs.readdirSync(rawDir).filter((f) => /\.(mp4|mkv|mov|webm)$/i.test(f));
+          if (files.length > 0) {
+            videoPath = path.join(rawDir, files[0]);
           }
         }
       }
 
       if (!videoPath || !fs.existsSync(videoPath)) {
-        return resolve({ success: false, error: `File video sumber tidak ditemukan di: ${videoPath}` });
+        return resolve({ success: false, error: `File video sumber asli (HD Raw) tidak ditemukan di: input/shorts/raw_videos/` });
       }
 
       const audioPath = lang === 'id' ? segData.audio_path_id : segData.audio_path_en;
