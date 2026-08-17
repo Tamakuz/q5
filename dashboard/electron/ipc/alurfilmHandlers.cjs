@@ -882,8 +882,11 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       name: outputName,
       parts: sortedParts,
       filePath: destPath,
+      rawFilePath: destPath,
+      originalFilePath: destPath,
       url: media.mediaUrl(destPath),
       size: stat.size,
+      isSpliced: false,
       createdAt: new Date().toISOString()
     };
 
@@ -1337,24 +1340,40 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
 
     sendProgress('preparing', 5, `Starting Faster-Whisper & Silence Gap Alignment for Parts #${sortedParts.join(', #')}...`);
 
-    // Resolve target audio path
-    let targetAudioPath = audioPath;
+    // Resolve target audio path (ALWAYS prioritize raw unspliced voiceover audio)
+    let targetAudioPath = null;
+    const mappingFile = path.join(p.ALURFILM_AUDIO_DIR, `${contentId}_audio_mappings.json`);
+    let targetAudioEntry = null;
+
+    if (fs.existsSync(mappingFile)) {
+      try {
+        const data = JSON.parse(fs.readFileSync(mappingFile, 'utf-8'));
+        targetAudioEntry = (data.audios || []).find(item => item.parts && item.parts.some(pt => sortedParts.includes(pt)));
+      } catch { }
+    }
+
+    if (targetAudioEntry) {
+      const candidate = targetAudioEntry.rawFilePath || targetAudioEntry.originalFilePath;
+      if (candidate && fs.existsSync(candidate)) {
+        targetAudioPath = candidate;
+      } else if (!targetAudioEntry.isSpliced && targetAudioEntry.filePath && fs.existsSync(targetAudioEntry.filePath)) {
+        targetAudioPath = targetAudioEntry.filePath;
+      }
+    }
+
     if (!targetAudioPath || !fs.existsSync(targetAudioPath)) {
-      const mappingFile = path.join(p.ALURFILM_AUDIO_DIR, `${contentId}_audio_mappings.json`);
-      if (fs.existsSync(mappingFile)) {
-        try {
-          const data = JSON.parse(fs.readFileSync(mappingFile, 'utf-8'));
-          const audioEntry = (data.audios || []).find(item => item.parts && item.parts.some(pt => sortedParts.includes(pt)));
-          if (audioEntry && audioEntry.filePath && fs.existsSync(audioEntry.filePath)) {
-            targetAudioPath = audioEntry.filePath;
-          }
-        } catch { }
+      if (audioPath && fs.existsSync(audioPath)) {
+        targetAudioPath = audioPath;
+      } else if (targetAudioEntry && targetAudioEntry.filePath && fs.existsSync(targetAudioEntry.filePath)) {
+        targetAudioPath = targetAudioEntry.filePath;
       }
     }
 
     if (!targetAudioPath || !fs.existsSync(targetAudioPath)) {
       throw new Error(`Voiceover audio file not found for Parts #${sortedParts.join(', #')}. Please upload audio first.`);
     }
+
+    sendProgress('preparing', 8, `Target raw voiceover resolved: ${path.basename(targetAudioPath)}`);
 
     const savedResults = [];
     const multiPartMap = {};
@@ -1475,11 +1494,13 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       try { fs.unlinkSync(tempNarasiPath); } catch { }
       try { fs.unlinkSync(tempOutputPath); } catch { }
 
-      // Step 3: Map aligned sentences to scriptElements
+      // Step 3: Map whisper sentences onto scriptElements (using PURE Faster-Whisper text)
       let whisperIdx = 0;
       let simClock = 0;
 
-      const alignedElements = scriptElements.map((el, idx) => {
+      const alignedElements = [];
+      for (let idx = 0; idx < scriptElements.length; idx++) {
+        const el = scriptElements[idx];
         if (el.type === 'narration') {
           const nextEl = idx < scriptElements.length - 1 ? scriptElements[idx + 1] : null;
           const isFollowedByVisualOnly = nextEl && nextEl.type === 'visual_only';
@@ -1490,24 +1511,39 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
             const firstWordStart = w.firstWordStart || w.start;
             const actualEnd = isFollowedByVisualOnly ? lastWordEnd : w.end;
             simClock = actualEnd;
-            return {
+            alignedElements.push({
               ...el,
+              text: w.text || el.text, // PURE Faster-Whisper transcribed text
               start: w.start,
               end: actualEnd,
               firstWordStart,
               lastWordEnd
-            };
+            });
           } else {
             const words = (el.text || '').split(/\s+/).filter(Boolean);
             const dur = Math.max(2.5, Number((words.length / 3.0).toFixed(3)));
             const start = Number(simClock.toFixed(3));
             simClock += dur;
             const end = Number(simClock.toFixed(3));
-            return { ...el, start, end };
+            alignedElements.push({ ...el, start, end });
           }
+        } else {
+          alignedElements.push(el);
         }
-        return el;
-      });
+      }
+
+      // Append any extra sentences detected by Faster-Whisper
+      while (isFasterWhisperUsed && whisperIdx < whisperSentences.length) {
+        const w = whisperSentences[whisperIdx++];
+        alignedElements.push({
+          type: 'narration',
+          text: w.text,
+          start: w.start,
+          end: w.end,
+          firstWordStart: w.firstWordStart || w.start,
+          lastWordEnd: w.lastWordEnd || w.end
+        });
+      }
 
       // Step 4: Check if FFmpeg audio splicing with silence buffer is needed
       const hasVisualOnly = scriptElements.some(el => el.type === 'visual_only');
@@ -1642,11 +1678,18 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
                   const targetAudioEntry = mapData.audios.find(item => item.parts && item.parts.includes(pt));
                   if (targetAudioEntry) {
                     const splicedStat = fs.statSync(splicedOutPath);
+                    if (!targetAudioEntry.rawFilePath) {
+                      targetAudioEntry.rawFilePath = targetAudioPath;
+                    }
+                    if (!targetAudioEntry.originalFilePath) {
+                      targetAudioEntry.originalFilePath = targetAudioPath;
+                    }
                     targetAudioEntry.filePath = splicedOutPath;
                     targetAudioEntry.name = outputSplicedName;
                     targetAudioEntry.url = media.mediaUrl(splicedOutPath);
                     targetAudioEntry.size = splicedStat.size;
                     targetAudioEntry.isSpliced = true;
+                    targetAudioEntry.splicedFilePath = splicedOutPath;
                     targetAudioEntry.splicedAt = new Date().toISOString();
                     fs.writeFileSync(mappingFile, JSON.stringify(mapData, null, 2), 'utf-8');
                   }
