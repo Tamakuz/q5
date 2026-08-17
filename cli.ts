@@ -61,8 +61,9 @@ program
   .requiredOption('--video <path>', 'Path to source video file')
   .option('-a, --audio <path>', 'Path to voice-over audio file')
   .option('-b, --bgm <path>', 'Path to background music file')
+  .option('-s, --segment <id>', 'Segment ID for shorts video-mapping.json')
   .option('-o, --output <path>', 'Output MP4 file path', 'output/video.mp4')
-  .action(async (mappingPath: string, opts: { video: string; audio?: string; bgm?: string; output: string }) => {
+  .action(async (mappingPath: string, opts: { video: string; audio?: string; bgm?: string; segment?: string; output: string }) => {
     const resolvedMap = path.resolve(mappingPath);
     const resolvedVideo = path.resolve(opts.video);
     const resolvedAudio = opts.audio ? path.resolve(opts.audio) : null;
@@ -84,7 +85,27 @@ program
     console.log('📄 Loading mapping JSON...');
     let mapping: Mapping;
     try {
-      const raw = JSON.parse(fs.readFileSync(resolvedMap, 'utf-8'));
+      let raw = JSON.parse(fs.readFileSync(resolvedMap, 'utf-8'));
+      if (raw && raw.items && !raw.timeline) {
+        // Normalize video-mapping.json format (Shorts Factory & Crafting)
+        const targetSegKey = opts.segment && raw.items[opts.segment] ? opts.segment : Object.keys(raw.items)[0];
+        const seg = raw.items[targetSegKey];
+        const cuts = seg?.cuts_id || seg?.cuts_en || [];
+        const timeline = cuts.map((c: any, idx: number) => ({
+          id: idx + 1,
+          text: c.text || '',
+          ss: Number(c.video_start || 0),
+          t: Number(c.duration || (c.video_end - c.video_start) || 3.0),
+        }));
+        raw = {
+          settings: {
+            fps: 30,
+            format: "9:16",
+            captions: false,
+          },
+          timeline,
+        };
+      }
       mapping = MappingSchema.parse(raw);
     } catch (err: any) {
       if (err instanceof z.ZodError) {
@@ -144,7 +165,8 @@ program
     fs.mkdirSync(tmpDir, { recursive: true });
 
     try {
-      const CONCURRENCY = Math.min(os.cpus().length - 1, 6); // max 6 parallel ffmpeg
+      // Cap parallel clip extraction workers to max 2 (and limit threads per worker) to prevent CPU starvation & high load
+      const CONCURRENCY = Math.min(Math.max(1, Math.floor(os.cpus().length / 4)), 2);
       const clipFiles: string[] = new Array(clips.length);
 
       const fgAspect = mapping.settings.fg_aspect || "4:5";
@@ -179,15 +201,10 @@ program
           const outFile = path.join(tmpDir, `c${String(i).padStart(4, '0')}.ts`);
           clipFiles[i] = outFile;
 
-          // Shortform watermark: EXCLUSIVELY use assets/logo-transparent.png for Shorts
+          // Watermark: only attach if explicitly specified in mapping settings
           let watermarkFile: string | null = null;
-          const shortsLogoPath = path.join(process.cwd(), 'assets', 'logo-transparent.png');
-          const inputShortsLogoPath = path.join(process.cwd(), 'input', 'assets', 'logo-transparent.png');
-
-          if (fs.existsSync(shortsLogoPath)) {
-            watermarkFile = shortsLogoPath;
-          } else if (fs.existsSync(inputShortsLogoPath)) {
-            watermarkFile = inputShortsLogoPath;
+          if (mapping.settings.watermark && fs.existsSync(mapping.settings.watermark)) {
+            watermarkFile = path.resolve(mapping.settings.watermark);
           }
 
           if (i === 0 && watermarkFile) {
@@ -244,10 +261,10 @@ program
               filterNodes.push('[fg]copy[outv]');
             }
           } else {
-            // 9:16 Vertical Video Mode (Shorts)
+            // 9:16 Vertical Video Mode (Shorts) — Downscaled blur for 10x CPU speed & smooth UI
             filterNodes.push(
               'split=2[bg_in][fg_in]',
-              `[bg_in]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},boxblur=25:2,eq=brightness=-0.15[bg]`
+              `[bg_in]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=4:1,scale=${width}:${height},eq=brightness=-0.15[bg]`
             );
 
             const fgScaleWithFx = `${fgScaleFilter}${fxChain}`;
@@ -261,7 +278,7 @@ program
 
             filterNodes.push(
               '[fg]split=2[fg_main][fg_shadow_src]',
-              '[fg_shadow_src]drawbox=color=black@0.8:t=fill,pad=w=iw:h=ih+40:x=0:y=20:color=black@0,boxblur=20:2[shadow]',
+              '[fg_shadow_src]scale=270:-1,drawbox=color=black@0.8:t=fill,pad=w=iw:h=ih+10:x=0:y=5:color=black@0,boxblur=3:1,scale=1080:-1[shadow]',
               '[bg][shadow]overlay=x=0:y=\'(main_h-overlay_h)/2+6\'[bg_sh]'
             );
 
@@ -293,6 +310,7 @@ program
 
           const ffmpegArgs = [
             '-y',
+            '-threads', '2',
             '-ss', String(clip.ss),
             '-t', inputReadDuration,
             '-i', resolvedVideo,
@@ -327,48 +345,29 @@ program
       const listFile = path.join(tmpDir, 'list.txt');
       fs.writeFileSync(listFile, clipFiles.map((f) => `file '${f}'`).join('\n'), 'utf-8');
 
-      // Auto-detect or AI-decide BGM if not provided explicitly
+      // BGM is only used if explicitly specified via CLI option --bgm or mapping settings
       let bgmFile: string | null = opts.bgm ? path.resolve(opts.bgm) : null;
-      if (!bgmFile || !fs.existsSync(bgmFile)) {
-        const bgmCandidates: string[] = [];
-        const searchDirs = [path.join(process.cwd(), 'assets'), path.join(process.cwd(), 'input', 'assets')];
-        for (const dir of searchDirs) {
-          if (fs.existsSync(dir)) {
-            const files = fs.readdirSync(dir);
-            for (const f of files) {
-              const full = path.join(dir, f);
-              if (/\.(mp3|wav|m4a|ogg)$/i.test(f) && full !== resolvedAudioFinal) {
-                if (dir.endsWith('/assets') || f.toLowerCase().includes('bgm') || f.toLowerCase().includes('music') || f.toLowerCase().includes('background')) {
+      if ((!bgmFile || !fs.existsSync(bgmFile)) && mapping.settings.bgm && mapping.settings.bgm !== 'none') {
+        const requestedBgm = mapping.settings.bgm;
+        const candidatePath = path.isAbsolute(requestedBgm) ? requestedBgm : path.join(process.cwd(), requestedBgm);
+        if (fs.existsSync(candidatePath)) {
+          bgmFile = candidatePath;
+        } else {
+          const bgmCandidates: string[] = [];
+          const searchDirs = [path.join(process.cwd(), 'assets'), path.join(process.cwd(), 'input', 'assets')];
+          for (const dir of searchDirs) {
+            if (fs.existsSync(dir)) {
+              const files = fs.readdirSync(dir);
+              for (const f of files) {
+                const full = path.join(dir, f);
+                if (/\.(mp3|wav|m4a|ogg)$/i.test(f) && full !== resolvedAudioFinal) {
                   bgmCandidates.push(full);
                 }
               }
             }
           }
-        }
-        if (bgmCandidates.length > 0) {
-          const requestedBgm = mapping.settings.bgm?.toLowerCase();
-          if (requestedBgm && requestedBgm !== 'random') {
-            const matched = bgmCandidates.find((f) => {
-              const lowerName = path.basename(f).toLowerCase();
-              if (requestedBgm.includes('monkey') && lowerName.includes('monkey')) return true;
-              if (requestedBgm.includes('sneaky') && lowerName.includes('sneaky')) return true;
-              if (requestedBgm.includes('snitch') && lowerName.includes('snitch')) return true;
-              if (requestedBgm.includes('duck') && lowerName.includes('duck')) return true;
-              if (requestedBgm.includes('fluffing') && lowerName.includes('fluffing')) return true;
-              if (requestedBgm.includes('elevator') && lowerName.includes('elevator')) return true;
-              if (requestedBgm.includes('forecast') && lowerName.includes('forecast')) return true;
-              return lowerName.includes(requestedBgm);
-            });
-            if (matched) {
-              bgmFile = matched;
-              console.log(`🤖 AI Decided BGM: ${path.basename(matched)} (Key: "${mapping.settings.bgm}")`);
-            }
-          }
-
-          if (!bgmFile) {
-            bgmFile = bgmCandidates[Math.floor(Math.random() * bgmCandidates.length)];
-            console.log(`🎲 Randomized BGM: ${path.basename(bgmFile)}`);
-          }
+          const matched = bgmCandidates.find((f) => path.basename(f).toLowerCase().includes(requestedBgm.toLowerCase()));
+          if (matched) bgmFile = matched;
         }
       }
 
@@ -435,6 +434,7 @@ program
   .description('Initialize Google Labs user data, launch headed browser for login, and persist session')
   .option('-u, --url <string>', 'Target URL', 'https://labs.google/')
   .action(async (options) => {
+    // @ts-ignore
     const { PlaywrightService } = await import('./playwright/service');
     await PlaywrightService.initUserData({ url: options.url, headed: true });
   });

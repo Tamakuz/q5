@@ -241,7 +241,7 @@ const ShortsMappingStep: React.FC = () => {
 ### INPUT YANG DIBERIKAN:
 - **Video Sumber Mentah**: \`${sourceVideoTitle}\` (Durasi Total: \`${sourceVideoDuration}\`s)
 - **Segmen Shorts #${segments.findIndex((s) => s.id === selectedSegmentId) + 1}**: \`${activeSegment.title}\`
-- **Rentang Waktu Segmen di Video**: \`${activeSegment.start_time_sec || 0}\`s - \`${activeSegment.end_time_sec || 60}\`s
+- **Rentang Waktu Sumber Video**: Dari detik \`0\`s hingga detik \`${sourceVideoDuration}\`s (Bebas memilih potongan adegan paling satisfying & dramatis dari sepanjang video mentah)
 - **Bahasa Narasi**: \`${isIndo ? 'Bahasa Indonesia' : 'English'}\`
 - **DATA TRANSKRIP NASKAH AUDIO (VO)**:
 \`\`\`json

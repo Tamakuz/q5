@@ -2084,152 +2084,22 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       throw new Error('Naskah alur film tidak ditemukan. Silakan selesaikan Step 2 (Script Generator) terlebih dahulu.');
     }
 
-    const systemPrompt = `Anda adalah seorang Pakar Psikologi Penonton & Strategi SEO YouTube khusus Niche Alur Cerita Film (Recap Film Channel Viral).
-Tugas Anda adalah menganalisis SELURUH KONTEKS ALUR FILM (naskah, daftar karakter, ringkasan cerita) dan menghasilkan judul & metadata video YouTube yang 100% AKURAT SESUAI ISI FILM, memicu rasa penasaran mendalam, serta mengikuti gaya visual & judul channel alur film meledak (jutaan views).
-
-🧠 TAHAP 1 — ANALISIS EKSTRAKSI 5 JANGKAR PSIKOLOGI CERITA (Wajib Analisis Dalam Hati Sebelum Membuat Judul):
-Sebelum merumuskan judul, Anda HARUS mengekstrak 5 fakta psikologis riil dari data naskah yang diberikan:
-1. Status Underdog & Penderitaan: Siapa karakter utama, kondisi fisik/sosial/ekonominya, dan penderitaan nyata yang dialami.
-2. Taruhan Nyata (Survival Stakes): Apa yang hilang/rusak jika karakter gagal (nyawa, keluarga, kehormatan, masa depan).
-3. Aksi Ekstrem / Ancaman Colossal: Aksi nekat terberat atau ancaman bencana/monster/tembok raksasa yang terjadi di naskah.
-4. Bentuk Penindasan / Bencana: Siapa penindasnya atau bencana besar apa yang mengisolasi/mengancam karakter.
-5. Tamparan Penyesalan / Puncak Emosi: Payoff emosional, tamparan fakta bagi penindas, atau klimaks pembuktian diri.
-
-🚨 ATURAN AKURASI & FAKTUAlITAS MUTLAK (DILARANG HALUSINASI):
-1. DILARANG KERAS mengarang metafora acak, profesi palsu, atau elemen fiksi yang tidak ada dalam data naskah film.
-2. Setiap kata pada slot Judul WAJIB 100% didasarkan pada kejadian riil, penderitaan nyata, dan perlawanan/pembuktian emosional karakter utama dari data naskah yang diberikan.
-3. BATAS MUTLAK PANJANG JUDUL: Panjang TOTAL string judul MAKSIMAL 100 KARAKTER (termasuk akhiran "‼️ Alur Cerita Film"). DILARANG KERAS melebihi 100 karakter! Targetkan panjang 75-98 karakter agar muat di YouTube dan terbaca utuh di layar HP.
-
-🎯 TAHAP 2 — STRUKTUR FORMULA & FORMAT JUDUL VIRAL (MURNI BERBASIS NASKAH CERITA):
-Semua opsi judul HARUS diakhiri dengan akhiran wajib "‼️ Alur Cerita Film" (menggunakan emoji dua tanda seru merah ‼️).
-
-Pola Format Judul (Wajib 100% Diambil Dari Kejadian Riil & Karakter Utama Dalam Naskah):
-[PREMIS KONFLIK DRAMATIS / KONDISI EKSTREM KARAKTER UTAMA DARI NASKAH] ‼️ Alur Cerita Film
-
-ATURAN MUTLAK KESESUAIAN ALUR CERITA (DILARANG HALUSINASI ELEMEN):
-Setiap kata pada opsi judul dan subjek visual pada "thumbnail_prompt" WAJIB MENYESUAIKAN 100% FAKTA DARI NASKAH FILM YANG DIPROSES:
-- Visual subjek dan alur cerita WAJIB mengekstrak karakter utama, kondisi fisik/emosi riilnya, setting lokasi asli, dan konflik utama langsung dari naskah film yang diberikan.
-- DILARANG KERAS menyelipkan elemen luar yang tidak ada di dalam naskah film!
-
-PEMBAGIAN 5 OPSI JUDUL SESUAI TABUHAN GENDANG EMOSI PSIKOLOGIS:
-Anda harus menghasilkan tepat 5 variasi judul dengan kategori emosi berikut:
-1. "underdog": Mengincar Gendang Empati & Penderitaan (Haru/Perjuangan Karakter Utama Dari Naskah).
-2. "balas_dendam": Mengincar Gendang Kemarahan & Penyesalan (Pembuktian Diri & Tamparan Penyesalan Dari Naskah).
-3. "aksi_nekat": Mengincar Gendang Ketegangan & Survival (Keberanian/Pengorbanan Karakter Mengambil Risiko Besar Dari Naskah).
-4. "kaget": Mengincar Gendang Syok & Kontradiksi (Kejadian Tak Terduga / Paradox Dari Naskah).
-5. "misteri": Mengincar Gendang Kepo Terlarang (Rahasia, Motivasi Tersembunyi & Curiosity Gap Dari Naskah).
-
-ATURAN TEKS THUMBNAIL (GAYA DUA WARNA VIRAL):
-Teks thumbnail harus 2-4 kata yang sangat singkat & kontras tajam (misal: "TAK BISA KABUR", "100 TAHUN DIKURUNG", "LEPAS = MATI").
-Gaya teks mengikuti pola dua warna yang terbukti meledak di niche Alur Cerita Film:
-- Kata Pertama (Yellow Part): Teks penarik perhatian warna Kuning Cerah (#FFD700) ALL CAPS (misal: "TAK BISA", "100 TAHUN", "LEPAS =").
-- Kata Kedua (Red Part): Teks klimaks emosi warna Merah Menyala (#FF0000) dengan Outline Hitam ALL CAPS (misal: "KABUR", "DIKURUNG", "MATI").
-
-🎨 ATURAN PROMPT GAMBAR THUMBNAIL (OUTPUT GUIDANCE & RULES PROMPT - SIAP COPAS):
-Nilai dari "thumbnail_prompt" WAJIB berupa PROMPT ATURAN & KONTEKS UTUH (dalam Bahasa Inggris) yang SIAP DI-COPAS LANGSUNG oleh pengguna ke generator AI (Midjourney v6 / Flux / DALL-E 3 / SDXL / ControlNet).
-
-DILARANG KERAS memaksakan detail adegan mikro atau mengarang objek fiksi luar karena pengguna akan mengunggah/menggunakan foto referensi adegan asli dari film.
-Setiap "thumbnail_prompt" WAJIB di-format utuh mencakup 3 blok utama berikut:
-
-1. MOVIE STORY CONTEXT & EXTREME SURVIVAL / COLOSSAL SCALE FRAMING:
-"Movie Context & Extreme Framing: [Singkat 1-2 kalimat konteks naskah film, framing adegan berisiko tinggi (misal: manusia terikat/tergantung di tebing jurang/dalam rantai raksasa atau siluet di hadapan anomali kolosal), ekspresi ketakutan/teriakan survival ekstrem, serta pencahayaan dramatis]."
-
-2. TEXT OVERLAY SPECIFICATION:
-"Embed top-third text overlay in ultra-bold heavy impact font: Part 1 '[thumbnail_text_yellow]' in bright gold yellow (#FFD700), Part 2 '[thumbnail_text_red]' in intense bright red (#FF0000) with thick solid black stroke outline and drop shadow."
-
-3. YOUTUBE THUMBNAIL RENDERING RULES & ASSET GUIDANCE:
-"YouTube 16:9 widescreen layout (--ar 16:9). Keep bottom-right corner clean for YouTube duration badge. High-contrast cinematic lighting, extreme camera angle (high-angle birds-eye view or dramatic low-angle perspective), 8k gritty film poster texture, volumetric mist/dust/sand, heavy dark vignette along frame edges for instant mobile thumb-stopping power. Image Generator Guidance: Preserving core movie context, high-stakes survival contrast, and dramatic camera framing matching the real movie setting. Hyper-realistic 8k resolution, photorealistic, octane render --ar 16:9 --v 6.0"
-
-DESKRIPSI VIDEO YOUTUBE (TERSTRUKTUR & SEO FRIENDLY):
-1. 2 Baris Pertama: Hook pembuka tajam yang selaras dengan judul.
-2. Ringkasan Cerita (Sinopsis 100-150 kata): Rangkuman alur film tanpa membocorkan spoiler akhir cerita.
-3. Fair Use & Copyright Notice: Kalimat standar penafsiran hak cipta karya film.
-4. Call to Action (CTA): Ajak penonton Like, Comment pendapat mereka, dan Subscribe channel.
-
-TAGS & KEYWORDS (MINIMAL 15-20 TAGS):
-Daftar kata kunci relevan dipisahkan koma untuk metadata YouTube.
-
-OUTPUT FORMAT (MANDATORY JSON OBJECT ONLY):
-{
-  "titles": [
-    {
-      "id": "1",
-      "emotion_category": "underdog",
-      "emotion_label": "😢 Underdog & Perjuangan",
-      "title": "...",
-      "thumbnail_text_yellow": "...",
-      "thumbnail_text_red": "...",
-      "thumbnail_prompt": "...",
-      "thumbnail_composition_notes": "..."
-    },
-    {
-      "id": "2",
-      "emotion_category": "balas_dendam",
-      "emotion_label": "😡 Pembuktian & Tamparan Penyesalan",
-      "title": "...",
-      "thumbnail_text_yellow": "...",
-      "thumbnail_text_red": "...",
-      "thumbnail_prompt": "...",
-      "thumbnail_composition_notes": "..."
-    },
-    {
-      "id": "3",
-      "emotion_category": "aksi_nekat",
-      "emotion_label": "⚡ Keberanian & Aksi Nekat",
-      "title": "...",
-      "thumbnail_text_yellow": "...",
-      "thumbnail_text_red": "...",
-      "thumbnail_prompt": "...",
-      "thumbnail_composition_notes": "..."
-    },
-    {
-      "id": "4",
-      "emotion_category": "kaget",
-      "emotion_label": "😱 Syok & Tak Terduga",
-      "title": "...",
-      "thumbnail_text_yellow": "...",
-      "thumbnail_text_red": "...",
-      "thumbnail_prompt": "...",
-      "thumbnail_composition_notes": "..."
-    },
-    {
-      "id": "5",
-      "emotion_category": "misteri",
-      "emotion_label": "🤨 Rahasia & Curiosity Gap",
-      "title": "...",
-      "thumbnail_text_yellow": "...",
-      "thumbnail_text_red": "...",
-      "thumbnail_prompt": "...",
-      "thumbnail_composition_notes": "..."
+    const metadataPromptFile = path.join(p.PROMPTS_DIR, 'longform', 'alurfilm-thumbnail-prompt.md');
+    if (!fs.existsSync(metadataPromptFile)) {
+      throw new Error(`File prompt metadata '${metadataPromptFile}' tidak ditemukan.`);
     }
-  ],
-  "description": "...",
-  "tags": ["Alur Cerita Film", "Recap Film", "..."]
-}`;
 
-    const characterContext = characterRegistryList.map(c => `- ${c.assigned_name}: ${c.visual_description || ''}`).join('\n');
-    const macroContext = macroSummariesList.join('\n');
-    const timelineContext = timelineFocusList.join('\n');
+    const promptTemplate = fs.readFileSync(metadataPromptFile, 'utf-8');
 
-    const promptText = `Berikut adalah DATA KONTEKS LENGKAP ALUR FILM UNTUK DIANALISIS:
-${movieTitle ? `JUDUL FILM: ${movieTitle}\n` : ''}
-${customNotes ? `CATATAN KHUSUS USER: ${customNotes}\n` : ''}
-
-DAFTAR KARAKTER UTAMA:
-${characterContext || 'Tidak ada data karakter'}
-
-RINGKASAN ALUR CERITA (PER PART):
-${macroContext || 'Tidak ada ringkasan makro'}
-
-FOKUS ADEGAN UTAMA:
-${timelineContext || 'Tidak ada fokus adegan'}
-
-NASKAH VOICEOVER LENGKAP:
-${combinedScript}`;
+    const finalPrompt = promptTemplate
+      .replace(/\{\{movie_title\}\}/g, movieTitle || 'Tidak disebutkan')
+      .replace(/\{\{movie_year\}\}/g, movieYear || 'Tidak disebutkan')
+      .replace(/\{\{custom_notes\}\}/g, customNotes || 'Tidak ada catatan khusus')
+      .replace(/\{\{combined_script\}\}/g, combinedScript);
 
     const rawJsonText = await aiClient.streamChatCompletion({
-      systemPrompt,
-      prompt: promptText,
+      systemPrompt: finalPrompt,
+      prompt: 'Silakan analisis naskah film di atas dan hasilkan output metadata JSON sesuai spesifikasi.',
       model: model || 'ag/gemini-3-flash-agent',
       jsonMode: true,
       temperature: 0.7,

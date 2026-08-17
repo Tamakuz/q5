@@ -1,6 +1,7 @@
 // dashboard/electron/ipc/projectHandlers.cjs
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { spawn } = require('child_process');
 
 function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getMainWindow }) {
@@ -391,17 +392,19 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       if (videoBitrateKbps > 4000) videoBitrateKbps = 4000;
 
       const ffmpegBin = ffmpeg.ffmpegPath || '/usr/bin/ffmpeg';
+      const cpuThreads = Math.min(4, Math.max(1, os.cpus().length - 1));
       const args = [
+        '-y',
+        '-threads', String(cpuThreads),
         '-i', inputPath,
         '-c:v', 'libx264',
         '-b:v', `${videoBitrateKbps}k`,
         '-maxrate', `${Math.floor(videoBitrateKbps * 1.2)}k`,
         '-bufsize', `${videoBitrateKbps * 2}k`,
-        '-preset', 'fast',
+        '-preset', 'superfast',
         '-vf', "scale='min(1920,iw)':-2",
         '-c:a', 'aac',
         '-b:a', '128k',
-        '-y',
         outputPath
       ];
 
@@ -614,7 +617,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       }
 
       const manifest = JSON.parse(rawMapping);
-      const segData = manifest.items ? manifest.items[segmentId] : null;
+      const segData = manifest.items ? (manifest.items[segmentId] || manifest.items['main_shorts'] || Object.values(manifest.items)[0]) : null;
 
       if (!segData) {
         return resolve({ success: false, error: `Data mapping untuk segmen #${segmentId} belum diimpor/dibuat di Step 4.` });
@@ -627,43 +630,74 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
       let videoPath = null;
 
-      // 1. Always prioritize original raw video from input/shorts/video-sources.json
-      const sourcesPath = path.join(p.PROJECT_ROOT, 'input/shorts/video-sources.json');
-      if (fs.existsSync(sourcesPath)) {
-        try {
-          const sManifest = JSON.parse(fs.readFileSync(sourcesPath, 'utf-8'));
-          if (sManifest.items && sManifest.items[0]) {
-            const item = sManifest.items[0];
-            const rawCandidate = item.video_path || item.raw_video_path;
-            if (rawCandidate) {
-              const resolvedRaw = path.isAbsolute(rawCandidate) ? rawCandidate : path.join(p.PROJECT_ROOT, rawCandidate);
-              if (fs.existsSync(resolvedRaw)) {
-                videoPath = resolvedRaw;
-              }
-            }
-          }
-        } catch (e) {}
-      }
-
-      // 2. If segData.source_video_path is provided, try converting compressed path to raw path
-      if (!videoPath && segData.source_video_path) {
+      // 1. Prioritize segData.source_video_path specified for this segment in video-mapping.json
+      if (segData.source_video_path) {
         let candidate = segData.source_video_path;
-        if (candidate.includes('/compressed_videos/')) {
+        const resolvedCandidate = path.isAbsolute(candidate) ? candidate : path.join(p.PROJECT_ROOT, candidate);
+        if (fs.existsSync(resolvedCandidate)) {
+          videoPath = resolvedCandidate;
+        } else if (candidate.includes('/compressed_videos/')) {
           const rawCandidate = candidate
             .replace('/compressed_videos/', '/raw_videos/')
             .replace('_compressed.mp4', '.mp4');
-          const resolvedCandidate = path.isAbsolute(rawCandidate) ? rawCandidate : path.join(p.PROJECT_ROOT, rawCandidate);
-          if (fs.existsSync(resolvedCandidate)) {
-            candidate = resolvedCandidate;
+          const resolvedRaw = path.isAbsolute(rawCandidate) ? rawCandidate : path.join(p.PROJECT_ROOT, rawCandidate);
+          if (fs.existsSync(resolvedRaw)) {
+            videoPath = resolvedRaw;
           }
-        }
-        const resolved = path.isAbsolute(candidate) ? candidate : path.join(p.PROJECT_ROOT, candidate);
-        if (fs.existsSync(resolved)) {
-          videoPath = resolved;
         }
       }
 
-      // 3. Fallback to any valid video file in input/shorts/raw_videos/
+      // 2. If segData.source_video_id or video filename is available, match in input/shorts/video-sources.json
+      if (!videoPath) {
+        const sourcesPath = path.join(p.PROJECT_ROOT, 'input/shorts/video-sources.json');
+        if (fs.existsSync(sourcesPath)) {
+          try {
+            const sManifest = JSON.parse(fs.readFileSync(sourcesPath, 'utf-8'));
+            if (sManifest.items && Array.isArray(sManifest.items)) {
+              let matchedItem = null;
+              if (segData.source_video_id) {
+                matchedItem = sManifest.items.find((it) => it.id === segData.source_video_id);
+              }
+              if (!matchedItem && segData.source_video_path) {
+                const baseName = path.basename(segData.source_video_path).replace('_compressed', '');
+                matchedItem = sManifest.items.find((it) => it.video_filename === baseName || (it.video_path && it.video_path.includes(baseName)));
+              }
+              if (!matchedItem && sManifest.items.length > 0) {
+                matchedItem = sManifest.items[0];
+              }
+
+              if (matchedItem) {
+                if (matchedItem.compressed_video_path) {
+                  const resolvedComp = path.isAbsolute(matchedItem.compressed_video_path) ? matchedItem.compressed_video_path : path.join(p.PROJECT_ROOT, matchedItem.compressed_video_path);
+                  if (fs.existsSync(resolvedComp)) {
+                    videoPath = resolvedComp;
+                  }
+                }
+                if (!videoPath) {
+                  const rawCandidate = matchedItem.video_path || matchedItem.raw_video_path;
+                  if (rawCandidate) {
+                    const resolvedRaw = path.isAbsolute(rawCandidate) ? rawCandidate : path.join(p.PROJECT_ROOT, rawCandidate);
+                    if (fs.existsSync(resolvedRaw)) {
+                      videoPath = resolvedRaw;
+                    }
+                  }
+                }
+              }
+            }
+          } catch (e) {}
+        }
+      }
+
+      // 3. Fallback to any valid video file in input/shorts/compressed_videos/ or input/shorts/raw_videos/
+      if (!videoPath) {
+        const compDir = path.join(p.PROJECT_ROOT, 'input/shorts/compressed_videos');
+        if (fs.existsSync(compDir)) {
+          const files = fs.readdirSync(compDir).filter((f) => /\.(mp4|mkv|mov|webm)$/i.test(f));
+          if (files.length > 0) {
+            videoPath = path.join(compDir, files[0]);
+          }
+        }
+      }
       if (!videoPath) {
         const rawDir = path.join(p.PROJECT_ROOT, 'input/shorts/raw_videos');
         if (fs.existsSync(rawDir)) {
@@ -675,7 +709,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       }
 
       if (!videoPath || !fs.existsSync(videoPath)) {
-        return resolve({ success: false, error: `File video sumber asli (HD Raw) tidak ditemukan di: input/shorts/raw_videos/` });
+        return resolve({ success: false, error: `File video sumber asli tidak ditemukan untuk segmen #${segmentId}.` });
       }
 
       let rawAudioPath = lang === 'id' ? segData.audio_path_id : segData.audio_path_en;
@@ -699,27 +733,34 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
         sendProgress(10, `Audio VO ditemukan: ${path.basename(resolvedAudioPath)}`, `[Audio] VO: ${resolvedAudioPath}`);
       }
 
-      const timeline = cuts.map((cut, idx) => ({
-        id: idx + 1,
-        text: cut.text || '',
-        ss: typeof cut.video_start === 'number' ? cut.video_start : 0,
-        t: typeof cut.duration === 'number' ? cut.duration : 3.0,
-      }));
+      // 4. Construct FFmpeg Args with Fast Seek (-ss & -t per clip) for 10x Speed & 0% CPU Starvation
+      const spawnArgs = ['-y'];
+      const filterParts = [];
+      const concatInputs = [];
 
-      const renderMapping = {
-        settings: {
-          fps: 30,
-          format: '9:16',
-          captions: false,
-        },
-        timeline,
-      };
+      cuts.forEach((cut, i) => {
+        const vStart = Number(cut.video_start || 0);
+        const vEnd = Number(cut.video_end || (vStart + (cut.duration || 3.0)));
+        const dur = Math.max(0.1, parseFloat((vEnd - vStart).toFixed(3)));
 
-      const tmpDir = path.join(p.PROJECT_ROOT, 'tmp');
-      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+        // Fast seeking before input
+        spawnArgs.push('-ss', String(vStart), '-t', String(dur), '-i', videoPath);
+        filterParts.push(
+          `[${i}:v]split=2[bg_src${i}][fg_src${i}]`,
+          `[bg_src${i}]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=4:1,scale=1080:1920,eq=brightness=-0.15[bg${i}]`,
+          `[fg_src${i}]scale=1080:1350:force_original_aspect_ratio=increase,crop=1080:1350[fg${i}]`,
+          `[bg${i}][fg${i}]overlay=x=0:y=285,setsar=1[v${i}]`
+        );
+        concatInputs.push(`[v${i}]`);
+      });
 
-      const tmpMappingFile = path.join(tmpDir, `shorts_render_map_${Date.now()}.json`);
-      fs.writeFileSync(tmpMappingFile, JSON.stringify(renderMapping, null, 2), 'utf-8');
+      const audioInputIndex = cuts.length;
+      if (resolvedAudioPath && fs.existsSync(resolvedAudioPath)) {
+        spawnArgs.push('-i', resolvedAudioPath);
+      }
+
+      const concatFilter = `${concatInputs.join('')}concat=n=${cuts.length}:v=1:a=0[vconcat]`;
+      const fullFilterComplex = `${filterParts.join(';')};${concatFilter}`;
 
       const outputDir = path.join(p.PROJECT_ROOT, 'output/shorts');
       if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
@@ -727,49 +768,63 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
       const outputFileName = `seg_${segmentId}_${lang}_final.mp4`;
       const outputPath = path.join(outputDir, outputFileName);
 
-      sendProgress(15, 'Mulai merender video klip dengan FFmpeg (9:16)...', `[FFmpeg] Output Target: ${outputPath}`);
+      spawnArgs.push(
+        '-filter_complex', fullFilterComplex,
+        '-map', '[vconcat]'
+      );
 
-      const cliPath = path.join(p.PROJECT_ROOT, 'cli.ts');
-      let cmd = `npx tsx "${cliPath}" render "${tmpMappingFile}" --video "${videoPath}"`;
       if (resolvedAudioPath && fs.existsSync(resolvedAudioPath)) {
-        cmd += ` --audio "${resolvedAudioPath}"`;
+        spawnArgs.push('-map', `${audioInputIndex}:a`, '-c:a', 'aac', '-b:a', '192k', '-shortest');
       }
-      cmd += ` -o "${outputPath}"`;
 
-      sendProgress(18, 'Menjalankan perintah FFmpeg CLI...', `[CMD] ${cmd}`);
+      const cpuThreads = Math.min(3, Math.max(1, Math.floor(os.cpus().length / 3)));
+      spawnArgs.push(
+        '-threads', String(cpuThreads),
+        '-c:v', 'libx264',
+        '-preset', 'superfast',
+        '-crf', '20',
+        outputPath
+      );
+
+      sendProgress(15, `Mulai merender ${cuts.length} klip video vertikal 9:16 (Fast Seek & Nice Priority)...`, `[FFmpeg Fast Engine] Spawning ffmpeg for ${outputFileName}`);
+      sendProgress(18, `Input Video: ${path.basename(videoPath)}`, `[Input Video] ${videoPath}`);
+      if (resolvedAudioPath) {
+        sendProgress(20, `Input Audio VO: ${path.basename(resolvedAudioPath)}`, `[Input Audio] ${resolvedAudioPath}`);
+      }
 
       const startTime = Date.now();
-      const child = spawn('bash', ['-c', cmd], { cwd: p.PROJECT_ROOT, env: { ...process.env } });
+
+      let ffmpegBin = (ffmpeg && ffmpeg.ffmpegPath) ? ffmpeg.ffmpegPath : 'ffmpeg';
+      let spawnCmd = ffmpegBin;
+      let finalSpawnArgs = spawnArgs;
+      if (process.platform === 'linux' || process.platform === 'darwin') {
+        spawnCmd = 'nice';
+        finalSpawnArgs = ['-n', '15', ffmpegBin, ...spawnArgs];
+      }
+
+      const child = spawn(spawnCmd, finalSpawnArgs, { cwd: p.PROJECT_ROOT, env: { ...process.env } });
 
       let fullStderr = '';
-
-      child.stdout.on('data', (d) => {
-        const text = d.toString();
-        const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-        for (const line of lines) {
-          const pctMatch = line.match(/(\d+)%/);
-          let pct = 40;
-          if (pctMatch) {
-            pct = Math.min(99, Math.max(15, parseInt(pctMatch[1], 10)));
-          }
-          sendProgress(pct, `Merender video FFmpeg (${pct}%)...`, line);
-        }
-      });
 
       child.stderr.on('data', (d) => {
         const text = d.toString();
         fullStderr += text;
+
         const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
         for (const line of lines) {
-          sendProgress(35, 'Memproses rendering FFmpeg...', `[FFmpeg] ${line}`);
+          const timeMatch = line.match(/time=(\d+):(\d+):(\d+\.\d+)/);
+          if (timeMatch) {
+            const currentSec = parseInt(timeMatch[1], 10) * 3600 + parseInt(timeMatch[2], 10) * 60 + parseFloat(timeMatch[3]);
+            const totalDur = cuts.reduce((acc, c) => acc + (c.duration || 3.0), 0);
+            const pct = Math.min(99, Math.max(15, Math.round((currentSec / (totalDur || 30)) * 100)));
+            sendProgress(pct, `Merender video FFmpeg (${pct}%)...`, line);
+          } else if (line.startsWith('frame=') || line.startsWith('Output')) {
+            sendProgress(35, 'Memproses rendering adegan FFmpeg...', line);
+          }
         }
       });
 
       child.on('close', (code) => {
-        try {
-          if (fs.existsSync(tmpMappingFile)) fs.unlinkSync(tmpMappingFile);
-        } catch (e) {}
-
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
         if (code === 0 && fs.existsSync(outputPath)) {

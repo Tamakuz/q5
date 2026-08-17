@@ -10,7 +10,13 @@ const ffmpegBin: string = require('@ffmpeg-installer/ffmpeg').path;
  */
 export function runFFmpeg(args: string[], cwd: string, taskName?: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child: ChildProcess = spawn(ffmpegBin, args, { cwd });
+    let spawnCmd = ffmpegBin;
+    let spawnArgs = args;
+    if (process.platform === 'linux' || process.platform === 'darwin') {
+      spawnCmd = 'nice';
+      spawnArgs = ['-n', '15', ffmpegBin, ...args];
+    }
+    const child: ChildProcess = spawn(spawnCmd, spawnArgs, { cwd });
     let err = '';
     child.stderr?.on('data', (d: Buffer) => { err += d.toString(); });
     child.on('close', (code) => {
@@ -35,7 +41,13 @@ export function runFFmpegProgress(
   cb: (pct: number, msg: string) => void,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child: ChildProcess = spawn(ffmpegBin, args, { cwd });
+    let spawnCmd = ffmpegBin;
+    let spawnArgs = args;
+    if (process.platform === 'linux' || process.platform === 'darwin') {
+      spawnCmd = 'nice';
+      spawnArgs = ['-n', '15', ffmpegBin, ...args];
+    }
+    const child: ChildProcess = spawn(spawnCmd, spawnArgs, { cwd });
     let stderr = '';
 
     child.stdout?.on('data', (d: Buffer) => {

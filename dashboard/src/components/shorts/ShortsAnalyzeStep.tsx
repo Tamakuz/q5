@@ -55,7 +55,7 @@ interface VideoSourcesJSON {
 const DEFAULT_PROMPT_TEMPLATE = `Kamu adalah "Viral Social Media Growth Hacker & Master Scriptwriter" spesialis YouTube Shorts & TikTok FYP berniche Pabrik, Industri, Mekanik Handal, dan Street Food / Crafting.
 
 TUGAS UTAMA:
-Analisislah video mentah berikut dan tentukan jumlah segmen Shorts terbaik (1 hingga beberapa segmen). Setiap segmen WAJIB dilengkapi DUA VERSI NASKAH NARASI: **Versi Bahasa Indonesia (🇮🇩)** dan **Versi Bahasa Inggris (🇺🇸)**.
+Analisislah video mentah berikut dan buatlah **SATU (1) Objek JSON Naskah Shorts Utama (Single Standalone Shorts Video)** yang merangkum adegan paling unik & memikat dari sepanjang video longform tersebut. Naskah WAJIB memiliki Hook dinamis yang khas (contoh: *"Ini dia cara unik orang Pakistan..."* atau *"Beginilah proses rahasia pembuatan..."*), durasi fleksibel yang pas (25 hingga 55 detik), dan disajikan dalam DUA VERSI NASKAH NARASI: **Versi Bahasa Indonesia (🇮🇩)** dan **Versi Bahasa Inggris (🇺🇸)**.
 
 NAMA VIDEO: {{video_title}}
 URL / KETERANGAN: {{video_url}}
@@ -63,61 +63,58 @@ URL / KETERANGAN: {{video_url}}
 ---
 
 FORMULA & TRIK PSIKOLOGI SCRIPTWRITING (WAJIB DIIKUTI UNTUK KEDUA BAHASA):
-1. ⚡ **HOOK (00:00 - 00:04)**: Kalimat pembuka ekstrem yang memicu rasa penasaran (*Curiosity Gap* / *Pattern Interrupt*).
-2. 🍿 **RETAINER & SETUP (00:04 - 00:10)**: Menjelaskan latar belakang/alat secara dramatis.
-3. 🚀 **ESCALATION & BREAKDOWN (00:10 - 00:18)**: Detail teknik/kecepatan/presisi yang membuat penonton takjub.
-4. ✨ **THE CLIMAX / SATISFYING MOMENT (00:18 - 00:25)**: Momen puncak paling memuaskan (*Oddly Satisfying*).
-5. 🎉 **THE RESULT / PAYOFF (00:25 - 00:30)**: Hasil akhir produk massal atau karya mulus sempurna.
-6. 🔄 **SEAMLESS LOOP ENDING (00:30+)**: Kalimat penutup yang dirancang khusus MENYAMBUNG KEMBALI ke kalimat Hook pembuka, sehingga saat video mengulang (*looping*), penonton tidak sadar video telah selesai!
+1. ⚡ **DYNAMIC HOOK (00:00 - 00:04)**: Kalimat pembuka bercerita yang spesifik & memicu rasa penasaran (*Curiosity Gap* / *Pattern Interrupt*), contoh: *"Ini dia cara unik orang Pakistan..."* atau *"Jangan pernah coba bongkar mesin ini kalau..."*.
+2. 🍿 **RETAINER & SETUP (00:04 - 00:10)**: Menjelaskan latar belakang, tantangan, atau alat yang dipakai secara dramatis.
+3. 🚀 **ESCALATION & BREAKDOWN (00:10 - 00:25)**: Detail teknik, presisi, atau kecepatan tangan yang membuat penonton takjub.
+4. ✨ **THE CLIMAX / SATISFYING MOMENT (00:25 - 00:35)**: Momen puncak paling memuaskan (*Oddly Satisfying Peak*).
+5. 🎉 **THE RESULT / PAYOFF (00:35 - 00:45)**: Hasil akhir produk atau karya mulus sempurna.
+6. 🔄 **SEAMLESS LOOP ENDING**: Kalimat penutup yang dirancang khusus MENYAMBUNG KEMBALI ke kalimat Hook pembuka, sehingga saat video mengulang (*looping*), penonton tidak sadar video telah selesai!
 
 ---
 
-FORMAT OUTPUT (STRICTLY VALID JSON ARRAY OBJECT BILINGUAL, TANPA MARKDOWN PENGANTAR):
+FORMAT OUTPUT (STRICTLY VALID SINGLE JSON OBJECT BILINGUAL, TANPA MARKDOWN PENGANTAR):
 
 \`\`\`json
-[
-  {
-    "id": "seg_1",
-    "title": "Mekanik Level Dewa Bongkar Mesin Karatan",
-    "formatted_start": "01:15",
-    "formatted_end": "01:45",
-    "start_time_sec": 75,
-    "end_time_sec": 105,
-    "id_version": {
-      "hook_text": "Sumpah, mekanik ini otaknya udah bukan manusia lagi!",
-      "narration_script": "Sumpah, mekanik ini otaknya udah bukan manusia lagi. Lihat baik-baik. Dia cuma pakai satu alat rongsokan ini buat ngebongkar blok mesin karatan puluhan tahun. Kalau orang biasa pasti udah dipotong pakai gerinda. Tapi perhatiin detail tangannya, dia nemuin celah rahasia yang cuma mekanik level dewa yang tahu. Tunggu... lihat momen pas besi ini copot. Asli, ini lebih satisfying daripada meletusin bubble wrap. Mesin yang tadinya mau dibuang sekarang mulus kayak baru keluar dari pabrik. Beneran deh, kalau kalian butuh bukti skill tingkat tinggi, tonton lagi karena...",
-      "sentences": [
-        "Sumpah, mekanik ini otaknya udah bukan manusia lagi.",
-        "Lihat baik-baik. Dia cuma pakai satu alat rongsokan ini buat ngebongkar blok mesin karatan puluhan tahun.",
-        "Kalau orang biasa pasti udah dipotong pakai gerinda.",
-        "Tapi perhatiin detail tangannya, dia nemuin celah rahasia yang cuma mekanik level dewa yang tahu.",
-        "Tunggu... lihat momen pas besi ini copot. Asli, ini lebih satisfying daripada meletusin bubble wrap.",
-        "Mesin yang tadinya mau dibuang sekarang mulus kayak baru keluar dari pabrik.",
-        "Beneran deh, kalau kalian butuh bukti skill tingkat tinggi, tonton lagi karena..."
-      ]
-    },
-    "en_version": {
-      "hook_text": "I swear, this mechanic’s brain operates in 4D!",
-      "narration_script": "I swear, this mechanic’s brain operates in 4D. Look closely. He only uses this single scrap tool to disassemble an engine block that's been rusted for decades. A normal person would've cut it with a grinder. But look at his hands, he found a secret clearance only a god-level mechanic knows. Wait... look at the moment this iron pops out. Honestly, this is more satisfying than popping bubble wrap. An engine that was about to be scrapped is now smooth as new. Seriously, if you need proof of high-level skill, watch again because...",
-      "sentences": [
-        "I swear, this mechanic’s brain operates in 4D.",
-        "Look closely. He only uses this single scrap tool to disassemble an engine block that's been rusted for decades.",
-        "A normal person would've cut it with a grinder.",
-        "But look at his hands, he found a secret clearance only a god-level mechanic knows.",
-        "Wait... look at the moment this iron pops out.",
-        "Honestly, this is more satisfying than popping bubble wrap.",
-        "An engine that was about to be scrapped is now smooth as new.",
-        "Seriously, if you need proof of high-level skill, watch again because..."
-      ]
-    }
+{
+  "id": "main_shorts",
+  "title": "Ini Dia Cara Unik Orang Pakistan Bikin Besi Tempa",
+  "formatted_start": "00:00",
+  "formatted_end": "00:45",
+  "start_time_sec": 0,
+  "end_time_sec": 45,
+  "id_version": {
+    "hook_text": "Ini dia cara unik orang Pakistan bikin besi tempa raksasa!",
+    "narration_script": "Ini dia cara unik orang Pakistan bikin besi tempa raksasa. Lihat baik-baik. Tanpa mesin modern, mereka cuma mengandalkan insting dan api 1000 derajat ini. Kalau orang biasa pasti udah menyerah duluan. Tapi perhatiin detail tangannya pas nempa besi panas ini. Momen pas besinya terbentuk asli satisfying banget. Hasil akhirnya mulus kayak buatan pabrik canggih. Kalau kalian butuh bukti skill tingkat tinggi, tonton lagi karena...",
+    "sentences": [
+      "Ini dia cara unik orang Pakistan bikin besi tempa raksasa.",
+      "Lihat baik-baik. Tanpa mesin modern, mereka cuma mengandalkan insting dan api 1000 derajat ini.",
+      "Kalau orang biasa pasti udah menyerah duluan.",
+      "Tapi perhatiin detail tangannya pas nempa besi panas ini.",
+      "Momen pas besinya terbentuk asli satisfying banget.",
+      "Hasil akhirnya mulus kayak buatan pabrik canggih.",
+      "Kalau kalian butuh bukti skill tingkat tinggi, tonton lagi karena..."
+    ]
+  },
+  "en_version": {
+    "hook_text": "This is how Pakistani craftsmen forge massive iron traditionally!",
+    "narration_script": "This is how Pakistani craftsmen forge massive iron traditionally. Look closely. Without modern machinery, they rely entirely on instinct and 1000-degree heat. A normal person would've given up instantly. But watch their hands hammering this red-hot iron. The moment it takes shape is purely satisfying. The final result is smooth like high-tech factory output. If you want proof of master skill, watch again because...",
+    "sentences": [
+      "This is how Pakistani craftsmen forge massive iron traditionally.",
+      "Look closely. Without modern machinery, they rely entirely on instinct and 1000-degree heat.",
+      "A normal person would've given up instantly.",
+      "But watch their hands hammering this red-hot iron.",
+      "The moment it takes shape is purely satisfying.",
+      "The final result is smooth like high-tech factory output.",
+      "If you want proof of master skill, watch again because..."
+    ]
   }
-]
+}
 \`\`\`
 
 ATURAN STRICT:
-- HANYA keluarkan Array JSON murni \`[...]\` tanpa triple backtick atau teks pengantar.
-- Setiap segmen WAJIB memuat objek \`id_version\` (Bahasa Indonesia) dan \`en_version\` (Bahasa Inggris).
-- Kedua versi naskah harus menggunakan **Hook kuat di awal** dan **Seamless Loop Ending di akhir**!`;
+- HANYA keluarkan **1 Objek JSON Murni** \`{"id": "main_shorts", ...}\` tanpa triple backtick atau teks pengantar.
+- Objek WAJIB memuat \`id_version\` (Bahasa Indonesia) dan \`en_version\` (Bahasa Inggris).
+- Kedua versi naskah harus menggunakan **Dynamic Hook di awal** dan **Seamless Loop Ending di akhir**!`;
 
 const ShortsAnalyzeStep: React.FC = () => {
   const [videoSources, setVideoSources] = useState<VideoSourceItem[]>([]);
