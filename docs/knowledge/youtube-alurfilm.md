@@ -173,6 +173,7 @@ Setiap `thumbnail_prompt` yang dihasilkan AI di-format sebagai 3 blok aturan ter
 - **1. Movie Story Context**: Rangkuman singkat 1-2 kalimat konteks naskah film, karakter & kondisi fisik/emosional riilnya, setting lokasi asli, serta konflik emosional utama.
 - **2. Text Overlay Specification**: Spesifikasi teks marker warna Kuning Cerah (Part 1) & Merah Menyala + Stroke Hitam (Part 2) di posisi 1/3 bagian atas frame.
 - **3. YouTube Thumbnail Rendering Rules & Asset Guidance**: Format rasio 16:9 (`--ar 16:9`), area aman YouTube (*bottom-right safe zone*), pencahayaan sinematik kontras tinggi, tekstur poster film 8K, vignette gelap, dan panduan bagi generator AI untuk menentukan komposisi visual & penggunaan aset secara dinamis berdasarkan foto referensi dari pengguna.
+- ⚠️ **PENTING (Mencegah Indikator Waktu / Timestamp AI)**: DILARANG menggunakan kata "YouTube thumbnail", "duration badge", "timestamp", atau "video player" di dalam string `thumbnail_prompt`. Frase-frase tersebut memicu AI Image Generator (seperti Nano Banana Pro, Imagen 3, Midjourney, Flux) untuk secara otomatis menggambar indikator durasi video (seperti `0:00:01`) di pojok kanan bawah gambar. Gunakan frasa "Cinematic film scene poster" dan selalu sertakan Negative Constraints: `video player UI, timestamp, duration badge, timecode, play button, YouTube overlay`.
 
 ---
 

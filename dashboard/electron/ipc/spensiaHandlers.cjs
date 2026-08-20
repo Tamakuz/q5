@@ -367,6 +367,29 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
     const cleanJsonStr = aiClient.extractCleanJsonObject(rawJson);
     let parsed = JSON.parse(cleanJsonStr);
 
+function sanitizeThumbnailPrompt(promptStr) {
+  if (!promptStr || typeof promptStr !== 'string') return promptStr;
+
+  let cleaned = promptStr
+    .replace(/YouTube thumbnail artwork/gi, 'Hand-drawn 2D stick-figure artwork')
+    .replace(/YouTube thumbnail/gi, 'Cinematic artwork')
+    .replace(/for YouTube duration badge/gi, 'without text or UI elements')
+    .replace(/YouTube duration badge/gi, 'video timestamp overlay')
+    .replace(/duration badge/gi, 'UI overlay');
+
+  const negativeExclusions = 'video player UI, timestamp, duration badge, timecode, play button, YouTube overlay, video controls, watermark, numbers in corner';
+
+  if (/Negative Constraints:/i.test(cleaned)) {
+    if (!/video player UI/i.test(cleaned)) {
+      cleaned = cleaned.replace(/Negative Constraints:\s*/i, `Negative Constraints: ${negativeExclusions}, `);
+    }
+  } else {
+    cleaned += `. Negative Constraints: ${negativeExclusions}.`;
+  }
+
+  return cleaned;
+}
+
     // Hard Sanitizer for Spensia Thumbnail Concepts (Ensure STICK-FIGURE style, NO Vagabond/Vann/POV)
     if (parsed && Array.isArray(parsed.concepts)) {
       parsed.concepts = parsed.concepts.map((concept, idx) => {
@@ -377,7 +400,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
         }
         let p = concept.prompt || '';
         if (p.includes('Vagabond') || p.includes('Vinland') || p.includes('dark anime') || p.includes('gritty graphic novel')) {
-          p = `YouTube thumbnail artwork in hand-drawn 2D stick-figure style, 16:9 landscape aspect ratio. A single stick-figure character with a large dominant round head, thin straight-line limbs, big round eyes, and an exaggerated shocked facial expression, positioned at the bottom-center. Solid flat vibrant yellow background with high contrast. Clean composition. Bold text overlay at the top saying "${concept.text_overlay || 'FAKTA UNIK'}" in all caps, bright yellow font with a thick black outline. Negative Constraints: 3D render, photorealistic, Vagabond, anime, manga.`;
+          p = `Hand-drawn 2D stick-figure artwork in 16:9 landscape aspect ratio. A single stick-figure character with a large dominant round head, thin straight-line limbs, big round eyes, and an exaggerated shocked facial expression, positioned at the bottom-center. Solid flat vibrant yellow background with high contrast. Clean composition. Bold text overlay at the top saying "${concept.text_overlay || 'FAKTA UNIK'}" in all caps, bright yellow font with a thick black outline. Negative Constraints: video player UI, timestamp, duration badge, timecode, play button, YouTube overlay, 3D render, photorealistic, Vagabond, anime, manga.`;
+        } else {
+          p = sanitizeThumbnailPrompt(p);
         }
         return { ...concept, badge_text: badge, prompt: p };
       });

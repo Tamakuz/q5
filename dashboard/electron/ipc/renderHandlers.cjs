@@ -39,7 +39,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
     if (renderMapping && renderMapping.mappings && Array.isArray(renderMapping.mappings)) {
       const timelineClips = [];
       let clipIdCounter = 1;
-      for (const item of mapping.mappings) {
+      for (const item of renderMapping.mappings) {
         const isVoTag = Boolean((item.type && item.type.toLowerCase().includes('visual_only')) || (item.text && /\[visual_only/i.test(item.text)));
         if (item.visuals && Array.isArray(item.visuals) && item.visuals.length > 0) {
           for (const vis of item.visuals) {

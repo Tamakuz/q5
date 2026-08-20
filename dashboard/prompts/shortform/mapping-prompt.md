@@ -36,6 +36,8 @@ ATURAN TEKNIS TIMELINE:
 1. EXACT VO DURATION MATCH: Jumlah total durasi `t` dari seluruh klip di `timeline` HARUS sama persis dengan total durasi Voice Over (item terakhir `end_seconds`).
 2. ANTI FREEZE FRAME: JANGAN gunakan nilai `ss` yang persis SAMA untuk 2 klip berurutan. Setiap klip HARUS mengambil adegan video mentah yang berbeda.
 3. DURATION BOUNDARY: Perhatikan agar `ss + t` tidak melebihi durasi total video mentah sumber.
+4. LINIER & KRONOLOGIS MAJU: Pemilihan `ss` (seek start) HARUS SELALU LINIER URUT MAJU (`ss` klip N+1 >= `ss` klip N). DILARANG KERAS melompat mundur ke detik sebelumnya agar alur cerita visual dan Voice Over (VO) 100% nyambung & sinkron.
+5. KONTEKS VISUAL CLEAR & SINKRON: Pemotongan `ss` WAJIB menangkap subjek/wajah karakter utama atau objek yang persis dibicarakan dalam narasi. DILARANG KERAS mengambil frame ambigu tanpa konteks (seperti gambar tangan acak tanpa tubuh/wajah atau latar belakang kosong).
 
 FORMAT OUTPUT (MURNI JSON OBJECT, TANPA MARKDOWN):
 

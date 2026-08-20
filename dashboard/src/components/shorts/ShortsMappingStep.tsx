@@ -259,6 +259,8 @@ Cocokkan SETIAP KALIMAT NARASI pada transkrip audio di atas dengan potongan adeg
 1. **EXACT DURATION MATCH**: Durasi visual (\`duration\`) untuk setiap klip WAJIB SAMA PERSIS dengan durasi pengucapan di Voice Over (\`audio_end - audio_start\`).
 2. **SEEK START (\`video_start\`)**: Tentukan waktu mulai adegan (\`video_start\` dalam detik desimal) dari video mentah yang paling dramatis atau menggambarkan kalimat narasi tersebut.
 3. **SEEK END (\`video_end\`)**: \`video_end = video_start + duration\`.
+4. **LINIER & KRONOLOGIS MAJU**: Timestamp \`video_start\` HARUS SELALU LINIER URUT MAJU (\`video_start\` kalimat N+1 >= \`video_start\` kalimat N). DILARANG KERAS melompat mundur ke detik/menit sebelumnya agar alur visual dan Voice Over (VO) 100% nyambung & sinkron.
+5. **KONTEKS VISUAL CLEAR & SINKRON**: Visual clip & freeze frame WAJIB secara jelas menampilkan wajah karakter utama atau objek utama yang sedang diucapkan dalam narasi. DILARANG KERAS mengambil frame ambigu tanpa konteks (seperti close-up tangan acak tanpa tubuh/wajah atau latar belakang kosong).
 
 ---
 

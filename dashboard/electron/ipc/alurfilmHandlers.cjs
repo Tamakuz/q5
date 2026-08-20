@@ -2334,15 +2334,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
         const sanitizeSourceStart = (rawVal) => {
           let val = Number(rawVal);
           if (isNaN(val) || val < 0) return 0;
-          // Dynamic ffprobe check: If val >= realChunkDur, AI Studio picked full movie timestamps instead of chunk timeline.
-          // Auto-fix by wrapping dynamically using the EXACT ffprobe duration of this specific video chunk:
-          if (realChunkDur > 0 && val >= realChunkDur) {
-            const wrapWindow = Math.max(5.0, realChunkDur - 5.0);
-            val = Number((val % wrapWindow).toFixed(2));
-          } else if (realChunkDur <= 0 && val > 1000) {
-            val = Number((val % 550).toFixed(2));
-          }
-          return val;
+          return Number(val.toFixed(2));
         };
 
         if (isVisualOnly) {
@@ -2642,12 +2634,44 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       },
     });
 
+    function sanitizeThumbnailPrompt(promptStr) {
+      if (!promptStr || typeof promptStr !== 'string') return promptStr;
+
+      let cleaned = promptStr
+        .replace(/YouTube thumbnail artwork/gi, 'Cinematic film scene poster')
+        .replace(/YouTube thumbnail/gi, 'Cinematic film scene poster')
+        .replace(/for YouTube duration badge/gi, 'without text or UI elements')
+        .replace(/YouTube duration badge/gi, 'video timestamp overlay')
+        .replace(/duration badge/gi, 'UI overlay');
+
+      const negativeExclusions = 'video player UI, timestamp, duration badge, timecode, play button, YouTube overlay, video controls, watermark, numbers in corner';
+
+      if (/Negative Constraints:/i.test(cleaned)) {
+        if (!/video player UI/i.test(cleaned)) {
+          cleaned = cleaned.replace(/Negative Constraints:\s*/i, `Negative Constraints: ${negativeExclusions}, `);
+        }
+      } else {
+        cleaned += `. Negative Constraints: ${negativeExclusions}.`;
+      }
+
+      return cleaned;
+    }
+
     let resultData = null;
     try {
       resultData = JSON.parse(rawJsonText);
     } catch (e) {
       const cleanJson = aiClient.extractCleanJsonObject(rawJsonText);
       resultData = JSON.parse(cleanJson);
+    }
+
+    if (resultData && Array.isArray(resultData.titles)) {
+      resultData.titles = resultData.titles.map((t) => {
+        if (t.thumbnail_prompt) {
+          t.thumbnail_prompt = sanitizeThumbnailPrompt(t.thumbnail_prompt);
+        }
+        return t;
+      });
     }
 
     // Save initial generated metadata

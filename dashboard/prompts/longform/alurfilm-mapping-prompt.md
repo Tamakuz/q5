@@ -46,58 +46,73 @@ Jika kamu melampirkan (attach) File Audio & Video Source di AI Studio:
 3. DILARANG KERAS memilih timestamp acak tanpa mencocokkan visual adegan film!
 
 ==================================================
-🔀 ATURAN BEBAS NON-LINIER & RE-USE KLIP (AKURASI VISUAL NOMOR 1):
+▶️ ATURAN STRUKTURAL LINIER & SEBARAN TIMECODE MAJU SEPANJANG CHUNK:
 ==================================================
-1. 🔀 **MAPPING DILARANG KERAS HARUS LINIER SEARAH (BEBAS LOMPAT DEPAN & BELAKANG)**:
-   - Pemilihan timestamp adegan (`source_start_seconds`) **SANGAT BEBAS DAN TIDAK HARUS URUT SEARAH (TIDAK HARUS LINIER)** dari awal hingga akhir video mentah!
-   - Kamu SANGAT BOLEH mengambil adegan dari menit sebelumnya (misal dari detik 180.0s melompat kembali ke detik 25.0s atau detik 10.0s), me-reuse (memakai ulang) adegan karakter yang sudah pernah muncul di awal film, atau menyebar timestamp secara teracak asal visualnya 100% PRESISI & RELEVAN.
-   - **Prinsip Utama**: Keselarasan visual dengan ucapan narasi VO adalah NOMOR 1! Jika di pertengahan naskah narator membahas kembali subjek/karakter dari menit awal, kamu WAJIB mengambil timestamp dari menit awal tersebut.
+1. ▶️ **MAPPING MUTLAK WAJIB LINIER & URUT SEARAH (MONOTONIK MAJU)**:
+   - Pemilihan timestamp adegan (`source_start_seconds`) **MUTLAK WAJIB LINIER DAN URUT KRONOLOGIS SEARAH SEJALAN DENGAN CERITA** dari awal hingga akhir video chunk/sumber!
+   - Nilai `source_start_seconds` untuk kalimat `N+1` HARUS SELALU LEBIH BESAR ATAU SAMA DENGAN `source_start_seconds` kalimat `N` (`source_start_seconds` bergerak maju secara urut).
+   - 🛑 **DILARANG KERAS MELOMPAT MUNDUR / LONCAT KE BELAKANG** (misal dari detik 180.0s melompat mundur ke 25.0s)! Melompat mundur akan merusak kontinuitas visual, membuat adegan mati-hidup/siang-malam terbolak-balik, dan memutus keterkaitan konteks antara visual clip dan Voice Over (VO).
+   - 🎯 **SEBARAN TIMECODE DINAMIS SEPANJANG DURASI CHUNK (`chunk_video_duration_sec`)**:
+     * AI WAJIB menyebar timestamp secara **DINAMIS & SEARAH MAJU** mengikuti alur naskah dari porsi awal hingga porsi akhir durasi video chunk (`chunk_video_duration_sec`).
+     * **Awal Naskah**: Mengambil sampel timestamp adegan dari porsi awal video chunk.
+     * **Tengah Naskah**: Mengambil sampel timestamp adegan dari porsi pertengahan video chunk.
+     * **Akhir Naskah (Kalimat-Kalimat Akhir)**: **MUTLAK WAJIB** mengambil timestamp di porsi **AKHIR VIDEO CHUNK** (mendekati nilai total durasi `chunk_video_duration_sec`).
+     * 🛑 **DILARANG KERAS PADA KALIMAT-KALIMAT AKHIR MELOMPAT KEMBALI KE ADEGAN AWAL VIDEO CHUNK**!
+
 2. 🛡️ **Bypass Content ID Ekstrem**:
-   - Pengambilan timestamp non-linier (teracak depan-belakang) membuat alur video mentah asli 100% terpotong-potong, sehingga YouTube Content ID AKAN GAGAL TOTAL mendeteksi pola kontinuitas video asli.
+   - Pengambilan timestamp linier urut maju dengan kombinasi Ultra Slow Motion (`slow_mo_factor`: 0.25 - 0.6), Freeze Frame Zoom, dan Lompatan Timecode (+3s s/d +8s ke depan) membuat alur video mentah terpotong-potong secara aman tanpa merusak alur cerita narasi VO, sehingga YouTube Content ID GAGAL TOTAL mendeteksi pola kontinuitas video asli.
 
 ==================================================
-🚨 FORMULA MUTLAK FAIR USE & CONTENT ID BYPASS (AMBIL 2s ➔ FREEZE FRAME 5s ➔ SKIP 5s):
+🚨 FORMULA MUTLAK FAIR USE & CONTENT ID BYPASS (AMBIL 1.5s-2s ➔ FREEZE FRAME 5s ➔ SKIP MAJU 5s):
 ==================================================
 Untuk meloloskan video dari YouTube Content ID & klaim hak cipta, kamu MUTLAK WAJIB menerapkan pola ritme perulangan ini:
 
-1. 🎬 **UTAMAKAN SLOW MOTION MAKSIMAL 2.0 DETIK [PRIMARY #1]**:
-   - Sampel klip bergeraknya MAKSIMAL **2.0 DETIK** dari video mentah asli dan di-slow motion (`slow_mo_factor`: 0.5 - 0.6) sehingga memanjang menjadi ~3.3 - 4.0 detik di timeline. Ini adalah **PILIHAN UTAMA DOMINAN (PRIMARY #1)** untuk memberikan alur visual sinematik & mulus.
+1. 🎬 **UTAMAKAN ULTRA SLOW MOTION MAKSIMAL 2.0 DETIK [PRIMARY #1]**:
+   - Sampel klip bergeraknya MAKSIMAL **1.5 - 2.0 DETIK** dari video mentah asli dan di-slow motion (`slow_mo_factor`: **0.25 - 0.6**, misal 0.25 - 0.40 untuk efek slow-mo ultra sinematik & mulus) sehingga memanjang menjadi ~3.3 - 5.0 detik di timeline. Ini adalah **PILIHAN UTAMA DOMINAN (PRIMARY #1)** untuk memberikan alur visual sinematik & mulus.
 
 2. ❄️ **FREEZE FRAME DI JEDA ~5s [SECONDARY #2] (`freeze_frame_with_zoom`)**:
    - Pada jeda/interval ~5 detik berikutnya di timeline, gunakan tipe visual `"freeze_frame_with_zoom"` sebagai **PILIHAN SECONDARY #2**.
    - Freeze frame mengambil 1 foto diam (*still frame*) dari timestamp puncak adegan tersebut lalu di-zoom perlahan (Slow Zoom-In/Pan) selama durasi 3.0 hingga 5.0 detik.
    - Karena berupa foto diam dengan efek zoom, gambar ini **100% BEBAS dari deteksi sidik jari gerakan video Content ID YouTube** namun tetap terlihat hidup & sangat sinematik bagi penonton.
 
-3. 🔀 **LOMPAT TIMECODE SISI VIDEO ASLI (SKIP 5s)**:
-   - Setelah klip / Freeze Frame selesai, **LOMPATI TIMECODE VIDEO FILM ASLI SEJAUH 5 DETIK** (`source_start_seconds` berikutnya melompat +5.0s s/d +8.0s di video mentah).
-   - DILARANG KERAS mengambil timestamp berurutan dempet-dempet (misal: 0s -> 2s -> 4s -> 6s). Pemotongan linier dempet-dempet AKAN MENDETEKSI HAK CIPTA.
+3. ⏩ **LOMPAT MAJU TIMECODE VIDEO ASLI (+3s s/d +8s MAJU)**:
+   - Setelah klip / Freeze Frame selesai, **LOMPATI TIMECODE VIDEO FILM ASLI SEJAUH 3 S/D 8 DETIK KE DEPAN** (`source_start_seconds` berikutnya melompat +3.0s s/d +8.0s MAJU di video mentah).
+   - **TETAP URUT KRONOLOGIS MAJU**: Jarak lompatan dilakukan **SELALU KE DEPAN (SEARAH MAJU)**, TIDAK BOLEH MELOMPAT MUNDUR! Ini menjaga kontinuitas alur cerita visual tetap linier dan 100% sinkron dengan Voice Over.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  POLA STRUKTUR VISUAL MAPPING (LOOPING REPEAT):
- [Slow Motion Max 2s (Primary #1)] ──► [Freeze Frame Zoom ~5s (Secondary #2)] ──► (Skip 5s Video Asli) ──► ...
+ [Slow Motion Max 2s (Primary #1)] ──► [Freeze Frame Zoom ~5s (Secondary #2)] ──► (Skip Maju +5s Video Asli) ──► ...
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ==================================================
-📷 ATURAN MUTLAK PEMILIHAN FRAME FREEZE FRAME ("freeze_frame_with_zoom") HARUS CLEAR & TAJAM:
+📷 ATURAN MUTLAK PEMILIHAN FREEZE FRAME ("freeze_frame_with_zoom") — RELEVANSI KONTEKS & KETAJAMAN MAKSIMAL:
 ==================================================
 Saat menentukan timestamp (`source_start_seconds`) untuk tipe visual `"freeze_frame_with_zoom"`:
 
-1. 🎯 **FRAME WAJIB STABIL, TAJAM, HIGH DETAIL, & IN-FOCUS (NO BLUR)**:
+1. 🎯 **KONTEKS KATA NARASI WAJIB TERCERMIN DENGAN JELAS (RELEVANSI 100%)**:
+   - Frame foto diam WAJIB secara LANGSUNG mewakili kata/makna/subjek yang diucapkan pada naskah narasi VO.
+   - WAJIB menampilkan **Wajah Karakter Utama dengan Ekspresi Jelas** (misal: terkejut, marah, sedih) atau **Objek Utama yang Sedang Dibahas** secara utuh dan mudah dipahami penonton.
+   - 🛑 **DILARANG KERAS MEMILIH FRAME AMBIGU / TANPA KONTEKS**:
+     * Dilarang memilih frame acak seperti close-up tangan/kaki tanpa wajah/tubuh subjek (misal hanya gambar tangan acak padahal narasi tidak membahas tangan).
+     * Dilarang memilih frame latar belakang/dinding/pemandangan acak tanpa ada subjek/karakter utama yang relevan.
+     * Penonton WAJIB langsung mengerti SIAPA/APA yang ada di gambar freeze frame tersebut dalam 1 kali lihat sejalan dengan ucapan narasi!
+
+2. 🎯 **FRAME WAJIB STABIL, TAJAM, HIGH DETAIL, & IN-FOCUS (NO BLUR)**:
    - WAJIB memilih detik di mana subjek/karakter/objek sedang **posisi diam/puncak ekspresi stabil** dengan pencahayaan terang dan ketajaman gambar 100% terfokus tajam.
    - Pastikan muka karakter, ekspresi, atau objek utama terlihat sangat jelas dan mudah dipahami penonton.
 
-2. 🛑 **DILARANG KERAS MEMILIH FRAME BERIKUT**:
+3. 🛑 **DILARANG KERAS MEMILIH FRAME BERIKUT**:
    - DILARANG KERAS memilih detik yang memuat **MOTION BLUR** (saat kepala berputar cepat, kamera mengayun/pan cepat, atau karakter sedang berlari kencang).
    - DILARANG KERAS memilih detik yang **OVER-ZOOM / CROPPED DISTORTION** (wajah terpotong ekstrem atau piksel buram pecah).
    - DILARANG KERAS memilih detik yang **BERKEDIP / EKSPRESI MEREM / GELAP TANPA FOKUS** atau tepat di detik pergantian cut-scene/transisi layar yang masih berbayang.
 
-3. 📐 **OFFSET PRESISI MULTI-FRAME (+0.3s s/d +0.5s SETELAH CUT SCENE)**:
+4. 📐 **OFFSET PRESISI MULTI-FRAME (+0.3s s/d +0.5s SETELAH CUT SCENE)**:
    - Ambil timestamp `source_start_seconds` di pertengahan adegan (misal +0.3s s/d +0.5s setelah potong adegan) di mana kamera dan karakter sudah 100% terkunci diam dan jernih.
 
 ==================================================
 🎭 KOMBINASI TIPE VISUAL & RASIO PENGGUNAAN:
 ==================================================
-1. `slow_motion`            (~45% - 50%) ➔ [PRIMARY #1] Klip gerak lambat max 2s (slow_mo_factor 0.5/0.6 ➔ memanjang 3.3-4.0s di timeline) - Efek Sinematik Dominan.
+1. `slow_motion`            (~45% - 50%) ➔ [PRIMARY #1] Klip gerak lambat max 2s (slow_mo_factor 0.25 - 0.6 ➔ memanjang 3.3-6.0s di timeline) - Efek Sinematik Dominan.
 2. `freeze_frame_with_zoom` (~30% - 35%) ➔ [SECONDARY #2] Mengisi jeda ~5s dengan foto diam 1 frame tajam + slow zoom-in (Fokus Utama Anti-Content ID & Frame Jernih).
 3. `video_cut`              (~15% - 20%) ➔ Potongan klip bergerak kecepatan normal max 2s.
 4. `mirror_cut`             (~10%)       ➔ Variasi mirror horizontal max 2s.
@@ -112,9 +127,9 @@ Wajib sertakan `color_grading_shift` acak pada setiap klip (contrast: 1.02-1.07,
 2. 🛑 **Kondisi Berhenti Utama (`Boundary Terminal Rule`)**:
    - Pengambilan klip sampel untuk segmen `VISUAL_ONLY` **MUTLAK WAJIB STOP / BERHENTI SECARA OTOMATIS** begitu nilai `source_start_seconds` mendekati atau mencapai batas akhir rentang adegan tersebut (`end_sec`).
    - DILARANG KERAS mengambil `source_start_seconds` melebihi batas akhir adegan tersebut (dilarang bocor mengambil adegan di luar rentang timecode yang tertera).
-3. 🔀 **Prinsip Sampling Non-Linier & Dinamis**:
+3. ⏩ **Prinsip Sampling Linier & Lompatan Maju**:
    - **Jumlah Klip Dinamis**: Jumlah klip tidak dibatasi secara kaku, melainkan ditentukan secara alami oleh jangkauan adegan dan jarak lompatan sampling.
-   - **Lompatan Timecode Non-Linier**: Setiap klip mengambil cuplikan bergerak dari dalam jangkauan adegan dengan lompatan waktu alami antar-sampel untuk memutus kontinuitas linier video mentah (dilarang menyusun timestamp linier rapat/berurutan dempet-dempet).
+   - **Lompatan Timecode Searah Maju**: Setiap klip mengambil cuplikan bergerak dari dalam jangkauan adegan dengan lompatan waktu maju (+3s s/d +6s ke depan) secara urut kronologis (dilarang keras melompat mundur).
 4. 🎬 **Format Visual & Durasi Output (MUTLAK 100% SAMA DENGAN TRANSKRIP)**:
    - **Tipe Visual**: Khusus segmen `VISUAL_ONLY`, SEMUA klip WAJIB menggunakan tipe `"video_cut"` saja (kecepatan normal 1.0x, sampel bergerak asli max 2.0 detik per klip).
    - **Sinkronisasi Durasi Total (MUTLAK WAJIB 100% SAMA DENGAN TRANSKRIP)**: Total akumulasi durasi klip visual di array `visuals` **WAJIB SAMA PERSIS DENGAN DURASI PADA TRANSKRIP JSON**!

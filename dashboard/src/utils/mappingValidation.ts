@@ -340,8 +340,6 @@ export function autoFixAlurfilmMapping(
         }
         if (typeof clip.source_start_seconds !== 'number' || isNaN(clip.source_start_seconds) || clip.source_start_seconds < 0) {
           clip.source_start_seconds = Number((idx * 3.0 + cIdx * 2.0).toFixed(1));
-        } else if (clip.source_start_seconds > 1000) {
-          clip.source_start_seconds = Number((clip.source_start_seconds % 550).toFixed(1));
         }
         if (!clip.color_grading_shift) {
           clip.color_grading_shift = { contrast: 1.04, brightness: 0.005, saturation: 1.05 };
