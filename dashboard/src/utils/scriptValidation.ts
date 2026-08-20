@@ -53,26 +53,37 @@ export function validateScriptAnalysis(
   if (typeof rawInput === 'string') {
     let cleaned = rawInput.trim();
     if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+      cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
     }
     try {
       data = JSON.parse(cleaned);
     } catch (err: any) {
-      return {
-        isValid: false,
-        issues: [
-          {
-            id: 'INVALID_JSON_SYNTAX',
-            severity: 'error',
-            field: 'root',
-            message: `JSON Syntax Error: ${err.message}`,
-          },
-        ],
-        errorCount: 1,
-        warningCount: 0,
-        normalizedData: null,
-        summaryText: `JSON Format Error: ${err.message}`,
-      };
+      // Fallback: extract inner JSON between first '{' and last '}'
+      const firstBrace = cleaned.indexOf('{');
+      const lastBrace = cleaned.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        try {
+          data = JSON.parse(cleaned.substring(firstBrace, lastBrace + 1));
+        } catch {}
+      }
+
+      if (!data) {
+        return {
+          isValid: false,
+          issues: [
+            {
+              id: 'INVALID_JSON_SYNTAX',
+              severity: 'error',
+              field: 'root',
+              message: `JSON Syntax Error: ${err.message}. Pastikan teks yang ditempel memiliki kurung kurawal pembuka { dan penutup } yang utuh.`,
+            },
+          ],
+          errorCount: 1,
+          warningCount: 0,
+          normalizedData: null,
+          summaryText: `JSON Format Error: ${err.message}. Pastikan teks memiliki kurung kurawal { ... } yang lengkap.`,
+        };
+      }
     }
   }
 
@@ -103,6 +114,10 @@ export function validateScriptAnalysis(
       message: 'Missing "naskah_voiceover" object in JSON output.',
     });
   } else {
+    // Normalize script_text to string
+    if (typeof data.naskah_voiceover.script_text === 'object' && data.naskah_voiceover.script_text !== null) {
+      data.naskah_voiceover.script_text = JSON.stringify(data.naskah_voiceover.script_text);
+    }
     const scriptText = data.naskah_voiceover.script_text;
     if (typeof scriptText !== 'string' || !scriptText.trim()) {
       issues.push({
@@ -125,7 +140,17 @@ export function validateScriptAnalysis(
       data.naskah_voiceover.word_count = words.length;
     }
 
-    if (!data.naskah_voiceover.macro_summary || typeof data.naskah_voiceover.macro_summary !== 'string') {
+    // Normalize macro_summary to string if it is an object
+    if (data.naskah_voiceover.macro_summary !== undefined && typeof data.naskah_voiceover.macro_summary !== 'string') {
+      if (typeof data.naskah_voiceover.macro_summary === 'object' && data.naskah_voiceover.macro_summary !== null) {
+        const obj = data.naskah_voiceover.macro_summary;
+        data.naskah_voiceover.macro_summary = obj.macro_summary || obj.summary || obj.text || JSON.stringify(obj);
+      } else {
+        data.naskah_voiceover.macro_summary = String(data.naskah_voiceover.macro_summary);
+      }
+    }
+
+    if (!data.naskah_voiceover.macro_summary) {
       issues.push({
         id: 'MISSING_MACRO_SUMMARY',
         severity: 'warning',
@@ -135,24 +160,47 @@ export function validateScriptAnalysis(
     }
   }
 
-  // Validate character_registry
-  if (data.character_registry !== undefined && !Array.isArray(data.character_registry)) {
-    issues.push({
-      id: 'INVALID_CHARACTER_REGISTRY',
-      severity: 'error',
-      field: 'character_registry',
-      message: '"character_registry" must be an array of characters.',
-    });
+  // Validate and normalize character_registry
+  if (data.character_registry !== undefined) {
+    if (!Array.isArray(data.character_registry)) {
+      issues.push({
+        id: 'INVALID_CHARACTER_REGISTRY',
+        severity: 'error',
+        field: 'character_registry',
+        message: '"character_registry" must be an array of characters.',
+      });
+    } else {
+      data.character_registry = data.character_registry.map((c: any) => {
+        if (!c || typeof c !== 'object') return { assigned_name: 'Unknown', visual_description: '' };
+        return {
+          assigned_name: typeof c.assigned_name === 'string' ? c.assigned_name : (c.assigned_name ? JSON.stringify(c.assigned_name) : 'Unknown'),
+          visual_description: typeof c.visual_description === 'string' ? c.visual_description : (c.visual_description ? JSON.stringify(c.visual_description) : ''),
+        };
+      });
+    }
   }
 
-  // Validate timeline_edits
-  if (data.timeline_edits !== undefined && !Array.isArray(data.timeline_edits)) {
-    issues.push({
-      id: 'INVALID_TIMELINE_EDITS',
-      severity: 'error',
-      field: 'timeline_edits',
-      message: '"timeline_edits" must be an array of scene items.',
-    });
+  // Validate and normalize timeline_edits
+  if (data.timeline_edits !== undefined) {
+    if (!Array.isArray(data.timeline_edits)) {
+      issues.push({
+        id: 'INVALID_TIMELINE_EDITS',
+        severity: 'error',
+        field: 'timeline_edits',
+        message: '"timeline_edits" must be an array of scene items.',
+      });
+    } else {
+      data.timeline_edits = data.timeline_edits.map((item: any, idx: number) => {
+        if (!item || typeof item !== 'object') return { id: `scene_${idx}`, scene_label: 'Scene', narrative_focus: '' };
+        return {
+          id: item.id || `scene_${idx}`,
+          start_time: typeof item.start_time === 'string' ? item.start_time : String(item.start_time || ''),
+          end_time: typeof item.end_time === 'string' ? item.end_time : String(item.end_time || ''),
+          scene_label: typeof item.scene_label === 'string' ? item.scene_label : (item.scene_label ? JSON.stringify(item.scene_label) : 'Scene'),
+          narrative_focus: typeof item.narrative_focus === 'string' ? item.narrative_focus : (item.narrative_focus ? JSON.stringify(item.narrative_focus) : ''),
+        };
+      });
+    }
   }
 
   // Normalize defaults

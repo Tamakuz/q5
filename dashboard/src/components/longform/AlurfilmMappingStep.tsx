@@ -78,7 +78,8 @@ const AlurfilmMappingStep: React.FC = () => {
 
   const handleCopyPromptForPart = async (partNum: number) => {
     try {
-      const totalChunks = chunks.length || 1;
+      const mainChunks = chunks.filter((c) => c.part > 0);
+      const totalChunks = mainChunks.length > 0 ? mainChunks.length : (chunks.length || 1);
       let formattedPrompt = '';
 
       if (api.getAlurfilmMappingPrompt) {

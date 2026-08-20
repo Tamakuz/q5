@@ -15,9 +15,14 @@ program
 
 // ─── Zod Schema for Alurfilm Mapping ─────────────────────
 
+const positiveDurationSchema = z.preprocess(
+  (val) => (typeof val === 'number' && val <= 0 ? 0.1 : val),
+  z.number().positive()
+);
+
 const VisualClipSchema = z.object({
   type: z.enum(['slow_motion', 'mirror_cut', 'freeze_frame_with_zoom', 'video_cut', 'pan_and_zoom_cut']).optional().default('video_cut'),
-  duration: z.number().positive(),
+  duration: positiveDurationSchema,
   source_start_seconds: z.number().min(0).optional(),
   source_timestamp_seconds: z.number().min(0).optional(),
   slow_mo_factor: z.number().optional(),
@@ -37,7 +42,7 @@ const SentenceMappingSchema = z.object({
   type: z.string().optional(),
   start: z.number().min(0).optional(),
   end: z.number().min(0).optional(),
-  duration: z.number().positive().optional(),
+  duration: positiveDurationSchema.optional(),
   visuals: z.array(VisualClipSchema).optional(),
 });
 
@@ -188,6 +193,24 @@ program
     let mapping: AlurfilmMapping;
     try {
       const raw = JSON.parse(fs.readFileSync(resolvedMap, 'utf-8'));
+      if (raw && Array.isArray(raw.mappings)) {
+        raw.mappings = raw.mappings.map((m: any) => {
+          if (!m || typeof m !== 'object') return m;
+          const s = typeof m.start === 'number' ? m.start : 0;
+          const e = typeof m.end === 'number' ? m.end : s;
+          if (typeof m.duration !== 'number' || m.duration <= 0) {
+            m.duration = e > s ? Number((e - s).toFixed(2)) : 0.1;
+          }
+
+          const isVisOnly = m.type === 'visual_only' || String(m.text || '').includes('VISUAL_ONLY');
+          if (Array.isArray(m.visuals)) {
+            if (isVisOnly) {
+              m.duration = Number(m.visuals.reduce((acc: number, c: any) => acc + (c.duration || 0), 0).toFixed(2));
+            }
+          }
+          return m;
+        });
+      }
       mapping = AlurfilmMappingSchema.parse(raw);
     } catch (err: any) {
       if (err instanceof z.ZodError) {
@@ -257,13 +280,15 @@ program
         (sentence.text && /\[visual_only/i.test(sentence.text))
       );
 
-      const targetVoDur = (sentence.start !== undefined && sentence.end !== undefined && sentence.end > sentence.start)
-        ? Number((sentence.end - sentence.start).toFixed(2))
-        : (sentence.duration || 3.0);
+      const targetVoDur = isVisualOnly
+        ? (sentence.duration || 3.0)
+        : ((sentence.start !== undefined && sentence.end !== undefined && sentence.end > sentence.start)
+            ? Number((sentence.end - sentence.start).toFixed(2))
+            : (sentence.duration || 3.0));
 
       if (sentence.visuals && sentence.visuals.length > 0) {
         const sumVisDur = sentence.visuals.reduce((sum, v) => sum + (v.duration || 0), 0);
-        const scale = (sumVisDur > 0 && Math.abs(sumVisDur - targetVoDur) > 0.15)
+        const scale = (sumVisDur > 0 && Math.abs(sumVisDur - targetVoDur) > 0.15 && !isVisualOnly)
           ? (targetVoDur / sumVisDur)
           : 1.0;
 
@@ -288,11 +313,15 @@ program
           });
         }
       } else {
+        const fallbackSs = (sentence as any).source_start_seconds !== undefined
+          ? (sentence as any).source_start_seconds
+          : ((sentence as any).source_timestamp_seconds !== undefined ? (sentence as any).source_timestamp_seconds : (sentence.start || 0));
+
         clips.push({
           id: clipIdCounter++,
           sentenceIndex: sentence.sentence_index,
           text: sentence.text || '',
-          sourceStart: sentence.start || 0,
+          sourceStart: fallbackSs,
           duration: targetVoDur,
           type: 'video_cut',
           isVisualOnly,
@@ -300,32 +329,55 @@ program
       }
     }
 
-    const totalDur = clips.reduce((s, c) => s + c.duration, 0);
+    // Inspect actual voiceover audio file duration if available to prevent rendering past audio end
+    let maxAudioDurationSec = 0;
+    if (resolvedAudioFinal && fs.existsSync(resolvedAudioFinal)) {
+      try {
+        const voMeta = await ffmpeg.getVideoMeta(resolvedAudioFinal);
+        if (voMeta && voMeta.duration && voMeta.duration > 0) {
+          maxAudioDurationSec = voMeta.duration;
+        }
+      } catch {}
+    }
+
+    let totalDur = clips.reduce((s, c) => s + c.duration, 0);
+    const narrationClips = clips.filter(c => !c.isVisualOnly);
+    const narrationTotalDur = narrationClips.reduce((s, c) => s + c.duration, 0);
+
+    if (maxAudioDurationSec > 0 && narrationClips.length > 0 && Math.abs(narrationTotalDur - maxAudioDurationSec) > 0.1) {
+      console.log(`⚠️ [Alurfilm Engine] Narration visual clips duration (${narrationTotalDur.toFixed(2)}s) differs from Audio VO duration (${maxAudioDurationSec.toFixed(2)}s). Auto-adjusting narration clips.`);
+      const scale = maxAudioDurationSec / narrationTotalDur;
+      narrationClips.forEach((c, idx) => {
+        if (idx === narrationClips.length - 1) {
+          const otherSum = narrationClips.slice(0, idx).reduce((s, x) => s + x.duration, 0);
+          c.duration = Math.max(0.2, Number((maxAudioDurationSec - otherSum).toFixed(3)));
+        } else {
+          c.duration = Number((c.duration * scale).toFixed(3));
+        }
+      });
+      totalDur = clips.reduce((s, c) => s + c.duration, 0);
+    }
+
     const width = 1920;
     const height = 1080;
 
     console.log(`✅ [Alurfilm Engine] ${clips.length} Visual Clips across ${mapping.mappings.length} Sentences | Total Duration: ${totalDur.toFixed(1)}s (${(totalDur / 60).toFixed(2)} min) | Resolution ${width}x${height} (16:9)`);
 
-    // Collect exact time intervals for all VISUAL_ONLY sentences
+    // Collect exact frame-accurate time intervals for all VISUAL_ONLY clips on the rendered timeline
     const visualOnlyIntervals: Array<{ start: number; end: number }> = [];
     let runningTimelineTime = 0;
 
-    for (const sentence of mapping.mappings) {
-      const isVisualOnlySentence = Boolean(
-        (sentence.type && sentence.type.toLowerCase().includes('visual_only')) ||
-        (sentence.text && /\[visual_only/i.test(sentence.text))
-      );
-      const targetVoDur = (sentence.start !== undefined && sentence.end !== undefined && sentence.end > sentence.start)
-        ? Number((sentence.end - sentence.start).toFixed(2))
-        : (sentence.duration || 3.0);
+    for (const clip of clips) {
+      const clipStart = runningTimelineTime;
+      const clipEnd = clipStart + clip.duration;
 
-      const sentStart = sentence.start !== undefined ? sentence.start : runningTimelineTime;
-      const sentEnd = sentence.end !== undefined ? sentence.end : (sentStart + targetVoDur);
-
-      if (isVisualOnlySentence) {
-        visualOnlyIntervals.push({ start: sentStart, end: sentEnd });
+      if (clip.isVisualOnly) {
+        visualOnlyIntervals.push({
+          start: Number(clipStart.toFixed(3)),
+          end: Number(clipEnd.toFixed(3)),
+        });
       }
-      runningTimelineTime = sentEnd;
+      runningTimelineTime = clipEnd;
     }
 
     let visualOnlyConditions = '0';
@@ -381,10 +433,10 @@ program
           let inputReadDur = '';
 
           if (clip.type === 'freeze_frame_with_zoom') {
-            // Extract first frame at sourceStart, loop, scale/crop, apply smooth subtle zoompan (1.00x -> 1.035x) & limit output to duration with bicubic sharpness
+            // Extract first frame at sourceStart, loop, scale/crop, apply smooth subtle zoompan (1.00x -> 1.035x) & limit output to duration with lanczos crisp sharpness
             inputReadDur = '0.5';
             const clipFrames = Math.max(1, Math.round(clip.duration * 30));
-            scaleFilter = `loop=loop=-1:size=1:start=0,scale=${width}:${height}:force_original_aspect_ratio=increase:flags=bicubic,crop=${width}:${height},zoompan=z='1+0.035*(on/${clipFrames})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${width}x${height}:fps=30,setsar=1${fxChain}`;
+            scaleFilter = `loop=loop=-1:size=1:start=0,scale=${width}:${height}:force_original_aspect_ratio=increase:flags=lanczos,crop=${width}:${height},zoompan=z='1+0.035*(on/${clipFrames})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${width}x${height}:fps=30,setsar=1${fxChain}`;
           } else {
             scaleFilter = `scale=${scaledWidth}:${scaledHeight}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1${fxChain}`;
             inputReadDur = (clip.type === 'slow_motion' && clip.slowMoFactor && clip.slowMoFactor > 0)
@@ -395,7 +447,7 @@ program
           const ffmpegArgs: string[] = [];
 
           if (clip.isVisualOnly) {
-            // For VISUAL_ONLY clips, extract original movie video (0:v:0) and original audio (0:a:0) explicitly
+            // For VISUAL_ONLY clips, extract original movie video (0:v:0) and original audio (0:a:0?) explicitly
             ffmpegArgs.push(
               '-y',
               '-ss', String(clip.sourceStart),
@@ -405,7 +457,8 @@ program
               '-t', String(clip.duration),
               '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', '-r', '30',
               '-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-ac', '2',
-              '-map', '0:v:0', '-map', '0:a:0',
+              '-map', '0:v:0', '-map', '0:a:0?',
+              '-avoid_negative_ts', 'make_zero',
               '-pix_fmt', 'yuv420p',
               outFile
             );
@@ -422,6 +475,7 @@ program
               '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', '-r', '30',
               '-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-ac', '2',
               '-map', '0:v:0', '-map', '1:a:0',
+              '-avoid_negative_ts', 'make_zero',
               '-pix_fmt', 'yuv420p',
               outFile
             );

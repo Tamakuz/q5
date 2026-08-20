@@ -401,7 +401,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
   // ─── Generate Alurfilm Auto Intro from Movie Chunks (FFmpeg) ─────────
   ipcMain.handle('generate-alurfilm-auto-intro', async (event, { contentId: passedContentId, clipDurationPerPart = 15 }) => {
     const contentId = passedContentId || p.getOrGenerateContentId('longform');
-    
+
     // 1. Get all chunks for contentId with part >= 1
     const searchDirs = [p.ALURFILM_COMPRESS_DIR, p.ALURFILM_CHUNKS_DIR].filter(d => d && fs.existsSync(d));
     if (searchDirs.length === 0) {
@@ -433,7 +433,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       for (let i = 0; i < sortedFiles.length; i++) {
         const fileKey = sortedFiles[i];
         const fullPath = foundFilesMap.get(fileKey);
-        
+
         event.sender.send('alurfilm:auto-intro-progress', {
           step: i + 1,
           totalSteps: sortedFiles.length + 1,
@@ -447,7 +447,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
           if (meta && meta.duration && meta.duration > 0) {
             durationSec = meta.duration;
           }
-        } catch (e) {}
+        } catch (e) { }
 
         const clipLen = Math.min(clipDurationPerPart, Math.max(5, durationSec - 10));
         const maxStart = Math.max(5, Math.floor(durationSec - clipLen - 5));
@@ -455,7 +455,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
         const randomStartSec = Math.floor(Math.random() * (maxStart - minStart + 1)) + minStart;
 
         const tempSegmentPath = path.join(p.ALURFILM_CHUNKS_DIR, `temp_intro_segment_${timestamp}_part_${i + 1}.mp4`);
-        
+
         // Fast trim via FFmpeg
         await new Promise((resolve, reject) => {
           const args = [
@@ -516,9 +516,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       });
 
       // Clean up temporary segment files & list file
-      try { fs.unlinkSync(listFilePath); } catch (e) {}
+      try { fs.unlinkSync(listFilePath); } catch (e) { }
       for (const tempPath of tempSegmentPaths) {
-        try { fs.unlinkSync(tempPath); } catch (e) {}
+        try { fs.unlinkSync(tempPath); } catch (e) { }
       }
 
       let stats = { size: 0 };
@@ -529,7 +529,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
         if (meta && meta.duration && meta.duration > 0) {
           finalDurationSec = Number(meta.duration.toFixed(2));
         }
-      } catch (e) {}
+      } catch (e) { }
 
       const chunk = {
         part: 0,
@@ -555,7 +555,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       console.error('❌ [generate-alurfilm-auto-intro] Error:', err);
       // Clean up any temp files created
       for (const tempPath of tempSegmentPaths) {
-        try { fs.unlinkSync(tempPath); } catch (e) {}
+        try { fs.unlinkSync(tempPath); } catch (e) { }
       }
       return { success: false, error: err.message || String(err) };
     }
@@ -589,7 +589,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
         if (meta && meta.duration && meta.duration > 0) {
           durationSec = Number(meta.duration.toFixed(2));
         }
-      } catch (e) {}
+      } catch (e) { }
 
       const partMatch = f.match(/part_(\d+)/);
       const partNum = partMatch ? parseInt(partMatch[1], 10) : (f.includes('intro') ? 0 : idx + 1);
@@ -678,7 +678,67 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     }
     const chunkPart = typeof opts.chunkPart !== 'undefined' ? Number(opts.chunkPart) : (typeof opts.partNum !== 'undefined' ? Number(opts.partNum) : (typeof opts.part !== 'undefined' ? Number(opts.part) : 1));
     const totalChunks = Number(opts.totalChunks) || 2;
-    const previousContext = (typeof opts.previousContext !== 'undefined' && opts.previousContext) ? opts.previousContext : null;
+    let previousContext = (typeof opts.previousContext !== 'undefined' && opts.previousContext) ? opts.previousContext : null;
+
+    // Auto-build cumulative previousContext from disk if not provided or to guarantee full deduplicated history
+    const targetContentId = opts.contentId || opts.modeContentId || p.getOrGenerateContentId('longform');
+    if (chunkPart > 0 && fs.existsSync(p.ALURFILM_DIR)) {
+      try {
+        const files = fs.readdirSync(p.ALURFILM_DIR);
+        const analysisFiles = files
+          .filter(f => targetContentId && f.startsWith(targetContentId) && f.includes('_analysis_part_') && f.endsWith('.json'));
+
+        const partMap = new Map();
+        analysisFiles.forEach(f => {
+          try {
+            const fullPath = path.join(p.ALURFILM_DIR, f);
+            const data = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+            const pNum = typeof data.chunk_part === 'number' ? data.chunk_part : null;
+            if (pNum !== null && pNum < chunkPart && !partMap.has(pNum)) {
+              partMap.set(pNum, data);
+            }
+          } catch { }
+        });
+
+        const sortedParts = Array.from(partMap.keys()).sort((a, b) => a - b);
+        if (sortedParts.length > 0) {
+          const previousPartsHistory = [];
+          const characterMap = new Map();
+
+          sortedParts.forEach(pNum => {
+            const itemData = partMap.get(pNum);
+            const scriptText = itemData.naskah_voiceover?.script_text || '';
+            const macroSummary = itemData.naskah_voiceover?.macro_summary || '';
+
+            previousPartsHistory.push({
+              part: pNum,
+              part_label: pNum === 0 ? 'Part #0 (Intro Teaser Highlight)' : `Part #${pNum}`,
+              script_text: scriptText,
+              macro_summary: macroSummary,
+            });
+
+            if (Array.isArray(itemData.character_registry)) {
+              itemData.character_registry.forEach((char) => {
+                const nameKey = (char.assigned_name || char.visual_description || '').trim().toLowerCase();
+                if (nameKey && !characterMap.has(nameKey)) {
+                  characterMap.set(nameKey, {
+                    assigned_name: char.assigned_name || '',
+                    visual_description: char.visual_description || '',
+                  });
+                }
+              });
+            }
+          });
+
+          previousContext = {
+            previous_parts_history: previousPartsHistory,
+            character_registry: Array.from(characterMap.values()),
+          };
+        }
+      } catch (err) {
+        console.error('[get-alurfilm-prompt] Error building cumulative previousContext:', err);
+      }
+    }
     const styleExample = opts.styleExample;
 
     const promptFileName = 'alurfilm-singlepass-prompt.md';
@@ -709,7 +769,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
               durationSec = meta.duration;
               break;
             }
-          } catch (e) {}
+          } catch (e) { }
         }
       }
     }
@@ -717,31 +777,42 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     const safeDuration = Math.max(1, durationSec);
     const isIntroPart = Number(chunkPart) === 0;
     const computedWordsPerChunk = isIntroPart
-      ? Math.max(40, Math.min(250, Math.round(safeDuration * 1.2)))
-      : Math.max(40, Math.min(500, Math.round(safeDuration * 1.2)));
+      ? Math.max(40, Math.min(150, Math.round(safeDuration * 0.8)))
+      : Math.max(40, Math.min(500, Math.round(safeDuration * 0.42)));
     const chunkDurationText = safeDuration < 60
       ? `${Math.round(safeDuration)} Detik`
       : `${(safeDuration / 60).toFixed(1)} Menit`;
 
+    let computedTotalChunks = Number(opts.totalChunks) || 2;
+    let maxPartNum = computedTotalChunks;
+
+    if (Array.isArray(opts.chunks) && opts.chunks.length > 0) {
+      const mainParts = opts.chunks.map(c => Number(c.part)).filter(p => p > 0);
+      if (mainParts.length > 0) {
+        computedTotalChunks = mainParts.length;
+        maxPartNum = Math.max(...mainParts);
+      }
+    }
+
     const prevCtxStr = (typeof previousContext !== 'undefined' && previousContext) ? JSON.stringify(previousContext, null, 2) : 'Tidak ada (Chunk #1 / Awal Film)';
     const isFirstPart = Number(chunkPart) === 1;
-    const isLastPart = Number(chunkPart) === Number(totalChunks);
+    const isLastPart = Number(chunkPart) > 0 && (Number(chunkPart) === maxPartNum || Number(chunkPart) === computedTotalChunks);
     const isFirstPartStr = isIntroPart
       ? 'YA (Part #0 Intro Teaser Highlight - Sapa penonton secara friendly & santai seperti gaya IQ7/Alurfilm)'
       : isFirstPart
-      ? 'YA (Chunk #1 / Part Pembuka Film Utama)'
-      : `TIDAK (Chunk #${chunkPart} / Part Lanjutan)`;
+        ? 'YA (Chunk #1 / Part Pembuka Film Utama)'
+        : `TIDAK (Chunk #${chunkPart} / Part Lanjutan)`;
     const isLastPartStr = isLastPart ? 'YA (Chunk Terakhir / Part Penutup Film)' : `TIDAK (Part Bukan Penutup)`;
     const styleExampleStr = isIntroPart
       ? 'Gunakan gaya penceritaan yang super friendly, santai, mengalir hangat, dan akrab khas pencerita alur film populer (seperti IQ7 dan Alurfilm). Buka dengan salam hangat yang santai (misal: "Halo guys, balik lagi bareng...", "Halo bro & sis..."), lalu sampaikan narasi teaser intro yang membakar rasa penasaran penonton (hooking) dan mengalir mulus tanpa kaku!'
       : styleExample ? String(styleExample) : 'Gunakan gaya penceritaan alur film santai, jernih, dan mengalir.';
-    const movieTitleStr = String(opts.movieTitle || opts.movie_title || opts.title || '').trim() || 'Film Ini';
+    const movieTitleStr = String(opts.movieTitle || opts.movie_title || opts.title || '').trim() || 'Tidak disebutkan';
     const movieYearStr = String(opts.movieYear || opts.movie_year || opts.year || '').trim();
     const movieYearFormatted = movieYearStr ? `tahun ${movieYearStr}` : '';
 
     const fullPrompt = promptTemplate
       .replace(/{{chunk_part}}/g, String(chunkPart))
-      .replace(/{{total_chunks}}/g, String(totalChunks))
+      .replace(/{{total_chunks}}/g, String(computedTotalChunks))
       .replace(/{{movie_title}}/g, movieTitleStr)
       .replace(/{{movie_year}}/g, movieYearFormatted)
       .replace(/{{is_first_part}}/g, isFirstPartStr)
@@ -1140,6 +1211,160 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     };
   }
 
+  function parseVisualOnlyTag(tagStr) {
+    const body = String(tagStr || '').replace(/^\[VISUAL_ONLY\s*/i, '').replace(/\]$/, '').trim();
+
+    let sourceRange = '00:00 - 00:35';
+    let sourceStartSeconds = 0;
+    let sourceEndSeconds = 35;
+    let outputDuration = 8.0;
+    let description = 'Adegan Visual Murni Action';
+
+    const rangeMatch = body.match(/Range:\s*([\d:\.]+)\s*-\s*([\d:\.]+)/i) || body.match(/([\d:\.]+)\s*-\s*([\d:\.]+)/);
+    if (rangeMatch) {
+      const sStr = rangeMatch[1];
+      const eStr = rangeMatch[2];
+      sourceRange = `${sStr} - ${eStr}`;
+      const parseTs = (ts) => {
+        const parts = ts.trim().replace(/s$/i, '').split(':').map(Number);
+        if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+        if (parts.length === 2) return parts[0] * 60 + parts[1];
+        return parseFloat(ts) || 0;
+      };
+      sourceStartSeconds = parseTs(sStr);
+      sourceEndSeconds = parseTs(eStr);
+    }
+
+    const durMatch = body.match(/(?:Output|Duration):\s*([\d\.]+)\s*s?/i) || body.match(/\|\s*([\d\.]+)\s*s/i) || body.match(/^:?\s*([\d\.]+)\s*s\b/i);
+    if (durMatch) {
+      outputDuration = Math.max(1.0, Math.min(30.0, parseFloat(durMatch[1]) || 8.0));
+    } else if (rangeMatch && sourceEndSeconds > sourceStartSeconds) {
+      outputDuration = Math.min(10.0, Math.max(3.0, Math.round((sourceEndSeconds - sourceStartSeconds) * 0.25) || 8.0));
+    }
+
+    if (body.includes(':')) {
+      const parts = body.split(':');
+      description = parts[parts.length - 1].trim();
+    } else if (body.includes('|')) {
+      const parts = body.split('|');
+      description = parts[parts.length - 1].trim();
+    } else {
+      description = body.replace(/Range:[^,)]*/gi, '').replace(/Duration:[^,)]*/gi, '').replace(/Output:[^,)]*/gi, '').trim() || description;
+    }
+
+    return {
+      sourceRange,
+      sourceStartSeconds,
+      sourceEndSeconds,
+      outputDuration,
+      description
+    };
+  }
+
+  function sanitizeBackendTranscriptEntries(entries) {
+    if (!entries || !Array.isArray(entries) || entries.length === 0) return [];
+
+    const result = [];
+    const tagRegex = /\[VISUAL_ONLY[^\]]*\]/gi;
+
+    for (const entry of entries) {
+      const rawText = (entry.text || '').trim();
+      if (!rawText) {
+        result.push(entry);
+        continue;
+      }
+
+      const matches = Array.from(rawText.matchAll(tagRegex));
+      if (matches.length === 0) {
+        const isVis = entry.type === 'visual_only' || (entry.speaker && entry.speaker.toLowerCase().includes('visual'));
+        result.push({
+          ...entry,
+          type: isVis ? 'visual_only' : (entry.type || 'narration'),
+          speaker: isVis ? 'Visual' : (entry.speaker || 'Narator')
+        });
+        continue;
+      }
+
+      const segments = [];
+      let lastIdx = 0;
+
+      for (const match of matches) {
+        const matchIdx = match.index ?? 0;
+        const textBefore = rawText.slice(lastIdx, matchIdx).trim();
+        if (textBefore) {
+          segments.push({ text: textBefore, isVisualOnly: false });
+        }
+        segments.push({ text: match[0].trim(), isVisualOnly: true });
+        lastIdx = matchIdx + match[0].length;
+      }
+
+      const textAfter = rawText.slice(lastIdx).trim();
+      if (textAfter) {
+        segments.push({ text: textAfter, isVisualOnly: false });
+      }
+
+      if (segments.length === 1 && segments[0].isVisualOnly) {
+        result.push({
+          ...entry,
+          text: segments[0].text,
+          type: 'visual_only',
+          speaker: 'Visual'
+        });
+        continue;
+      }
+
+      const origStart = typeof entry.start_seconds === 'number' ? entry.start_seconds : (entry.start || 0);
+      const origEnd = typeof entry.end_seconds === 'number' ? entry.end_seconds : (entry.end || (origStart + 3));
+      const totalDur = Math.max(1.0, origEnd - origStart);
+      const segDur = totalDur / segments.length;
+
+      let currentStart = origStart;
+      segments.forEach((seg, sIdx) => {
+        const isLast = sIdx === segments.length - 1;
+        const segEnd = isLast ? origEnd : Number((currentStart + segDur).toFixed(1));
+
+        const m1 = Math.floor(currentStart / 60); const s1 = Math.floor(currentStart % 60);
+        const m2 = Math.floor(segEnd / 60); const s2 = Math.floor(segEnd % 60);
+        const defaultTs = `${String(m1).padStart(2, '0')}:${String(s1).padStart(2, '0')} - ${String(m2).padStart(2, '0')}:${String(s2).padStart(2, '0')}`;
+
+        result.push({
+          ...entry,
+          text: seg.text,
+          start_seconds: Number(currentStart.toFixed(1)),
+          end_seconds: Number(Math.max(currentStart + 0.5, segEnd).toFixed(1)),
+          timestamp_minute: defaultTs,
+          type: seg.isVisualOnly ? 'visual_only' : 'narration',
+          speaker: seg.isVisualOnly ? 'Visual' : (entry.speaker && entry.speaker !== 'Visual' ? entry.speaker : 'Narator')
+        });
+
+        currentStart = segEnd;
+      });
+    }
+
+    // Deduplicate consecutive entries with identical text
+    const cleanStr = (txt) => (txt || '').toLowerCase().replace(/[^\w\s]/g, '').trim();
+    const deduplicated = [];
+    for (let i = 0; i < result.length; i++) {
+      const curr = result[i];
+      if (deduplicated.length > 0) {
+        const prev = deduplicated[deduplicated.length - 1];
+        if (cleanStr(prev.text) && cleanStr(prev.text) === cleanStr(curr.text)) {
+          prev.end_seconds = Math.max(prev.end_seconds, curr.end_seconds);
+          const m1 = Math.floor(prev.start_seconds / 60); const s1 = Math.floor(prev.start_seconds % 60);
+          const m2 = Math.floor(prev.end_seconds / 60); const s2 = Math.floor(prev.end_seconds % 60);
+          prev.timestamp_minute = `${String(m1).padStart(2, '0')}:${String(s1).padStart(2, '0')} - ${String(m2).padStart(2, '0')}:${String(s2).padStart(2, '0')}`;
+          continue;
+        }
+      }
+      deduplicated.push(curr);
+    }
+
+    return deduplicated.map((item, idx) => ({
+      ...item,
+      id: idx + 1
+    }));
+  }
+
   function normalizeBackendEntry(entry, idx, prevEndSec = 0) {
     if (!entry || typeof entry !== 'object') {
       const strVal = String(entry || '').trim();
@@ -1283,11 +1508,13 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
           const destPath = path.join(targetDir, outputName);
 
           let prevEnd = 0;
-          const normEntries = entries.map((e, idx) => {
+          let normEntries = entries.map((e, idx) => {
             const res = normalizeBackendEntry(e, idx, prevEnd);
             prevEnd = res.end_seconds;
             return res;
           });
+          normEntries = sanitizeBackendTranscriptEntries(normEntries);
+
           fs.writeFileSync(destPath, JSON.stringify(normEntries, null, 2), 'utf-8');
 
           const rootLegacyPath = path.join(p.ALURFILM_DIR, outputName);
@@ -1311,11 +1538,12 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
 
     const rawEntries = parsedInfo.entries && parsedInfo.entries.length > 0 ? parsedInfo.entries : (Array.isArray(parsed) ? parsed : [parsed]);
     let prevEnd = 0;
-    const entriesArray = rawEntries.map((e, idx) => {
+    let entriesArray = rawEntries.map((e, idx) => {
       const res = normalizeBackendEntry(e, idx, prevEnd);
       prevEnd = res.end_seconds;
       return res;
     });
+    entriesArray = sanitizeBackendTranscriptEntries(entriesArray);
 
     fs.writeFileSync(destPath, JSON.stringify(entriesArray, null, 2), 'utf-8');
 
@@ -1402,7 +1630,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       }
 
       // Step 1: Parse raw script into narration and visual_only elements
-      const tagRegex = /\[VISUAL_ONLY:\s*([\d.]+)\s*s?\s*(?:\|\s*([^\]]+))?\]/gi;
+      const tagRegex = /\[VISUAL_ONLY[^\]]*\]/gi;
       const scriptElements = [];
       let lastIndex = 0;
       let match;
@@ -1416,13 +1644,15 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
           }
         }
 
-        const silenceDur = Math.max(1.0, parseFloat(match[1]) || 5.0);
-        const desc = (match[2] || 'Adegan Visual Murni Action').trim();
+        const parsedVis = parseVisualOnlyTag(match[0]);
         scriptElements.push({
           type: 'visual_only',
-          text: `[VISUAL_ONLY: ${desc}]`,
-          description: desc,
-          duration: silenceDur
+          text: `[VISUAL_ONLY (Range: ${parsedVis.sourceRange}, Duration: ${parsedVis.outputDuration}s): ${parsedVis.description}]`,
+          description: parsedVis.description,
+          duration: parsedVis.outputDuration,
+          sourceRange: parsedVis.sourceRange,
+          sourceStartSeconds: parsedVis.sourceStartSeconds,
+          sourceEndSeconds: parsedVis.sourceEndSeconds
         });
 
         lastIndex = tagRegex.lastIndex;
@@ -1465,7 +1695,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
           if (fs.existsSync(tempOutputPath)) {
             const data = JSON.parse(fs.readFileSync(tempOutputPath, 'utf-8'));
             const parsedData = Array.isArray(data) ? data : (data.transcript || data.sentences || []);
-            whisperSentences = parsedData.map((item, idx) => {
+            const cleanTextForCompare = (txt) => (txt || '').toLowerCase().replace(/[^\w\s]/g, '').trim();
+
+            const rawSentences = parsedData.map((item, idx) => {
               let rawSpeechEnd = item.end_seconds !== undefined ? item.end_seconds : (item.end || 0);
               let firstWordStart = item.start_seconds !== undefined ? item.start_seconds : (item.start || 0);
               if (Array.isArray(item.words) && item.words.length > 0) {
@@ -1483,6 +1715,14 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
                 lastWordEnd: Number(Number(rawSpeechEnd).toFixed(3))
               };
             });
+
+            // Filter out consecutive duplicate hallucinated sentences from Faster-Whisper
+            whisperSentences = rawSentences.filter((item, idx) => {
+              if (idx === 0) return true;
+              const prev = rawSentences[idx - 1];
+              return cleanTextForCompare(prev.text) !== cleanTextForCompare(item.text);
+            });
+
             isFasterWhisperUsed = true;
           }
         } catch (err) {
@@ -1532,17 +1772,23 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
         }
       }
 
-      // Append any extra sentences detected by Faster-Whisper
+      // Append any extra non-duplicate sentences detected by Faster-Whisper
+      const cleanTextForCompare = (txt) => (txt || '').toLowerCase().replace(/[^\w\s]/g, '').trim();
       while (isFasterWhisperUsed && whisperIdx < whisperSentences.length) {
         const w = whisperSentences[whisperIdx++];
-        alignedElements.push({
-          type: 'narration',
-          text: w.text,
-          start: w.start,
-          end: w.end,
-          firstWordStart: w.firstWordStart || w.start,
-          lastWordEnd: w.lastWordEnd || w.end
-        });
+        const prevNarr = [...alignedElements].reverse().find(el => el.type === 'narration');
+        const isDuplicate = prevNarr && cleanTextForCompare(prevNarr.text) === cleanTextForCompare(w.text);
+
+        if (!isDuplicate && w.text && w.text.trim().length > 0) {
+          alignedElements.push({
+            type: 'narration',
+            text: w.text,
+            start: w.start,
+            end: w.end,
+            firstWordStart: w.firstWordStart || w.start,
+            lastWordEnd: w.lastWordEnd || w.end
+          });
+        }
       }
 
       // Step 4: Check if FFmpeg audio splicing with silence buffer is needed
@@ -1849,16 +2095,36 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
 
     let voSentences = [];
     const targetTransDir = p.ALURFILM_TRANSCRIPTS_DIR || path.join(p.ALURFILM_DIR, 'transcripts');
-    const transcriptPathJson = path.join(targetTransDir, `${contentId}_transcript_part_${partStr}.json`);
-    const transcriptPathSrt = path.join(targetTransDir, `${contentId}_transcript_part_${partStr}.srt`);
+    const possibleTranscriptPaths = [
+      path.join(targetTransDir, `${contentId}_transcript_part_${partStr}.json`),
+      path.join(targetTransDir, `${contentId}_transcript_part_${chunkPart}.json`),
+      path.join(p.ALURFILM_DIR, `${contentId}_transcript_part_${partStr}.json`),
+      path.join(p.ALURFILM_DIR, `${contentId}_transcript_part_${chunkPart}.json`),
+      path.join(targetTransDir, `${contentId}_transcript_part_${partStr}.srt`),
+      path.join(targetTransDir, `${contentId}_transcript_part_${chunkPart}.srt`),
+    ];
 
-    if (fs.existsSync(transcriptPathJson)) {
+    // Additional scan in transcript dir for any matching part file
+    if (fs.existsSync(targetTransDir)) {
       try {
-        const rawTranscript = JSON.parse(fs.readFileSync(transcriptPathJson, 'utf-8'));
-        if (Array.isArray(rawTranscript)) {
-          voSentences = rawTranscript.map((t, idx) => {
-            const st = typeof t.start_seconds === 'number' ? t.start_seconds : 0.0;
-            const ed = typeof t.end_seconds === 'number' ? t.end_seconds : 0.0;
+        const transFiles = fs.readdirSync(targetTransDir);
+        const matchFn = transFiles.find(f => (f.includes(`part_${partStr}`) || f.includes(`part_${chunkPart}`)) && (f.endsWith('.json') || f.endsWith('.srt')));
+        if (matchFn) {
+          possibleTranscriptPaths.unshift(path.join(targetTransDir, matchFn));
+        }
+      } catch { }
+    }
+
+    let foundTranscriptPath = possibleTranscriptPaths.find(p => fs.existsSync(p));
+
+    if (foundTranscriptPath && foundTranscriptPath.endsWith('.json')) {
+      try {
+        const rawTranscript = JSON.parse(fs.readFileSync(foundTranscriptPath, 'utf-8'));
+        const entries = Array.isArray(rawTranscript) ? rawTranscript : (rawTranscript.data || rawTranscript.entries || []);
+        if (Array.isArray(entries)) {
+          voSentences = entries.map((t, idx) => {
+            const st = typeof t.start_seconds === 'number' ? t.start_seconds : (t.start || 0.0);
+            const ed = typeof t.end_seconds === 'number' ? t.end_seconds : (t.end || 0.0);
             const dur = Number(Math.max(0.1, ed - st).toFixed(2));
             return {
               sentence_index: idx,
@@ -1870,9 +2136,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
           });
         }
       } catch { }
-    } else if (fs.existsSync(transcriptPathSrt)) {
+    } else if (foundTranscriptPath && foundTranscriptPath.endsWith('.srt')) {
       try {
-        const srtContent = fs.readFileSync(transcriptPathSrt, 'utf-8');
+        const srtContent = fs.readFileSync(foundTranscriptPath, 'utf-8');
         const srtEntries = parseSrtToEntries(srtContent);
         voSentences = srtEntries.map((t, idx) => {
           const st = t.start_seconds || 0.0;
@@ -1918,12 +2184,64 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
             const meta = await ffmpeg.getVideoMetaHelper(fullAudioPath);
             if (meta && meta.duration) {
               totalAudioDurSec = meta.duration;
+              if (voSentences.length > 0 && Math.abs(voSentences[voSentences.length - 1].end - totalAudioDurSec) > 0.3) {
+                const lastIdx = voSentences.length - 1;
+                voSentences[lastIdx].end = Number(totalAudioDurSec.toFixed(2));
+                voSentences[lastIdx].duration = Number((voSentences[lastIdx].end - voSentences[lastIdx].start).toFixed(2));
+              }
             }
           } catch { }
           break;
         }
       } catch { }
     }
+
+    // Fetch Video Chunk Metadata for this part via ffprobe
+    let chunkVideoName = `${contentId}_part_${partStr}.mp4`;
+    let totalChunkDurSec = 0;
+
+    const chunkSearchDirs = [p.ALURFILM_CHUNKS_DIR, p.ALURFILM_COMPRESS_DIR, p.ALURFILM_DIR].filter(d => d && fs.existsSync(d));
+    for (const dir of chunkSearchDirs) {
+      try {
+        const files = fs.readdirSync(dir);
+        const matched = files.find(f => (f.includes(`part_${partStr}`) || f.includes(`part_${chunkPart}`)) && f.endsWith('.mp4'));
+        if (matched) {
+          chunkVideoName = matched;
+          const fullChunkPath = path.join(dir, matched);
+          try {
+            const meta = await ffmpeg.getVideoMetaHelper(fullChunkPath);
+            if (meta && meta.duration) {
+              totalChunkDurSec = meta.duration;
+            }
+          } catch { }
+          break;
+        }
+      } catch { }
+    }
+
+    // If chunk video is not yet created, attempt probing master compressed video file
+    if (totalChunkDurSec <= 0) {
+      const masterFiles = [
+        path.join(p.ALURFILM_DIR, `${contentId}.mp4`),
+        path.join(p.ALURFILM_COMPRESS_DIR, `${contentId}_compressed.mp4`)
+      ];
+      for (const mf of masterFiles) {
+        if (fs.existsSync(mf)) {
+          try {
+            const meta = await ffmpeg.getVideoMetaHelper(mf);
+            if (meta && meta.duration) {
+              totalChunkDurSec = meta.duration;
+              break;
+            }
+          } catch { }
+        }
+      }
+    }
+
+    const totalChunkDurSecNum = Number((totalChunkDurSec || 0).toFixed(2));
+    const cMins = Math.floor(totalChunkDurSecNum / 60);
+    const cSecs = (totalChunkDurSecNum % 60).toFixed(1);
+    const totalChunkDurFormatted = `${String(cMins).padStart(2, '0')}:${String(cSecs).padStart(4, '0')}`;
 
     const totalAudioDurSecNum = Number(totalAudioDurSec.toFixed(2));
     const mins = Math.floor(totalAudioDurSecNum / 60);
@@ -1933,7 +2251,6 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     const audioEndTimestamp = voSentences.length > 0 ? `${voSentences[voSentences.length - 1].end.toFixed(1)}s` : `${totalAudioDurSecNum}s`;
     const totalSentencesCount = voSentences.length;
 
-    const chunkVideoName = `${contentId}_part_${partStr}.mp4`;
     const voSentencesJson = JSON.stringify(voSentences, null, 2);
 
     const fullPrompt = promptTemplate
@@ -1948,27 +2265,158 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       .replace(/{{total_audio_duration_formatted}}/g, totalAudioDurFormatted)
       .replace(/{{total_sentences_count}}/g, String(totalSentencesCount))
       .replace(/{{audio_start_timestamp}}/g, audioStartTimestamp)
-      .replace(/{{audio_end_timestamp}}/g, audioEndTimestamp);
+      .replace(/{{audio_end_timestamp}}/g, audioEndTimestamp)
+      .replace(/{{chunk_video_duration_sec}}/g, String(totalChunkDurSecNum))
+      .replace(/{{chunk_video_duration_formatted}}/g, totalChunkDurFormatted);
 
     return fullPrompt;
   });
 
-  function normalizeMappingObj(obj, defaultPart = 1) {
+  function normalizeMappingObj(obj, defaultPart = 1, realChunkDur = 0) {
     if (!obj) return null;
+    let target = obj;
     if (Array.isArray(obj)) {
       if (obj.length === 1) {
-        return normalizeMappingObj(obj[0], defaultPart);
+        target = obj[0];
+      } else {
+        const match = obj.find(item => item && (item.mappings || item.scene_id));
+        if (match) target = match;
       }
-      const match = obj.find(item => item && (item.mappings || item.scene_id));
-      if (match) return normalizeMappingObj(match, defaultPart);
-      return null;
+    } else if (typeof obj === 'object') {
+      if (obj.data) target = obj.data;
+      else if (Array.isArray(obj.timeline)) target = { scene_id: obj.scene_id || `part_${defaultPart}`, mappings: obj.timeline };
     }
-    if (typeof obj === 'object') {
-      if (obj.data) return normalizeMappingObj(obj.data, defaultPart);
-      if (Array.isArray(obj.mappings)) return obj;
-      if (Array.isArray(obj.timeline)) return { scene_id: obj.scene_id || `part_${defaultPart}`, mappings: obj.timeline };
+
+    if (target && Array.isArray(target.mappings)) {
+      const cleanStr = (txt) => (txt || '').toLowerCase().replace(/[^\w\s]/g, '').trim();
+      const deduplicated = [];
+      for (let i = 0; i < target.mappings.length; i++) {
+        const curr = target.mappings[i];
+        if (deduplicated.length > 0) {
+          const prev = deduplicated[deduplicated.length - 1];
+          const prevText = cleanStr(prev.text);
+          const currText = cleanStr(curr.text);
+          if (prevText && prevText === currText) {
+            prev.end = Math.max(prev.end || 0, curr.end || 0);
+            prev.duration = Number((prev.end - prev.start).toFixed(2));
+            if (Array.isArray(curr.visuals) && curr.visuals.length > 0) {
+              prev.visuals = [...(prev.visuals || []), ...curr.visuals];
+            }
+            const sumVis = (prev.visuals || []).reduce((acc, c) => acc + (c.duration || 0), 0);
+            if (sumVis > 0 && Math.abs(sumVis - prev.duration) > 0.05) {
+              const scale = prev.duration / sumVis;
+              prev.visuals.forEach((c, cIdx) => {
+                if (cIdx === prev.visuals.length - 1) {
+                  const otherSum = prev.visuals.slice(0, cIdx).reduce((acc, x) => acc + (x.duration || 0), 0);
+                  const rem = Number((prev.duration - otherSum).toFixed(2));
+                  c.duration = rem > 0 ? rem : 0.1;
+                } else {
+                  const scaled = Number(((c.duration || 0) * scale).toFixed(2));
+                  c.duration = scaled > 0 ? scaled : 0.1;
+                }
+              });
+            }
+            continue;
+          }
+        }
+        deduplicated.push(curr);
+      }
+      target.mappings = deduplicated.map((m, idx) => {
+        const s = typeof m.start === 'number' ? m.start : 0;
+        const e = typeof m.end === 'number' ? m.end : s;
+        let dur = typeof m.duration === 'number' ? m.duration : (e - s);
+        if (dur <= 0) dur = e > s ? Number((e - s).toFixed(2)) : 0.1;
+        if (dur <= 0) dur = 0.1;
+
+        let sanitizedVisuals = Array.isArray(m.visuals) ? m.visuals : [];
+        const isVisualOnly = m.type === 'visual_only' || String(m.text || '').includes('VISUAL_ONLY');
+
+        const sanitizeSourceStart = (rawVal) => {
+          let val = Number(rawVal);
+          if (isNaN(val) || val < 0) return 0;
+          // Dynamic ffprobe check: If val >= realChunkDur, AI Studio picked full movie timestamps instead of chunk timeline.
+          // Auto-fix by wrapping dynamically using the EXACT ffprobe duration of this specific video chunk:
+          if (realChunkDur > 0 && val >= realChunkDur) {
+            const wrapWindow = Math.max(5.0, realChunkDur - 5.0);
+            val = Number((val % wrapWindow).toFixed(2));
+          } else if (realChunkDur <= 0 && val > 1000) {
+            val = Number((val % 550).toFixed(2));
+          }
+          return val;
+        };
+
+        if (isVisualOnly) {
+          // Rule: Enforce video_cut type ONLY & match total duration to transcript duration exactly (e.g. 10.0s)
+          sanitizedVisuals = (sanitizedVisuals || [])
+            .filter(v => v && typeof v === 'object')
+            .map(v => ({
+              ...v,
+              type: 'video_cut',
+              duration: Math.min(2.0, Math.max(1.0, Number(v.duration) || 2.0)),
+              source_start_seconds: sanitizeSourceStart(v.source_start_seconds || v.source_timestamp_seconds)
+            }));
+
+          if (sanitizedVisuals.length === 0) {
+            sanitizedVisuals = [{ type: 'video_cut', duration: 2.0, source_start_seconds: 0 }];
+          }
+
+          let currSum = Number(sanitizedVisuals.reduce((acc, c) => acc + (c.duration || 0), 0).toFixed(2));
+          if (currSum < dur) {
+            // Need to add more video_cut clips to match transcript duration (e.g., 10.0s) exactly
+            const lastSrcStart = sanitizedVisuals[sanitizedVisuals.length - 1].source_start_seconds || 0;
+            let needed = Number((dur - currSum).toFixed(2));
+            let stepOffset = 10;
+            while (needed > 0.05) {
+              const clipDur = Number(Math.min(2.0, needed).toFixed(2));
+              sanitizedVisuals.push({
+                type: 'video_cut',
+                duration: clipDur,
+                source_start_seconds: sanitizeSourceStart(lastSrcStart + stepOffset),
+                color_grading_shift: { contrast: 1.04, brightness: 0.005, saturation: 1.05 }
+              });
+              stepOffset += 10;
+              needed = Number((needed - clipDur).toFixed(2));
+            }
+          } else if (currSum > dur && dur > 0) {
+            const scale = dur / currSum;
+            sanitizedVisuals.forEach((c, cIdx) => {
+              if (cIdx === sanitizedVisuals.length - 1) {
+                const otherSum = sanitizedVisuals.slice(0, cIdx).reduce((acc, x) => acc + (x.duration || 0), 0);
+                c.duration = Number(Math.max(0.1, dur - otherSum).toFixed(2));
+              } else {
+                c.duration = Number(Math.max(0.1, (c.duration || 0) * scale).toFixed(2));
+              }
+            });
+          }
+        } else {
+          sanitizedVisuals = sanitizedVisuals
+            .filter(v => v && typeof v === 'object')
+            .map(v => {
+              let vDur = typeof v.duration === 'number' ? v.duration : dur;
+              if (vDur <= 0) vDur = dur || 0.1;
+              return {
+                ...v,
+                duration: Number(vDur.toFixed(2)),
+                source_start_seconds: sanitizeSourceStart(v.source_start_seconds || v.source_timestamp_seconds)
+              };
+            });
+
+          if (sanitizedVisuals.length === 0) {
+            sanitizedVisuals = [{ type: 'video_cut', duration: Number(dur.toFixed(2)), source_start_seconds: 0 }];
+          }
+        }
+
+        return {
+          ...m,
+          type: isVisualOnly ? 'visual_only' : (m.type || 'narration'),
+          sentence_index: idx,
+          duration: Number(dur.toFixed(2)),
+          visuals: sanitizedVisuals,
+        };
+      });
     }
-    return obj;
+
+    return target;
   }
 
   // ─── Save Alurfilm Mapping ─────────────────────────────
@@ -2016,7 +2464,26 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
           const match = String(item.scene_id).match(/(\d+)/);
           if (match) pNum = parseInt(match[1], 10);
         }
-        const normalizedItem = normalizeMappingObj(item, pNum);
+
+        // Dynamically probe real chunk video duration using ffprobe
+        let realChunkDur = 0;
+        const partStr = String(pNum).padStart(2, '0');
+        const searchDirs = [p.ALURFILM_CHUNKS_DIR, p.ALURFILM_COMPRESS_DIR, p.ALURFILM_DIR].filter(d => d && fs.existsSync(d));
+        for (const dir of searchDirs) {
+          try {
+            const files = fs.readdirSync(dir);
+            const matched = files.find(f => (f.includes(`part_${partStr}`) || f.includes(`part_${pNum}`)) && f.endsWith('.mp4'));
+            if (matched) {
+              const meta = await ffmpeg.getVideoMetaHelper(path.join(dir, matched));
+              if (meta && meta.duration) {
+                realChunkDur = meta.duration;
+              }
+              break;
+            }
+          } catch { }
+        }
+
+        const normalizedItem = normalizeMappingObj(item, pNum, realChunkDur);
         if (normalizedItem) {
           const partStr = String(pNum).padStart(2, '0');
           const outputName = `${contentId}_mapping_part_${partStr}.json`;
@@ -2037,8 +2504,26 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
         const match = String(parsed.scene_id).match(/(\d+)/);
         if (match) pNum = parseInt(match[1], 10);
       }
-      const normalizedData = normalizeMappingObj(parsed, pNum) || parsed;
+
+      // Dynamically probe real chunk video duration using ffprobe
+      let realChunkDur = 0;
       const partStr = String(pNum).padStart(2, '0');
+      const searchDirs = [p.ALURFILM_CHUNKS_DIR, p.ALURFILM_COMPRESS_DIR, p.ALURFILM_DIR].filter(d => d && fs.existsSync(d));
+      for (const dir of searchDirs) {
+        try {
+          const files = fs.readdirSync(dir);
+          const matched = files.find(f => (f.includes(`part_${partStr}`) || f.includes(`part_${pNum}`)) && f.endsWith('.mp4'));
+          if (matched) {
+            const meta = await ffmpeg.getVideoMetaHelper(path.join(dir, matched));
+            if (meta && meta.duration) {
+              realChunkDur = meta.duration;
+            }
+            break;
+          }
+        } catch { }
+      }
+
+      const normalizedData = normalizeMappingObj(parsed, pNum, realChunkDur) || parsed;
       const outputName = `${contentId}_mapping_part_${partStr}.json`;
       const destPath = path.join(p.ALURFILM_DIR, outputName);
       fs.writeFileSync(destPath, JSON.stringify(normalizedData, null, 2), 'utf-8');
@@ -2089,6 +2574,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
 
     let combinedScript = '';
     let movieTitle = '';
+    let movieYear = '';
     const characterRegistryList = [];
     const macroSummariesList = [];
     const timelineFocusList = [];
@@ -2119,6 +2605,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
         }
         if (data.movie_title && !movieTitle) {
           movieTitle = data.movie_title;
+        }
+        if (data.movie_year && !movieYear) {
+          movieYear = data.movie_year;
         }
       } catch { }
     }
@@ -2292,7 +2781,7 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
     const contentId = p.getOrGenerateContentId('longform');
     if (!fs.existsSync(p.ALURFILM_AUDIO_DIR)) fs.mkdirSync(p.ALURFILM_AUDIO_DIR, { recursive: true });
 
-    const tagRegex = /\[VISUAL_ONLY:\s*([\d.]+)\s*s?\s*(?:\|\s*([^\]]+))?\]/gi;
+    const tagRegex = /\[VISUAL_ONLY(?::\s*([^\|\]]+))?(?:\|\s*([^\]]+))?\]/gi;
     const rawSegments = [];
     let lastIndex = 0;
     let match;
@@ -2431,7 +2920,7 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
     const rawText = scriptText || '';
 
     // Step 1: Parse raw script into an ordered sequence of elements (sentences + VISUAL_ONLY tags)
-    const tagRegex = /\[VISUAL_ONLY:\s*([\d.]+)\s*s?\s*(?:\|\s*([^\]]+))?\]/gi;
+    const tagRegex = /\[VISUAL_ONLY[^\]]*\]/gi;
     const scriptElements = [];
     let lastIndex = 0;
     let match;
@@ -2445,13 +2934,15 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
         }
       }
 
-      const silenceDur = Math.max(1.0, parseFloat(match[1]) || 5.0);
-      const desc = (match[2] || 'Adegan Visual Murni Action').trim();
+      const parsedVis = parseVisualOnlyTag(match[0]);
       scriptElements.push({
         type: 'visual_only',
-        text: `[VISUAL_ONLY: ${desc}]`,
-        description: desc,
-        duration: silenceDur
+        text: `[VISUAL_ONLY (Range: ${parsedVis.sourceRange}, Duration: ${parsedVis.outputDuration}s): ${parsedVis.description}]`,
+        description: parsedVis.description,
+        duration: parsedVis.outputDuration,
+        sourceRange: parsedVis.sourceRange,
+        sourceStartSeconds: parsedVis.sourceStartSeconds,
+        sourceEndSeconds: parsedVis.sourceEndSeconds
       });
 
       lastIndex = tagRegex.lastIndex;

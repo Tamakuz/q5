@@ -1,10 +1,10 @@
 // dashboard/src/components/longform/AlurfilmAnalyzeStep.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import type { AlurfilmChunk, AlurfilmAnalysisResult, AlurfilmAudioResult } from '../../electron-api';
+import type { AlurfilmChunk, AlurfilmAnalysisResult, AlurfilmAudioResult, AlurfilmAnalysisData } from '../../electron-api';
 
 import { validateScriptAnalysis } from '../../utils/scriptValidation';
 import { GoogleAiStudioTtsPreset } from '../common/GoogleAiStudioTtsPreset';
-import { parseScriptSegments, convertToGeminiTtsScript } from '../../../../lib/alurfilm/script-parser';
+import { parseScriptSegments, convertToGeminiTtsScript, convertToElevenLabsTtsScript } from '../../../../lib/alurfilm/script-parser';
 
 const api = window.electronAPI;
 
@@ -121,15 +121,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
     setPipelineProgress({ percent: 5, step: 'INIT', message: `Initializing Playwright Automation (Profile: ${selectedProfile})...` });
 
     try {
-      let previousContext: any = null;
-      if (activePart > 0 && analyses[activePart - 1]?.data) {
-        const prevData = analyses[activePart - 1].data;
-        previousContext = {
-          previous_script_text: prevData.naskah_voiceover?.script_text || '',
-          macro_summary: prevData.naskah_voiceover?.macro_summary || '',
-          character_registry: prevData.character_registry || [],
-        };
-      }
+      const previousContext = buildCumulativePreviousContext(activePart);
 
       const totalChunks = chunks.length || 4;
 
@@ -281,27 +273,72 @@ const AlurfilmAnalyzeStep: React.FC = () => {
     if (contentId) localStorage.setItem(`alurfilm_movie_year_${contentId}`, val);
   };
 
+  const buildCumulativePreviousContext = (targetPart: number) => {
+    if (targetPart <= 0) return null;
+
+    const previousPartsHistory: any[] = [];
+    const characterMap = new Map<string, any>();
+    const seenParts = new Set<number>();
+
+    const sortedPartNums = Object.keys(analyses)
+      .map(Number)
+      .filter((p) => !isNaN(p) && p < targetPart)
+      .sort((a, b) => a - b);
+
+    for (const p of sortedPartNums) {
+      if (seenParts.has(p)) continue;
+      seenParts.add(p);
+
+      const itemData = analyses[p]?.data;
+      if (!itemData) continue;
+
+      const scriptText = itemData.naskah_voiceover?.script_text || '';
+      const macroSummary = itemData.naskah_voiceover?.macro_summary || '';
+
+      previousPartsHistory.push({
+        part: p,
+        part_label: p === 0 ? 'Part #0 (Intro Teaser Highlight)' : `Part #${p}`,
+        script_text: scriptText,
+        macro_summary: macroSummary,
+      });
+
+      if (Array.isArray(itemData.character_registry)) {
+        itemData.character_registry.forEach((char: any) => {
+          const nameKey = (char.assigned_name || char.visual_description || '').trim().toLowerCase();
+          if (nameKey && !characterMap.has(nameKey)) {
+            characterMap.set(nameKey, {
+              assigned_name: char.assigned_name || '',
+              visual_description: char.visual_description || '',
+            });
+          }
+        });
+      }
+    }
+
+    if (previousPartsHistory.length === 0) return null;
+
+    return {
+      previous_parts_history: previousPartsHistory,
+      character_registry: Array.from(characterMap.values()),
+    };
+  };
+
   const handleCopyPromptForPart = async (partNum: number) => {
     setError(null);
 
-    let prevContext: any = null;
-    if (partNum > 1 && analyses[partNum - 1]?.data) {
-      const prevAnalysis = analyses[partNum - 1].data;
-      prevContext = {
-        previous_script_text: prevAnalysis.naskah_voiceover?.script_text || '',
-        macro_summary: prevAnalysis.naskah_voiceover?.macro_summary || '',
-        character_registry: prevAnalysis.character_registry || [],
-      };
-    }
+    const prevContext = buildCumulativePreviousContext(partNum);
 
     try {
-      const totalChunks = chunks.length || 1;
+      const mainChunks = chunks.filter((c) => c.part > 0);
+      const totalChunks = mainChunks.length > 0 ? mainChunks.length : (chunks.length || 1);
+      const maxMainPart = mainChunks.length > 0 ? Math.max(...mainChunks.map((c) => c.part)) : totalChunks;
+
       const activeChunk = chunks.find((c) => c.part === partNum);
       const chunkDur = activeChunk?.durationSec || activeChunk?.duration || 0;
       const isIntroPart = partNum === 0;
       const computedWords = isIntroPart
-        ? Math.max(40, Math.min(250, Math.round(chunkDur * 1.2)))
-        : Math.max(40, Math.min(500, Math.round(chunkDur * 1.2)));
+        ? Math.max(40, Math.min(150, Math.round(chunkDur * 0.8)))
+        : Math.max(40, Math.min(500, Math.round(chunkDur * 0.42)));
 
       let formattedPrompt = '';
       if (api.getAlurfilmPrompt) {
@@ -309,6 +346,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
           formattedPrompt = await api.getAlurfilmPrompt({
             chunkPart: partNum,
             totalChunks,
+            chunks,
             previousContext: prevContext,
             durationSec: chunkDur,
             contentId,
@@ -323,13 +361,13 @@ const AlurfilmAnalyzeStep: React.FC = () => {
         const chunkDurText = chunkDur < 60
           ? `${Math.round(chunkDur)} Detik`
           : `${(chunkDur / 60).toFixed(1)} Menit`;
-        const isIntroPart = partNum === 0;
         const isFirstPartStr = isIntroPart
           ? 'YA (Part #0 Intro Teaser Highlight - Sapa penonton secara friendly & santai seperti gaya IQ7/Alurfilm)'
           : partNum === 1
           ? 'YA (Part Pembuka Film Utama)'
           : `TIDAK (Chunk #${partNum} / Part Lanjutan)`;
-        const isLastPartStr = partNum === totalChunks ? 'YA (Part Penutup / Final Part)' : 'TIDAK (Part Bukan Penutup)';
+        const isLastPart = partNum > 0 && partNum === maxMainPart;
+        const isLastPartStr = isLastPart ? 'YA (Chunk Terakhir / Part Penutup Film)' : 'TIDAK (Part Bukan Penutup)';
         const prevCtxStr = prevContext ? JSON.stringify(prevContext, null, 2) : 'Tidak ada (Part #0 / Awal Film)';
         const styleExampleStr = isIntroPart
           ? 'Gunakan gaya penceritaan yang super friendly, santai, mengalir hangat, dan akrab khas pencerita alur film populer (seperti IQ7 dan Alurfilm). Buka dengan salam hangat yang santai (misal: "Halo guys, balik lagi bareng...", "Halo bro & sis..."), lalu sampaikan narasi teaser intro yang membakar rasa penasaran penonton (hooking) dan mengalir mulus tanpa kaku!'
@@ -338,7 +376,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
         formattedPrompt = (promptTpl || '')
           .replace(/\{\{chunk_part\}\}/g, String(partNum))
           .replace(/\{\{total_chunks\}\}/g, String(totalChunks))
-          .replace(/\{\{movie_title\}\}/g, movieTitle.trim() || 'Film Ini')
+          .replace(/\{\{movie_title\}\}/g, movieTitle.trim() || 'Tidak disebutkan')
           .replace(/\{\{movie_year\}\}/g, movieYear.trim() ? `tahun ${movieYear.trim()}` : '')
           .replace(/\{\{is_first_part\}\}/g, isFirstPartStr)
           .replace(/\{\{is_last_part\}\}/g, isLastPartStr)
@@ -368,6 +406,16 @@ const AlurfilmAnalyzeStep: React.FC = () => {
     }
   };
 
+const safeStr = (val: any, fallback: string = ''): string => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (typeof val === 'object') {
+    return val.macro_summary || val.summary || val.text || val.description || val.assigned_name || JSON.stringify(val);
+  }
+  return String(val);
+};
+
   const handleManualImportJson = async () => {
     if (!pasteJsonInput.trim()) return;
     setError(null);
@@ -378,11 +426,16 @@ const AlurfilmAnalyzeStep: React.FC = () => {
         return;
       }
 
-      const validData = report.normalizedData;
-      const partNum = validData?.chunk_part || activePart;
+      const partNum = report.normalizedData?.chunk_part || activePart;
+      const validData = { ...report.normalizedData, chunk_part: partNum } as AlurfilmAnalysisData;
 
-      const saveRes = await api.saveAlurfilmAnalysis(partNum, validData);
-      setAnalyses((prev) => ({ ...prev, [partNum]: saveRes }));
+      let saveRes = null;
+      if (api?.saveAlurfilmAnalysis) {
+        saveRes = await api.saveAlurfilmAnalysis(partNum, validData);
+      }
+      const finalResult: AlurfilmAnalysisResult = saveRes || { part: partNum, name: `part_${partNum}.json`, filePath: '', data: validData };
+
+      setAnalyses((prev) => ({ ...prev, [partNum]: finalResult }));
       setShowPasteModal(false);
       setPasteJsonInput('');
       showToast(`🎉 Successfully saved & validated Script Analysis JSON for Part #${partNum}!`);
@@ -701,7 +754,9 @@ const AlurfilmAnalyzeStep: React.FC = () => {
             {(() => {
               const activeChunk = chunks.find((c) => c.part === activePart);
               const chunkDur = activeChunk?.durationSec || activeChunk?.duration || 0;
-              const computedWords = Math.max(40, Math.min(400, Math.round(chunkDur * 1.2)));
+              const computedWords = activePart === 0
+                ? Math.max(40, Math.min(150, Math.round(chunkDur * 0.8)))
+                : Math.max(40, Math.min(500, Math.round(chunkDur * 0.42)));
               const durText = chunkDur < 60
                 ? `${Math.round(chunkDur)} Detik`
                 : `${(chunkDur / 60).toFixed(1)} Menit`;
@@ -715,12 +770,24 @@ const AlurfilmAnalyzeStep: React.FC = () => {
             })()}
             <p>- First Part (Intro): {activePart === 0 ? 'YA (Intro Pembuka YouTube)' : activePart === 1 ? 'YA (Part Pembuka Film)' : 'TIDAK'}</p>
             <p>- Final Part (Outro): {activePart === (chunks.length ? chunks[chunks.length - 1].part : 4) ? 'YA (Part Penutup)' : 'TIDAK'}</p>
-            {activePart > 1 && analyses[activePart - 1]?.data && (
-              <div className="p-3 bg-purple-950/40 rounded-xl border border-purple-800/40 text-[11px] text-purple-300 mt-2 space-y-1">
-                <span className="font-bold block">✓ Connected Context from Part #{activePart - 1}:</span>
-                <p className="text-gray-400 truncate">Macro Summary: "{analyses[activePart - 1].data?.naskah_voiceover?.macro_summary}"</p>
-              </div>
-            )}
+            {activePart > 0 && (() => {
+              const cumCtx = buildCumulativePreviousContext(activePart);
+              if (!cumCtx || !cumCtx.previous_parts_history.length) return null;
+              return (
+                <div className="p-3 bg-purple-950/40 rounded-xl border border-purple-800/40 text-[11px] text-purple-300 mt-2 space-y-1">
+                  <span className="font-bold block">✓ Connected Context ({cumCtx.previous_parts_history.length} Part Sebelumnya):</span>
+                  <p className="text-purple-200">
+                    {cumCtx.previous_parts_history.map((h: any) => h.part_label).join(', ')}
+                  </p>
+                  {(() => {
+                    const lastPart = cumCtx.previous_parts_history[cumCtx.previous_parts_history.length - 1];
+                    return lastPart?.macro_summary ? (
+                      <p className="text-gray-400 truncate">Ringkasan Terakhir: "{safeStr(lastPart.macro_summary)}"</p>
+                    ) : null;
+                  })()}
+                </div>
+              );
+            })()}
           </div>
 
           {error && (
@@ -741,7 +808,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
                   activeTab === 'script' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
-                📜 Script
+                📝 Script
               </button>
               <button
                 onClick={() => setActiveTab('characters')}
@@ -773,27 +840,42 @@ const AlurfilmAnalyzeStep: React.FC = () => {
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   onClick={() => {
-                    const text = currentAnalysis.naskah_voiceover?.script_text || '';
+                    const text = safeStr(currentAnalysis.naskah_voiceover?.script_text || '');
+                    const cleanScript = convertToElevenLabsTtsScript(text);
+                    if (api?.copyToClipboard) {
+                      api.copyToClipboard(cleanScript);
+                      showToast(`🎙️ Copied ElevenLabs TTS (Clean Voiceover) Part #${activePart}!`);
+                    }
+                  }}
+                  className="px-2.5 py-1 bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1 shadow-sm"
+                  title="Copy naskah bersih tanpa tag [VISUAL_ONLY] untuk ElevenLabs TTS"
+                >
+                  <span>🎙️</span> Copy ElevenLabs TTS
+                </button>
+                <button
+                  onClick={() => {
+                    const text = safeStr(currentAnalysis.naskah_voiceover?.script_text || '');
                     const ttsScript = convertToGeminiTtsScript(text);
-                    if (api.copyToClipboard) {
+                    if (api?.copyToClipboard) {
                       api.copyToClipboard(ttsScript);
-                      showToast(`🎙️ Copied Gemini TTS Script (<break time="..."/>) Part #${activePart}!`);
+                      showToast(`⚡ Copied Gemini TTS Script (<break time="..."/>) Part #${activePart}!`);
                     }
                   }}
                   className="px-2.5 py-1 bg-purple-950/60 hover:bg-purple-900 text-purple-300 border border-purple-800/60 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1"
-                  title="Copy naskah lengkap dengan tag <break time='...s'/> untuk AI Studio TTS"
+                  title="Copy naskah dengan tag <break time='...s'/> untuk AI Studio TTS"
                 >
                   <span>⚡</span> Copy Gemini TTS
                 </button>
                 <button
                   onClick={() => {
-                    const text = currentAnalysis.naskah_voiceover?.script_text || '';
-                    if (api.copyToClipboard) {
+                    const text = safeStr(currentAnalysis.naskah_voiceover?.script_text || '');
+                    if (api?.copyToClipboard) {
                       api.copyToClipboard(text);
                       showToast(`📋 Copied Naskah Raw Part #${activePart}!`);
                     }
                   }}
-                  className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-xs font-medium transition-all flex items-center gap-1"
+                  className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1"
+                  title="Copy naskah asli lengkap dengan tag [VISUAL_ONLY]"
                 >
                   📋 Copy Raw
                 </button>
@@ -806,7 +888,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
             {currentAnalysis ? (
               <>
                 {activeTab === 'script' && (() => {
-                  const rawScript = currentAnalysis.naskah_voiceover?.script_text || '';
+                  const rawScript = safeStr(currentAnalysis.naskah_voiceover?.script_text || '');
                   const parsed = parseScriptSegments(rawScript);
                   return (
                     <div className="space-y-3">
@@ -814,7 +896,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
                         <span className="text-gray-400">Word Count: <strong className="text-purple-400 font-mono">{currentAnalysis.naskah_voiceover?.word_count || 0} Kata</strong></span>
                         {parsed.totalVisualOnlyCount > 0 ? (
                           <span className="text-purple-300 bg-purple-950/60 border border-purple-800/60 px-2 py-0.5 rounded-lg text-[11px] font-semibold">
-                            🎥 {parsed.totalVisualOnlyCount} Jeda Visual ({parsed.totalVisualOnlyDuration.toFixed(1)}s Total)
+                            🎥 {parsed.totalVisualOnlyCount} Jeda Visual ({(Number(parsed.totalVisualOnlyDuration) || 0).toFixed(1)}s Total)
                           </span>
                         ) : null}
                         <span className="text-gray-400">Status: <strong className="text-emerald-400 font-mono">✓ Script Ready</strong></span>
@@ -832,7 +914,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
                       {currentAnalysis.naskah_voiceover?.macro_summary && (
                         <div className="p-3.5 bg-purple-950/30 border border-purple-800/40 rounded-xl text-xs space-y-1">
                           <span className="font-bold text-purple-300 block">📌 Macro Summary:</span>
-                          <p className="text-gray-300 leading-relaxed">{currentAnalysis.naskah_voiceover.macro_summary}</p>
+                          <p className="text-gray-300 leading-relaxed">{safeStr(currentAnalysis.naskah_voiceover.macro_summary)}</p>
                         </div>
                       )}
 
@@ -845,15 +927,15 @@ const AlurfilmAnalyzeStep: React.FC = () => {
                                   <span className="px-2 py-0.5 bg-amber-900/80 text-amber-200 rounded font-bold text-[10px]">
                                     🎥 VISUAL ONLY
                                   </span>
-                                  <span>{seg.description}</span>
+                                  <span>{safeStr(seg.description)}</span>
                                 </div>
                                 <span className="font-bold text-amber-400 shrink-0">
-                                  ⏱️ {seg.durationSeconds.toFixed(1)}s Jeda VO
+                                  ⏱️ {(Number(seg.durationSeconds) || 8.0).toFixed(1)}s Jeda VO
                                 </span>
                               </div>
                             ) : (
                               <p key={idx} className="text-xs text-gray-200 leading-relaxed whitespace-pre-wrap font-sans">
-                                {seg.text}
+                                {safeStr(seg.text)}
                               </p>
                             )
                           ))
@@ -877,8 +959,8 @@ const AlurfilmAnalyzeStep: React.FC = () => {
                             👤
                           </div>
                           <div>
-                            <span className="text-xs font-bold text-purple-400 block">{char.assigned_name}</span>
-                            <p className="text-xs text-gray-300 leading-relaxed mt-0.5">{char.visual_description}</p>
+                            <span className="text-xs font-bold text-purple-400 block">{safeStr(char.assigned_name)}</span>
+                            <p className="text-xs text-gray-300 leading-relaxed mt-0.5">{safeStr(char.visual_description)}</p>
                           </div>
                         </div>
                       ))
@@ -893,13 +975,13 @@ const AlurfilmAnalyzeStep: React.FC = () => {
                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Scene Edits & Key Timestamps</h4>
                     {currentAnalysis.timeline_edits?.length ? (
                       currentAnalysis.timeline_edits.map((edit) => (
-                        <div key={edit.id} className="p-3.5 bg-gray-950 rounded-xl border border-gray-800 flex justify-between items-center text-xs">
+                        <div key={edit.id || Math.random()} className="p-3.5 bg-gray-950 rounded-xl border border-gray-800 flex justify-between items-center text-xs">
                           <div>
-                            <span className="font-bold text-white block">{edit.scene_label}</span>
-                            <span className="text-gray-400 text-[11px] mt-0.5 block">{edit.narrative_focus}</span>
+                            <span className="font-bold text-white block">{safeStr(edit.scene_label)}</span>
+                            <span className="text-gray-400 text-[11px] mt-0.5 block">{safeStr(edit.narrative_focus)}</span>
                           </div>
                           <span className="font-mono text-purple-400 font-bold bg-purple-950/60 px-2.5 py-1 rounded-lg border border-purple-800/60 text-[11px]">
-                            ⏱️ {edit.start_time} - {edit.end_time}
+                            ⏱️ {safeStr(edit.start_time)} - {safeStr(edit.end_time)}
                           </span>
                         </div>
                       ))
@@ -979,6 +1061,11 @@ const AlurfilmAnalyzeStep: React.FC = () => {
               placeholder={`{\n  "chunk_part": ${activePart},\n  "naskah_voiceover": {\n    "word_count": 1450,\n    "macro_summary": "...",\n    "script_text": "..."\n  }\n}`}
               className="w-full h-64 bg-gray-950 text-gray-200 text-xs font-mono p-3 rounded-xl border border-gray-800 focus:border-purple-500 focus:outline-none resize-none"
             />
+            {error && (
+              <div className="p-3 bg-red-950/80 border border-red-800 rounded-xl text-xs text-red-300 font-mono leading-relaxed select-all">
+                {error}
+              </div>
+            )}
             <div className="flex justify-end gap-2">
               <button onClick={() => setShowPasteModal(false)} className="px-4 py-2 bg-gray-800 text-gray-300 rounded-xl text-xs font-medium">Batal</button>
               <button onClick={handleManualImportJson} className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-600/30">Save JSON Naskah</button>

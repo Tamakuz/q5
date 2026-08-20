@@ -238,6 +238,19 @@ export function validateAlurfilmMapping(
         fixable: false,
       });
     }
+
+    const freezeCount = effectTypeCounts['freeze_frame_with_zoom'] || 0;
+    const freezePct = (freezeCount / totalVisualClips) * 100;
+    if (freezePct > 25) {
+      issues.push({
+        id: 'fair-use-overused-freeze-frame',
+        type: 'FAIR_USE_VARIETY_WARNING',
+        severity: 'warning',
+        sentenceIndex: null,
+        message: `Frekuensi Freeze Frame Terlalu Tinggi (${freezePct.toFixed(0)}% klip): Terdeteksi ${freezeCount} klip freeze frame. Disarankan kurangi menjadi ~10%-15% agar visual tetap dinamis dengan adegan bergerak.`,
+        fixable: false,
+      });
+    }
   }
 
   const errorCount = issues.filter((i) => i.severity === 'error').length;
@@ -327,6 +340,8 @@ export function autoFixAlurfilmMapping(
         }
         if (typeof clip.source_start_seconds !== 'number' || isNaN(clip.source_start_seconds) || clip.source_start_seconds < 0) {
           clip.source_start_seconds = Number((idx * 3.0 + cIdx * 2.0).toFixed(1));
+        } else if (clip.source_start_seconds > 1000) {
+          clip.source_start_seconds = Number((clip.source_start_seconds % 550).toFixed(1));
         }
         if (!clip.color_grading_shift) {
           clip.color_grading_shift = { contrast: 1.04, brightness: 0.005, saturation: 1.05 };

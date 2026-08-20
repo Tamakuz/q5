@@ -4,6 +4,7 @@ import type { AlurfilmChunk, AlurfilmAudioResult, AlurfilmTranscriptResult, Alur
 import {
   validateTranscript,
   autoFixTranscript,
+  sanitizeTranscriptEntries,
   formatMinute,
   ValidationReport,
 } from '../../utils/transcriptValidation';
@@ -207,9 +208,9 @@ const AlurfilmTranscriptStep: React.FC = () => {
   const getEntriesForPart = (pt: number): AlurfilmTranscriptEntry[] | null => {
     const t = transcripts[pt];
     if (!t) return null;
-    if (Array.isArray(t.data) && t.data.length > 0) return t.data;
-    if (Array.isArray(t.entries) && t.entries.length > 0) return t.entries;
-    return null;
+    const rawList = Array.isArray(t.data) && t.data.length > 0 ? t.data : (Array.isArray(t.entries) && t.entries.length > 0 ? t.entries : null);
+    if (!rawList) return null;
+    return sanitizeTranscriptEntries(rawList);
   };
 
   // Compute Part Groups (Combines parts sharing the same Voiceover Audio into 1 Group item)
@@ -281,7 +282,8 @@ const AlurfilmTranscriptStep: React.FC = () => {
 
   const handleCopyPromptForPart = async (partNum: number) => {
     try {
-      const totalChunks = chunks.length || 1;
+      const mainChunks = chunks.filter((c) => c.part > 0);
+      const totalChunks = mainChunks.length > 0 ? mainChunks.length : (chunks.length || 1);
       const formattedPrompt = await api.getAlurfilmTranscriptPrompt(partNum, totalChunks);
 
       if (api.copyToClipboard) {

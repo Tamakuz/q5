@@ -40,13 +40,16 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
       const timelineClips = [];
       let clipIdCounter = 1;
       for (const item of mapping.mappings) {
-        if (item.visuals && Array.isArray(item.visuals)) {
+        const isVoTag = Boolean((item.type && item.type.toLowerCase().includes('visual_only')) || (item.text && /\[visual_only/i.test(item.text)));
+        if (item.visuals && Array.isArray(item.visuals) && item.visuals.length > 0) {
           for (const vis of item.visuals) {
             const ss = vis.source_start_seconds !== undefined ? vis.source_start_seconds : (vis.source_timestamp_seconds !== undefined ? vis.source_timestamp_seconds : 0);
-            timelineClips.push({ id: clipIdCounter++, text: item.text || '', ss, t: vis.duration || item.duration || 2.5, type: vis.type, slow_mo_factor: vis.slow_mo_factor, mirror_mode: vis.mirror_mode, zoom_speed: vis.zoom_speed, color_grading_shift: vis.color_grading_shift });
+            timelineClips.push({ id: clipIdCounter++, text: item.text || '', ss, t: vis.duration || item.duration || 2.5, type: vis.type || (isVoTag ? 'visual_only' : 'video_cut'), slow_mo_factor: vis.slow_mo_factor, mirror_mode: vis.mirror_mode, zoom_speed: vis.zoom_speed, color_grading_shift: vis.color_grading_shift });
           }
         } else {
-          timelineClips.push({ id: clipIdCounter++, text: item.text || '', ss: item.start || 0, t: item.duration || 2.5 });
+          const fallbackSs = item.source_start_seconds !== undefined ? item.source_start_seconds : (item.source_timestamp_seconds !== undefined ? item.source_timestamp_seconds : (item.start || 0));
+          const fallbackDur = (item.end !== undefined && item.start !== undefined && item.end > item.start) ? Number((item.end - item.start).toFixed(2)) : (item.duration || 2.5);
+          timelineClips.push({ id: clipIdCounter++, text: item.text || '', ss: fallbackSs, t: fallbackDur, type: item.type || (isVoTag ? 'visual_only' : 'video_cut') });
         }
       }
       renderMapping = { settings: { fps: 30, format: "16:9", captions: false }, timeline: timelineClips };

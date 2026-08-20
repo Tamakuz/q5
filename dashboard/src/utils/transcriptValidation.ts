@@ -7,6 +7,7 @@ export interface TranscriptEntry {
   timestamp_minute: string;
   text: string;
   speaker?: string;
+  type?: 'narration' | 'visual_only' | string;
 }
 
 export type IssueType =
@@ -53,6 +54,110 @@ export function formatMinuteRange(startSec: number, endSec: number): string {
   return `${formatMinute(startSec)} - ${formatMinute(endSec)}`;
 }
 
+export function sanitizeTranscriptEntries<T extends { text: string; start_seconds: number; end_seconds: number; timestamp_minute?: string; speaker?: string; type?: string }>(entries: T[]): T[] {
+  if (!entries || !Array.isArray(entries) || entries.length === 0) return [];
+
+  const result: T[] = [];
+  const tagRegex = /\[VISUAL_ONLY[^\]]*\]/gi;
+
+  for (const entry of entries) {
+    const rawText = (entry.text || '').trim();
+    if (!rawText) {
+      result.push(entry);
+      continue;
+    }
+
+    const matches = Array.from(rawText.matchAll(tagRegex));
+    if (matches.length === 0) {
+      const isVis = entry.type === 'visual_only' || (entry.speaker && entry.speaker.toLowerCase().includes('visual'));
+      result.push({
+        ...entry,
+        type: isVis ? 'visual_only' : (entry.type || 'narration'),
+        speaker: isVis ? 'Visual' : (entry.speaker || 'Narator')
+      });
+      continue;
+    }
+
+    const segments: Array<{ text: string; isVisualOnly: boolean }> = [];
+    let lastIdx = 0;
+
+    for (const match of matches) {
+      const matchIdx = match.index ?? 0;
+      const textBefore = rawText.slice(lastIdx, matchIdx).trim();
+      if (textBefore) {
+        segments.push({ text: textBefore, isVisualOnly: false });
+      }
+      segments.push({ text: match[0].trim(), isVisualOnly: true });
+      lastIdx = matchIdx + match[0].length;
+    }
+
+    const textAfter = rawText.slice(lastIdx).trim();
+    if (textAfter) {
+      segments.push({ text: textAfter, isVisualOnly: false });
+    }
+
+    if (segments.length === 1 && segments[0].isVisualOnly) {
+      result.push({
+        ...entry,
+        text: segments[0].text,
+        type: 'visual_only',
+        speaker: 'Visual'
+      });
+      continue;
+    }
+
+    const origStart = entry.start_seconds;
+    const origEnd = entry.end_seconds;
+    const totalDur = Math.max(1.0, origEnd - origStart);
+    const segDur = totalDur / segments.length;
+
+    let currentStart = origStart;
+    segments.forEach((seg, sIdx) => {
+      const isLast = sIdx === segments.length - 1;
+      const segEnd = isLast ? origEnd : Number((currentStart + segDur).toFixed(1));
+
+      const newEntry = {
+        ...entry,
+        text: seg.text,
+        start_seconds: Number(currentStart.toFixed(1)),
+        end_seconds: Number(Math.max(currentStart + 0.5, segEnd).toFixed(1)),
+        type: seg.isVisualOnly ? 'visual_only' : 'narration',
+        speaker: seg.isVisualOnly ? 'Visual' : (entry.speaker && entry.speaker !== 'Visual' ? entry.speaker : 'Narator')
+      };
+
+      if ('timestamp_minute' in entry) {
+        (newEntry as any).timestamp_minute = formatMinuteRange(newEntry.start_seconds, newEntry.end_seconds);
+      }
+
+      result.push(newEntry);
+      currentStart = newEntry.end_seconds;
+    });
+  }
+
+  // Deduplicate consecutive entries with identical text
+  const cleanStr = (txt: string) => (txt || '').toLowerCase().replace(/[^\w\s]/g, '').trim();
+  const deduplicated: T[] = [];
+  for (let i = 0; i < result.length; i++) {
+    const curr = result[i];
+    if (deduplicated.length > 0) {
+      const prev = deduplicated[deduplicated.length - 1];
+      if (cleanStr(prev.text) && cleanStr(prev.text) === cleanStr(curr.text)) {
+        prev.end_seconds = Math.max(prev.end_seconds, curr.end_seconds);
+        if ('timestamp_minute' in prev) {
+          (prev as any).timestamp_minute = formatMinuteRange(prev.start_seconds, prev.end_seconds);
+        }
+        continue;
+      }
+    }
+    deduplicated.push(curr);
+  }
+
+  return deduplicated.map((item, idx) => ({
+    ...item,
+    id: idx + 1
+  }));
+}
+
 /**
  * Validates array of transcript entries against continuity rules & audio duration metadata
  */
@@ -96,6 +201,21 @@ export function validateTranscript(
     const start = entry.start_seconds;
     const end = entry.end_seconds;
     const duration = end - start;
+
+    // Check merged VISUAL_ONLY + narration text
+    if (entry.text && /\[VISUAL_ONLY[^\]]*\]/i.test(entry.text)) {
+      const stripped = entry.text.replace(/\[VISUAL_ONLY[^\]]*\]/gi, '').trim();
+      if (stripped.length > 0) {
+        issues.push({
+          id: `merged-visual-only-${itemNum}`,
+          type: 'FORMAT_MISMATCH',
+          severity: 'warning',
+          itemIndex: itemNum,
+          message: `Baris #${itemNum}: Tag [VISUAL_ONLY] dan teks narasi terhubung dalam 1 segmen. Klik Auto-Fix untuk memisahkannya.`,
+          fixable: true,
+        });
+      }
+    }
 
     // Check invalid start/end range
     if (typeof start !== 'number' || typeof end !== 'number' || isNaN(start) || isNaN(end)) {
@@ -268,7 +388,7 @@ export function validateTranscript(
 }
 
 /**
- * Automatically repairs transcript timing issues (overlaps, gaps, minute strings, tail gap)
+ * Automatically repairs transcript timing issues (overlaps, gaps, minute strings, tail gap, merged VISUAL_ONLY)
  */
 export function autoFixTranscript(
   entries: TranscriptEntry[],
@@ -278,10 +398,13 @@ export function autoFixTranscript(
     return [];
   }
 
-  let fixed: TranscriptEntry[] = entries.map((entry, i) => ({
+  // Step -1: Sanitize merged VISUAL_ONLY + narration entries into separate items first
+  const sanitized = sanitizeTranscriptEntries(entries);
+
+  let fixed: TranscriptEntry[] = sanitized.map((entry, i) => ({
     ...entry,
     id: i + 1,
-    speaker: entry.speaker || '',
+    speaker: entry.speaker || (entry.type === 'visual_only' ? 'Visual' : 'Narator'),
   }));
 
   const lastEntry = fixed[fixed.length - 1];
@@ -317,12 +440,10 @@ export function autoFixTranscript(
     // Ensure start is at least equal to current cursor (prev end)
     if (i > 0) {
       const prevEnd = fixed[i - 1].end_seconds;
-      // If gap is small (< 1.5s) or overlap, snap start to prevEnd
       if (start < prevEnd || Math.abs(start - prevEnd) <= 1.5) {
         start = prevEnd;
       }
     } else {
-      // First item starts at 0.0 unless audio delay
       if (start < 0.5) start = 0.0;
     }
 
@@ -352,3 +473,4 @@ export function autoFixTranscript(
 
   return fixed;
 }
+

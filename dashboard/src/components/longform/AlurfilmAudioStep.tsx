@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import type { AlurfilmChunk, AlurfilmAudioResult, AlurfilmAnalysisResult } from '../../electron-api';
 import { GoogleAiStudioTtsPreset } from '../common/GoogleAiStudioTtsPreset';
-import { parseScriptSegments, convertToGeminiTtsScript } from '../../../../lib/alurfilm/script-parser';
+import { parseScriptSegments, convertToGeminiTtsScript, convertToElevenLabsTtsScript } from '../../../../lib/alurfilm/script-parser';
 
 const api = window.electronAPI;
 
@@ -225,7 +225,7 @@ const AlurfilmAudioStep: React.FC = () => {
                   <span>Narasi: <strong className="text-purple-300">{activeAnalysis?.data?.naskah_voiceover?.word_count || 0} Kata</strong></span>
                   {parsed.totalVisualOnlyCount > 0 ? (
                     <span className="text-amber-300 font-bold bg-amber-950/60 border border-amber-800/60 px-1.5 py-0.5 rounded text-[10px]">
-                      🎥 {parsed.totalVisualOnlyCount} Jeda Visual ({parsed.totalVisualOnlyDuration.toFixed(1)}s Total)
+                      🎥 {parsed.totalVisualOnlyCount} Jeda Visual ({(Number(parsed.totalVisualOnlyDuration) || 0).toFixed(1)}s Total)
                     </span>
                   ) : (
                     <span className="text-gray-500">Tanpa Jeda Visual</span>
@@ -242,7 +242,7 @@ const AlurfilmAudioStep: React.FC = () => {
                       .map((seg, idx) => (
                         <div key={idx} className="p-1.5 bg-amber-950/30 border border-amber-900/40 rounded text-[10px] font-mono text-amber-300 flex items-center justify-between gap-2">
                           <span className="truncate">🎥 {seg.description}</span>
-                          <span className="font-bold text-amber-400 shrink-0">⏱️ {seg.durationSeconds.toFixed(1)}s</span>
+                          <span className="font-bold text-amber-400 shrink-0">⏱️ {(Number(seg.durationSeconds) || 8.0).toFixed(1)}s</span>
                         </div>
                       ))}
                   </div>
