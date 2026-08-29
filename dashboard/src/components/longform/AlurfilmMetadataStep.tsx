@@ -95,6 +95,21 @@ const AlurfilmMetadataStep: React.FC = () => {
     }
   };
 
+  const handleCopyImagePrompt = async () => {
+    try {
+      if (!window.electronAPI?.getAlurfilmImageReadyPrompt) {
+        throw new Error('Electron API getAlurfilmImageReadyPrompt tidak tersedia.');
+      }
+      const readyPrompt = await window.electronAPI.getAlurfilmImageReadyPrompt({
+        customNotes
+      });
+      await copyToClipboard(readyPrompt, 'Prompt Image Only');
+    } catch (err: any) {
+      console.error(err);
+      setErrorMessage(err.message || 'Gagal menyalin prompt image.');
+    }
+  };
+
   const handleSave = async (
     titleToSave = selectedTitle,
     yellowText = selectedYellowText,
@@ -204,13 +219,22 @@ const AlurfilmMetadataStep: React.FC = () => {
           </select>
 
           <button
+            onClick={handleCopyImagePrompt}
+            disabled={isGenerating}
+            className="px-4 py-2.5 rounded-xl text-xs font-bold transition-all border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-200 flex items-center gap-2 active:scale-95"
+            title="Copy Prompt Sistem untuk 1 Image Saja"
+          >
+            <span>📋</span>
+            <span>{copiedField === 'Prompt Image Only' ? 'Copied' : 'Copy Prompt'}</span>
+          </button>
+
+          <button
             onClick={handleGenerate}
             disabled={isGenerating}
-            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-2 ${
-              isGenerating
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-2 ${isGenerating
                 ? 'bg-purple-900/50 text-purple-300 cursor-not-allowed border border-purple-700/40'
                 : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/30 border border-purple-400/30 active:scale-95'
-            }`}
+              }`}
           >
             {isGenerating ? (
               <>
@@ -372,22 +396,21 @@ const AlurfilmMetadataStep: React.FC = () => {
                   item.emotion_category === 'balas_dendam'
                     ? 'bg-rose-950 text-rose-300 border-rose-800'
                     : item.emotion_category === 'underdog'
-                    ? 'bg-sky-950 text-sky-300 border-sky-800'
-                    : item.emotion_category === 'aksi_nekat'
-                    ? 'bg-amber-950 text-amber-300 border-amber-800'
-                    : item.emotion_category === 'kaget'
-                    ? 'bg-purple-950 text-purple-300 border-purple-800'
-                    : 'bg-indigo-950 text-indigo-300 border-indigo-800';
+                      ? 'bg-sky-950 text-sky-300 border-sky-800'
+                      : item.emotion_category === 'aksi_nekat'
+                        ? 'bg-amber-950 text-amber-300 border-amber-800'
+                        : item.emotion_category === 'kaget'
+                          ? 'bg-purple-950 text-purple-300 border-purple-800'
+                          : 'bg-indigo-950 text-indigo-300 border-indigo-800';
 
                 return (
                   <div
                     key={item.id}
                     onClick={() => handleSelectTitleCard(item)}
-                    className={`p-5 rounded-2xl border transition-all cursor-pointer space-y-3 ${
-                      isSelected
+                    className={`p-5 rounded-2xl border transition-all cursor-pointer space-y-3 ${isSelected
                         ? 'bg-gray-900 border-purple-500 shadow-xl shadow-purple-950/40 ring-1 ring-purple-500'
                         : 'bg-gray-950/80 border-gray-800 hover:border-gray-700 hover:bg-gray-900/60'
-                    }`}
+                      }`}
                   >
                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
                       <div className="space-y-1 min-w-0 flex-1">
@@ -419,11 +442,10 @@ const AlurfilmMetadataStep: React.FC = () => {
                             e.stopPropagation();
                             handleSelectTitleCard(item);
                           }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                            isSelected
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${isSelected
                               ? 'bg-purple-600 text-white'
                               : 'bg-gray-900 hover:bg-purple-900/40 text-purple-300 border border-purple-800/60'
-                          }`}
+                            }`}
                         >
                           {isSelected ? '✓ Active' : 'Pilih Konsep Ini'}
                         </button>

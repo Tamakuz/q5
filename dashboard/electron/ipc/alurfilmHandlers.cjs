@@ -2549,6 +2549,67 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     return mappings;
   });
 
+  // ─── Get Alurfilm Image Only Ready Prompt ─────────
+  ipcMain.handle('get-alurfilm-image-ready-prompt', async (_event, { contentId, customNotes }) => {
+    const allFiles = fs.existsSync(p.ALURFILM_DIR) ? fs.readdirSync(p.ALURFILM_DIR) : [];
+    const analysisFiles = allFiles
+      .filter(f => (
+        f.endsWith('.json') &&
+        (f.startsWith(`${contentId}_analysis_part_`) || f.startsWith(`alurfilm_${contentId}_analysis_part_`) || f.includes('_analysis_part_'))
+      ))
+      .sort((a, b) => {
+        const numA = parseInt(a.match(/_part_(\d+)/)?.[1] || '0', 10);
+        const numB = parseInt(b.match(/_part_(\d+)/)?.[1] || '0', 10);
+        return numA - numB;
+      });
+
+    let combinedScript = '';
+    let movieTitle = '';
+    let movieYear = '';
+
+    for (const f of analysisFiles) {
+      try {
+        const filePath = path.join(p.ALURFILM_DIR, f);
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        if (data.naskah_voiceover?.script_text) {
+          combinedScript += `\n--- PART ${data.chunk_part || ''} ---\n` + data.naskah_voiceover.script_text;
+        }
+        if (data.movie_title && !movieTitle) movieTitle = data.movie_title;
+        if (data.movie_year && !movieYear) movieYear = data.movie_year;
+      } catch { }
+    }
+
+    if (!combinedScript.trim()) {
+      throw new Error('Naskah alur film tidak ditemukan. Silakan selesaikan Step 2 (Script Generator) terlebih dahulu.');
+    }
+
+    const metadataPromptFile = path.join(p.PROMPTS_DIR, 'longform', 'alurfilm-thumbnail-prompt.md');
+    if (!fs.existsSync(metadataPromptFile)) {
+      throw new Error(`File prompt metadata '${metadataPromptFile}' tidak ditemukan.`);
+    }
+
+    let promptTemplate = fs.readFileSync(metadataPromptFile, 'utf-8');
+
+    // Modify prompt to request ONLY 1 image prompt, no JSON
+    promptTemplate = promptTemplate.replace(
+      /Tugas Anda adalah menganalisis SELURUH KONTEKS ALUR FILM.*?serta Menghentikan Jempol Penonton \(Scroll-Stopper\) di Layar HP\./i, 
+      "Tugas Anda adalah menganalisis SELURUH KONTEKS ALUR FILM dan menghasilkan HANYA 1 Paragraf Prompt Thumbnail YouTube (tanpa JSON, tanpa judul cerita)."
+    );
+
+    // Remove Section 2
+    promptTemplate = promptTemplate.replace(/={50}\n2\. FORMULA JUDUL HIGH-CTR[\s\S]*?={50}\n3\. FORMULA THUMBNAIL/g, "==================================================\n3. FORMULA THUMBNAIL");
+
+    // Replace Output Format
+    promptTemplate = promptTemplate.replace(/={50}\n4\. SEO DESKRIPSI[\s\S]*$/g, "");
+    promptTemplate += `==================================================\nOUTPUT FORMAT\n==================================================\nTuliskan HANYA 1 paragraf prompt gambar bahasa Inggris (sesuai rumus di atas). TANPA pengantar, TANPA format JSON, TANPA teks tambahan apa pun.`;
+
+    return promptTemplate
+      .replace(/\{\{movie_title\}\}/g, movieTitle || 'Tidak disebutkan')
+      .replace(/\{\{movie_year\}\}/g, movieYear || 'Tidak disebutkan')
+      .replace(/\{\{custom_notes\}\}/g, customNotes || 'Tidak ada catatan khusus')
+      .replace(/\{\{combined_script\}\}/g, combinedScript);
+  });
+
   // ─── Generate Alurfilm Metadata ───────────────────
   ipcMain.handle('generate-alurfilm-metadata', async (_event, { contentId, model, customNotes }) => {
     // Collect all script text, character registry, and macro summaries from available analysis files

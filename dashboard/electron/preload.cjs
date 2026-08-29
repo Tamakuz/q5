@@ -185,6 +185,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('save-render-settings', settings),
   concatAlurfilmFinalVideo: (parts, opts) =>
     ipcRenderer.invoke('concat-alurfilm-final-video', { parts, ...opts }),
+  getAlurfilmImageReadyPrompt: (opts) =>
+    ipcRenderer.invoke('get-alurfilm-image-ready-prompt', opts || {}),
   generateAlurfilmMetadata: (opts) =>
     ipcRenderer.invoke('generate-alurfilm-metadata', opts || {}),
   saveAlurfilmMetadata: (opts) =>

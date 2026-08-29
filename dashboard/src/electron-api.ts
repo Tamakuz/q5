@@ -426,6 +426,7 @@ export interface ElectronAPI {
     error?: string;
   }>;
   getContentId: (mode?: string) => Promise<string | null>;
+  getAlurfilmImageReadyPrompt: (opts?: { modeContentId?: string; customNotes?: string }) => Promise<string>;
   generateAlurfilmMetadata: (opts?: { modeContentId?: string; model?: string; customNotes?: string }) => Promise<AlurfilmMetadataResult>;
   saveAlurfilmMetadata: (opts: { modeContentId?: string; metadata: AlurfilmMetadataResult }) => Promise<{ success: boolean; filePath: string; metadata: AlurfilmMetadataResult }>;
   getAlurfilmMetadata: (modeContentId?: string) => Promise<AlurfilmMetadataResult | null>;
