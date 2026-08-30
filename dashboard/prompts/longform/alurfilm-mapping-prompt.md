@@ -68,7 +68,14 @@ Jika kamu melampirkan (attach) File Audio & Video Source di AI Studio:
 Untuk meloloskan video dari YouTube Content ID & klaim hak cipta, kamu MUTLAK WAJIB menerapkan pola ritme perulangan ini:
 
 1. 🎬 **UTAMAKAN ULTRA SLOW MOTION MAKSIMAL 2.0 DETIK [PRIMARY #1]**:
-   - Sampel klip bergeraknya MAKSIMAL **1.5 - 2.0 DETIK** dari video mentah asli dan di-slow motion (`slow_mo_factor`: **0.25 - 0.6**, misal 0.25 - 0.40 untuk efek slow-mo ultra sinematik & mulus) sehingga memanjang menjadi ~3.3 - 5.0 detik di timeline. Ini adalah **PILIHAN UTAMA DOMINAN (PRIMARY #1)** untuk memberikan alur visual sinematik & mulus.
+   - Formula render: `output_duration = source_read_sec ÷ slow_mo_factor`. Isi field `duration` dengan **durasi output timeline** yang diinginkan.
+   - Contoh kalkulasi:
+     * source 1.5s ÷ factor 0.25 = **output 6.0s** di timeline
+     * source 1.5s ÷ factor 0.40 = **output 3.75s** di timeline
+     * source 2.0s ÷ factor 0.40 = **output 5.0s** di timeline
+     * source 1.5s ÷ factor 0.60 = **output 2.5s** di timeline
+   - Target source read: MAKSIMAL **1.5 - 2.0 DETIK** dari video mentah asli. Pilih `slow_mo_factor` dan `duration` (output) yang menghasilkan source read di kisaran itu.
+   - Ini adalah **PILIHAN UTAMA DOMINAN (PRIMARY #1)** untuk memberikan alur visual sinematik & mulus.
 
 2. ❄️ **FREEZE FRAME DI JEDA ~5s [SECONDARY #2] (`freeze_frame_with_zoom`)**:
    - Pada jeda/interval ~5 detik berikutnya di timeline, gunakan tipe visual `"freeze_frame_with_zoom"` sebagai **PILIHAN SECONDARY #2**.
@@ -110,12 +117,13 @@ Saat menentukan timestamp (`source_start_seconds`) untuk tipe visual `"freeze_fr
    - Ambil timestamp `source_start_seconds` di pertengahan adegan (misal +0.3s s/d +0.5s setelah potong adegan) di mana kamera dan karakter sudah 100% terkunci diam dan jernih.
 
 ==================================================
-🎭 KOMBINASI TIPE VISUAL & RASIO PENGGUNAAN:
+🎭 KOMBINASI TIPE VISUAL, FIELD WAJIB & RASIO PENGGUNAAN:
 ==================================================
-1. `slow_motion`            (~45% - 50%) ➔ [PRIMARY #1] Klip gerak lambat max 2s (slow_mo_factor 0.25 - 0.6 ➔ memanjang 3.3-6.0s di timeline) - Efek Sinematik Dominan.
-2. `freeze_frame_with_zoom` (~30% - 35%) ➔ [SECONDARY #2] Mengisi jeda ~5s dengan foto diam 1 frame tajam + slow zoom-in (Fokus Utama Anti-Content ID & Frame Jernih).
-3. `video_cut`              (~15% - 20%) ➔ Potongan klip bergerak kecepatan normal max 2s.
-4. `mirror_cut`             (~10%)       ➔ Variasi mirror horizontal max 2s.
+1. `slow_motion`            (~45% - 50%) ➔ [PRIMARY #1] Klip gerak lambat. **Field wajib**: `slow_mo_factor` (0.25-0.6), `duration` (output timeline), `source_start_seconds`.
+2. `freeze_frame_with_zoom` (~30% - 35%) ➔ [SECONDARY #2] Foto diam 1 frame tajam + slow zoom-in animasi 1.00x→1.035x (zoom otomatis oleh render, **jangan isi `zoom_speed`** — field ini tidak berpengaruh). **Field wajib**: `duration` (3.0-5.0s), `source_start_seconds`.
+3. `video_cut`              (~10% - 15%) ➔ Potongan klip bergerak kecepatan normal max 2.0s. **Field wajib**: `duration`, `source_start_seconds`.
+4. `mirror_cut`             (~5% - 10%) ➔ Variasi mirror klip bergerak max 2.0s. **WAJIB sertakan** `"mirror_mode": "horizontal"` atau `"mirror_mode": "vertical"` — tanpa field ini efek mirror TIDAK aktif di render!
+5. `pan_and_zoom_cut`       (~5%)        ➔ Klip bergerak dengan efek pan searah. **Field opsional**: `"pan_direction": "left" | "right" | "up" | "down" | "center"`.
 
 Wajib sertakan `color_grading_shift` acak pada setiap klip (contrast: 1.02-1.07, brightness: 0.002-0.01, saturation: 1.03-1.08).
 
@@ -171,17 +179,50 @@ Daftar 5 Kategori BGM Fisik yang Tersedia (Gunakan NAMA FILE EXACT berikut):
       "visuals": [
         {
           "type": "slow_motion",
-          "duration": 1.8,
+          "duration": 3.75,
           "source_start_seconds": 12.5,
-          "slow_mo_factor": 0.6,
+          "slow_mo_factor": 0.4,
           "color_grading_shift": {"contrast": 1.04, "brightness": 0.005, "saturation": 1.05}
         },
         {
           "type": "freeze_frame_with_zoom",
-          "duration": 3.2,
+          "duration": 1.25,
           "source_start_seconds": 18.0,
-          "zoom_speed": 1.03,
           "color_grading_shift": {"contrast": 1.03, "brightness": 0.004, "saturation": 1.04}
+        }
+      ]
+    },
+    {
+      "sentence_index": 1,
+      "type": "visual_only",
+      "text": "[VISUAL_ONLY (Range: 00:18 - 00:28, Duration: 8s): Adegan perkelahian seru di lorong]",
+      "start": 5.5,
+      "end": 13.5,
+      "duration": 8.0,
+      "visuals": [
+        {
+          "type": "video_cut",
+          "duration": 2.0,
+          "source_start_seconds": 18.0,
+          "color_grading_shift": {"contrast": 1.03, "brightness": 0.004, "saturation": 1.04}
+        },
+        {
+          "type": "video_cut",
+          "duration": 2.0,
+          "source_start_seconds": 21.0,
+          "color_grading_shift": {"contrast": 1.05, "brightness": 0.006, "saturation": 1.05}
+        },
+        {
+          "type": "video_cut",
+          "duration": 2.0,
+          "source_start_seconds": 24.0,
+          "color_grading_shift": {"contrast": 1.04, "brightness": 0.003, "saturation": 1.06}
+        },
+        {
+          "type": "video_cut",
+          "duration": 2.0,
+          "source_start_seconds": 27.0,
+          "color_grading_shift": {"contrast": 1.03, "brightness": 0.005, "saturation": 1.04}
         }
       ]
     }
@@ -191,4 +232,7 @@ Daftar 5 Kategori BGM Fisik yang Tersedia (Gunakan NAMA FILE EXACT berikut):
 
 ATURAN STRICT:
 - Output WAJIB MURNI JSON OBJECT tanpa pembungkus ```json atau teks pengantar/penutup.
-- Kalimat berjenis `narration` WAJIB memiliki total akumulasi `duration` klip visual yang SAMA PERSIS dengan durasi ucapan VO-nya. Khusus `visual_only`, durasinya bersifat ringkas & dinamis dari dalam jangkauan timecode-nya.
+- Kalimat berjenis `narration`: total `duration` klip visual WAJIB SAMA PERSIS dengan durasi ucapan VO (`end - start`).
+- Kalimat berjenis `visual_only`: **WAJIB tambahkan `"type": "visual_only"`** pada level sentence mapping (bukan di level visual clip). Tanpa field ini, render engine TIDAK akan mempertahankan audio film asli pada segmen visual_only dan BGM ducking akan rusak!
+- Field `zoom_speed` pada `freeze_frame_with_zoom` **TIDAK BERPENGARUH** di render (zoom otomatis 1.00x→1.035x). Jangan isi field ini.
+- Field `mirror_mode` **WAJIB diisi** saat menggunakan tipe `mirror_cut`. Tanpa ini, efek mirror tidak aktif.

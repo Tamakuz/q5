@@ -294,12 +294,16 @@ const AlurfilmAnalyzeStep: React.FC = () => {
 
       const scriptText = itemData.naskah_voiceover?.script_text || '';
       const macroSummary = itemData.naskah_voiceover?.macro_summary || '';
+      const lastScriptSentence = scriptText
+        ? scriptText.trim().split(/(?<=[.!?…]\s)/).filter(Boolean).pop()?.trim() || ''
+        : '';
 
       previousPartsHistory.push({
         part: p,
         part_label: p === 0 ? 'Part #0 (Intro Teaser Highlight)' : `Part #${p}`,
         script_text: scriptText,
         macro_summary: macroSummary,
+        last_script_sentence: lastScriptSentence,
       });
 
       if (Array.isArray(itemData.character_registry)) {

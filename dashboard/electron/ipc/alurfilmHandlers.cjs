@@ -710,11 +710,16 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
             const scriptText = itemData.naskah_voiceover?.script_text || '';
             const macroSummary = itemData.naskah_voiceover?.macro_summary || '';
 
+            const lastSentence = scriptText
+              ? scriptText.trim().split(/(?<=[.!?…]\s)/).filter(Boolean).pop()?.trim() || ''
+              : '';
+
             previousPartsHistory.push({
               part: pNum,
               part_label: pNum === 0 ? 'Part #0 (Intro Teaser Highlight)' : `Part #${pNum}`,
               script_text: scriptText,
               macro_summary: macroSummary,
+              last_script_sentence: lastSentence,
             });
 
             if (Array.isArray(itemData.character_registry)) {
@@ -778,7 +783,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     const isIntroPart = Number(chunkPart) === 0;
     const computedWordsPerChunk = isIntroPart
       ? Math.max(40, Math.min(150, Math.round(safeDuration * 0.8)))
-      : Math.max(40, Math.min(600, Math.round(safeDuration * 0.42)));
+      : Math.max(40, Math.min(600, Math.round(safeDuration * 0.5)));
     const chunkDurationText = safeDuration < 60
       ? `${Math.round(safeDuration)} Detik`
       : `${(safeDuration / 60).toFixed(1)} Menit`;
@@ -1831,19 +1836,37 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
                   });
                 }
 
+                // Fix Bug 1: gap between cutEnd and nextNarr.firstWordStart was previously
+                // dropped — neither included in audio_chunk nor in silence_buffer. This caused
+                // the spliced audio timeline to drift from the video timeline, making the
+                // visual_only audio appear delayed or cut short.
+                // Now we roll that gap INTO the silence_buffer so the total spliced duration
+                // exactly matches the video timeline.
+                let gapToNextNarr = 0;
                 if (nextNarr && nextNarr.firstWordStart !== undefined) {
-                  lastCutTime = Math.max(cutEnd, Number(nextNarr.firstWordStart.toFixed(3)));
+                  const nextStart = Number(nextNarr.firstWordStart.toFixed(3));
+                  gapToNextNarr = Math.max(0, nextStart - cutEnd);
+                  lastCutTime = Math.max(cutEnd, nextStart);
                 } else {
                   lastCutTime = cutEnd;
                 }
-              }
 
-              audioSplits.push({
-                type: 'silence_buffer',
-                durationSec: Number((current.duration || 5.0).toFixed(3)),
-                element: current
-              });
+                const silenceDur = Number(((current.duration || 5.0) + gapToNextNarr).toFixed(3));
+                audioSplits.push({
+                  type: 'silence_buffer',
+                  durationSec: silenceDur,
+                  element: current
+                });
+              } else {
+                // No preceding narration — just push silence for the visual_only duration
+                audioSplits.push({
+                  type: 'silence_buffer',
+                  durationSec: Number((current.duration || 5.0).toFixed(3)),
+                  element: current
+                });
+              }
             }
+
           }
 
           if (totalRawAudioDur > lastCutTime + 0.05) {

@@ -344,13 +344,22 @@ program
     const narrationClips = clips.filter(c => !c.isVisualOnly);
     const narrationTotalDur = narrationClips.reduce((s, c) => s + c.duration, 0);
 
-    if (maxAudioDurationSec > 0 && narrationClips.length > 0 && Math.abs(narrationTotalDur - maxAudioDurationSec) > 0.1) {
-      console.log(`⚠️ [Alurfilm Engine] Narration visual clips duration (${narrationTotalDur.toFixed(2)}s) differs from Audio VO duration (${maxAudioDurationSec.toFixed(2)}s). Auto-adjusting narration clips.`);
-      const scale = maxAudioDurationSec / narrationTotalDur;
+    // Fix: exclude visual_only silence buffers from maxAudioDurationSec before scaling.
+    // The spliced WAV already includes silence gaps for visual_only segments — if we scale
+    // narration clips against the full spliced duration, they get over-stretched and bleed
+    // into the visual_only zone, causing audio overlap.
+    const visualOnlyTotalDur = clips.filter(c => c.isVisualOnly).reduce((s, c) => s + c.duration, 0);
+    const effectiveNarrationAudioDur = maxAudioDurationSec > 0
+      ? Math.max(narrationTotalDur * 0.5, maxAudioDurationSec - visualOnlyTotalDur)
+      : 0;
+
+    if (effectiveNarrationAudioDur > 0 && narrationClips.length > 0 && Math.abs(narrationTotalDur - effectiveNarrationAudioDur) > 0.1) {
+      console.log(`⚠️ [Alurfilm Engine] Narration clips duration (${narrationTotalDur.toFixed(2)}s) differs from effective narration audio (${effectiveNarrationAudioDur.toFixed(2)}s, visual_only silence excluded: ${visualOnlyTotalDur.toFixed(2)}s). Auto-adjusting narration clips.`);
+      const scale = effectiveNarrationAudioDur / narrationTotalDur;
       narrationClips.forEach((c, idx) => {
         if (idx === narrationClips.length - 1) {
           const otherSum = narrationClips.slice(0, idx).reduce((s, x) => s + x.duration, 0);
-          c.duration = Math.max(0.2, Number((maxAudioDurationSec - otherSum).toFixed(3)));
+          c.duration = Math.max(0.2, Number((effectiveNarrationAudioDur - otherSum).toFixed(3)));
         } else {
           c.duration = Number((c.duration * scale).toFixed(3));
         }
@@ -382,8 +391,10 @@ program
 
     let visualOnlyConditions = '0';
     if (visualOnlyIntervals.length > 0) {
+      // Extend bounds by 0.05s on each side to prevent frame-boundary BGM ducking misses
+      // (FFmpeg between() is inclusive but frame-sampled, so exact boundary can miss 1-2 frames)
       visualOnlyConditions = visualOnlyIntervals
-        .map(inv => `between(t,${inv.start.toFixed(2)},${inv.end.toFixed(2)})`)
+        .map(inv => `between(t,${Math.max(0, inv.start - 0.05).toFixed(2)},${(inv.end + 0.05).toFixed(2)})`)
         .join('+');
     }
     console.log(`🎬 [Alurfilm Engine] VISUAL_ONLY Intervals: ${visualOnlyIntervals.map(i => `${i.start.toFixed(1)}s-${i.end.toFixed(1)}s`).join(', ') || 'None'}`);

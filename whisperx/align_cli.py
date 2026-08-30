@@ -66,9 +66,16 @@ def load_narration_text(text_path: str) -> str:
         return f.read().strip()
 
 
+def strip_voice_tags(text: str) -> str:
+    """Strip voice direction tags [chuckles], [pause], [EXPRESSION: ...] — tidak diucapkan di audio."""
+    return re.sub(r'\[[^\]]*\]', '', text).strip()
+
+
 def split_sentences(text: str) -> list:
-    """Pecah teks naskah jadi array kalimat."""
-    sentences = re.split(r"(?<=[.!?…])\s+", text.strip())
+    """Pecah teks naskah jadi array kalimat. Voice tags tetap ada untuk output text."""
+    # Normalisasi triple-dot ellipsis ke karakter tunggal agar split konsisten
+    normalized = re.sub(r'\.\.\.', '\u2026 ', text.strip())
+    sentences = re.split(r'(?<=[.!?\u2026])\s+', normalized)
     return [s.strip() for s in sentences if s.strip()]
 
 
@@ -109,7 +116,9 @@ def run_faster_whisper_pipeline(audio_path: str, raw_text: str, model_name: str 
         best_of=5,
         condition_on_previous_text=False,
         vad_filter=True,
-        vad_parameters=dict(min_silence_duration_ms=400, speech_pad_ms=150),
+        # min_silence_duration_ms dinaikkan ke 700ms agar narasi VO panjang tidak dipotong
+        # di tengah kalimat saat narator ngomong cepat dengan jeda pendek antar frasa
+        vad_parameters=dict(min_silence_duration_ms=700, speech_pad_ms=200),
         word_timestamps=True
     )
     if language:
@@ -187,7 +196,9 @@ def run_faster_whisper_pipeline(audio_path: str, raw_text: str, model_name: str 
     last_end_word_idx = 0
 
     for s_idx, sent in enumerate(sentences):
-        tokens = [t for t in sent.strip().split() if t.strip()]
+        # Strip voice tags sebelum tokenisasi — [chuckles], [pause] tidak ada di audio
+        sent_for_match = strip_voice_tags(sent)
+        tokens = [t for t in sent_for_match.strip().split() if t.strip()]
         clean_tokens = [re.sub(r'[^\w\s]', '', t.lower()) for t in tokens if re.sub(r'[^\w\s]', '', t.lower())]
         sent_len = len(clean_tokens)
 
@@ -197,7 +208,7 @@ def run_faster_whisper_pipeline(audio_path: str, raw_text: str, model_name: str 
         target_text = " ".join(clean_tokens)
 
         search_start = max(0, last_end_word_idx - 15)
-        search_end = min(total_words, last_end_word_idx + max(60, sent_len * 4))
+        search_end = min(total_words, last_end_word_idx + max(80, sent_len * 5))
 
         best_score = -1.0
         best_w_start = -1
@@ -217,7 +228,7 @@ def run_faster_whisper_pipeline(audio_path: str, raw_text: str, model_name: str 
                     best_w_start = w_start
                     best_w_end = w_end - 1
 
-        if best_score >= 0.45 and best_w_start >= 0 and best_w_end >= best_w_start:
+        if best_score >= 0.55 and best_w_start >= 0 and best_w_end >= best_w_start:
             matched_sentences.append({
                 "sent_idx": s_idx,
                 "text": sent,
