@@ -342,7 +342,7 @@ const AlurfilmAnalyzeStep: React.FC = () => {
       const isIntroPart = partNum === 0;
       const computedWords = isIntroPart
         ? Math.max(40, Math.min(150, Math.round(chunkDur * 0.8)))
-        : Math.max(40, Math.min(500, Math.round(chunkDur * 0.42)));
+        : Math.max(40, Math.min(500, Math.round(chunkDur * (500 / 1200))));
 
       let formattedPrompt = '';
       if (api.getAlurfilmPrompt) {
@@ -760,7 +760,7 @@ const safeStr = (val: any, fallback: string = ''): string => {
               const chunkDur = activeChunk?.durationSec || activeChunk?.duration || 0;
               const computedWords = activePart === 0
                 ? Math.max(40, Math.min(150, Math.round(chunkDur * 0.8)))
-                : Math.max(40, Math.min(500, Math.round(chunkDur * 0.42)));
+                : Math.max(40, Math.min(500, Math.round(chunkDur * (500 / 1200))));
               const durText = chunkDur < 60
                 ? `${Math.round(chunkDur)} Detik`
                 : `${(chunkDur / 60).toFixed(1)} Menit`;

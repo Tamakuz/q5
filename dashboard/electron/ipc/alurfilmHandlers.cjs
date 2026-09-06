@@ -783,7 +783,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     const isIntroPart = Number(chunkPart) === 0;
     const computedWordsPerChunk = isIntroPart
       ? Math.max(40, Math.min(150, Math.round(safeDuration * 0.8)))
-      : Math.max(40, Math.min(600, Math.round(safeDuration * 0.5)));
+      : Math.max(40, Math.min(500, Math.round(safeDuration * (500 / 1200))));
     const chunkDurationText = safeDuration < 60
       ? `${Math.round(safeDuration)} Detik`
       : `${(safeDuration / 60).toFixed(1)} Menit`;
