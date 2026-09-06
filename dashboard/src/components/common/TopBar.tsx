@@ -73,22 +73,8 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
           </span>
 
           {/* Mode Indicator Badge */}
-          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
-            contentMode === 'longform'
-              ? 'bg-purple-950/80 text-purple-300 border-purple-800/80'
-              : contentMode === 'shorts'
-              ? 'bg-amber-950/80 text-amber-300 border-amber-800/80'
-              : contentMode === 'spensia'
-              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/80'
-              : 'bg-cyan-950/80 text-cyan-300 border-cyan-800/80'
-          }`}>
-            {contentMode === 'longform'
-              ? '🍿 Alur Film Mode'
-              : contentMode === 'shorts'
-              ? '🎬 Shorts Mode'
-              : contentMode === 'spensia'
-              ? '✨ Spensia Mode'
-              : '👤 UGC Mode'}
+          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border bg-purple-950/80 text-purple-300 border-purple-800/80">
+            🍿 Alur Film Mode
           </span>
 
           {/* Copyable Content ID */}
@@ -96,15 +82,7 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
             <button
               onClick={handleCopyId}
               title="Click to copy Content ID"
-              className={`px-2 py-0.5 rounded-md border text-[10px] font-mono font-semibold transition-all flex items-center gap-1.5 ${
-                contentMode === 'longform'
-                  ? 'bg-purple-950/60 hover:bg-purple-900/80 border-purple-700/50 text-purple-300'
-                  : contentMode === 'shorts'
-                  ? 'bg-amber-950/60 hover:bg-amber-900/80 border-amber-700/50 text-amber-300'
-                  : contentMode === 'spensia'
-                  ? 'bg-emerald-950/60 hover:bg-emerald-900/80 border-emerald-700/50 text-emerald-300'
-                  : 'bg-cyan-950/60 hover:bg-cyan-900/80 border-cyan-700/50 text-cyan-300'
-              }`}
+              className="px-2 py-0.5 rounded-md border text-[10px] font-mono font-semibold transition-all flex items-center gap-1.5 bg-purple-950/60 hover:bg-purple-900/80 border-purple-700/50 text-purple-300"
             >
               <span>🆔</span>
               <span className="font-bold">{contentId}</span>
@@ -122,7 +100,7 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
         >
           <span>🔄</span>
           <span>
-            New Content / Reset ID ({contentMode === 'longform' ? 'Alur Film' : contentMode === 'shorts' ? 'Shorts' : contentMode === 'spensia' ? 'Spensia' : 'UGC'})
+            New Content / Reset ID (Alur Film)
           </span>
         </button>
       </header>
@@ -137,7 +115,7 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
             <div>
               <h3 className="text-base font-bold text-white">Reset Workspace & Content ID?</h3>
               <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                Tindakan ini akan membuat Content ID baru untuk kategori <strong className="text-white uppercase">{contentMode}</strong> dan membersihkan data temporer proyek.
+                Tindakan ini akan membuat Content ID baru untuk kategori <strong className="text-white uppercase">Alur Cerita Film</strong> dan membersihkan data temporer proyek.
               </p>
             </div>
             <div className="flex items-center justify-end gap-3 pt-2">

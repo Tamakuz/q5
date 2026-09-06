@@ -302,33 +302,6 @@ async function streamChatCompletion({
   return raw;
 }
 
-/**
- * Generate Spensia Topics using AI (with optional streaming onChunk)
- */
-async function generateSpensiaTopics({ promptText, model = DEFAULT_MODEL, onChunk }) {
-  const rawText = await streamChatCompletion({
-    prompt: promptText,
-    model,
-    jsonMode: true,
-    onChunk,
-  });
-
-  let parsed = null;
-  try {
-    parsed = JSON.parse(rawText);
-  } catch (e) {
-    try {
-      const cleanJson = extractCleanJsonObject(rawText);
-      if (cleanJson) parsed = JSON.parse(cleanJson);
-    } catch (e2) {}
-  }
-
-  return {
-    rawText,
-    topics: parsed?.topics || null,
-    theme: parsed?.theme || null,
-  };
-}
 
 /**
  * Generate YouTube Titles using AI (JSON Mode)
@@ -347,86 +320,6 @@ async function generateYoutubeTitles({ fullPrompt, model = DEFAULT_MODEL }) {
   }
 }
 
-/**
- * Generate Spensia Script using AI (with optional streaming onChunk)
- */
-async function generateSpensiaScript({ promptText, model = DEFAULT_MODEL, onChunk }) {
-  const rawText = await streamChatCompletion({
-    prompt: promptText,
-    model,
-    jsonMode: true,
-    onChunk,
-  });
-
-  let parsed = null;
-  try {
-    parsed = JSON.parse(rawText);
-  } catch (e) {
-    try {
-      const cleanJson = extractCleanJsonObject(rawText);
-      if (cleanJson) parsed = JSON.parse(cleanJson);
-    } catch (e2) {}
-  }
-
-  return {
-    rawText,
-    scriptData: parsed || null,
-  };
-}
-
-/**
- * Generate Spensia Breakdown (Scene Splitter) using AI
- */
-async function generateSpensiaBreakdown({ promptText, model = DEFAULT_MODEL, onChunk }) {
-  const rawText = await streamChatCompletion({
-    prompt: promptText,
-    model,
-    jsonMode: true,
-    onChunk,
-  });
-
-  let parsed = null;
-  try {
-    parsed = JSON.parse(rawText);
-  } catch (e) {
-    try {
-      const cleanJson = extractCleanJsonObject(rawText);
-      if (cleanJson) parsed = JSON.parse(cleanJson);
-    } catch (e2) {}
-  }
-
-  return {
-    rawText,
-    breakdownData: parsed || null,
-  };
-}
-
-/**
- * Generate Spensia Image Prompts using AI
- */
-async function generateSpensiaImagePrompts({ promptText, model = DEFAULT_MODEL, onChunk }) {
-  const rawText = await streamChatCompletion({
-    prompt: promptText,
-    model,
-    jsonMode: true,
-    onChunk,
-  });
-
-  let parsed = null;
-  try {
-    parsed = JSON.parse(rawText);
-  } catch (e) {
-    try {
-      const cleanJson = extractCleanJsonObject(rawText);
-      if (cleanJson) parsed = JSON.parse(cleanJson);
-    } catch (e2) {}
-  }
-
-  return {
-    rawText,
-    imagePromptsData: parsed || null,
-  };
-}
 
 const DEFAULT_IMAGE_MODEL = 'cx/gpt-5.5-image';
 
@@ -599,14 +492,7 @@ module.exports = {
   streamChatCompletion,
   visionChatCompletion,
   extractCleanJsonObject,
-  generateSpensiaTopics,
-  generateSpensiaScript,
-  generateSpensiaBreakdown,
-  generateSpensiaImagePrompts,
-  generateWakuTopics: generateSpensiaTopics,
-  generateWakuScript: generateSpensiaScript,
-  generateWakuBreakdown: generateSpensiaBreakdown,
-  generateWakuImagePrompts: generateSpensiaImagePrompts,
+
   generateImage,
   generateYoutubeTitles,
   NINEROUTER_BASE_URL,

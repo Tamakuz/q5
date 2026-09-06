@@ -18,16 +18,6 @@ const LONGFORM_STEPS: StepItem[] = [
   { id: 'render', label: '6. Video Render', shortLabel: 'Render', icon: '🎬' },
 ];
 
-const SPENSIA_STEPS: StepItem[] = [
-  { id: 'source', label: '1. Topics Generator', shortLabel: 'Topics', icon: '💡' },
-  { id: 'analyze', label: '2. Script Generator', shortLabel: 'Script', icon: '⚡' },
-  { id: 'publish', label: '3. Voice Over', shortLabel: 'Voice', icon: '🎙️' },
-  { id: 'mapping', label: '4. Image Prompts', shortLabel: 'Prompts', icon: '🎨' },
-  { id: 'render', label: '5. Image Generator', shortLabel: 'Images', icon: '🖼️' },
-  { id: 'upload', label: '6. Render Studio', shortLabel: 'Render', icon: '🎬' },
-  { id: 'thumbnail', label: '7. Thumbnail Studio', shortLabel: 'Thumbnail', icon: '🚀' },
-];
-
 interface WorkflowHeaderProps {
   contentMode: ContentMode;
   activeStep: StepId;
@@ -41,10 +31,7 @@ const WorkflowHeader: React.FC<WorkflowHeaderProps> = ({
   onStepChange,
   onOpenPreview,
 }) => {
-  const steps =
-    contentMode === 'longform'
-      ? LONGFORM_STEPS
-      : SPENSIA_STEPS;
+  const steps = LONGFORM_STEPS;
   const activeIndex = steps.findIndex((s) => s.id === activeStep);
 
   return (
@@ -64,9 +51,7 @@ const WorkflowHeader: React.FC<WorkflowHeaderProps> = ({
                   onClick={() => onStepChange(step.id)}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 border ${
                     isActive
-                      ? contentMode === 'longform'
-                        ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/30'
-                        : 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-600/30'
+                      ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/30'
                       : isPassed
                       ? 'bg-gray-950/80 border-gray-800/90 text-gray-300 hover:border-gray-700'
                       : 'bg-gray-950/30 border-transparent text-gray-500 hover:text-gray-400 hover:bg-gray-900'
@@ -85,11 +70,7 @@ const WorkflowHeader: React.FC<WorkflowHeaderProps> = ({
                 {index < steps.length - 1 && (
                   <div
                     className={`h-0.5 w-4 rounded-full shrink-0 transition-colors ${
-                      index < activeIndex
-                        ? contentMode === 'longform'
-                          ? 'bg-purple-500/60'
-                          : 'bg-emerald-500/60'
-                        : 'bg-gray-800'
+                      index < activeIndex ? 'bg-purple-500/60' : 'bg-gray-800'
                     }`}
                   />
                 )}

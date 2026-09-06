@@ -5,21 +5,12 @@ const fs = require('fs');
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
 const INPUT_ASSETS = path.join(PROJECT_ROOT, 'input', 'assets');
 const TMP_DIR = path.join(PROJECT_ROOT, 'input', '.tmp');
-const SPENSIA_INPUT_DIR = path.join(PROJECT_ROOT, 'input', 'spensia');
-const SPENSIA_OUTPUT_DIR = path.join(PROJECT_ROOT, 'output', 'spensia');
-const SPENSIA_IMAGES_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'images');
-const SPENSIA_THUMBNAILS_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'thumbnails');
-const SPENSIA_AUDIO_DIR = path.join(PROJECT_ROOT, 'input', 'spensia', 'audio');
 const ALURFILM_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm');
 const ALURFILM_CHUNKS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'chunks');
 const ALURFILM_COMPRESS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'compress');
 const ALURFILM_AUDIO_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'audio');
 const ALURFILM_TRANSCRIPTS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'transcripts');
 const ALURFILM_MAPPINGS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'mappings');
-const UGC_DIR = path.join(PROJECT_ROOT, 'input', 'ugc');
-const UGC_PROFILES_DIR = path.join(PROJECT_ROOT, 'input', 'ugc', 'profiles');
-const UGC_PRODUCTS_DIR = path.join(PROJECT_ROOT, 'input', 'ugc', 'products');
-const UGC_OUTPUT_DIR = path.join(PROJECT_ROOT, 'output', 'ugc');
 const PROMPTS_DIR = path.join(PROJECT_ROOT, 'dashboard', 'prompts');
 const tsxBinPath = path.join(PROJECT_ROOT, 'node_modules', '.bin', 'tsx');
 
@@ -27,33 +18,21 @@ const tsxBinPath = path.join(PROJECT_ROOT, 'node_modules', '.bin', 'tsx');
 [
   INPUT_ASSETS,
   TMP_DIR,
-  SPENSIA_INPUT_DIR,
-  SPENSIA_OUTPUT_DIR,
   ALURFILM_DIR,
   ALURFILM_CHUNKS_DIR,
   ALURFILM_COMPRESS_DIR,
   ALURFILM_AUDIO_DIR,
   ALURFILM_TRANSCRIPTS_DIR,
   ALURFILM_MAPPINGS_DIR,
-  UGC_DIR,
-  UGC_PROFILES_DIR,
-  UGC_PRODUCTS_DIR,
-  UGC_OUTPUT_DIR,
 ].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
 /**
- * Generate or retrieve content ID for a given mode (longform/spensia/ugc)
+ * Generate or retrieve content ID for Alur Film longform mode
  */
-function getOrGenerateContentId(mode = 'spensia') {
-  const isLongform = mode === 'longform';
-  const isSpensia = mode === 'spensia';
-  const mappingFile = isSpensia
-    ? path.join(PROJECT_ROOT, 'input', 'spensia', 'spensia_mapping.json')
-    : isLongform
-      ? path.join(PROJECT_ROOT, 'input', 'longform_mapping.json')
-      : path.join(PROJECT_ROOT, 'input', 'mapping.json');
+function getOrGenerateContentId() {
+  const mappingFile = path.join(PROJECT_ROOT, 'input', 'longform_mapping.json');
 
   const dir = path.dirname(mappingFile);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -69,15 +48,14 @@ function getOrGenerateContentId(mode = 'spensia') {
 
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const randStr = Math.random().toString(36).substring(2, 6).toUpperCase();
-  const prefix = isSpensia ? 'WV-SPENSIA' : isLongform ? 'WV-FILM' : 'WV';
-  const newId = `${prefix}-${dateStr}-${randStr}`;
+  const newId = `WV-FILM-${dateStr}-${randStr}`;
 
   try {
     let mapping = {
       settings: {
         fps: 30,
-        format: isSpensia ? "16:9" : isLongform ? "16:9" : "9:16",
-        fg_aspect: isSpensia ? "16:9" : isLongform ? "16:9" : "4:5",
+        format: "16:9",
+        fg_aspect: "16:9",
         bgm: "random",
         content_id: newId
       },
@@ -98,21 +76,12 @@ module.exports = {
   PROJECT_ROOT,
   INPUT_ASSETS,
   TMP_DIR,
-  SPENSIA_INPUT_DIR,
-  SPENSIA_OUTPUT_DIR,
-  SPENSIA_IMAGES_DIR,
-  SPENSIA_THUMBNAILS_DIR,
-  SPENSIA_AUDIO_DIR,
   ALURFILM_DIR,
   ALURFILM_CHUNKS_DIR,
   ALURFILM_COMPRESS_DIR,
   ALURFILM_AUDIO_DIR,
   ALURFILM_TRANSCRIPTS_DIR,
   ALURFILM_MAPPINGS_DIR,
-  UGC_DIR,
-  UGC_PROFILES_DIR,
-  UGC_PRODUCTS_DIR,
-  UGC_OUTPUT_DIR,
   PROMPTS_DIR,
   tsxBinPath,
   getOrGenerateContentId,

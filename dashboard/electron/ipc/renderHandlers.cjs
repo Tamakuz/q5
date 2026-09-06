@@ -4,7 +4,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 
 function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
-  // ─── Render video via FFmpeg CLI (shortform) ───────────
+  // ─── Render video via FFmpeg CLI ───────────
   ipcMain.handle('render-video', async (_event, mapping, videoPath, audioPath) => {
     if (!mapping || !videoPath) {
       return { error: 'Missing mapping or video path.' };

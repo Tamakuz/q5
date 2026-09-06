@@ -229,65 +229,6 @@ export interface AlurfilmRenderResult {
   error?: string;
 }
 
-export interface UGCProfile {
-  id: string;
-  name: string;
-  photo: string;
-  createdAt: string;
-  photoUrl?: string;
-  photoPath?: string;
-}
-
-export interface UGCProduct {
-  id: string;
-  name: string;
-  photo?: string | null;
-  createdAt: string;
-  photoUrl?: string;
-  photoPath?: string;
-}
-
-export interface UGCVideoAsset {
-  id: string;
-  name: string;
-  fileName: string;
-  size: number;
-  filePath: string;
-  url: string;
-  createdAt: string;
-}
-
-export interface UGCPatternStats {
-  productId: string;
-  totalRawClips: number;
-  totalPossiblePatterns: number;
-  renderedCount: number;
-  uploadedCount?: number;
-  remainingCount: number;
-}
-
-export interface UGCPatternItem {
-  patternKey: string;
-  pattern: string[];
-  rendered: boolean;
-  uploaded: boolean;
-  outputFileName?: string | null;
-  videoUrl?: string | null;
-  renderedAt?: string | null;
-  uploadedAt?: string | null;
-}
-
-export interface UGCRenderResult {
-  id: string;
-  name: string;
-  fileName: string;
-  size: number;
-  pattern?: string[];
-  filePath: string;
-  url: string;
-  createdAt: string;
-}
-
 export interface RenderSettings {
   narrationVolume: number;
   bgmVolume: number;
@@ -308,46 +249,6 @@ export interface RenderSettings {
 }
 
 export interface ElectronAPI {
-  selectUGCImageFile?: () => Promise<SelectedFile | null>;
-  getUGCProfiles?: () => Promise<UGCProfile[]>;
-  createUGCProfile?: (name: string, sourceFilePath?: string) => Promise<UGCProfile>;
-  deleteUGCProfile?: (profileId: string) => Promise<boolean>;
-  selectActiveUGCProfile?: (profileId: string) => Promise<boolean>;
-  getActiveUGCProfile?: () => Promise<string | null>;
-
-  selectUGCVideoFile?: () => Promise<SelectedFile[]>;
-  getUGCProducts?: () => Promise<UGCProduct[]>;
-  createUGCProduct?: (name: string, sourcePhotoPath?: string) => Promise<UGCProduct>;
-  deleteUGCProduct?: (productId: string) => Promise<boolean>;
-  selectActiveUGCProduct?: (productId: string) => Promise<boolean>;
-  getActiveUGCProduct?: () => Promise<string | null>;
-  uploadUGCVideoAsset?: (productId: string, sourceFilePath: string) => Promise<UGCVideoAsset>;
-  downloadUGCVideoAsset?: (productId: string, videoUrl: string) => Promise<UGCVideoAsset>;
-  onUGCVideoDownloadProgress?: (
-    callback: (data: { productId: string; progress: number; loadedBytes: number; totalBytes: number }) => void
-  ) => () => void;
-  listUGCVideoAssets?: (productId: string) => Promise<UGCVideoAsset[]>;
-  deleteUGCVideoAsset?: (productId: string, fileName: string) => Promise<boolean>;
-
-  getUGCPatternStats?: (productId: string) => Promise<UGCPatternStats | null>;
-  getUGCPatternsList?: (
-    productId: string
-  ) => Promise<{ productId: string; items: UGCPatternItem[]; stats: UGCPatternStats; rawClipUrls?: Record<string, string> } | null>;
-  shuffleUGCPatterns?: (productId: string) => Promise<boolean>;
-  renderUGCPattern?: (
-    productId: string,
-    pattern?: string[],
-    patternIndex?: number,
-    transitionStyle?: 'radian_glow' | 'dissolve' | 'none'
-  ) => Promise<UGCRenderResult>;
-  toggleUGCOploadStatus?: (productId: string, patternKey: string, uploaded: boolean) => Promise<boolean>;
-  deleteUGCRenderPattern?: (productId: string, patternKey: string) => Promise<boolean>;
-  listUGCRenders?: (productId: string) => Promise<UGCRenderResult[]>;
-  deleteUGCRender?: (productId: string, fileName: string) => Promise<boolean>;
-  onUGCRenderProgress?: (
-    callback: (data: { productId: string; stage: string; progress: number }) => void
-  ) => () => void;
-
   selectFile: () => Promise<SelectedFile | null>;
   getVideoMeta: (filePath: string) => Promise<VideoMeta | null>;
   uploadSource: (filePath: string, start: number, end: number) => Promise<SourceInfo>;
@@ -425,7 +326,6 @@ export interface ElectronAPI {
     mediaUrl?: string;
     error?: string;
   }>;
-  getContentId: (mode?: string) => Promise<string | null>;
   getAlurfilmImageReadyPrompt: (opts?: { modeContentId?: string; customNotes?: string }) => Promise<string>;
   generateAlurfilmMetadata: (opts?: { modeContentId?: string; model?: string; customNotes?: string }) => Promise<AlurfilmMetadataResult>;
   saveAlurfilmMetadata: (opts: { modeContentId?: string; metadata: AlurfilmMetadataResult }) => Promise<{ success: boolean; filePath: string; metadata: AlurfilmMetadataResult }>;
@@ -487,114 +387,16 @@ export interface ElectronAPI {
   onAlurfilmTestWhisperProgress?: (callback: (data: { stage: string; progress: number; message: string }) => void) => () => void;
 
   getMediaUrl?: (filePath: string) => string;
+  // Generic project file helpers
+  getContentId: (mode?: string) => Promise<string | null>;
   resetProject: (mode?: string) => Promise<{ success: boolean; content_id?: string; error?: string }>;
   copyToClipboard: (text: string) => Promise<boolean>;
   saveToProject: (subPath: string, data: string) => Promise<boolean>;
   readFromProject: (subPath: string) => Promise<string | null>;
-  generateShortsKeywords?: (opts?: { model?: string }) => Promise<{ success: boolean; keywords: any[]; activeHistory: any[] }>;
-  downloadShortsVideo?: (data: { keywordId: string; subNiche: string; keyword: string; youtubeUrl: string }) => Promise<{ success: boolean; videoPath?: string; compressedPath?: string; compressedSizeBytes?: number; fileSizeBytes?: number; error?: string }>;
-  onShortsDownloadProgress?: (callback: (data: { keywordId: string; percentage: number; totalSize: string; speed: string }) => void) => () => void;
-  compressShortsVideo?: (data: { keywordId: string; videoPath: string }) => Promise<{ success: boolean; compressedPath?: string; compressedSizeBytes?: number; error?: string }>;
-  onShortsCompressProgress?: (callback: (data: { keywordId: string; percentage: number }) => void) => () => void;
-  uploadShortsVoAudio?: (data: { segmentId: string; lang?: 'id' | 'en'; sourcePath?: string; bufferArray?: ArrayBuffer; extension?: string }) => Promise<{ success: boolean; audioPath: string; audioFilename: string; fileSizeBytes: number }>;
-  runShortsWhisperAlignment?: (data: { audioPath: string; scriptText: string; lang?: 'id' | 'en' }) => Promise<{ success: boolean; result?: any; error?: string }>;
-  onShortsWhisperProgress?: (callback: (data: { step: string; percent: number; detail: string }) => void) => () => void;
-  renderShortsSegment?: (data: { segmentId: string; lang?: 'id' | 'en' }) => Promise<{ success: boolean; outputPath?: string; outputFilename?: string; fileSizeBytes?: number; elapsedSec?: string; error?: string }>;
-  onShortsRenderProgress?: (callback: (data: { segmentId: string; lang: 'id' | 'en'; percent: number; detail: string; logLine?: string }) => void) => () => void;
   renderVideo: (mapping: object, videoPath: string, audioPath?: string) => Promise<RenderResult | { error: string }>;
   onRenderProgress: (callback: (data: RenderProgress) => void) => () => void;
   generateYoutubeTitles: (transcriptText: string) => Promise<YoutubeTitleResult>;
-  generateSpensiaTopics: (promptText: string, model?: string) => Promise<{ rawText: string; topics?: Array<{ id: number; title: string; summary: string }> | null; theme?: string | null }>;
-  generateSpensiaScript: (promptText: string, model?: string) => Promise<{ rawText: string; scriptData?: any }>;
-  generateSpensiaBreakdown: (promptText: string, model?: string) => Promise<{ rawText: string; breakdownData?: any }>;
-  generateSpensiaImagePrompts: (promptText: string, model?: string) => Promise<{ rawText: string; imagePromptsData?: any }>;
-  onSpensiaTopicsChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
-  onSpensiaScriptChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
-  onSpensiaBreakdownChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
-  onSpensiaImagePromptsChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
-  generateSpensiaSingleImage: (segmentId: number, prompt: string, model?: string, size?: string, quality?: string, imageDetail?: string, topicId?: number) => Promise<{ segmentId: number; topicId?: number; filePath: string; url: string; originalUrl?: string }>;
-  generateSpensiaBatchImages: (items: Array<{ segment_id: number; prompt: string }>, model?: string, size?: string, quality?: string, imageDetail?: string, concurrency?: number, topicId?: number, keepOpen?: boolean) => Promise<Array<any>>;
-  onSpensiaImageProgress: (callback: (data: { current: number; total: number; segmentId: number; topicId?: number; saved?: any; error?: string; status: string }) => void) => () => void;
-  onSpensiaImageChunkStart: (callback: (data: { segmentIds: number[]; topicId?: number }) => void) => () => void;
-  onSpensiaImageLog?: (callback: (data: { segmentId: number; workerId?: number; text: string }) => void) => () => void;
-  uploadSpensiaVoAudio: (segmentId?: number, sourcePath?: string, bufferArray?: ArrayBuffer | number[], topicId?: number) => Promise<{ segmentId?: number; filename: string; filePath: string; url: string }>;
-  mergeSpensiaVoAudio: (audioPaths: string[], topicId?: number) => Promise<{ filename: string; filePath: string; url: string; duration: number }>;
-  runSpensiaFasterWhisperAlignment?: (data: { audioPath?: string; scriptText?: string; topicId?: number }) => Promise<{ success: boolean; jsonContent?: string; filePath?: string; error?: string }>;
-  onSpensiaFasterWhisperProgress?: (callback: (data: { stage: string; progress: number; message: string; log?: string; topicId?: number }) => void) => () => void;
-
-  // Spensia Render Engine & Thumbnail Studio
-  generateSpensiaTimeline: (topicId?: number) => Promise<{ timeline?: SpensiaTimelineStructure; saved?: boolean; error?: string }>;
-  getSpensiaRenderResult?: (topicId?: number) => Promise<SpensiaRenderResult | null>;
-  renderSpensiaVideo: (config: SpensiaRenderConfig, timeline: SpensiaTimelineStructure, outputPath?: string, topicId?: number) => Promise<SpensiaRenderResult>;
-  renderSpensiaPreviewFrame: (config: SpensiaRenderConfig, imagePath: string) => Promise<{ filePath?: string; url?: string; error?: string }>;
-
-  // Thumbnail Studio & Publish Hub SEO
-  generateSpensiaThumbnailPrompts?: (scriptContent?: string, topicTitle?: string, selectedTitle?: string, metadata?: SpensiaUploadMetadata | null, model?: string, topicId?: number) => Promise<{ concepts: SpensiaThumbnailConcept[] }>;
-  onSpensiaThumbnailPromptsChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
-  generateSpensiaThumbnailImages?: (concepts: SpensiaThumbnailConcept[], model?: string, size?: string, topicId?: number) => Promise<SpensiaThumbnailConcept[]>;
-  onSpensiaThumbnailImageProgress?: (callback: (data: { current: number; total: number; conceptId: number; title: string; item?: SpensiaThumbnailConcept; error?: string; message: string; status: string }) => void) => () => void;
-  getSpensiaThumbnails?: (topicId?: number) => Promise<SpensiaThumbnailResult>;
-  saveSpensiaThumbnailSelection?: (selectedId: number, concept: SpensiaThumbnailConcept, topicId?: number) => Promise<any>;
-  analyzeSpensiaThumbnailImages?: (topicTitle?: string, selectedTitle?: string, thumbnails?: SpensiaThumbnailConcept[], model?: string, topicId?: number) => Promise<SpensiaThumbnailVisionAnalysis>;
-
-  generateSpensiaUploadMetadata?: (scriptContent?: string, topicTitle?: string, model?: string, topicId?: number) => Promise<SpensiaUploadMetadata>;
-  onSpensiaUploadMetadataChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
-  getSpensiaUploadMetadata?: (topicId?: number) => Promise<SpensiaUploadMetadata | null>;
-  analyzeSpensiaMetadata?: (topicTitle?: string, metadata?: SpensiaUploadMetadata, model?: string, topicId?: number) => Promise<SpensiaMetadataAnalysis>;
-  fixSpensiaMetadata?: (topicTitle?: string, metadata?: SpensiaUploadMetadata, analysis?: SpensiaMetadataAnalysis, model?: string, topicId?: number) => Promise<SpensiaUploadMetadata>;
-
-  // Waku Core IPC Helpers
-  generateWakuTopics: (promptText: string, model?: string) => Promise<{ rawText: string; topics?: Array<{ id: number; title: string; summary: string }> | null; theme?: string | null }>;
-  generateWakuScript: (promptText: string, model?: string) => Promise<{ rawText: string; scriptData?: any }>;
-  generateWakuBreakdown: (promptText: string, model?: string) => Promise<{ rawText: string; breakdownData?: any }>;
-  generateWakuImagePrompts: (promptText: string, model?: string) => Promise<{ rawText: string; imagePromptsData?: any }>;
-  onWakuTopicsChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
-  onWakuScriptChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
-  onWakuBreakdownChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
-  onWakuImagePromptsChunk: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
-  generateWakuSingleImage: (segmentId: number, prompt: string, model?: string, size?: string, quality?: string, imageDetail?: string, topicId?: number) => Promise<{ segmentId: number; topicId?: number; filePath: string; url: string; originalUrl?: string }>;
-  generateWakuBatchImages: (items: Array<{ segment_id: number; prompt: string }>, model?: string, size?: string, quality?: string, imageDetail?: string, concurrency?: number, topicId?: number, keepOpen?: boolean) => Promise<Array<any>>;
-  onWakuImageProgress: (callback: (data: { current: number; total: number; segmentId: number; topicId?: number; saved?: any; error?: string; status: string }) => void) => () => void;
-  onWakuImageChunkStart: (callback: (data: { segmentIds: number[]; topicId?: number }) => void) => () => void;
-  onWakuImageLog?: (callback: (data: { segmentId: number; workerId?: number; text: string }) => void) => () => void;
-  uploadWakuVoAudio: (segmentId?: number, sourcePath?: string, bufferArray?: ArrayBuffer | number[], topicId?: number) => Promise<{ segmentId?: number; filename: string; filePath: string; url: string }>;
-  mergeWakuVoAudio: (audioPaths: string[], topicId?: number) => Promise<{ filename: string; filePath: string; url: string; duration: number }>;
-  runWakuFasterWhisperAlignment?: (data: { audioPath?: string; scriptText?: string; topicId?: number }) => Promise<{ success: boolean; jsonContent?: string; filePath?: string; error?: string }>;
-  onWakuFasterWhisperProgress?: (callback: (data: { stage: string; progress: number; message: string; log?: string; topicId?: number }) => void) => () => void;
-
-  // Waku Render Engine & Thumbnail Studio
-  generateWakuTimeline: (topicId?: number) => Promise<{ timeline?: WakuTimelineStructure; saved?: boolean; error?: string }>;
-  getWakuRenderResult?: (topicId?: number) => Promise<WakuRenderResult | null>;
-  renderWakuVideo: (config: WakuRenderConfig, timeline: WakuTimelineStructure, outputPath?: string, topicId?: number) => Promise<WakuRenderResult>;
-  renderWakuPreviewFrame: (config: WakuRenderConfig, imagePath: string) => Promise<{ filePath?: string; url?: string; error?: string }>;
-
-  // Thumbnail Studio & Publish Hub SEO
-  generateWakuThumbnailPrompts?: (scriptContent?: string, topicTitle?: string, selectedTitle?: string, metadata?: WakuUploadMetadata | null, model?: string, topicId?: number) => Promise<{ concepts: WakuThumbnailConcept[] }>;
-  onWakuThumbnailPromptsChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
-  generateWakuThumbnailImages?: (concepts: WakuThumbnailConcept[], model?: string, size?: string, topicId?: number) => Promise<WakuThumbnailConcept[]>;
-  onWakuThumbnailImageProgress?: (callback: (data: { current: number; total: number; conceptId: number; title: string; item?: WakuThumbnailConcept; error?: string; message: string; status: string }) => void) => () => void;
-  getWakuThumbnails?: (topicId?: number) => Promise<WakuThumbnailResult>;
-  saveWakuThumbnailSelection?: (selectedId: number, concept: WakuThumbnailConcept, topicId?: number) => Promise<any>;
-  analyzeWakuThumbnailImages?: (topicTitle?: string, selectedTitle?: string, thumbnails?: WakuThumbnailConcept[], model?: string, topicId?: number) => Promise<WakuThumbnailVisionAnalysis>;
-
-  generateWakuUploadMetadata?: (scriptContent?: string, topicTitle?: string, model?: string, topicId?: number) => Promise<WakuUploadMetadata>;
-  onWakuUploadMetadataChunk?: (callback: (data: { chunk: string; fullText: string }) => void) => () => void;
-  getWakuUploadMetadata?: (topicId?: number) => Promise<WakuUploadMetadata | null>;
-  analyzeWakuMetadata?: (topicTitle?: string, metadata?: WakuUploadMetadata, model?: string, topicId?: number) => Promise<WakuMetadataAnalysis>;
-  fixWakuMetadata?: (topicTitle?: string, metadata?: WakuUploadMetadata, analysis?: WakuMetadataAnalysis, model?: string, topicId?: number) => Promise<WakuUploadMetadata>;
 }
-
-export type WakuRenderConfig = SpensiaRenderConfig;
-export type WakuRenderResult = SpensiaRenderResult;
-export type WakuTimelineStructure = SpensiaTimelineStructure;
-export type WakuThumbnailConcept = SpensiaThumbnailConcept;
-export type WakuThumbnailVisionEvaluation = SpensiaThumbnailVisionEvaluation;
-export type WakuThumbnailVisionAnalysis = SpensiaThumbnailVisionAnalysis;
-export type WakuThumbnailResult = SpensiaThumbnailResult;
-export type WakuUploadTitleItem = SpensiaUploadTitleItem;
-export type WakuMetadataImprovementItem = SpensiaMetadataImprovementItem;
-export type WakuMetadataAnalysis = SpensiaMetadataAnalysis;
-export type WakuUploadMetadata = SpensiaUploadMetadata;
 
 export interface WatermarkTextConfig {
   enabled: boolean;
@@ -641,111 +443,6 @@ export interface VignetteConfig {
 export interface VoiceOverConfig {
   enabled: boolean;
   volume: number;
-}
-
-export interface SpensiaRenderConfig {
-  voiceOver?: VoiceOverConfig;
-  watermark: WatermarkTextConfig;
-  caption: CaptionConfig;
-  bgm: BgmConfig;
-  vignette: VignetteConfig;
-  resolution: { width: number; height: number };
-  fps: number;
-  outputQuality: 'fast' | 'balanced' | 'high';
-}
-
-export interface SpensiaRenderResult {
-  outputPath?: string;
-  mediaUrl?: string;
-  fileName?: string;
-  error?: string;
-}
-
-export interface SpensiaTimelineStructure {
-  title: string;
-  fps: number;
-  resolution: { width: number; height: number; aspect_ratio: string };
-  total_duration_sec: number;
-  total_frames: number;
-  audio_tracks: Array<{ track: string; part_id: number; filePath?: string; url?: string; start_sec: number; end_sec: number; duration_sec: number }>;
-  video_clips: Array<{ clip_id: number; segment_id: number; part_id: number; quote: string; image_path?: string; image_url?: string; start_sec: number; end_sec: number; duration_sec: number; start_frame: number; end_frame: number; duration_frames: number; transition: string }>;
-  captions: Array<{ part_id: number; word: string; start_sec: number; end_sec: number }>;
-  generated_at: string;
-}
-
-export interface SpensiaThumbnailConcept {
-  id: number;
-  title: string;
-  text_overlay: string;
-  badge_text?: string;
-  viral_score: number;
-  viral_reason: string;
-  prompt: string;
-  filePath?: string;
-  url?: string;
-  error?: string;
-}
-
-export interface SpensiaThumbnailVisionEvaluation {
-  id: number;
-  title: string;
-  thumb_stopping_score?: number;
-  strengths?: string;
-  weaknesses?: string;
-  scrolling_impact?: string;
-}
-
-export interface SpensiaThumbnailVisionAnalysis {
-  winner_id?: number;
-  winner_title?: string;
-  winner_reason?: string;
-  human_scrolling_psychology_notes?: string;
-  evaluations?: SpensiaThumbnailVisionEvaluation[];
-}
-
-export interface SpensiaThumbnailResult {
-  concepts: SpensiaThumbnailConcept[];
-  rendered: SpensiaThumbnailConcept[];
-  selected?: { selectedId: number; concept: SpensiaThumbnailConcept } | null;
-  visionAnalysis?: SpensiaThumbnailVisionAnalysis | null;
-}
-
-export interface SpensiaUploadTitleItem {
-  title: string;
-  ctr_score?: number;
-  ctr_reason?: string;
-}
-
-export interface SpensiaMetadataImprovementItem {
-  target_field: 'tags' | 'titles' | 'description' | 'hashtags' | string;
-  reason: string;
-  suggested_fix_instruction: string;
-}
-
-export interface SpensiaMetadataAnalysis {
-  superior_title?: string;
-  superior_reason?: string;
-  what_is_great?: string;
-  areas_to_improve?: string;
-  improvements_needed?: SpensiaMetadataImprovementItem[];
-  psychological_analysis?: string;
-  doom_scroll_impact?: string;
-  metadata_checklist?: {
-    doom_scroll_stopper?: boolean;
-    title_length?: boolean;
-    psychological_formula?: boolean;
-    description_hook?: boolean;
-    seo_completeness?: boolean;
-  };
-}
-
-export interface SpensiaUploadMetadata {
-  titles: (string | SpensiaUploadTitleItem)[];
-  recommended_title?: string;
-  description: string;
-  tags: string[];
-  hashtags: string[];
-  analysis?: SpensiaMetadataAnalysis;
 }
 
 declare global {
