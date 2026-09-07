@@ -60,10 +60,10 @@ const AlurfilmMetadataStep: React.FC = () => {
     }
   }, []);
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (promptType: 'q5' | 'q5asia' = 'q5asia') => {
     setIsGenerating(true);
     setErrorMessage(null);
-    setStreamProgressText('Menghubungkan ke 9router AI API...');
+    setStreamProgressText(`Menghubungkan ke 9router AI API (${promptType.toUpperCase()})...`);
 
     try {
       if (!window.electronAPI?.generateAlurfilmMetadata) {
@@ -73,6 +73,7 @@ const AlurfilmMetadataStep: React.FC = () => {
       const result = await window.electronAPI.generateAlurfilmMetadata({
         model: selectedModel,
         customNotes,
+        promptType,
       });
 
       setMetadata(result);
@@ -85,7 +86,7 @@ const AlurfilmMetadataStep: React.FC = () => {
       setEditedDescription(result.description || '');
       setEditedTags(result.tags || []);
 
-      showToast('✨ AI Metadata & Thumbnail Prompt berhasil di-generate!');
+      showToast(`✨ AI Metadata & Prompt ${promptType.toUpperCase()} berhasil di-generate!`);
     } catch (err: any) {
       console.error(err);
       setErrorMessage(err.message || 'Gagal menghasilkan AI Metadata.');
@@ -95,15 +96,17 @@ const AlurfilmMetadataStep: React.FC = () => {
     }
   };
 
-  const handleCopyImagePrompt = async () => {
+  const handleCopyImagePrompt = async (promptType: 'q5' | 'q5asia') => {
     try {
       if (!window.electronAPI?.getAlurfilmImageReadyPrompt) {
         throw new Error('Electron API getAlurfilmImageReadyPrompt tidak tersedia.');
       }
       const readyPrompt = await window.electronAPI.getAlurfilmImageReadyPrompt({
-        customNotes
+        customNotes,
+        promptType,
       });
-      await copyToClipboard(readyPrompt, 'Prompt Image Only');
+      const label = promptType === 'q5' ? 'Prompt Q5' : 'Prompt Q5Asia';
+      await copyToClipboard(readyPrompt, label);
     } catch (err: any) {
       console.error(err);
       setErrorMessage(err.message || 'Gagal menyalin prompt image.');
@@ -199,12 +202,12 @@ const AlurfilmMetadataStep: React.FC = () => {
             🚀 Video Metadata & AI Thumbnail Prompt Studio
           </h1>
           <p className="text-xs text-gray-400 max-w-2xl leading-relaxed">
-            Generate 5 variasi judul CTR Formula (<span className="text-purple-300 font-mono">[Tindakan] + [Status] + [Konflik] — Alur Cerita Film</span>), rekomendasi <strong className="text-amber-300">Teks Thumbnail 2-Warna (Kuning + Merah)</strong>, dan <strong className="text-cyan-300">Prompt Gambar AI (Skala Kontras Raksasa vs Manusia Kecil)</strong>.
+            Generate 5 variasi judul CTR Formula (<span className="text-purple-300 font-mono">[Tindakan] + [Status] + [Konflik] — Alur Cerita Film</span>), rekomendasi <strong className="text-amber-300">Teks Thumbnail 2-Warna (Kuning + Merah)</strong>, dan <strong className="text-cyan-300">Prompt AI (Q5 Scale Paradox / Q5Asia Survival)</strong>.
           </p>
         </div>
 
-        {/* Model Selection & Action */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
+        {/* Model Selection & Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <select
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value)}
@@ -218,33 +221,70 @@ const AlurfilmMetadataStep: React.FC = () => {
             ))}
           </select>
 
+          {/* Copy Prompt Q5 */}
           <button
-            onClick={handleCopyImagePrompt}
+            onClick={() => handleCopyImagePrompt('q5')}
             disabled={isGenerating}
-            className="px-4 py-2.5 rounded-xl text-xs font-bold transition-all border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-200 flex items-center gap-2 active:scale-95"
-            title="Copy Prompt Sistem untuk 1 Image Saja"
+            className="px-3 py-2.5 rounded-xl text-xs font-bold transition-all border border-amber-800/60 bg-amber-950/40 hover:bg-amber-900/60 text-amber-200 flex items-center gap-1.5 active:scale-95"
+            title="Copy System Prompt Q5 (Colossal Scale Paradox)"
           >
             <span>📋</span>
-            <span>{copiedField === 'Prompt Image Only' ? 'Copied' : 'Copy Prompt'}</span>
+            <span>{copiedField === 'Prompt Q5' ? 'Copied Q5!' : 'Prompt Q5'}</span>
           </button>
 
+          {/* Copy Prompt Q5Asia */}
           <button
-            onClick={handleGenerate}
+            onClick={() => handleCopyImagePrompt('q5asia')}
             disabled={isGenerating}
-            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-2 ${isGenerating
-                ? 'bg-purple-900/50 text-purple-300 cursor-not-allowed border border-purple-700/40'
-                : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/30 border border-purple-400/30 active:scale-95'
+            className="px-3 py-2.5 rounded-xl text-xs font-bold transition-all border border-cyan-800/60 bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-200 flex items-center gap-1.5 active:scale-95"
+            title="Copy System Prompt Q5Asia (Nano Banana Pro)"
+          >
+            <span>📋</span>
+            <span>{copiedField === 'Prompt Q5Asia' ? 'Copied Q5Asia!' : 'Prompt Q5Asia'}</span>
+          </button>
+
+          {/* Generate Q5 */}
+          <button
+            onClick={() => handleGenerate('q5')}
+            disabled={isGenerating}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-1.5 ${isGenerating
+                ? 'bg-amber-900/40 text-amber-400 cursor-not-allowed border border-amber-800/40'
+                : 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/30 border border-amber-400/30 active:scale-95'
               }`}
+            title="Generate AI Metadata & Prompts dengan Formula Q5"
           >
             {isGenerating ? (
               <>
-                <div className="w-4 h-4 border-2 border-purple-300 border-t-transparent rounded-full animate-spin" />
-                <span>Generating Metadata...</span>
+                <div className="w-3.5 h-3.5 border-2 border-amber-200 border-t-transparent rounded-full animate-spin" />
+                <span>Generating...</span>
               </>
             ) : (
               <>
                 <span>⚡</span>
-                <span>Generate AI Metadata & Prompts</span>
+                <span>Generate Q5</span>
+              </>
+            )}
+          </button>
+
+          {/* Generate Q5Asia */}
+          <button
+            onClick={() => handleGenerate('q5asia')}
+            disabled={isGenerating}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-1.5 ${isGenerating
+                ? 'bg-purple-900/50 text-purple-300 cursor-not-allowed border border-purple-700/40'
+                : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/30 border border-purple-400/30 active:scale-95'
+              }`}
+            title="Generate AI Metadata & Prompts dengan Formula Q5Asia (Nano Banana Pro)"
+          >
+            {isGenerating ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-purple-300 border-t-transparent rounded-full animate-spin" />
+                <span>Generating...</span>
+              </>
+            ) : (
+              <>
+                <span>⚡</span>
+                <span>Generate Q5Asia</span>
               </>
             )}
           </button>
