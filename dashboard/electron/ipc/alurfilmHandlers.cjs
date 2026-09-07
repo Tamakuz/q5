@@ -1836,29 +1836,24 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
                   });
                 }
 
-                // Fix Bug 1: gap between cutEnd and nextNarr.firstWordStart was previously
-                // dropped — neither included in audio_chunk nor in silence_buffer. This caused
-                // the spliced audio timeline to drift from the video timeline, making the
-                // visual_only audio appear delayed or cut short.
-                // Now we roll that gap INTO the silence_buffer so the total spliced duration
-                // exactly matches the video timeline.
-                let gapToNextNarr = 0;
+                // Synchronize silence_buffer duration 100% with visual_only element duration.
+                // If nextNarr exists, set lastCutTime to nextStart so nextNarr starts speaking
+                // immediately when its audio slice begins, eliminating audio desync and overlap.
                 if (nextNarr && nextNarr.firstWordStart !== undefined) {
                   const nextStart = Number(nextNarr.firstWordStart.toFixed(3));
-                  gapToNextNarr = Math.max(0, nextStart - cutEnd);
                   lastCutTime = Math.max(cutEnd, nextStart);
                 } else {
                   lastCutTime = cutEnd;
                 }
 
-                const silenceDur = Number(((current.duration || 5.0) + gapToNextNarr).toFixed(3));
+                const silenceDur = Number((current.duration || 5.0).toFixed(3));
                 audioSplits.push({
                   type: 'silence_buffer',
                   durationSec: silenceDur,
                   element: current
                 });
               } else {
-                // No preceding narration — just push silence for the visual_only duration
+                // No preceding narration — push silence for exact visual_only duration
                 audioSplits.push({
                   type: 'silence_buffer',
                   durationSec: Number((current.duration || 5.0).toFixed(3)),
@@ -2573,7 +2568,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
   });
 
   // ─── Get Alurfilm Image Only Ready Prompt ─────────
-  ipcMain.handle('get-alurfilm-image-ready-prompt', async (_event, { contentId, customNotes }) => {
+  ipcMain.handle('get-alurfilm-image-ready-prompt', async (_event, { contentId, customNotes, promptType }) => {
     const allFiles = fs.existsSync(p.ALURFILM_DIR) ? fs.readdirSync(p.ALURFILM_DIR) : [];
     const analysisFiles = allFiles
       .filter(f => (
@@ -2606,25 +2601,22 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       throw new Error('Naskah alur film tidak ditemukan. Silakan selesaikan Step 2 (Script Generator) terlebih dahulu.');
     }
 
-    const metadataPromptFile = path.join(p.PROMPTS_DIR, 'longform', 'alurfilm-thumbnail-prompt.md');
+    let promptFilename = 'alurfilm-thumbnail-prompt-q5asia.md';
+    if (promptType === 'q5') {
+      promptFilename = 'alurfilm-thumbnail-prompt-q5.md';
+    } else if (promptType === 'q5asia') {
+      promptFilename = 'alurfilm-thumbnail-prompt-q5asia.md';
+    }
+    let metadataPromptFile = path.join(p.PROMPTS_DIR, 'longform', promptFilename);
+    if (!fs.existsSync(metadataPromptFile)) {
+      metadataPromptFile = path.join(p.PROMPTS_DIR, 'longform', 'alurfilm-thumbnail-prompt.md');
+    }
+
     if (!fs.existsSync(metadataPromptFile)) {
       throw new Error(`File prompt metadata '${metadataPromptFile}' tidak ditemukan.`);
     }
 
-    let promptTemplate = fs.readFileSync(metadataPromptFile, 'utf-8');
-
-    // Modify prompt to request ONLY 1 image prompt, no JSON
-    promptTemplate = promptTemplate.replace(
-      /Tugas Anda adalah menganalisis SELURUH KONTEKS ALUR FILM.*?serta Menghentikan Jempol Penonton \(Scroll-Stopper\) di Layar HP\./i, 
-      "Tugas Anda adalah menganalisis SELURUH KONTEKS ALUR FILM dan menghasilkan HANYA 1 Paragraf Prompt Thumbnail YouTube (tanpa JSON, tanpa judul cerita)."
-    );
-
-    // Remove Section 2
-    promptTemplate = promptTemplate.replace(/={50}\n2\. FORMULA JUDUL HIGH-CTR[\s\S]*?={50}\n3\. FORMULA THUMBNAIL/g, "==================================================\n3. FORMULA THUMBNAIL");
-
-    // Replace Output Format
-    promptTemplate = promptTemplate.replace(/={50}\n4\. SEO DESKRIPSI[\s\S]*$/g, "");
-    promptTemplate += `==================================================\nOUTPUT FORMAT\n==================================================\nTuliskan HANYA 1 paragraf prompt gambar bahasa Inggris (sesuai rumus di atas). TANPA pengantar, TANPA format JSON, TANPA teks tambahan apa pun.`;
+    const promptTemplate = fs.readFileSync(metadataPromptFile, 'utf-8');
 
     return promptTemplate
       .replace(/\{\{movie_title\}\}/g, movieTitle || 'Tidak disebutkan')
@@ -2634,7 +2626,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
   });
 
   // ─── Generate Alurfilm Metadata ───────────────────
-  ipcMain.handle('generate-alurfilm-metadata', async (_event, { contentId, model, customNotes }) => {
+  ipcMain.handle('generate-alurfilm-metadata', async (_event, { contentId, model, customNotes, promptType }) => {
     // Collect all script text, character registry, and macro summaries from available analysis files
     const allFiles = fs.existsSync(p.ALURFILM_DIR) ? fs.readdirSync(p.ALURFILM_DIR) : [];
     const analysisFiles = allFiles
@@ -2692,7 +2684,17 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       throw new Error('Naskah alur film tidak ditemukan. Silakan selesaikan Step 2 (Script Generator) terlebih dahulu.');
     }
 
-    const metadataPromptFile = path.join(p.PROMPTS_DIR, 'longform', 'alurfilm-thumbnail-prompt.md');
+    let promptFilename = 'alurfilm-thumbnail-prompt-q5asia.md';
+    if (promptType === 'q5') {
+      promptFilename = 'alurfilm-thumbnail-prompt-q5.md';
+    } else if (promptType === 'q5asia') {
+      promptFilename = 'alurfilm-thumbnail-prompt-q5asia.md';
+    }
+    let metadataPromptFile = path.join(p.PROMPTS_DIR, 'longform', promptFilename);
+    if (!fs.existsSync(metadataPromptFile)) {
+      metadataPromptFile = path.join(p.PROMPTS_DIR, 'longform', 'alurfilm-thumbnail-prompt.md');
+    }
+
     if (!fs.existsSync(metadataPromptFile)) {
       throw new Error(`File prompt metadata '${metadataPromptFile}' tidak ditemukan.`);
     }

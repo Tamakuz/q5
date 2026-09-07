@@ -326,8 +326,8 @@ export interface ElectronAPI {
     mediaUrl?: string;
     error?: string;
   }>;
-  getAlurfilmImageReadyPrompt: (opts?: { modeContentId?: string; customNotes?: string }) => Promise<string>;
-  generateAlurfilmMetadata: (opts?: { modeContentId?: string; model?: string; customNotes?: string }) => Promise<AlurfilmMetadataResult>;
+  getAlurfilmImageReadyPrompt: (opts?: { modeContentId?: string; customNotes?: string; promptType?: 'q5' | 'q5asia' }) => Promise<string>;
+  generateAlurfilmMetadata: (opts?: { modeContentId?: string; model?: string; customNotes?: string; promptType?: 'q5' | 'q5asia' }) => Promise<AlurfilmMetadataResult>;
   saveAlurfilmMetadata: (opts: { modeContentId?: string; metadata: AlurfilmMetadataResult }) => Promise<{ success: boolean; filePath: string; metadata: AlurfilmMetadataResult }>;
   getAlurfilmMetadata: (modeContentId?: string) => Promise<AlurfilmMetadataResult | null>;
   getBrowserUserProfiles?: () => Promise<string[]>;
