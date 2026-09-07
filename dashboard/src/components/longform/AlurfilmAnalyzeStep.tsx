@@ -365,16 +365,14 @@ const AlurfilmAnalyzeStep: React.FC = () => {
         const chunkDurText = chunkDur < 60
           ? `${Math.round(chunkDur)} Detik`
           : `${(chunkDur / 60).toFixed(1)} Menit`;
-        const isFirstPartStr = isIntroPart
-          ? 'YA (Part #0 Intro Teaser Highlight - Sapa penonton secara friendly & santai seperti gaya IQ7/Alurfilm)'
-          : partNum === 1
-          ? 'YA (Part Pembuka Film Utama)'
+        const isFirstPartStr = partNum === 1
+          ? 'YA (Part Pembuka Film Utama - Langsung masuk ke alur cerita tanpa intro/sapaan formal)'
           : `TIDAK (Chunk #${partNum} / Part Lanjutan)`;
         const isLastPart = partNum > 0 && partNum === maxMainPart;
         const isLastPartStr = isLastPart ? 'YA (Chunk Terakhir / Part Penutup Film)' : 'TIDAK (Part Bukan Penutup)';
-        const prevCtxStr = prevContext ? JSON.stringify(prevContext, null, 2) : 'Tidak ada (Part #0 / Awal Film)';
-        const styleExampleStr = isIntroPart
-          ? 'Gunakan gaya penceritaan yang super friendly, santai, mengalir hangat, dan akrab khas pencerita alur film populer (seperti IQ7 dan Alurfilm). Buka dengan salam hangat yang santai (misal: "Halo guys, balik lagi bareng...", "Halo bro & sis..."), lalu sampaikan narasi teaser intro yang membakar rasa penasaran penonton (hooking) dan mengalir mulus tanpa kaku!'
+        const prevCtxStr = prevContext ? JSON.stringify(prevContext, null, 2) : 'Tidak ada (Awal Film)';
+        const styleExampleStr = partNum === 1
+          ? 'Langsung masuk ke alur cerita sejak kalimat pertama dengan gaya santai & dinamis (misal: "Okeee, jadi nih di awal cerita...", "Nah, cerita dimulai pas..."). DILARANG menggunakan sapaan MC atau intro formal.'
           : 'Gunakan gaya penceritaan alur film santai, jernih, dan mengalir.';
 
         formattedPrompt = (promptTpl || '')
@@ -533,7 +531,7 @@ const safeStr = (val: any, fallback: string = ''): string => {
             const hasPart0 = chunks.some(c => c.part === 0);
             const displayList = hasPart0
               ? chunks
-              : [{ part: 0, isIntro: true }, ...(chunks.length > 0 ? chunks : [1, 2, 3, 4].map(p => ({ part: p })))];
+              : (chunks.length > 0 ? chunks : [1, 2, 3, 4].map(p => ({ part: p })));
 
             return displayList.map((chunkItem: any) => {
               const partNum = typeof chunkItem === 'number' ? chunkItem : chunkItem.part;

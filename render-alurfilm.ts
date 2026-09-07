@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { z } from 'zod';
-import { runFFmpeg, runFFmpegProgress } from './cli/shared/ffmpeg-helpers.js';
+import { runFFmpeg, runFFmpegProgress, getVideoMeta } from './cli/shared/ffmpeg-helpers.js';
 
 const program = new Command();
 
@@ -458,13 +458,14 @@ program
           const ffmpegArgs: string[] = [];
 
           if (clip.isVisualOnly) {
-            // For VISUAL_ONLY clips, extract original movie video (0:v:0) and original audio (0:a:0?) explicitly
+            // For VISUAL_ONLY clips, extract original movie video (0:v:0) and original audio (0:a:0?) explicitly with strict audio PTS reset & trimming
             ffmpegArgs.push(
               '-y',
               '-ss', String(clip.sourceStart),
               '-t', inputReadDur,
               '-i', resolvedVideo,
               '-vf', scaleFilter,
+              '-af', `atrim=0:${clip.duration},asetpts=PTS-STARTPTS,aresample=48000:async=1:first_pts=0`,
               '-t', String(clip.duration),
               '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', '-r', '30',
               '-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-ac', '2',
@@ -482,6 +483,7 @@ program
               '-i', resolvedVideo,
               '-f', 'lavfi', '-t', String(clip.duration), '-i', 'anullsrc=r=48000:cl=stereo',
               '-vf', scaleFilter,
+              '-af', `atrim=0:${clip.duration},asetpts=PTS-STARTPTS,aresample=48000:async=1:first_pts=0`,
               '-t', String(clip.duration),
               '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', '-r', '30',
               '-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-ac', '2',

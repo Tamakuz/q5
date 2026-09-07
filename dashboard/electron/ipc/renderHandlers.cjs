@@ -122,7 +122,7 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
     logoOpacity: 0.6,
     logoMargin: 40,
     logoScale: 60,
-    introEnabled: true,
+    introEnabled: false,
     introTitleText: 'UNDER THE DOME',
     introSubtitleText: 'ALUR CERITA FILM',
     introStylePreset: 'cinematic_gold',
@@ -227,7 +227,7 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
 
     const isBgmActive = bgmEnabled !== undefined ? bgmEnabled : saved.bgmEnabled;
     const isLogoActive = logoEnabled !== undefined ? logoEnabled : saved.logoEnabled;
-    const isIntroActive = introEnabled !== undefined ? introEnabled : (saved.introEnabled !== undefined ? saved.introEnabled : true);
+    const isIntroActive = introEnabled !== undefined ? introEnabled : (saved.introEnabled !== undefined ? saved.introEnabled : false);
 
     const contentId = p.getOrGenerateContentId('longform');
     const outputDir = path.join(p.PROJECT_ROOT, 'output');

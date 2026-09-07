@@ -13,7 +13,7 @@ const DEFAULT_SETTINGS: RenderSettings = {
   logoOpacity: 0.6,
   logoMargin: 40,
   logoScale: 60,
-  introEnabled: true,
+  introEnabled: false,
   introTitleText: 'UNDER THE DOME',
   introSubtitleText: 'ALUR CERITA FILM',
   introStylePreset: 'cinematic_gold',

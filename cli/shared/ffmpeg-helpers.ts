@@ -75,4 +75,30 @@ export function runFFmpegProgress(
   });
 }
 
-export { ffmpegBin };
+const ffprobeBin: string = require('@ffprobe-installer/ffprobe').path;
+
+/**
+ * Get video/audio metadata via ffprobe.
+ */
+export function getVideoMeta(filePath: string): Promise<{ duration: number } | null> {
+  return new Promise((resolve) => {
+    const args = ['-v', 'error', '-print_format', 'json', '-show_format', filePath];
+    const child = spawn(ffprobeBin, args);
+    let stdout = '';
+    child.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+    child.on('close', (code) => {
+      if (code !== 0 || !stdout.trim()) return resolve(null);
+      try {
+        const data = JSON.parse(stdout);
+        const duration = parseFloat(data.format?.duration ?? '0');
+        resolve({ duration: isNaN(duration) ? 0 : duration });
+      } catch {
+        resolve(null);
+      }
+    });
+    child.on('error', () => resolve(null));
+  });
+}
+
+export { ffmpegBin, ffprobeBin };
+

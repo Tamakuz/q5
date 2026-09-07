@@ -39,7 +39,7 @@ Naskah WAJIB kaya akan variasi kalimat dan kosakata yang selalu baru di setiap n
 ### 1.6 Momen Action & Visual → `[VISUAL_ONLY]`
 DILARANG KERAS memaksakan narasi voiceover di atas adegan action, perkelahian seru, atau momen visual berenergi tinggi.
 Tag format: `[VISUAL_ONLY (Range: MM:SS - MM:SS, Duration: Xs): Deskripsi adegan]`
-- **Range**: Timecode adegan di video film mentah asli.
+- **Range**: Timecode adegan RELATIF TERHADAP FILE VIDEO CHUNK PART INI (Dimulai dari `00:00` s/d durasi {{chunk_duration_text}} video chunk ini). 🛑 **DILARANG KERAS** menggunakan timecode jam/menit film utuh jika ini Part 2 atau seterusnya! WAJIB selalu gunakan timecode lokal `00:00` s/d akhir durasi chunk ini.
 - **Duration**: Estimasi durasi ideal adegan tampil di video recap akhir.
 Sisipkan kapan pun ada adegan pertarungan atau momen visual berkesan — proporsional dengan tayangan video.
 
@@ -69,25 +69,26 @@ BENCHMARK STYLES (REFERENSI GAYA — JANGAN DISALIN MENTAH)
 2. PANDUAN KHUSUS PER TIPE PART
 ==================================================
 
-### 2.1 Part Intro (Part #0 — Teaser Highlight)
-Intro adalah hook pertama penonton. Langsung ke inti, penuh energi, non-cringe.
+### 2.1 Part 1 / Part Pembuka Film (`is_first_part = YA`)
+🚫 **TANPA INTRO FORMAL / TANPA TEASER TERPISAH**:
+- **DILARANG KERAS** membuat intro formal seperti sapaan MC, teaser recap berulang, atau kalimat penutup intro baku ("As usual nggak usah berlama-lama, let's gooo").
+- **LANGSUNG MASUK KE ALUR CERITA SEJAK KALIMAT PERTAMA**:
+  Naskah WAJIB langsung hanyut ke dalam alur cerita film dari detik 0. Gunakan variasi pembuka cerita yang dinamis, cair, lepas, dan mengalir alami khas cowok menceritakan alur film ke temannya.
 
-- **Sapaan:** Buka dengan sapaan nongkrong yang natural dan bebas — terasa kayak cowok ngomong ke temennya, bukan script MC acara. DILARANG KERAS menyalin format template baku. Variasikan sesuai premis film.
-- **DILARANG BIKIN DAFTAR (NO COMMA LISTING):** DILARANG KERAS menyebutkan banyak hal dengan koma berurutan (contoh dilarang: *"tiga orang, satu kabin, satu ruangan..."*, *"taruhannya nyawa, dehidrasi, dan panas ekstrem"*). Sambungkan deskripsi menjadi kalimat utuh yang mengalir agar tidak terdengar seperti daftar yang dibacain.
-- **Curiosity Gap:** Setelah sapaan, langsung lemparkan hook konflik ekstrem tanpa menceritakan kronologi awal dan tanpa membocorkan ending.
-- **Penutup CTA:** Wajib diakhiri: *"As usual nggak usah berlama-lama, kencangkan sabuk pengaman, dan let's gooo!"* (atau variasi serupa).
-- **Target kata:** 80–100 kata. Jangan kurang dari 80, jangan lebih dari 100.
-- **Tanda baca:** Gunakan `!`, `—`, `...`. DILARANG pakai `?`.
-- **Tag vokal:** Sisipkan `[shout]`, `[hyped]`, `[excited]`, `[chuckles]` sesuai energi.
-- **NO `[VISUAL_ONLY]`:** Voiceover Intro WAJIB mengalir 100% dari awal sampai akhir tanpa jeda visual.
+💡 **Variasi Pembuka Cerita Dinamis (DILARANG MENGULANG STRUCTURAL TEMPLATE PERSIS SAMA):**
+* *"Okeee, jadi nih di awal cerita kita langsung diperkenalkan sama sosok [Nama Karakter] yang..."*
+* *"Nah, cerita dimulai pas kita dikenalin sama seorang karakter bernama [Nama Karakter]..."*
+* *"Di awal film ini, kita langsung dipertemukan sama sosok [Nama Karakter] yang sehari-hari..."*
+* *"Oke bro, jadi di bagian pembuka ini kehidupan [Nama Karakter] mendadak berubah pas..."*
+* *"Nih di awalan film, sosok [Nama Karakter] tampak lagi..."*
+* *"Cerita diawali pas sosok [Nama Karakter] mendadak disergap sama..."*
 
-### 2.2 Part 1 (Pembuka Film Utama)
-Buat pembuka yang cair, santai, dan mengalir alami. Dianjurkan membuka Part 1 dengan `[VISUAL_ONLY (Range: 00:00 - 00:35, Duration: 8s): Deskripsi adegan]` jika adegan awal film punya kekuatan visual/atmosfer yang hidup.
+Dianjurkan membuka Part 1 dengan `[VISUAL_ONLY (Range: 00:00 - 00:35, Duration: 8s): Deskripsi adegan]` di baris pertama jika adegan awal film memiliki kekuatan visual/atmosfer sinematik yang kuat.
 
-### 2.3 Part Tengah (Part 2 dan seterusnya)
+### 2.2 Part Tengah (Part 2 dan seterusnya)
 Kalimat pertama WAJIB langsung menceritakan adegan berikutnya — tersambung mulus dari kalimat terakhir part sebelumnya. Akhiri narasi secara menggantung/sinambung ke adegan berikutnya tanpa patahan kalimat penutup.
 
-### 2.4 Part Penutup (Final Part — `is_last_part = YA`)
+### 2.3 Part Penutup (Final Part — `is_last_part = YA`)
 Akhiri dengan outro penutup santai yang lugas, mantap, dan konklusif khas bro/temen nongkrong.
 Contoh: *"Oke bro, jadi itu dia alur cerita lengkap dari film [Judul Film]. Sampai jumpa di ulasan film seru selanjutnya!"*
 DILARANG menutup dengan kalimat pertanyaan atau pancingan tanya-jawab. Ending WAJIB berupa pernyataan penutup yang tegas, santai, dan konklusif.
@@ -119,9 +120,10 @@ DILARANG menutup dengan kalimat pertanyaan atau pancingan tanya-jawab. Ending WA
 - DILARANG membuka part lanjutan dengan: *"Ngelanjutin..."*, *"Melanjutkan kisah..."*, *"Kembali lagi di part..."*, *"Nah di part kali ini..."*.
 - DILARANG menutup part tengah dengan: *"Langsung aja kita lanjut ke part dua ya!"*, *"Sampai jumpa di part 3 ya!"*.
 
-🛑 LAR-4: ASUMSI & HALUSINASI LUAR ALUR
+🛑 LAR-4: ASUMSI, HALUSINASI & KETIDAKSESAUIAN KRONOLOGIS VISUAL
 - DILARANG menambahkan fakta, latar belakang karakter, atau spekulasi cerita yang tidak terdapat pada tayangan/konteks adegan yang sedang dianalisis.
 - Naskah voiceover Part {{chunk_part}} WAJIB HANYA menceritakan adegan yang benar-benar terdapat pada segmen video Part ini.
+- **GROUNDING KRONOLOGIS VISUAL**: Naskah VO WAJIB 100% terikat secara kronologis sejalan dengan urutan adegan yang tampil pada file video Part {{chunk_part}} (dari detik `00:00` hingga akhir durasi chunk). DILARANG melompat-lompat adegan secara acak atau membuat narasi yang jalurnya bertolak belakang dengan urutan visual video chunk.
 - DILARANG mengulang adegan dari Part sebelumnya yang sudah dicover di naskah sebelumnya.
 
 🛑 LAR-5: ONOMATOPOEIA & TAG AUDIO DI NASKAH VO
@@ -167,7 +169,7 @@ FORMAT OUTPUT JSON MURNI (TANPA MARKDOWN ```json)
       "start_time": "00:00:00.000",
       "end_time": "00:02:13.000",
       "scene_label": "Judul Adegan Singkat & Jelas",
-      "narrative_focus": "Fokus cerita adegan ini"
+      "narrative_focus": "Fokus cerita adegan ini (Wajib gunakan timecode RELATIF CHUNK dari 00:00:00.000)"
     }
   ],
   "status": "done"

@@ -23,6 +23,14 @@ Video Source Input: {{source_video_name}} | Scene: {{scene_id}}
 3. 🛑 **DILARANG KERAS memberikan `source_start_seconds` di atas {{chunk_video_duration_sec}}s (seperti 1800s / 1900s)**! Melebihi durasi video chunk akan menyebabkan FFmpeg render ERROR & VIDEO FREEZE BEBERAPA MENIT DI AKHIR!
 
 ==================================================
+🎬 ACUAN TIMELINE ADEGAN & SCENE BREAKDOWN (DARI SCRIPT GENERATOR STEP 2):
+==================================================
+Berikut adalah acuan alur adegan dan urutan kronologis hasil analisa Step 2 Script Generator.
+Gunakan acuan ini sebagai peta batas waktu adegan (Scene Window) untuk mencocokkan setiap kalimat narasi VO dengan timestamp adegan yang tepat di file video chunk ini (`{{source_video_name}}`):
+
+{{scene_breakdown}}
+
+==================================================
 🎙️ METADATA AUDIO VOICE OVER (PART {{chunk_part}}):
 ==================================================
 - File Audio VO: {{audio_vo_file_name}}
@@ -36,59 +44,49 @@ DAFTAR KALIMAT TRANSKRIP VO & DURASI ASLI (SOURCE OF TRUTH):
 {{voiceover_sentences}}
 
 ==================================================
-🔍 ATURAN KESESUAIAN VISUAL PRESISI TINGGI & AKURASI TIMECODE (SINKRON VO 100%):
+🎯 PRIORITAS UTAMA #1: KESESUAIAN VISUAL PRESISI TINGGI DENGAN KATA/NARASI VO (SINKRON 100%):
 ==================================================
-Jika kamu melampirkan (attach) File Audio & Video Source di AI Studio:
-1. Dengarkan ucapan audio voiceover dan amati adegan video source secara cermat.
-2. Cari timestamp (`source_start_seconds` / `source_timestamp_seconds`) dari adegan yang BENAR-BENAR MENAMPILKAN AKSI / OBJEK / VISUAL yang diucapkan pada kalimat tersebut.
-   - VO: "Bapak ini terkejut melihat si doi datang" ➔ Visual HARUS adegan ekspresi terkejut / karakter utama berpaling (misal detik 12.5). DILARANG MISMATCH ATAU OFFSET.
-   - VO: "Ternyata si doi membawa pesan rahasia" ➔ Visual HARUS adegan memegang surat / barang / percakapan (misal detik 45.0).
-3. DILARANG KERAS memilih timestamp acak tanpa mencocokkan visual adegan film!
+Tujuan UTAMA dan TERTINGGI dari video mapping adalah **RELEVANSI VISUAL PENONTON**. Gambar yang tampil di layar WAJIB 100% mencerminkan apa yang diucapkan narator VO pada kalimat tersebut!
 
-==================================================
-▶️ ATURAN STRUKTURAL LINIER & SEBARAN TIMECODE MAJU SEPANJANG CHUNK:
-==================================================
-1. ▶️ **MAPPING MUTLAK WAJIB LINIER & URUT SEARAH (MONOTONIK MAJU)**:
-   - Pemilihan timestamp adegan (`source_start_seconds`) **MUTLAK WAJIB LINIER DAN URUT KRONOLOGIS SEARAH SEJALAN DENGAN CERITA** dari awal hingga akhir video chunk/sumber!
-   - Nilai `source_start_seconds` untuk kalimat `N+1` HARUS SELALU LEBIH BESAR ATAU SAMA DENGAN `source_start_seconds` kalimat `N` (`source_start_seconds` bergerak maju secara urut).
-   - 🛑 **DILARANG KERAS MELOMPAT MUNDUR / LONCAT KE BELAKANG** (misal dari detik 180.0s melompat mundur ke 25.0s)! Melompat mundur akan merusak kontinuitas visual, membuat adegan mati-hidup/siang-malam terbolak-balik, dan memutus keterkaitan konteks antara visual clip dan Voice Over (VO).
-   - 🎯 **SEBARAN TIMECODE DINAMIS SEPANJANG DURASI CHUNK (`chunk_video_duration_sec`)**:
-     * AI WAJIB menyebar timestamp secara **DINAMIS & SEARAH MAJU** mengikuti alur naskah dari porsi awal hingga porsi akhir durasi video chunk (`chunk_video_duration_sec`).
-     * **Awal Naskah**: Mengambil sampel timestamp adegan dari porsi awal video chunk.
-     * **Tengah Naskah**: Mengambil sampel timestamp adegan dari porsi pertengahan video chunk.
-     * **Akhir Naskah (Kalimat-Kalimat Akhir)**: **MUTLAK WAJIB** mengambil timestamp di porsi **AKHIR VIDEO CHUNK** (mendekati nilai total durasi `chunk_video_duration_sec`).
-     * 🛑 **DILARANG KERAS PADA KALIMAT-KALIMAT AKHIR MELOMPAT KEMBALI KE ADEGAN AWAL VIDEO CHUNK**!
-
-2. 🛡️ **Bypass Content ID Ekstrem**:
-   - Pengambilan timestamp linier urut maju dengan kombinasi Ultra Slow Motion (`slow_mo_factor`: 0.25 - 0.6), Freeze Frame Zoom, dan Lompatan Timecode (+3s s/d +8s ke depan) membuat alur video mentah terpotong-potong secara aman tanpa merusak alur cerita narasi VO, sehingga YouTube Content ID GAGAL TOTAL mendeteksi pola kontinuitas video asli.
+1. **Pencocokan Semantik Presisi (Kata & Adegan)**:
+   - Amati adegan Video Source secara cermat dan baca kalimat Transkrip VO.
+   - Cari timestamp (`source_start_seconds`) dari adegan yang BENAR-BENAR MENAMPILKAN AKSI / EKSPRESI KARAKTER / OBJEK FOKUS yang sedang diucapkan dalam naskah.
+     * VO: "Bapak ini terkejut melihat si doi datang" ➔ Visual HARUS adegan ekspresi wajah terkejut / karakter menoleh. DILARANG MEMILIH LATAR BELAKANG / ORANG LAIN.
+     * VO: "Ternyata si doi membawa pesan rahasia" ➔ Visual HARUS adegan memegang kertas / pesan / percakapan close-up.
+2. 🛑 **DILARANG KERAS MEMILIH TIMESTAMP ACAK TANPA MENCOCOKKAN MAKNA VISUAL**:
+   - Relevansi makna kata narasi VO adalah **HUKUM TERTINGGI #1**. Jangan pernah mengorbankan kesesuaian visual hanya demi mengejar formula matematika lompatan waktu.
 
 ==================================================
-🚨 FORMULA MUTLAK FAIR USE & CONTENT ID BYPASS (AMBIL 1.5s-2s ➔ FREEZE FRAME 5s ➔ SKIP MAJU 5s):
+▶️ ATURAN STRUKTURAL LINIER & TOLERANSI RETROGRADE JUMP (PENCARIAN ADEGAN PRESISI):
 ==================================================
-Untuk meloloskan video dari YouTube Content ID & klaim hak cipta, kamu MUTLAK WAJIB menerapkan pola ritme perulangan ini:
+1. ▶️ **Alur Umum Berjalan Maju Sejalan Cerita**:
+   - Secara makro (keseluruhan chunk), sebaran timestamp bergerak maju dari porsi awal hingga akhir durasi video chunk (`chunk_video_duration_sec`).
+2. 🔄 **IJIN KHUSUS MELOMPAT MUNDUR (LOCAL RETROGRADE JUMP)**:
+   - Jika sebuah kalimat VO merujuk/membahas adegan, ekspresi, atau karakter yang terjadi beberapa detik/menit sebelumnya di video mentah (misal kilas balik atau rekapan), kamu **DIPERBOLEHKAN DAN DISARANKAN MELOMPAT MUNDUR** (`source_start_seconds` bergerak mundur misal -10s s/d -40s ke belakang di video mentah) demi mendapatkan adegan yang 100% COCOK dengan ucapan VO!
+   - Kebutuhan **RELEVANSI VISUAL VO DI UTAMAKAN** daripada keterikatan urutan waktu yang kaku.
+3. 🎯 **Peta Window Adegan (`Scene Windowing`)**:
+   - Manfaatkan daftar `{{scene_breakdown}}` di atas untuk mengetahui kisaran waktu adegan yang relevan di video chunk ini (`0.0s` s/d `{{chunk_video_duration_sec}}s`). Prioritaskan pencarian timestamp `source_start_seconds` di dalam window adegan yang sedang dibahas naskah agar visual 100% sinkron.
 
-1. 🎬 **UTAMAKAN ULTRA SLOW MOTION MAKSIMAL 2.0 DETIK [PRIMARY #1]**:
-   - Formula render: `output_duration = source_read_sec ÷ slow_mo_factor`. Isi field `duration` dengan **durasi output timeline** yang diinginkan.
-   - Contoh kalkulasi:
-     * source 1.5s ÷ factor 0.25 = **output 6.0s** di timeline
-     * source 1.5s ÷ factor 0.40 = **output 3.75s** di timeline
-     * source 2.0s ÷ factor 0.40 = **output 5.0s** di timeline
-     * source 1.5s ÷ factor 0.60 = **output 2.5s** di timeline
-   - Target source read: MAKSIMAL **1.5 - 2.0 DETIK** dari video mentah asli. Pilih `slow_mo_factor` dan `duration` (output) yang menghasilkan source read di kisaran itu.
-   - Ini adalah **PILIHAN UTAMA DOMINAN (PRIMARY #1)** untuk memberikan alur visual sinematik & mulus.
+==================================================
+🚨 FORMULA FAIR USE & CONTENT ID BYPASS (DISESUAIKAN DENGAN RELEVANSI VISUAL):
+==================================================
+Terapkan kombinasi manipulasi visual berikut tanpa merusak relevansi cerita:
 
-2. ❄️ **FREEZE FRAME DI JEDA ~5s [SECONDARY #2] (`freeze_frame_with_zoom`)**:
-   - Pada jeda/interval ~5 detik berikutnya di timeline, gunakan tipe visual `"freeze_frame_with_zoom"` sebagai **PILIHAN SECONDARY #2**.
-   - Freeze frame mengambil 1 foto diam (*still frame*) dari timestamp puncak adegan tersebut lalu di-zoom perlahan (Slow Zoom-In/Pan) selama durasi 3.0 hingga 5.0 detik.
-   - Karena berupa foto diam dengan efek zoom, gambar ini **100% BEBAS dari deteksi sidik jari gerakan video Content ID YouTube** namun tetap terlihat hidup & sangat sinematik bagi penonton.
+1. 🎬 **ULTRA SLOW MOTION (PRIMARY #1)**:
+   - `slow_mo_factor`: 0.25 - 0.60. Ambil **1.5 - 2.0 DETIK** adegan bergerak dari video mentah asli, lalu perlambat di timeline.
+   - Memberikan kesan visual sinematik dan memotong kontinuitas gerakan video asli dari Content ID.
 
-3. ⏩ **LOMPAT MAJU TIMECODE VIDEO ASLI (+3s s/d +8s MAJU)**:
-   - Setelah klip / Freeze Frame selesai, **LOMPATI TIMECODE VIDEO FILM ASLI SEJAUH 3 S/D 8 DETIK KE DEPAN** (`source_start_seconds` berikutnya melompat +3.0s s/d +8.0s MAJU di video mentah).
-   - **TETAP URUT KRONOLOGIS MAJU**: Jarak lompatan dilakukan **SELALU KE DEPAN (SEARAH MAJU)**, TIDAK BOLEH MELOMPAT MUNDUR! Ini menjaga kontinuitas alur cerita visual tetap linier dan 100% sinkron dengan Voice Over.
+2. ❄️ **FREEZE FRAME DI JEDA ~5s (`freeze_frame_with_zoom`)**:
+   - Gunakan foto diam (*still frame*) berdurasi 3.0 - 5.0 detik dengan efek slow zoom-in untuk adegan ekspresi karakter/objek diam.
+   - 100% BEBAS dari klaim hak cipta gerakan video YouTube.
+
+3. ⏩ **SKIPPING TIMECODE (PANDUAN FLEKSIBEL)**:
+   - Secara umum, lompati 3 s/d 8 detik video mentah antar klip jika adegan berikutnya mengalir normal.
+   - NAMUN jika kalimat narasi membutuhkan adegan di titik timestamp tertentu, prioritaskan timestamp adegan yang relevan tersebut daripada angka skip +5s acak.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- POLA STRUKTUR VISUAL MAPPING (LOOPING REPEAT):
- [Slow Motion Max 2s (Primary #1)] ──► [Freeze Frame Zoom ~5s (Secondary #2)] ──► (Skip Maju +5s Video Asli) ──► ...
+ POLA STRUKTUR VISUAL MAPPING (FLEXIBLE):
+ [Relevansi VO #1] ──► [Slow Mo / Freeze Frame] ──► [Klip Relevan Berikutnya]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ==================================================
@@ -131,7 +129,8 @@ Wajib sertakan `color_grading_shift` acak pada setiap klip (contrast: 1.02-1.07,
 🚨 KNOWLEDGE & ATURAN PRINSIPAL SEGMEN VISUAL MURNI (VISUAL_ONLY / NO-VO / JEDA HENING):
 ==================================================
 1. 📌 **Konsep Jangkauan Asli (`Source Time Boundary`)**:
-   - Rentang timestamp/durasi pada segmen `VISUAL_ONLY` di transkrip menyajikan batas jangkauan waktu adegan di video film asli (`start_sec` s/d `end_sec`).
+   - Rentang timestamp/durasi pada segmen `VISUAL_ONLY` di transkrip menyajikan batas jangkauan waktu adegan RELATIF TERHADAP FILE VIDEO CHUNK INI (`0.0s` s/d `{{chunk_video_duration_sec}}s`).
+   - Jika tag `[VISUAL_ONLY]` berisi `Range: MM:SS - MM:SS`, konversikan timecode tersebut ke detik relatif dalam rentang `0.0s` s/d `{{chunk_video_duration_sec}}s` video chunk ini. Nilai `source_start_seconds` MUTLAK WAJIB berada di dalam rentang detik chunk ini.
 2. 🛑 **Kondisi Berhenti Utama (`Boundary Terminal Rule`)**:
    - Pengambilan klip sampel untuk segmen `VISUAL_ONLY` **MUTLAK WAJIB STOP / BERHENTI SECARA OTOMATIS** begitu nilai `source_start_seconds` mendekati atau mencapai batas akhir rentang adegan tersebut (`end_sec`).
    - DILARANG KERAS mengambil `source_start_seconds` melebihi batas akhir adegan tersebut (dilarang bocor mengambil adegan di luar rentang timecode yang tertera).
