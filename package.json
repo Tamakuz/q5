@@ -8,6 +8,10 @@
   "description": "Remotion-based automated content rendering engine for YouTube",
   "scripts": {
     "build": "tsc --noEmit",
+    "dev": "npm --workspace=dashboard run dev",
+    "dashboard": "npm --workspace=dashboard run dev",
+    "dashboard:vite": "npm --workspace=dashboard run dev:vite",
+    "dashboard:build": "npm --workspace=dashboard run build",
     "render": "npx tsx cli.ts render",
     "validate": "npx tsx cli.ts validate",
     "aistudio": "npx tsx playwright/aistudio.ts",

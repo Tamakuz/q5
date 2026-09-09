@@ -138,6 +138,23 @@ export function validateScriptAnalysis(
       }
       // Auto-correct or update word_count
       data.naskah_voiceover.word_count = words.length;
+
+      // Check for VISUAL_ONLY tags with excessive duration (>10s) that risk YouTube Content ID
+      const visualMatches = scriptText.match(/\[VISUAL_ONLY[^\]]*\]/gi) || [];
+      for (const tag of visualMatches) {
+        const durMatch = tag.match(/(?:Duration|Output):\s*([\d\.]+)\s*s?/i) || tag.match(/\|\s*([\d\.]+)\s*s/i);
+        if (durMatch) {
+          const dur = parseFloat(durMatch[1]);
+          if (dur > 10.0) {
+            issues.push({
+              id: 'LONG_VISUAL_ONLY_DURATION',
+              severity: 'warning',
+              field: 'naskah_voiceover.script_text',
+              message: `Tag [VISUAL_ONLY] memiliki durasi ${dur}s (>10s). Berisiko terdeteksi YouTube Content ID. Disarankan 4-10 detik.`,
+            });
+          }
+        }
+      }
     }
 
     // Normalize macro_summary to string if it is an object

@@ -18,7 +18,7 @@ const AlurfilmIntroTestStep: React.FC = () => {
   // Form Configuration State
   const [titleText, setTitleText] = useState<string>('UNDER THE DOME');
   const [subtitleText, setSubtitleText] = useState<string>('FILM 2013');
-  const [audioPath, setAudioPath] = useState<string>('assets/Denied Access - Density & Time.mp3');
+  const [audioPath, setAudioPath] = useState<string>('assets/The Final Horizon.mp3');
   const [impactTimestamp, setImpactTimestamp] = useState<number>(0.48);
   const [duration, setDuration] = useState<number>(6.0);
   const [stylePreset, setStylePreset] = useState<StylePreset>('cinematic_gold');
@@ -214,7 +214,7 @@ const AlurfilmIntroTestStep: React.FC = () => {
                 className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-amber-300 font-mono focus:outline-none focus:border-amber-500 transition-colors"
               />
               <span className="text-[10px] text-gray-500 mt-1 block">
-                Soundtrack default: <code className="text-gray-400 font-mono">assets/Denied Access - Density & Time.mp3</code>
+                Soundtrack default: <code className="text-gray-400 font-mono">assets/The Final Horizon.mp3</code>
               </span>
             </div>
 

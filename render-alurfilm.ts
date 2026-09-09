@@ -198,8 +198,18 @@ program
           if (!m || typeof m !== 'object') return m;
           const s = typeof m.start === 'number' ? m.start : 0;
           const e = typeof m.end === 'number' ? m.end : s;
-          if (typeof m.duration !== 'number' || m.duration <= 0) {
-            m.duration = e > s ? Number((e - s).toFixed(2)) : 0.1;
+          const visSum = Array.isArray(m.visuals)
+            ? Number(m.visuals.reduce((acc: number, c: any) => acc + (c.duration || 0), 0).toFixed(2))
+            : 0;
+
+          if (typeof m.duration !== 'number' || m.duration <= 0.2) {
+            if (e > s) {
+              m.duration = Number((e - s).toFixed(2));
+            } else if (visSum > 0.5) {
+              m.duration = visSum;
+            } else {
+              m.duration = 3.0;
+            }
           }
 
           const isVisOnly = m.type === 'visual_only' || String(m.text || '').includes('VISUAL_ONLY');
@@ -280,14 +290,20 @@ program
         (sentence.text && /\[visual_only/i.test(sentence.text))
       );
 
+      const rawVoDur = (sentence.start !== undefined && sentence.end !== undefined && sentence.end > sentence.start)
+        ? Number((sentence.end - sentence.start).toFixed(2))
+        : (sentence.duration || 3.0);
+
+      const sumVisDur = (sentence.visuals && sentence.visuals.length > 0)
+        ? Number(sentence.visuals.reduce((sum, v) => sum + (v.duration || 0), 0).toFixed(2))
+        : 0;
+
+      // Guard: if rawVoDur <= 0.2 (corrupted timecode) and visuals exist, use sumVisDur instead of squashing
       const targetVoDur = isVisualOnly
-        ? (sentence.duration || 3.0)
-        : ((sentence.start !== undefined && sentence.end !== undefined && sentence.end > sentence.start)
-            ? Number((sentence.end - sentence.start).toFixed(2))
-            : (sentence.duration || 3.0));
+        ? (sentence.duration || (sumVisDur > 0 ? sumVisDur : 3.0))
+        : (rawVoDur > 0.2 ? rawVoDur : (sumVisDur > 0 ? sumVisDur : 3.0));
 
       if (sentence.visuals && sentence.visuals.length > 0) {
-        const sumVisDur = sentence.visuals.reduce((sum, v) => sum + (v.duration || 0), 0);
         const scale = (sumVisDur > 0 && Math.abs(sumVisDur - targetVoDur) > 0.15 && !isVisualOnly)
           ? (targetVoDur / sumVisDur)
           : 1.0;
@@ -329,15 +345,29 @@ program
       }
     }
 
-    // Inspect actual voiceover audio file duration if available to prevent rendering past audio end
     let maxAudioDurationSec = 0;
     if (resolvedAudioFinal && fs.existsSync(resolvedAudioFinal)) {
       try {
-        const voMeta = await ffmpeg.getVideoMeta(resolvedAudioFinal);
+        const voMeta = await getVideoMeta(resolvedAudioFinal);
         if (voMeta && voMeta.duration && voMeta.duration > 0) {
           maxAudioDurationSec = voMeta.duration;
+          console.log(`🎙️ [Alurfilm Engine] Voiceover Audio Duration: ${maxAudioDurationSec.toFixed(2)}s`);
         }
-      } catch {}
+      } catch (err: any) {
+        console.warn(`⚠️ Could not probe audio metadata: ${err?.message}`);
+      }
+    }
+
+    // Inspect actual source video chunk duration to prevent EOF boundary overflow
+    let sourceVideoDuration = 0;
+    try {
+      const vidMeta = await getVideoMeta(resolvedVideo);
+      if (vidMeta && vidMeta.duration && vidMeta.duration > 0) {
+        sourceVideoDuration = vidMeta.duration;
+        console.log(`📹 [Alurfilm Engine] Source Video Chunk Duration: ${sourceVideoDuration.toFixed(2)}s`);
+      }
+    } catch (err: any) {
+      console.warn(`⚠️ Could not probe video chunk metadata: ${err?.message}`);
     }
 
     let totalDur = clips.reduce((s, c) => s + c.duration, 0);
@@ -365,6 +395,34 @@ program
         }
       });
       totalDur = clips.reduce((s, c) => s + c.duration, 0);
+    }
+
+    // Anti-Freeze Protection: Ensure total video duration covers 100% of the audio stream
+    if (maxAudioDurationSec > 0 && totalDur < maxAudioDurationSec) {
+      const remainingGap = Number((maxAudioDurationSec - totalDur).toFixed(3));
+      if (remainingGap > 0.1 && clips.length > 0) {
+        console.log(`⚠️ [Alurfilm Engine] Video total duration (${totalDur.toFixed(2)}s) is shorter than audio (${maxAudioDurationSec.toFixed(2)}s). Padding gap: ${remainingGap}s to prevent freeze.`);
+        if (remainingGap <= 2.5) {
+          clips[clips.length - 1].duration = Number((clips[clips.length - 1].duration + remainingGap).toFixed(3));
+        } else {
+          const lastClip = clips[clips.length - 1];
+          const safeSs = (sourceVideoDuration > 10)
+            ? Math.max(0, sourceVideoDuration - remainingGap - 5)
+            : Math.max(0, lastClip.sourceStart - remainingGap);
+          clips.push({
+            id: clipIdCounter++,
+            sentenceIndex: lastClip.sentenceIndex,
+            text: 'Outro video extension',
+            sourceStart: safeSs,
+            duration: remainingGap,
+            type: 'slow_motion',
+            slowMoFactor: 0.5,
+            colorShift: { contrast: 1.04, brightness: 0.005, saturation: 1.05 },
+            isVisualOnly: false,
+          });
+        }
+        totalDur = clips.reduce((s, c) => s + c.duration, 0);
+      }
     }
 
     const width = 1920;
@@ -455,6 +513,13 @@ program
               : String(clip.duration);
           }
 
+          const readDurNum = parseFloat(inputReadDur) || 0.5;
+          let safeSourceStart = clip.sourceStart;
+          if (sourceVideoDuration > 0 && safeSourceStart + readDurNum > sourceVideoDuration - 0.2) {
+            safeSourceStart = Math.max(0, Number((sourceVideoDuration - readDurNum - 0.2).toFixed(3)));
+            console.log(`⚠️ [Alurfilm Engine] Clip #${clip.id} boundary overflow (${clip.sourceStart}s + ${readDurNum}s > ${sourceVideoDuration.toFixed(1)}s). Safely shifted sourceStart to ${safeSourceStart}s.`);
+          }
+
           const ffmpegArgs: string[] = [];
 
           if (clip.isVisualOnly) {
@@ -462,6 +527,7 @@ program
             ffmpegArgs.push(
               '-y',
               '-ss', String(clip.sourceStart),
+              '-ss', String(safeSourceStart),
               '-t', inputReadDur,
               '-i', resolvedVideo,
               '-vf', scaleFilter,
@@ -479,6 +545,7 @@ program
             ffmpegArgs.push(
               '-y',
               '-ss', String(clip.sourceStart),
+              '-ss', String(safeSourceStart),
               '-t', inputReadDur,
               '-i', resolvedVideo,
               '-f', 'lavfi', '-t', String(clip.duration), '-i', 'anullsrc=r=48000:cl=stereo',
@@ -648,6 +715,7 @@ program
       }
 
       fargs.push(
+        '-shortest',
         '-movflags', '+faststart',
         '-progress', 'pipe:1', '-nostats',
         resolvedOutput,

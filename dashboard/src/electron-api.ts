@@ -312,13 +312,9 @@ export interface ElectronAPI {
   saveRenderSettings?: (settings: Partial<RenderSettings>) => Promise<{ success: boolean; settings?: RenderSettings; error?: string }>;
   concatAlurfilmFinalVideo: (
     parts: number[],
-    opts?: {
-      bgmPath?: string;
-      bgmVolume?: number;
-      logoPath?: string;
-      logoOpacity?: number;
-      logoMargin?: number;
-      logoScale?: number;
+    opts?: Partial<RenderSettings> & {
+      introFilePath?: string;
+      [key: string]: any;
     }
   ) => Promise<{
     filePath?: string;

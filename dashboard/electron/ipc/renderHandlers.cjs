@@ -72,7 +72,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
       if (resolvedAudio) cmd += ` --audio "${resolvedAudio}"`;
       cmd += ` -o "${outputPath}"`;
 
-      const child = spawn('bash', ['-c', cmd], { cwd: p.PROJECT_ROOT, env: { ...process.env } });
+      const child = process.platform === 'win32'
+        ? spawn(cmd, { cwd: p.PROJECT_ROOT, env: { ...process.env }, shell: true })
+        : spawn('bash', ['-c', cmd], { cwd: p.PROJECT_ROOT, env: { ...process.env } });
 
       let fullStdout = '';
       let fullStderr = '';
@@ -122,20 +124,25 @@ function register(ipcMain, { paths: p, media, ffmpeg, getMainWindow }) {
     logoOpacity: 0.6,
     logoMargin: 40,
     logoScale: 60,
-    introEnabled: false,
+    introEnabled: true,
     introTitleText: 'UNDER THE DOME',
     introSubtitleText: 'ALUR CERITA FILM',
     introStylePreset: 'cinematic_gold',
     introDuration: 6.0,
     introImpactTimestamp: 0.48,
-    introAudioPath: 'assets/Denied Access - Density & Time.mp3',
+    introAudioPath: 'assets/The Final Horizon.mp3',
   };
 
   async function renderIntroVideoHelper(introOpts, cwd) {
     return new Promise((resolve) => {
       const optsJson = JSON.stringify(introOpts || {});
+      const tmpDir = p.TMP_DIR || path.join(cwd, 'tmp');
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+      const runnerFile = path.join(tmpDir, `intro_runner_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.ts`);
+      const enginePath = path.join(cwd, 'lib', 'alurfilm', 'intro-engine.ts').replace(/\\/g, '/');
+
       const runnerScript = `
-import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
+import { renderIntroVideo } from '${enginePath}';
 (async () => {
   try {
     const opts = ${optsJson};
@@ -145,9 +152,10 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
     console.log('RESULT:' + JSON.stringify({ success: false, error: e.message }));
   }
 })();
-      `;
+`;
+      fs.writeFileSync(runnerFile, runnerScript, 'utf-8');
 
-      const child = spawn('npx', ['tsx', '-e', runnerScript], { cwd, env: { ...process.env } });
+      const child = spawn('npx', ['tsx', runnerFile], { cwd, env: { ...process.env }, shell: process.platform === 'win32' });
       let lastResult = { success: false, error: 'Unknown render failure' };
 
       child.stdout.on('data', (data) => {
@@ -160,7 +168,12 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
         }
       });
 
+      child.stderr.on('data', (data) => {
+        console.error('Intro render stderr:', data.toString());
+      });
+
       child.on('close', (code) => {
+        try { fs.unlinkSync(runnerFile); } catch {}
         if (code === 0 && lastResult.success) {
           resolve(lastResult);
         } else {
@@ -169,6 +182,7 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
       });
 
       child.on('error', (err) => {
+        try { fs.unlinkSync(runnerFile); } catch {}
         resolve({ success: false, error: err.message });
       });
     });
@@ -221,13 +235,14 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
   ipcMain.handle('concat-alurfilm-final-video', async (_event, opts = {}) => {
     const {
       parts, bgmPath, bgmVolume, narrationVolume, logoPath, logoOpacity, logoMargin, logoScale, bgmEnabled, logoEnabled,
-      introEnabled, introTitleText, introSubtitleText, introStylePreset, introDuration, introImpactTimestamp, introAudioPath
+      introEnabled, introTitleText, introSubtitleText, introStylePreset, introDuration, introImpactTimestamp, introAudioPath,
+      introFilePath: explicitIntroPath
     } = opts;
     const saved = loadSavedSettings();
 
     const isBgmActive = bgmEnabled !== undefined ? bgmEnabled : saved.bgmEnabled;
     const isLogoActive = logoEnabled !== undefined ? logoEnabled : saved.logoEnabled;
-    const isIntroActive = introEnabled !== undefined ? introEnabled : (saved.introEnabled !== undefined ? saved.introEnabled : false);
+    const isIntroActive = introEnabled !== undefined ? introEnabled : (saved.introEnabled !== undefined ? saved.introEnabled : true);
 
     const contentId = p.getOrGenerateContentId('longform');
     const outputDir = path.join(p.PROJECT_ROOT, 'output');
@@ -253,30 +268,58 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
 
     let introFilePath = null;
     if (isIntroActive) {
-      const introTitle = introTitleText || saved.introTitleText || 'UNDER THE DOME';
-      const introSubtitle = introSubtitleText || saved.introSubtitleText || 'ALUR CERITA FILM';
-      const introPreset = introStylePreset || saved.introStylePreset || 'cinematic_gold';
-      const introDur = introDuration || saved.introDuration || 6.0;
-      const introImpact = introImpactTimestamp || saved.introImpactTimestamp || 0.48;
-      const introAudio = introAudioPath || saved.introAudioPath || 'assets/Denied Access - Density & Time.mp3';
-      const introOut = path.join(outputDir, `alurfilm_${contentId}_intro_${Date.now()}.mp4`);
-
-      console.log(`🎬 [Intro Generator] Generating intro title video: "${introTitle}"...`);
-      const introRes = await renderIntroVideoHelper({
-        titleText: introTitle,
-        subtitleText: introSubtitle,
-        stylePreset: introPreset,
-        duration: introDur,
-        impactTimestamp: introImpact,
-        audioPath: introAudio,
-        outputPath: introOut,
-      }, p.PROJECT_ROOT);
-
-      if (introRes.success && introRes.outputPath && fs.existsSync(introRes.outputPath)) {
-        introFilePath = introRes.outputPath;
-        console.log(`✅ [Intro Generator] Intro video generated successfully: ${path.basename(introFilePath)}`);
+      // 1. Check explicit introFilePath from opts
+      if (explicitIntroPath && fs.existsSync(explicitIntroPath)) {
+        introFilePath = explicitIntroPath;
+        console.log(`🎬 [Concat Final Video] Using provided intro video: ${path.basename(introFilePath)}`);
       } else {
-        console.warn(`⚠️ [Intro Generator] Failed to generate intro video: ${introRes.error}`);
+        // 2. Check existing rendered intro in outputDir
+        const existingIntroMatches = files.filter((f) => (f.startsWith(`alurfilm_${contentId}_intro_`) || f.includes('alurfilm_intro_test')) && f.endsWith('.mp4'));
+        if (existingIntroMatches.length > 0) {
+          existingIntroMatches.sort((a, b) => {
+            const statA = fs.statSync(path.join(outputDir, a)).mtimeMs;
+            const statB = fs.statSync(path.join(outputDir, b)).mtimeMs;
+            return statB - statA;
+          });
+          introFilePath = path.join(outputDir, existingIntroMatches[0]);
+          console.log(`🎬 [Concat Final Video] Reusing existing intro video: ${path.basename(introFilePath)}`);
+        } else {
+          // Check output/testing fallback
+          const testIntroPath = path.join(outputDir, 'testing', 'intro_test.mp4');
+          if (fs.existsSync(testIntroPath)) {
+            introFilePath = testIntroPath;
+            console.log(`🎬 [Concat Final Video] Reusing test intro video: ${testIntroPath}`);
+          }
+        }
+      }
+
+      // 3. If no existing intro video found, generate it on-the-fly
+      if (!introFilePath) {
+        const introTitle = introTitleText || saved.introTitleText || 'UNDER THE DOME';
+        const introSubtitle = introSubtitleText || saved.introSubtitleText || 'ALUR CERITA FILM';
+        const introPreset = introStylePreset || saved.introStylePreset || 'cinematic_gold';
+        const introDur = introDuration || saved.introDuration || 6.0;
+        const introImpact = introImpactTimestamp || saved.introImpactTimestamp || 0.48;
+        const resolvedIntroAudio = opts.introAudio || introAudioPath || saved.introAudioPath || 'assets/The Final Horizon.mp3';
+        const introOut = path.join(outputDir, `alurfilm_${contentId}_intro_${Date.now()}.mp4`);
+
+        console.log(`🎬 [Intro Generator] Generating intro title video: "${introTitle}"...`);
+        const introRes = await renderIntroVideoHelper({
+          titleText: introTitle,
+          subtitleText: introSubtitle,
+          stylePreset: introPreset,
+          duration: introDur,
+          impactTimestamp: introImpact,
+          audioPath: resolvedIntroAudio,
+          outputPath: introOut,
+        }, p.PROJECT_ROOT);
+
+        if (introRes.success && introRes.outputPath && fs.existsSync(introRes.outputPath)) {
+          introFilePath = introRes.outputPath;
+          console.log(`✅ [Intro Generator] Intro video generated successfully: ${path.basename(introFilePath)}`);
+        } else {
+          console.warn(`⚠️ [Intro Generator] Failed to generate intro video: ${introRes.error}`);
+        }
       }
     }
 
@@ -368,7 +411,7 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
     args.push('-movflags', '+faststart', finalOutputPath);
 
     let estimatedTotalSec = 0;
-    for (const pf of partFiles) {
+    for (const pf of allConcatFiles) {
       try {
         const meta = await ffmpeg.getVideoMetaHelper(pf);
         if (meta && meta.duration) estimatedTotalSec += meta.duration;
@@ -381,7 +424,7 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
       mainWindow.webContents.send('render-progress', {
         stage: 'concat',
         progress: 0,
-        message: `[FFmpeg] Starting full movie concat for ${partFiles.length} parts...`
+        message: `[FFmpeg] Starting full movie concat for ${allConcatFiles.length} files (Intro: ${introFilePath ? 'YES' : 'NO'}, Parts: ${partFiles.length})...`
       });
     }
 
@@ -539,7 +582,9 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
 
       cmd += ` -o "${outputPath}"`;
 
-      const child = spawn('bash', ['-c', cmd], { cwd: p.PROJECT_ROOT, env: { ...process.env } });
+      const child = process.platform === 'win32'
+        ? spawn(cmd, { cwd: p.PROJECT_ROOT, env: { ...process.env }, shell: true })
+        : spawn('bash', ['-c', cmd], { cwd: p.PROJECT_ROOT, env: { ...process.env } });
 
       let fullStdout = '';
       let fullStderr = '';

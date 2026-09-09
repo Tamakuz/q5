@@ -1611,7 +1611,11 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
     const savedResults = [];
     const multiPartMap = {};
     const projectRoot = p.PROJECT_ROOT || path.resolve(__dirname, '..', '..', '..');
-    const pythonBin = path.join(projectRoot, 'whisperx', 'venv', 'bin', 'python3');
+    const pythonBin = process.platform === 'win32'
+      ? (fs.existsSync(path.join(projectRoot, 'whisperx', 'venv', 'Scripts', 'python.exe'))
+          ? path.join(projectRoot, 'whisperx', 'venv', 'Scripts', 'python.exe')
+          : 'python')
+      : path.join(projectRoot, 'whisperx', 'venv', 'bin', 'python3');
     const alignCli = path.join(projectRoot, 'whisperx', 'align_cli.py');
     const targetDir = p.ALURFILM_TRANSCRIPTS_DIR || path.join(p.ALURFILM_DIR, 'transcripts');
     if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
@@ -2186,30 +2190,58 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
       } catch { }
     }
 
-    // Fetch Audio VO Metadata for this part
+    // Fetch Audio VO Metadata for this part (Prioritize spliced audio with VISUAL_ONLY gaps)
     let audioVoFileName = `${contentId}_audio_part_${partStr}.wav`;
     let totalAudioDurSec = voSentences.length > 0 ? (voSentences[voSentences.length - 1].end || 0) : 0;
+    let fullAudioPath = null;
 
-    const audioSearchDirs = [p.ALURFILM_AUDIO_DIR, p.ALURFILM_DIR].filter(d => d && fs.existsSync(d));
-    for (const dir of audioSearchDirs) {
-      try {
-        const files = fs.readdirSync(dir);
-        const matched = files.find(f => f.includes(`part_${partStr}`) || f.includes(`parts_${partStr}`));
-        if (matched) {
-          audioVoFileName = matched;
-          const fullAudioPath = path.join(dir, matched);
-          try {
-            const meta = await ffmpeg.getVideoMetaHelper(fullAudioPath);
-            if (meta && meta.duration) {
-              totalAudioDurSec = meta.duration;
-              if (voSentences.length > 0 && Math.abs(voSentences[voSentences.length - 1].end - totalAudioDurSec) > 0.3) {
-                const lastIdx = voSentences.length - 1;
-                voSentences[lastIdx].end = Number(totalAudioDurSec.toFixed(2));
-                voSentences[lastIdx].duration = Number((voSentences[lastIdx].end - voSentences[lastIdx].start).toFixed(2));
-              }
+    if (fs.existsSync(p.ALURFILM_AUDIO_DIR)) {
+      const mappingFile = path.join(p.ALURFILM_AUDIO_DIR, `${contentId}_audio_mappings.json`);
+      if (fs.existsSync(mappingFile)) {
+        try {
+          const data = JSON.parse(fs.readFileSync(mappingFile, 'utf-8'));
+          const audioEntry = (data.audios || []).find(item => item.parts && item.parts.includes(Number(chunkPart)));
+          if (audioEntry) {
+            const candidate = audioEntry.splicedFilePath || audioEntry.filePath;
+            if (candidate && fs.existsSync(candidate)) {
+              fullAudioPath = candidate;
+              audioVoFileName = path.basename(candidate);
             }
-          } catch { }
-          break;
+          }
+        } catch { }
+      }
+    }
+
+    if (!fullAudioPath) {
+      const audioSearchDirs = [p.ALURFILM_AUDIO_DIR, p.ALURFILM_DIR].filter(d => d && fs.existsSync(d));
+      for (const dir of audioSearchDirs) {
+        try {
+          const files = fs.readdirSync(dir);
+          const matched = files.find(f => (f.includes(`part_${partStr}`) || f.includes(`part_${chunkPart}`)) && f.includes('spliced')) ||
+                          files.find(f => f.includes(`part_${partStr}`) || f.includes(`parts_${partStr}`));
+          if (matched) {
+            audioVoFileName = matched;
+            fullAudioPath = path.join(dir, matched);
+            break;
+          }
+        } catch { }
+      }
+    }
+
+    if (fullAudioPath && fs.existsSync(fullAudioPath)) {
+      try {
+        const meta = await ffmpeg.getVideoMetaHelper(fullAudioPath);
+        if (meta && meta.duration) {
+          totalAudioDurSec = meta.duration;
+          // Guard: NEVER overwrite end if totalAudioDurSec <= start of last sentence!
+          if (voSentences.length > 0) {
+            const lastIdx = voSentences.length - 1;
+            const lastStart = voSentences[lastIdx].start || 0;
+            if (totalAudioDurSec > lastStart && Math.abs(voSentences[lastIdx].end - totalAudioDurSec) > 0.3) {
+              voSentences[lastIdx].end = Number(totalAudioDurSec.toFixed(2));
+              voSentences[lastIdx].duration = Number((voSentences[lastIdx].end - lastStart).toFixed(2));
+            }
+          }
         }
       } catch { }
     }
@@ -2802,12 +2834,25 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt }) {
   // ─── Render Alurfilm Intro Test Video ───────────────────
   ipcMain.handle('alurfilm:render-intro-test', async (_event, options) => {
     return new Promise((resolve) => {
-      const optsJson = JSON.stringify(options || {});
+      const contentId = p.getOrGenerateContentId('longform');
+      const outputDir = path.join(p.PROJECT_ROOT, 'output');
+      if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+      const finalOpts = {
+        outputPath: path.join(outputDir, `alurfilm_${contentId}_intro_${Date.now()}.mp4`),
+        ...(options || {}),
+      };
+
+      const tmpDir = p.TMP_DIR || path.join(p.PROJECT_ROOT, 'tmp');
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+      const runnerFile = path.join(tmpDir, `intro_test_runner_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.ts`);
+      const enginePath = path.join(p.PROJECT_ROOT, 'lib', 'alurfilm', 'intro-engine.ts').replace(/\\/g, '/');
+
       const runnerScript = `
-import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
+import { renderIntroVideo } from '${enginePath}';
 (async () => {
   try {
-    const opts = ${optsJson};
+    const opts = ${JSON.stringify(finalOpts)};
     const res = await renderIntroVideo(opts, (percent, msg) => {
       console.log('PROGRESS:' + JSON.stringify({ percent, msg }));
     });
@@ -2816,11 +2861,13 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
     console.log('RESULT:' + JSON.stringify({ success: false, error: e.message }));
   }
 })();
-      `;
+`;
+      fs.writeFileSync(runnerFile, runnerScript, 'utf-8');
 
-      const child = spawn('npx', ['tsx', '-e', runnerScript], {
+      const child = spawn('npx', ['tsx', runnerFile], {
         cwd: p.PROJECT_ROOT,
         env: { ...process.env },
+        shell: process.platform === 'win32',
       });
 
       let lastResult = { success: false, error: 'Unknown render failure' };
@@ -2847,6 +2894,7 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
       });
 
       child.on('close', (code) => {
+        try { fs.unlinkSync(runnerFile); } catch { }
         if (code === 0 && lastResult.success) {
           resolve(lastResult);
         } else {
@@ -2859,6 +2907,7 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
       });
 
       child.on('error', (err) => {
+        try { fs.unlinkSync(runnerFile); } catch { }
         resolve({ success: false, error: err.message });
       });
     });
@@ -2881,6 +2930,11 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
     if (anyIntro.length > 0) {
       const filePath = path.join(outputDir, anyIntro[0]);
       return { filePath, mediaUrl: media.mediaUrl(filePath), fileName: anyIntro[0] };
+    }
+
+    const testIntro = path.join(outputDir, 'testing', 'intro_test.mp4');
+    if (fs.existsSync(testIntro)) {
+      return { filePath: testIntro, mediaUrl: media.mediaUrl(testIntro), fileName: 'intro_test.mp4' };
     }
 
     return null;
@@ -3076,7 +3130,11 @@ import { renderIntroVideo } from './lib/alurfilm/intro-engine.ts';
     fs.writeFileSync(tmpScriptPath, narrationSentencesOnly || 'Naskah pengujian alur film.', 'utf-8');
 
     const outJsonPath = path.join(tmpDir, `tmp_test_transcript_${timestamp}.json`);
-    const pythonBin = path.join(p.PROJECT_ROOT, 'whisperx', 'venv', 'bin', 'python3');
+    const pythonBin = process.platform === 'win32'
+      ? (fs.existsSync(path.join(p.PROJECT_ROOT, 'whisperx', 'venv', 'Scripts', 'python.exe'))
+          ? path.join(p.PROJECT_ROOT, 'whisperx', 'venv', 'Scripts', 'python.exe')
+          : 'python')
+      : path.join(p.PROJECT_ROOT, 'whisperx', 'venv', 'bin', 'python3');
     const alignCli = path.join(p.PROJECT_ROOT, 'whisperx', 'align_cli.py');
 
     let whisperSentences = [];

@@ -23,6 +23,29 @@ Video Source Input: {{source_video_name}} | Scene: {{scene_id}}
 3. 🛑 **DILARANG KERAS memberikan `source_start_seconds` di atas {{chunk_video_duration_sec}}s (seperti 1800s / 1900s)**! Melebihi durasi video chunk akan menyebabkan FFmpeg render ERROR & VIDEO FREEZE BEBERAPA MENIT DI AKHIR!
 
 ==================================================
+🚨 SOLUSI MUTLAK DI DETIK-DETIK TERAKHIR CHUNK (ANTI-KEHABISAN KLIP & ANTI-FREEZE):
+==================================================
+Masalah Umum: Ketika narasi voiceover masih berjalan di kalimat-kalimat terakhir, namun video chunk sudah mendekati batas akhir (misal tersisa <30 detik dari {{chunk_video_duration_sec}}s), AI editor sering panik karena merasa "kehabisan footage", lalu berhenti menambahkan visual atau menumpuk foto diam berurutan sehingga video membeku (freeze).
+
+ATURAN ANTI-FREEZE MUTLAK DI DETIK TERAKHIR:
+1. 🛑 **DILARANG MEMBERIKAN `source_start_seconds` MELEBIHI `{{chunk_video_duration_sec}}s - 3.0s`**:
+   - Jika video chunk berdurasi 1200s, timestamp tertinggi yang boleh kamu pakai adalah 1195s–1197s. Dilarang memasukkan 1200s atau lebih karena akan melewati akhir file video.
+2. 🔄 **PRINSIP "RETROGRADE SHOT HUNTING" DI AKHIR PART (SOLUSI KEHABISAN FOOTAGE)**:
+   - Jika narasi di kalimat-kalimat terakhir masih butuh visual (misal butuh 15–30 detik footage lagi), tapi video chunk sudah di detik 1180+:
+     ➔ **WAJIB MELOMPAT MUNDUR (RETROGRADE JUMP -30s s/d -90s)** ke shot-shot dinamis sebelumnya di dalam babak adegan terakhir tersebut!
+     ➔ Ambil variasi shot yang relevan dengan kesimpulan narator:
+        * Close-up ekspresi wajah karakter saat merenung/berpikir/menatap.
+        * Shot sudut berbeda dari aksi atau rintangan yang baru saja dilewati.
+        * Wide shot pemandangan tebing/jalan/lingkungan sekitar babak tersebut.
+        * Insert shot perlengkapan, tangan, atau detail objek.
+3. 🛑 **DILARANG MENUMPUK FREEZE FRAME DIAM BERTURUT-TURUT**:
+   - Dilarang menaruh 2 freeze frame 5 detik berturut-turut di akhir part seolah video macet (10 detik diam)!
+   - Gunakan kombinasi sinematik: `slow_motion` (3.5–5 detik) ➔ `video_cut` (2 detik) ➔ max 1 `freeze_frame_with_zoom` singkat (2–3 detik) ➔ `slow_motion` lagi hingga akhir!
+4. ⏱️ **TOTAL DURASI VISUAL WAJIB 100% MENUTUPI UCAPAN NARATOR HINGGA AKHIR**:
+   - Kalimat terakhir narator (termasuk kalimat outro/kesimpulan) **MUTLAK WAJIB** memiliki visual aktif dengan total akumulasi durasi klip visual yang sama persis dengan durasi kalimat transkrip (`end - start`).
+   - DILARANG KERAS membiarkan kalimat terakhir tanpa visual lengkap atau durasi visual lebih pendek dari narasi!
+
+==================================================
 🎬 ACUAN TIMELINE ADEGAN & SCENE BREAKDOWN (DARI SCRIPT GENERATOR STEP 2):
 ==================================================
 Berikut adalah acuan alur adegan dan urutan kronologis hasil analisa Step 2 Script Generator.
@@ -56,33 +79,79 @@ Tujuan UTAMA dan TERTINGGI dari video mapping adalah **RELEVANSI VISUAL PENONTON
 2. 🛑 **DILARANG KERAS MEMILIH TIMESTAMP ACAK TANPA MENCOCOKKAN MAKNA VISUAL**:
    - Relevansi makna kata narasi VO adalah **HUKUM TERTINGGI #1**. Jangan pernah mengorbankan kesesuaian visual hanya demi mengejar formula matematika lompatan waktu.
 
+3. 🛑 **HUKUM "ANTI-PENGKUDUSAN" KLIP / KLIP WAJIB BEBAS DIGUNAKAN BERSAMA (SHARED FOOTAGE PRINCIPLE)**:
+   - 🛑 **TIDAK ADA SATUPUN KLIP / TIMECODE YANG "DIKUDUSKAN" ATAU DI-RESERVE KHUSUS UNTUK `VISUAL_ONLY`!**
+   - **MASALAH KRITIS YANG WAJIB DIHINDARI**: Narator sedang membahas aksi/kejadian A (misal: "Aron mengayuh sepeda kencang melintasi bukit pasir..."), tetapi visual mapping malah menampilkan adegan lain yang tidak relevan (seperti Aron sedang berkemas atau pemandangan tebing kosong) karena adegan aksi sepeda tersebut sengaja "disimpan" atau "dikhususkan" hanya untuk segmen `[VISUAL_ONLY]` setelahnya. **INI KESALAHAN FATAL!** Penonton akan merasa aneh melihat narator membahas A tapi gambarnya bukan A, lalu baru melihat aksi A setelah narator selesai bicara.
+   - **ATURAN MUTLAK**:
+     * Ketika narator membahas aksi/kejadian A ➔ Visual untuk kalimat narator tersebut **WAJIB LANGSUNG MENAMPILKAN AKSI A** (ambil detik-detik relevan dari adegan tersebut, misal angle fokus wajah saat beraksi, slow-motion awal aksi, atau freeze-frame ekspresi).
+     * Ketika masuk ke segmen `[VISUAL_ONLY]` ➔ Gunakan potongan lanjutan / sudut aksi lain dari adegan A tersebut (misal klip aksi cepat, lompatan, atau klimaks gerakan) dari dalam rentang adegan yang sama!
+     * **Satu rentang adegan besar (misal rentang 1–2,5 menit adegan A) BERHAK dan WAJIB dipakai bersama** baik oleh narator voiceover saat bercerita maupun oleh segmen `visual_only` saat jeda hening!
+     * JANGAN PERNAH mengorbankan relevansi visual narator demi "menyimpan klip" untuk visual only! Relevansi visual ucapan narator selalu nomor satu.
+
 ==================================================
-▶️ ATURAN STRUKTURAL LINIER & TOLERANSI RETROGRADE JUMP (PENCARIAN ADEGAN PRESISI):
+🎯 PRINSIP "SMART SHOT HUNTING" & NAVIGASI NON-LINIER DI DALAM ADEGAN:
 ==================================================
-1. ▶️ **Alur Umum Berjalan Maju Sejalan Cerita**:
-   - Secara makro (keseluruhan chunk), sebaran timestamp bergerak maju dari porsi awal hingga akhir durasi video chunk (`chunk_video_duration_sec`).
-2. 🔄 **IJIN KHUSUS MELOMPAT MUNDUR (LOCAL RETROGRADE JUMP)**:
-   - Jika sebuah kalimat VO merujuk/membahas adegan, ekspresi, atau karakter yang terjadi beberapa detik/menit sebelumnya di video mentah (misal kilas balik atau rekapan), kamu **DIPERBOLEHKAN DAN DISARANKAN MELOMPAT MUNDUR** (`source_start_seconds` bergerak mundur misal -10s s/d -40s ke belakang di video mentah) demi mendapatkan adegan yang 100% COCOK dengan ucapan VO!
-   - Kebutuhan **RELEVANSI VISUAL VO DI UTAMAKAN** daripada keterikatan urutan waktu yang kaku.
-3. 🎯 **Peta Window Adegan (`Scene Windowing`)**:
-   - Manfaatkan daftar `{{scene_breakdown}}` di atas untuk mengetahui kisaran waktu adegan yang relevan di video chunk ini (`0.0s` s/d `{{chunk_video_duration_sec}}s`). Prioritaskan pencarian timestamp `source_start_seconds` di dalam window adegan yang sedang dibahas naskah agar visual 100% sinkron.
+Sutradara film merancang satu adegan (Scene) dari puluhan **shot pendek (1–3 detik)** dengan berbagai sudut kamera (wide shot, close-up ekspresi, insert tangan/objek, reaction shot) yang disusun secara artistik dan non-linier. Ketika digabung, shot-shot pendek ini membentuk satu babak adegan utuh, NAMUN urutan shot di video mentah sering kali TIDAK SEJAJAR 1:1 dengan alur kalimat narator recap!
+
+Karena itu, AI wajib cerdas dalam mencari klip ("Pintar-Pintar Hunting Klip") dengan aturan berikut:
+
+1. 🛑 **DILARANG KERAS MENGHITUNG TIMESTAMP SECARA MATEMATIKA KAKU (+3s / +5s / +8s)**:
+   - JANGAN PERNAH hanya menambahkan +5 detik secara buta dari timestamp sebelumnya!
+   - Di film dengan tempo editing cepat, melompati +5s secara kaku akan membuat timestamp mendarat di shot kosong (seperti batu, dinding, bayangan, atau punggung orang) dan MELEWATKAN momen aksi/ekspresi penting yang ada di detik ke-2 atau detik ke-8 di dalam adegan tersebut.
+
+2. 🔍 **AKTIF "HUNTING" (MENYISIR) SHOT PENDEK SPESIFIK SESUAI KATA NARASI VO**:
+   - Amati video dengan jeli: cari detik di mana **aksi, ekspresi wajah, atau objek yang sedang diucapkan narator BENAR-BENAR TAMPIL DI LAYAR**.
+   - Contoh kasus nyata:
+     * Narator bicara: *"Aron panik dan mencoba sekuat tenaga mendorong batu itu"* ➔ **WAJIB HUNTING** detik close-up di mana wajah Aron mengejan panik atau tangan kirinya mendorong batu. DILARANG menampilkan shot drone pemandangan tebing dari kejauhan!
+     * Narator bicara: *"Jatuh nabrak ranting bukannya ngeluh, dia malah ketawa lepas dan nyempetin selfie santai"* ➔ **WAJIB HUNTING** shot pendek 1.5 detik saat Aron memegang kamera dan tertawa di tanah, meskipun shot tersebut berada beberapa detik sebelum atau sesudah kalimat sebelumnya!
+     * Narator bicara: *"Dua pendaki cewek yang kebingungan karena nyasar"* ➔ **WAJIB HUNTING** shot wajah Megan dan Kristi yang sedang bingung atau membuka peta, BUKAN punggung Aron yang sedang berjalan!
+     * Narator bicara: *"Aron mengukir nama dan tanggal di dinding tebing"* ➔ **WAJIB HUNTING** close-up pisau/tangan menggores dinding batu!
+
+3. 🔄 **KEBEBASAN NON-LINIER PENUH DI DALAM SCENE WINDOW (RETROGRADE & JUMP CUT)**:
+   - Di dalam batas satu babak adegan (`Scene Window` dari daftar `{{scene_breakdown}}`), urutan shot di film mentah bergerak bolak-balik (intercut).
+   - **Kamu DIBERI KEBEBASAN PENUH untuk melompat maju atau mundur (retrograde jump -10s, -25s, +15s, +35s)** di dalam batas adegan tersebut demi menyambar potongan shot yang 100% SINKRON dengan kalimat narasi saat itu!
+   - Kebutuhan **RELEVANSI VISUAL PENONTON ADALAH HUKUM TERTINGGI**, jauh melampaui aturan urutan waktu linier.
+
+4. 🛑 **HINDARI "SHOT TRANSISI / CUT-AWAY KOSONG" SAAT NARASI EMOSIONAL/AKSI**:
+   - Jika narasi sedang menjelaskan aksi penting karakter, konflik, atau reaksi emosional, DILARANG memilih cut-away pemandangan, kaki melangkah tanpa konteks, atau benda mati jika di dalam adegan tersebut terdapat shot wajah karakter / shot aksi subjek yang jelas!
 
 ==================================================
 🚨 FORMULA FAIR USE & CONTENT ID BYPASS (DISESUAIKAN DENGAN RELEVANSI VISUAL):
 ==================================================
 Terapkan kombinasi manipulasi visual berikut tanpa merusak relevansi cerita:
+Meskipun kamu bebas hunting shot non-linier demi relevansi makna, **KEAMANAN DARI KLAIM HAK CIPTA YOUTUBE (CONTENT ID) ADALAH SYARAT MUTLAK**.
+Algoritma Content ID YouTube mendeteksi kecocokan video jika ada rekaman mentah asli yang berjalan kontinu >2.5 detik tanpa manipulasi.
+Terapkan kombinasi manipulasi visual berikut pada setiap klip yang kamu pilih:
 
 1. 🎬 **ULTRA SLOW MOTION (PRIMARY #1)**:
    - `slow_mo_factor`: 0.25 - 0.60. Ambil **1.5 - 2.0 DETIK** adegan bergerak dari video mentah asli, lalu perlambat di timeline.
    - Memberikan kesan visual sinematik dan memotong kontinuitas gerakan video asli dari Content ID.
+1. 🎬 **ULTRA SLOW MOTION (PRIMARY #1 — RASIO ~45%-50%)**:
+   - `slow_mo_factor`: 0.25 - 0.60. Ambil HANYA **1.0 - 2.0 DETIK** rekaman bergerak dari video mentah asli, lalu perlambat menjadi 2.5 - 5.0 detik di timeline.
+   - **Kekuatan Anti-Content ID**: Mematahkan kurva kecepatan asli (*motion fingerprint*) sehingga AI YouTube tidak bisa mengenali pola gerakan aslinya.
 
 2. ❄️ **FREEZE FRAME DI JEDA ~5s (`freeze_frame_with_zoom`)**:
    - Gunakan foto diam (*still frame*) berdurasi 3.0 - 5.0 detik dengan efek slow zoom-in untuk adegan ekspresi karakter/objek diam.
    - 100% BEBAS dari klaim hak cipta gerakan video YouTube.
+2. ❄️ **FREEZE FRAME DI JEDA ~5s (`freeze_frame_with_zoom` — RASIO ~30%-35%)**:
+2. ❄️ **FREEZE FRAME DI JEDA ~3s-5s (`freeze_frame_with_zoom` — RASIO ~30%-35%)**:
+   - Gunakan foto diam (*still frame* 1 frame tunggal) berdurasi 3.0 - 5.0 detik dengan efek slow zoom-in untuk adegan ekspresi karakter, tatapan mata, atau objek diam.
+   - **Kekuatan Anti-Content ID**: 100% KEBAL DARI DETEKSI GERAKAN VIDEO, karena berupa 1 frame foto diam beranimasi zoom.
 
-3. ⏩ **SKIPPING TIMECODE (PANDUAN FLEKSIBEL)**:
-   - Secara umum, lompati 3 s/d 8 detik video mentah antar klip jika adegan berikutnya mengalir normal.
-   - NAMUN jika kalimat narasi membutuhkan adegan di titik timestamp tertentu, prioritaskan timestamp adegan yang relevan tersebut daripada angka skip +5s acak.
+3. ⏩ **PENENTUAN TIMECODE BERDASARKAN CUT AKTUAL (BUKAN SKIP ACAK)**:
+3. ✂️ **BATAS MAKSIMAL RAW FOOTAGE (MAX 2.0 DETIK UNTUK `video_cut` — RASIO ~10%-15%)**:
+   - Jika menggunakan `video_cut` (kecepatan normal 1.0x), durasi klip **MUTLAK MAKSIMAL 2.0 DETIK**!
+   - 🛑 **DILARANG KERAS mengambil klip video normal >2.5 detik tanpa slow-mo atau freeze-frame**! Mengambil rekaman mentah 3–5 detik kontinu adalah penyebab #1 video terkena klaim Content ID.
+
+4. 🪞 **VARIASI MIRROR CUT (`mirror_cut` — RASIO ~5%-10%)**:
+   - Balik gambar secara horizontal (`"mirror_mode": "horizontal"`). Sangat efektif membalik komposisi visual sutradara asli.
+
+5. ⏩ **PENENTUAN TIMECODE BERDASARKAN CUT AKTUAL (BUKAN SKIP ACAK)**:
+   - Ambil detik awal dari cut/shot yang relevan (+0.2s s/d +0.4s setelah potongan adegan/cut-point agar frame sudah stabil dan tajam).
+   - JANGAN menggunakan formula tambah waktu kaku (+5s acak). Pilihlah titik waktu murni berdasarkan KONTEN SHOT di video sumber.
+
+6. 🎨 **COLOR GRADING SHIFT (WAJIB PADA SETIAP KLIP)**:
+   - Wajib sertakan `color_grading_shift` acak pada setiap klip (contrast: 1.02-1.07, brightness: 0.002-0.01, saturation: 1.03-1.08) untuk mengubah sidik jari piksel digital.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  POLA STRUKTUR VISUAL MAPPING (FLEXIBLE):
@@ -141,6 +210,11 @@ Wajib sertakan `color_grading_shift` acak pada setiap klip (contrast: 1.02-1.07,
    - **Tipe Visual**: Khusus segmen `VISUAL_ONLY`, SEMUA klip WAJIB menggunakan tipe `"video_cut"` saja (kecepatan normal 1.0x, sampel bergerak asli max 2.0 detik per klip).
    - **Sinkronisasi Durasi Total (MUTLAK WAJIB 100% SAMA DENGAN TRANSKRIP)**: Total akumulasi durasi klip visual di array `visuals` **WAJIB SAMA PERSIS DENGAN DURASI PADA TRANSKRIP JSON**!
    - **Contoh**: Jika di Transkrip JSON durasi `visual_only` adalah **10.0 detik** (`start: 0, end: 10, duration: 10`), kamu WAJIB mengeluarkan **5 klip `video_cut` x 2.0s = 10.0s total visual**! Jika durasinya 8.0s, keluarkan **4 klip `video_cut` x 2.0s = 8.0s total visual**! DILARANG KERAS hanya membuat 2 klip (4s) atau 3 klip (6s) jika transkripnya berdurasi 10.0s!
+5. 🔄 **Aturan Koeksistensi Footage (Footage BUKAN Milik Eksklusif VISUAL_ONLY)**:
+   - Rentang waktu adegan `Range: MM:SS - MM:SS` yang tertulis pada tag `[VISUAL_ONLY]` adalah batas referensi adegan agar segmen hening tersebut tidak melenceng keluar ke babak cerita lain.
+   - **RENTANG INI BUKAN ZONA EKSKLUSIF YANG TERLARANG BAGI NARATOR!**
+   - Narator yang berbicara sebelum atau sesudah tag `[VISUAL_ONLY]` BERHAK PENUH mengambil klip dari rentang timestamp ini jika narator sedang membahas adegan/karakter tersebut.
+   - Editor/AI dilarang keras "mengunci" footage tersebut hanya untuk `visual_only`. Visual A boleh dan harus muncul saat narator bicara A, dan dilanjutkan aksinya saat `visual_only` tiba. Keduanya saling melengkapi dan menyatu mulus!
 
 ==================================================
 🎵 ATURAN BGM TIMELINE BLOCK-LEVEL (BUKAN PER KALIMAT):

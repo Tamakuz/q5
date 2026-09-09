@@ -13,13 +13,13 @@ const DEFAULT_SETTINGS: RenderSettings = {
   logoOpacity: 0.6,
   logoMargin: 40,
   logoScale: 60,
-  introEnabled: false,
+  introEnabled: true,
   introTitleText: 'UNDER THE DOME',
   introSubtitleText: 'ALUR CERITA FILM',
   introStylePreset: 'cinematic_gold',
   introDuration: 6.0,
   introImpactTimestamp: 0.48,
-  introAudioPath: 'assets/Denied Access - Density & Time.mp3',
+  introAudioPath: 'assets/The Final Horizon.mp3',
 };
 
 const AlurfilmRenderStep: React.FC = () => {
@@ -243,7 +243,7 @@ const AlurfilmRenderStep: React.FC = () => {
       const res = await api.renderAlurfilmIntroTest({
         titleText: settings.introTitleText || 'UNDER THE DOME',
         subtitleText: settings.introSubtitleText || 'ALUR CERITA FILM',
-        audioPath: settings.introAudioPath || 'assets/Denied Access - Density & Time.mp3',
+        audioPath: settings.introAudioPath || 'assets/The Final Horizon.mp3',
         impactTimestamp: settings.introImpactTimestamp ?? 0.48,
         duration: settings.introDuration ?? 6.0,
         stylePreset: (settings.introStylePreset as any) || 'cinematic_gold',
@@ -375,10 +375,21 @@ const AlurfilmRenderStep: React.FC = () => {
 
       setRenderingPart(null);
 
-      // Step 2: Concat all rendered parts and overlay BGM & Logo & Intro
-      setRenderStageStep(3);
-      if (settings.introEnabled) {
-        addLog(`[STEP 3/4] 🎬 Generating Cinematic Title Intro: "${settings.introTitleText || 'UNDER THE DOME'}"...`, 'step');
+      // Step 2: Ensure intro is ready if introEnabled !== false
+      let finalIntroPath = introResult?.filePath || renderedOutputs[0];
+      if (settings.introEnabled !== false) {
+        setRenderStageStep(3);
+        if (!finalIntroPath) {
+          addLog(`[STEP 3/4] 🎬 Generating Cinematic Title Intro: "${settings.introTitleText || 'UNDER THE DOME'}"...`, 'step');
+          const introRes = await handleRenderIntro();
+          if (introRes.success && introRes.filePath) {
+            finalIntroPath = introRes.filePath;
+          } else {
+            addLog(`⚠️ Intro render failed (${introRes.error}), proceeding with concat...`, 'warn');
+          }
+        } else {
+          addLog(`[STEP 3/4] 🎬 Using existing Cinematic Title Intro: ${finalIntroPath.split(/[\/\\]/).pop()}`, 'step');
+        }
       } else {
         addLog('[STEP 3/4] ⏩ Intro title skipped (disabled in settings).', 'info');
       }
@@ -388,7 +399,10 @@ const AlurfilmRenderStep: React.FC = () => {
       setFullRenderProgress(`Merging all ${allParts.length} parts with BGM & Logo...`);
 
       if (api.concatAlurfilmFinalVideo) {
-        const res = await api.concatAlurfilmFinalVideo(allParts, settings);
+        const res = await api.concatAlurfilmFinalVideo(allParts, {
+          ...settings,
+          introFilePath: finalIntroPath,
+        });
 
         if (res.error) {
           setFullRenderError(res.error);

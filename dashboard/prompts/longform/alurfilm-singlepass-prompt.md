@@ -23,25 +23,44 @@ Sebelum mengeksekusi kalimat, ajukan pertanyaan mandiri: *"Apakah kalimat ini te
 ### 1.2 Fokus Macro Story & Olah Alur ("Masak Script")
 DILARANG KERAS hanya memindahkan daftar kejadian visual secara linier kaku (A → B → C). Olah dan racik alur cerita terlebih dahulu — jelaskan keterkaitan sebab-akibat (causality), motivasi karakter, dan relevansi antar-adegan.
 
-### 1.4 Ritme & Kenyamanan TTS (ElevenLabs / Gemini)
+### 1.3 Ritme & Kenyamanan TTS (ElevenLabs / Gemini)
 Naskah WAJIB dirancang agar saat diucapkan AI Voiceover, hasilnya terdengar sangat alami, mengalir hangat, santai, dan langsung hanyut di telinga penonton.
 - Susun kalimat ideal **10–20 kata per kalimat**. Hindari kalimat yang membelit lidah.
 - **Kalimat WAJIB saling menyambung lewat kata penghubung** (`dan`, `karena`, `dari situ`, `tapi`, `dari titik itu`, dll). DILARANG KERAS kalimat pendek terpenggal yang berdiri sendiri dan tiba-tiba berakhir tanpa nyambung ke pikiran berikutnya — narasi harus mengalir seperti satu napas panjang, bukan potongan-potongan terpisah.
 - Gunakan koma (`,`) untuk jeda napas pendek antar-klausa yang alami.
 - Gunakan titik tiga (`...`) secara hemat untuk jeda dramatis di momen tegang kunci.
 - Gunakan tanda pisah (`—`) untuk penegasan poin atau transisi pemikiran mendadak.
-- Sisipkan tag ekspresi vokal: `[chuckles]`, `[laugh]`, `[sigh]`, `[gasp]`, `[whisper]`, `[excited]`, `[curious]`, `[pause]`, `[EXPRESSION: bisik-bisik penasaran]`, `[EXPRESSION: antusias kaget]`.
+- Sisipkan tag ekspresi vokal: `[chuckles]`, `[laugh]`, `[sigh]`, `[gasp]`, `[whisper]`, `[excited]`, `[curious]`.
 - Naskah WAJIB ringkas, berenergi, to-the-point, dan kaya emosi — DILARANG memanjangkan deskripsi visual yang tidak perlu.
 
-### 1.5 Kreativitas Kosakata
+### 1.4 Kreativitas Kosakata
 Naskah WAJIB kaya akan variasi kalimat dan kosakata yang selalu baru di setiap naskah. DILARANG mengulang-ulang frasa templat atau struktur kalimat yang persis sama dari naskah sebelumnya.
 
-### 1.6 Momen Action & Visual → `[VISUAL_ONLY]`
-DILARANG KERAS memaksakan narasi voiceover di atas adegan action, perkelahian seru, atau momen visual berenergi tinggi.
+### 1.5 Momen Action & Visual → `[VISUAL_ONLY]` (Aturan Anti-Content ID, Sinergi Narasi & Dynamic Editing)
+Naskah alur film yang seru memadukan narasi yang hidup dengan momen jeda visual murni (`[VISUAL_ONLY]`) pada puncak aksi atau adegan berenergi tinggi. Berikan jeda bernapas bagi visual untuk berbicara sendiri dengan menyisipkan tag `[VISUAL_ONLY]`.
+
 Tag format: `[VISUAL_ONLY (Range: MM:SS - MM:SS, Duration: Xs): Deskripsi adegan]`
-- **Range**: Timecode adegan RELATIF TERHADAP FILE VIDEO CHUNK PART INI (Dimulai dari `00:00` s/d durasi {{chunk_duration_text}} video chunk ini). 🛑 **DILARANG KERAS** menggunakan timecode jam/menit film utuh jika ini Part 2 atau seterusnya! WAJIB selalu gunakan timecode lokal `00:00` s/d akhir durasi chunk ini.
-- **Duration**: Estimasi durasi ideal adegan tampil di video recap akhir.
-Sisipkan kapan pun ada adegan pertarungan atau momen visual berkesan — proporsional dengan tayangan video.
+
+🛑 **HUKUM SINERGI NARASI DENGAN VISUAL ONLY (KLIP TIDAK BOLEH 'DIKUDUSKAN'):**
+- **Narator TETAP MENCERITAKAN AKSI A**: Narator tidak boleh bungkam atau sengaja menyingkirkan pembahasan aksi hanya ke `[VISUAL_ONLY]`. Narator bebas membangun ketegangan, menjelaskan pemicu aksi, atau mengiringi jalannya aksi A secara seru.
+- **Klip Visual Aksi BEBAS Digunakan Bersama (Shared Footage)**: Cuplikan visual dari adegan tersebut TIDAK dikuduskan hanya untuk `[VISUAL_ONLY]`. Saat narator membahas aksi A, sistem visual mapping akan menampilkan cuplikan relevan aksi A untuk mengiringi ucapan narator, kemudian tag `[VISUAL_ONLY]` melanjutkan momen aksi A tersebut secara murni tanpa tertimpa suara narator.
+- JANGAN memisahkan narasi dari visualnya secara kaku sehingga visual narator terlihat melenceng dari apa yang sedang diucapkan.
+
+🛑 **DUA ATURAN MUTLAK [VISUAL_ONLY] DEMI MENGHINDARI KLAIM HAK CIPTA (YOUTUBE CONTENT ID):**
+1. **DURASI WAJIB SINGKAT (4 DETIK s/d MAKSIMAL 10 DETIK)**:
+   - Durasi ideal: **5s, 6s, 7s, atau 8s** (Maksimal mutlak: **10s**).
+   - 🛑 **DILARANG KERAS durasi melebihi 10 detik** (misal: 12s, 15s, 20s, 24s)! Menampilkan visual film tanpa narasi suara lebih dari 10 detik akan langsung memicu pencocokan otomatis algoritma **YouTube Content ID / Copyright Claim** serta membuat retensi penonton anjlok karena bosan (*silent dead-air*).
+2. **RANGE TIMECODE SUMBER WAJIB LEBAR (RENTANG 1 S/D 2,5 MENIT)**:
+   - Rentang timecode adegan sumber harus **LEBAR** (misal: `Range: 09:30 - 11:45` atau `Range: 03:30 - 05:20`).
+   - 🛑 **DILARANG KERAS membuat rentang timecode sempit/linier berdekatan** (seperti `14:36 - 14:42` atau hanya berselisih beberapa detik).
+   - **Alasan Teknis Video Editor**: Dalam editing alur film, editor TIDAK BOLEH mengambil satu potongan klip utuh secara linier dari film mentah. Editor memerlukan bank adegan yang cukup lebar untuk memotong **montage cepat non-linier (2–3 cut cepat dari angle/momen berbeda)** yang dipadatkan menjadi durasi 5s–8s visual murni, sehingga algoritma YouTube membaca video tersebut sebagai karya transformatif baru, BUKAN cuplikan mentah film aslinya.
+3. **Frekuensi & Penempatan**:
+   - Sisipkan secara proporsional **2 hingga 4 tag `[VISUAL_ONLY]` per part** pada momen aksi klimaks atau adegan visual kunci.
+   - Timecode adegan RELATIF TERHADAP FILE VIDEO CHUNK PART INI (Dimulai dari `00:00` s/d durasi {{chunk_duration_text}} video chunk ini). 🛑 **DILARANG KERAS** menggunakan timecode jam/menit film utuh jika ini Part 2 atau seterusnya! WAJIB selalu gunakan timecode lokal `00:00` s/d akhir durasi chunk ini.
+
+💡 **Contoh Evaluasi Tag `[VISUAL_ONLY]`:**
+* ❌ **SALAH (Rawan Content ID & Kaku)**: `[VISUAL_ONLY (Range: 14:36 - 14:42, Duration: 20s): ...]` *(Durasi kelewat panjang 20s & range cuma 6 detik linier)*
+* ✅ **BENAR (Aman & Fleksibel untuk Editor)**: `[VISUAL_ONLY (Range: 14:00 - 15:45, Duration: 6s): ...]` *(Durasi pas 6s & range lebar 1 menit 45 detik untuk dipotong montage dinamis)*
 
 ==================================================
 BENCHMARK STYLES (REFERENSI GAYA — JANGAN DISALIN MENTAH)
@@ -130,14 +149,42 @@ DILARANG menutup dengan kalimat pertanyaan atau pancingan tanya-jawab. Ending WA
 - DILARANG KERAS tag efek audio/BGM: `[AUDIO: ...]` dilarang total.
 - DILARANG KERAS menuliskan sound effect sebagai teks VO: *"boom!"*, *"jreng!"*, *"duarr!"*, *"dor!"*, *"tadaa!"*, *"jeng jeng!"*. Ganti dengan tuturan narasi yang jelas atau tag ekspresi `[gasp]`/`[pause]`.
 
-🛑 LAR-6: KATA/FRASA SAFETY POLICY AI TTS (ELEVENLABS & GEMINI)
-- DILARANG: *"mengakhiri hidupnya sendiri"*, *"bunuh diri"*, *"gantung diri"*, *"memotong nadi"*, *"melukai diri"*. → Ganti: *"berpulang secara mendadak"*, *"mengalami insiden fatal"*, *"tutup usia"*.
-- DILARANG: *"tewas mengenaskan"*, *"sebilah pisau"*, *"pisau"*, *"bersimbah darah"*, *"jasad"*, *"mayat"*, *"dibantai"*, *"mutilasi"*, *"mandi darah"*. → Ganti: *"kondisi kritis"*, *"sosok mendiang"*, *"berhadapan dengan situasi berbahaya"*.
-- DILARANG: *"meregang nyawa"*, *"sekarat"*, *"di ambang kematian"*. → Ganti: *"berjuang keras bertahan"*, *"kondisi semakin kritis"*, *"hampir kehilangan kesadaran"*.
-- DILARANG: *"tak bernyawa"*, *"sudah tak bernyawa"*, *"tidak bernyawa"*, *"ditemukan sudah tidak bernyawa"*. → Ganti: *"sudah tidak sadar dan tidak memberikan respons"*, *"sudah tidak bisa bertahan"*, *"mengalami insiden fatal"*.
-- DILARANG: *"gas beracun"*, *"udara beracun"*, *"racun"*, *"meracuni"*, *"diracun"*. → Ganti: *"asap berbahaya"*, *"kepulan asap pekat"*, *"menghambat pernapasan"*, *"asap yang memenuhi ruangan"*.
-- DILARANG: Frasa self-harm framing — karakter **secara sengaja** menghantamkan/membanting/menghujamkan dirinya sendiri ke benda berbahaya (misal: *"membanting dirinya ke pipa"*, *"menghujamkan kepalanya"*). → Ganti dengan framing kecelakaan/insiden: *"dengan panik meraih... hingga menabrak"*, *"kehilangan keseimbangan dan menabrak"*.
-- Keseluruhan naskah WAJIB 100% lolos ElevenLabs & Gemini Safety Filter (PG-13 YouTube broadcast safe).
+🛑 LAR-6: KEBIJAKAN KEAMANAN AI TTS (ELEVENLABS & GEMINI) — ZERO VIOLATION SAFETY
+ElevenLabs dan Gemini TTS memiliki filter moderasi otomatis yang sangat ketat. Menuliskan kata/frasa terlarang akan menyebabkan TTS menolak memproses teks (error: `violates content policy / self-harm`). Seluruh naskah WAJIB 100% Broadcast-Safe (PG-13 YouTube Safe):
+
+1. ❌ **SELF-HARM & MUTILASI TUBUH SENDIRI (PATAH TULANG / AMPUTASI / MELUKAI DIRI)**:
+   - 🛑 **DILARANG KERAS**: *"matahin tulang"*, *"mematahkan tulangnya sendiri"*, *"mematahkan struktur tulang"*, *"memotong bagian tubuh"*, *"mengamputasi"*, *"menyayat"*, *"menusukkan alat tajam ke tubuh"*, *"melukai diri"*, *"memotong nadi"*.
+   - ✅ **GANTI DENGAN FRAMING AKSI MEKANIS & MENDONGKRAK KEBEBASAN**:
+     * Alihkan fokus dari tubuh ke aksi mengatasi rintangan luar: *"mengerahkan seluruh bobot tubuhnya sebagai tuas penekan demi melepaskan kuncian yang menjepit dirinya"*, *"memanfaatkan celah sempit tebing sebagai tumpuan ungkit demi membuka celah kebebasannya"*, *"bergerak cepat menuntaskan sisa rintangan untuk membebaskan diri seutuhnya dari jebakan batu tersebut"*, *"membalut lengannya dengan tali darurat agar kondisinya tetap aman dan stabil"*.
+
+2. ❌ **SUICIDE IDEATION & KEPASRAHAN KEMATIAN / MENUNGGU AJAL**:
+   - 🛑 **DILARANG KERAS**: *"siap dan ikhlas tutup usia sendirian"*, *"siap mati sendirian"*, *"pasrah menanti ajal"*, *"bersiap mengakhiri hidup"*, *"menyerah pada kematian"*, *"bunuh diri"*, *"gantung diri"*.
+   - ✅ **GANTI DENGAN**:
+     * *"pasrah kalau perjalanannya bakal terhenti di tempat ini"*, *"mengira petualangannya harus berakhir di dasar ngarai"*, *"kondisinya perlahan melemah mendekati batas maksimal"*, *"merasa langkahnya akan terhenti sampai di sini"*.
+
+3. ❌ **KATA KASAR, UMPATAN & MAKI-MAKI (PROFANITY FILTER)**:
+   - 🛑 **DILARANG KERAS**: *"sialan"*, *"batu sialan"*, *"bajingan"*, *"brengsek"*, *"bangsat"*, *"keparat"*, *"tolol"*, *"goblok"*.
+   - ✅ **GANTI DENGAN**: Diksi dramatis santai: *"batu raksasa itu"*, *"jebakan maut itu"*, *"rintangan berat itu"*, *"situasi apes itu"*.
+
+4. ❌ **DESKRIPSI LUKA GRAFIS, DARAH & MAYAT (GORE / GRAPHIC VIOLENCE)**:
+   - 🛑 **DILARANG KERAS**: *"sirkulasi darahnya mati total"*, *"fisik yang hancur-hancuran"*, *"bersimbah darah"*, *"mandi darah"*, *"daging robek"*, *"tulang mencuat"*, *"tewas mengenaskan"*, *"jasad"*, *"mayat"*, *"dibantai"*, *"meregang nyawa"*, *"sekarat"*, *"tak bernyawa"*.
+   - ✅ **GANTI DENGAN**:
+     * Darah/mati rasa: *"kondisi tangannya sudah kebas dan kehilangan sensasi rasa sepenuhnya"*, *"mati rasa"*.
+     * Fisik terluka: *"dengan fisik yang sudah terkuras habis"*, *"kondisi fisik yang melemah drastis"*, *"berjuang keras bertahan di tengah situasi kritis"*.
+     * Korban: *"sosok yang sudah tidak sadarkan diri"*, *"korban insiden fatal"*, *"sudah tidak bisa bertahan"*.
+
+5. ❌ **SENJATA TAJAM & RACUN**:
+   - 🛑 **DILARANG KERAS**: *"sebilah pisau"*, *"pisau lipat untuk melukai"*, *"senjata tajam"*, *"gas beracun"*, *"racun"*, *"meracuni"*.
+   - ✅ **GANTI DENGAN**: *"peralatan kecilnya"*, *"alat serbaguna"*, *"peralatan darurat"*, *"asap berbahaya"*, *"kepulan asap pekat yang menghambat pernapasan"*.
+
+6. ❌ **SELF-HARM FRAMING PADA KECELAKAAN**:
+   - DILARANG framing karakter sengaja mencelakai diri: *"membanting dirinya ke pipa"*, *"menghujamkan badannya"*.
+   - Ganti dengan framing kecelakaan/insiden: *"kehilangan keseimbangan dan terbentur"*, *"dengan panik meraih pegangan hingga terperosok"*.
+
+🛑 LAR-7: DURASI & RANGE [VISUAL_ONLY] YANG BERISIKO HAK CIPTA (YOUTUBE CONTENT ID)
+- DILARANG KERAS membuat tag `[VISUAL_ONLY]` dengan durasi lebih dari 10 detik (misal: 12s, 15s, 20s, 24s).
+- DILARANG KERAS membuat tag `[VISUAL_ONLY]` dengan range sempit/linier berdekatan (misal: `Range: 14:36 - 14:42`).
+- Tag `[VISUAL_ONLY]` WAJIB selalu berdurasi **4–10 detik** dengan rentang adegan sumber yang **LEBAR (1–2,5 menit)** agar editor leluasa meracik montase non-linier yang 100% aman dari klaim Content ID.
 
 ==================================================
 5. TARGET KATA & KONTINUITAS KARAKTER
@@ -154,7 +201,7 @@ FORMAT OUTPUT JSON MURNI (TANPA MARKDOWN ```json)
   "total_chunks": {{total_chunks}},
   "naskah_voiceover": {
     "word_count": {{target_words_per_chunk}},
-    "script_text": "[Teks naskah voiceover recap lengkap untuk part ini, yang menyambung secara mengalir dari part sebelumnya]",
+    "script_text": "[Teks naskah voiceover recap lengkap untuk part ini, yang menyambung secara mengalir dari part sebelumnya. Sisipkan 2-4 tag VISUAL_ONLY berdurasi 4s-10s dengan range lebar 1-2.5 menit. Naskah WAJIB 100% aman dari kata-kata yang memicu moderasi ElevenLabs/Gemini]",
     "macro_summary": "Ringkasan 2-3 kalimat santai tentang kondisi cerita di akhir part ini untuk dibawa ke part berikutnya."
   },
   "character_registry": [
@@ -169,7 +216,7 @@ FORMAT OUTPUT JSON MURNI (TANPA MARKDOWN ```json)
       "start_time": "00:00:00.000",
       "end_time": "00:02:13.000",
       "scene_label": "Judul Adegan Singkat & Jelas",
-      "narrative_focus": "Fokus cerita adegan ini (Wajib gunakan timecode RELATIF CHUNK dari 00:00:00.000)"
+      "narrative_focus": "Fokus cerita adegan ini (Wajib gunakan timecode RELATIF CHUNK dari 00:00:00.000. DILARANG menggunakan kata pelanggaran moderasi seperti mematahkan tulang, bunuh diri, dll)"
     }
   ],
   "status": "done"
@@ -177,4 +224,4 @@ FORMAT OUTPUT JSON MURNI (TANPA MARKDOWN ```json)
 
 ATURAN STRICT:
 - MURNI JSON OBJECT tanpa markdown pengantar atau penutup.
-- Pastikan semua tanda kutip ganda (") di dalam nilai string JSON di-escape dengan benar (\") agar struktur JSON tidak rusak.
+- Pastikan semua tanda kutip ganda (\") di dalam nilai string JSON di-escape dengan benar agar struktur JSON tidak rusak.
