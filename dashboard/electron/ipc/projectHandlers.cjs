@@ -12,6 +12,9 @@ function register(ipcMain, { paths: p, media, ffmpeg, aiClient, loadPrompt, getM
 
   // ─── Reset project workspace ───────────────────────────
   ipcMain.handle('reset-project', async (_event, mode = 'longform') => {
+    if (mode === 'shorts') {
+      return { success: true, content_id: 'WV-SHORTS-DRAFT' };
+    }
     const isLongform = mode === 'longform';
     try {
       const outputDir = path.join(p.PROJECT_ROOT, 'output');

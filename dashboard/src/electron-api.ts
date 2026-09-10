@@ -392,6 +392,68 @@ export interface ElectronAPI {
   renderVideo: (mapping: object, videoPath: string, audioPath?: string) => Promise<RenderResult | { error: string }>;
   onRenderProgress: (callback: (data: RenderProgress) => void) => () => void;
   generateYoutubeTitles: (transcriptText: string) => Promise<YoutubeTitleResult>;
+
+  // Shorts Linear Video Merger Helpers
+  mergeShortsVideos?: (
+    part1Path: string,
+    part2Path: string,
+    outputName?: string
+  ) => Promise<{
+    success: boolean;
+    outputPath?: string;
+    outputUrl?: string;
+    outputFilename?: string;
+    duration?: number;
+    width?: number;
+    height?: number;
+    fileSizeBytes?: number;
+    method?: string;
+    error?: string;
+  }>;
+  onMergeShortsProgress?: (
+    callback: (data: { stage: string; progress: number; message: string }) => void
+  ) => () => void;
+  openInFolder?: (filePath: string) => Promise<boolean>;
+
+  // Shorts Prompt & Script AI Director Helpers
+  generateShortsPrompt?: (opts?: {
+    itemTitle?: string;
+    customInstructions?: string;
+    model?: string;
+  }) => Promise<{ success: boolean; data?: ShortsCraftPromptData; error?: string }>;
+  getLatestShortsPrompt?: () => Promise<{ success: boolean; data?: ShortsCraftPromptData; error?: string }>;
+  saveShortsPrompt?: (data: ShortsCraftPromptData) => Promise<{ success: boolean; error?: string }>;
+}
+
+export interface ShortsVideoShot {
+  shot_number: number;
+  timestamp: string;
+  action: string;
+  camera_movement: string;
+  lighting_environment: string;
+}
+
+export interface ShortsPartData {
+  title: string;
+  duration_seconds: number;
+  video_prompts: ShortsVideoShot[];
+  combined_video_prompt: string;
+  voiceover: {
+    language: string;
+    hook_first_2s?: string;
+    full_script: string;
+    loop_transition_phrase?: string;
+    word_count?: number;
+    pacing?: string;
+  };
+}
+
+export interface ShortsCraftPromptData {
+  project_name: string;
+  project_category: string;
+  concept_hook: string;
+  part1: ShortsPartData;
+  part2: ShortsPartData;
 }
 
 export interface WatermarkTextConfig {

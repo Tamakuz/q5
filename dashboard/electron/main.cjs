@@ -64,6 +64,7 @@ require('./ipc/fileHandlers.cjs').register(ipcMain, shared);
 require('./ipc/alurfilmHandlers.cjs').register(ipcMain, shared);
 require('./ipc/renderHandlers.cjs').register(ipcMain, shared);
 require('./ipc/projectHandlers.cjs').register(ipcMain, shared);
+require('./ipc/shortsHandlers.cjs').register(ipcMain, shared);
 
 // ─── Move aiClient.cjs → services/ ──────────────────────
 // aiClient is at ./aiClient.cjs (legacy location). When

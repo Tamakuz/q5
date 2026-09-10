@@ -15,6 +15,8 @@ import AlurfilmMappingStep from './components/longform/AlurfilmMappingStep';
 import AlurfilmRenderStep from './components/longform/AlurfilmRenderStep';
 import AlurfilmMetadataStep from './components/longform/AlurfilmMetadataStep';
 import AlurfilmTestingHub from './components/longform/testing/AlurfilmTestingHub';
+import ShortsMergerStep from './components/shorts/ShortsMergerStep';
+import ShortsPromptStep from './components/shorts/ShortsPromptStep';
 
 type Status = 'ready' | 'rendering' | 'error';
 
@@ -68,13 +70,29 @@ const App: React.FC = () => {
           activeStep={activeStep}
           onStepChange={setActiveStep}
           contentMode={contentMode}
-          onModeChange={setContentMode}
+          onModeChange={(mode) => {
+            setContentMode(mode);
+            if (mode === 'shorts') {
+              setActiveStep('analyze');
+            } else {
+              setActiveStep('source');
+            }
+          }}
           longformTab={longformTab}
           onLongformTabChange={setLongformTab}
         />
 
         <main className="flex-1 p-6 overflow-auto bg-gradient-to-br from-gray-950 via-gray-950 to-gray-900">
-          {longformTab === 'testing' ? (
+          {contentMode === 'shorts' ? (
+            activeStep === 'render' ? (
+              <ShortsMergerStep key="shorts-merger-step" />
+            ) : (
+              <ShortsPromptStep
+                key="shorts-prompt-step"
+                onNavigateToMerger={() => setActiveStep('render')}
+              />
+            )
+          ) : longformTab === 'testing' ? (
             <AlurfilmTestingHub key="longform-testing-hub" />
           ) : activeStep === 'source' ? (
             <AlurfilmSplitterStep key={`longform-source-${longformId}-${longformResetKey}`} />

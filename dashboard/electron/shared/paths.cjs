@@ -11,6 +11,8 @@ const ALURFILM_COMPRESS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'comp
 const ALURFILM_AUDIO_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'audio');
 const ALURFILM_TRANSCRIPTS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'transcripts');
 const ALURFILM_MAPPINGS_DIR = path.join(PROJECT_ROOT, 'input', 'alurfilm', 'mappings');
+const SHORTS_INPUT_DIR = path.join(PROJECT_ROOT, 'input', 'shorts');
+const SHORTS_OUTPUT_DIR = path.join(PROJECT_ROOT, 'output', 'shorts');
 const PROMPTS_DIR = path.join(PROJECT_ROOT, 'dashboard', 'prompts');
 const tsxBinPath = path.join(PROJECT_ROOT, 'node_modules', '.bin', 'tsx');
 
@@ -24,14 +26,19 @@ const tsxBinPath = path.join(PROJECT_ROOT, 'node_modules', '.bin', 'tsx');
   ALURFILM_AUDIO_DIR,
   ALURFILM_TRANSCRIPTS_DIR,
   ALURFILM_MAPPINGS_DIR,
+  SHORTS_INPUT_DIR,
+  SHORTS_OUTPUT_DIR,
 ].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
 /**
- * Generate or retrieve content ID for Alur Film longform mode
+ * Generate or retrieve content ID for Alur Film longform mode or Shorts
  */
-function getOrGenerateContentId() {
+function getOrGenerateContentId(mode = 'longform') {
+  if (mode === 'shorts') {
+    return 'WV-SHORTS-DRAFT';
+  }
   const mappingFile = path.join(PROJECT_ROOT, 'input', 'longform_mapping.json');
 
   const dir = path.dirname(mappingFile);
@@ -82,6 +89,8 @@ module.exports = {
   ALURFILM_AUDIO_DIR,
   ALURFILM_TRANSCRIPTS_DIR,
   ALURFILM_MAPPINGS_DIR,
+  SHORTS_INPUT_DIR,
+  SHORTS_OUTPUT_DIR,
   PROMPTS_DIR,
   tsxBinPath,
   getOrGenerateContentId,

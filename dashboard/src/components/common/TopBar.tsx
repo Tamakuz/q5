@@ -73,8 +73,14 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
           </span>
 
           {/* Mode Indicator Badge */}
-          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border bg-purple-950/80 text-purple-300 border-purple-800/80">
-            🍿 Alur Film Mode
+          <span
+            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+              contentMode === 'shorts'
+                ? 'bg-amber-950/80 text-amber-300 border-amber-800/80'
+                : 'bg-purple-950/80 text-purple-300 border-purple-800/80'
+            }`}
+          >
+            {contentMode === 'shorts' ? '⚡ Shorts Mode' : '🍿 Alur Film Mode'}
           </span>
 
           {/* Copyable Content ID */}
@@ -82,7 +88,11 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
             <button
               onClick={handleCopyId}
               title="Click to copy Content ID"
-              className="px-2 py-0.5 rounded-md border text-[10px] font-mono font-semibold transition-all flex items-center gap-1.5 bg-purple-950/60 hover:bg-purple-900/80 border-purple-700/50 text-purple-300"
+              className={`px-2 py-0.5 rounded-md border text-[10px] font-mono font-semibold transition-all flex items-center gap-1.5 ${
+                contentMode === 'shorts'
+                  ? 'bg-amber-950/60 hover:bg-amber-900/80 border-amber-700/50 text-amber-300'
+                  : 'bg-purple-950/60 hover:bg-purple-900/80 border-purple-700/50 text-purple-300'
+              }`}
             >
               <span>🆔</span>
               <span className="font-bold">{contentId}</span>
@@ -93,16 +103,18 @@ const TopBar: React.FC<TopBarProps> = ({ onResetProject, contentMode }) => {
           )}
         </div>
 
-        {/* Reset Workspace Action */}
-        <button
-          onClick={() => setShowConfirm(true)}
-          className="px-3 py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/50 rounded-lg text-xs font-semibold shadow-md transition-all flex items-center gap-1.5"
-        >
-          <span>🔄</span>
-          <span>
-            New Content / Reset ID (Alur Film)
-          </span>
-        </button>
+        {/* Reset Workspace Action (Alur Film only) */}
+        {contentMode === 'longform' && (
+          <button
+            onClick={() => setShowConfirm(true)}
+            className="px-3 py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/50 rounded-lg text-xs font-semibold shadow-md transition-all flex items-center gap-1.5"
+          >
+            <span>🔄</span>
+            <span>
+              New Content / Reset ID (Alur Film)
+            </span>
+          </button>
+        )}
       </header>
 
       {/* Glassmorphic Reset Modal */}
